@@ -16,6 +16,10 @@ public sealed class AppSettings
     public string Username { get; set; } = "root";
     public string EncryptedPassword { get; set; } = string.Empty;
     public bool RememberPassword { get; set; } = true;
+    // Endpoint-bound SSH host-key pins. Values use SSH.NET's SHA-256 format:
+    // SHA256:<non-padded-base64-fingerprint>.
+    public Dictionary<string, string> TrustedSshHostFingerprints { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
     public bool StartWithWindows { get; set; }
     public string Theme { get; set; } = "System";
     public int RefreshIntervalSeconds { get; set; } = 30;

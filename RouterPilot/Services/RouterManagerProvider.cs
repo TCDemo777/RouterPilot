@@ -17,6 +17,8 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         int AdGuardPort);
 
     private readonly SettingsService _settingsService;
+    private readonly ISshHostKeyTrustService _hostKeyTrustService;
+    private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly object _disposeLock = new();
     private RouterManager? _manager;
@@ -26,9 +28,14 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
     private Task? _disposeTask;
     private volatile bool _disposed;
 
-    public RouterManagerProvider(SettingsService settingsService)
+    public RouterManagerProvider(
+        SettingsService settingsService,
+        ISshHostKeyTrustService hostKeyTrustService,
+        AdGuardTransportSecurityService adGuardTransportSecurity)
     {
         _settingsService = settingsService;
+        _hostKeyTrustService = hostKeyTrustService;
+        _adGuardTransportSecurity = adGuardTransportSecurity;
     }
 
     public async Task<RouterManager> GetRouterManagerAsync(
@@ -78,7 +85,11 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
             _manager = new RouterManager(
                 settings.RouterHost,
                 settings.Username,
-                password);
+                password,
+                _hostKeyTrustService,
+                settings.AdGuardPort,
+                settings.UseAdGuardHttps,
+                _adGuardTransportSecurity);
             _signature = signature;
             _managerInvalidationVersion = invalidationVersion;
             return _manager;

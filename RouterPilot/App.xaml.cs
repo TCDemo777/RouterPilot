@@ -55,6 +55,9 @@ namespace RouterPilot
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<ISshHostKeyTrustService,
+                SshHostKeyTrustService>();
+            serviceCollection.AddSingleton<AdGuardTransportSecurityService>();
             serviceCollection.AddSingleton<IToastNotificationService, WindowsToastNotificationService>();
             serviceCollection.AddSingleton<IRouterManagerProvider,
                 RouterManagerProvider>();

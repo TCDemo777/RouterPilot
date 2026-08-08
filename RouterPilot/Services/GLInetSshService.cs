@@ -11,6 +11,7 @@ namespace RouterPilot.Services
         private readonly string _ip;
         private readonly string _username;
         private readonly string _password;
+        private readonly ISshHostKeyTrustService _hostKeyTrustService;
         private readonly SemaphoreSlim _commandGate = new(1, 1);
         private SshClient? _client;
         private bool _disposed;
@@ -18,11 +19,13 @@ namespace RouterPilot.Services
         public GLInetSshService(
             string ip,
             string username,
-            string password)
+            string password,
+            ISshHostKeyTrustService hostKeyTrustService)
         {
             _ip = ip;
             _username = username;
             _password = password;
+            _hostKeyTrustService = hostKeyTrustService;
         }
 
         public Task<string> RunCommandAsync(string command)
@@ -118,6 +121,8 @@ namespace RouterPilot.Services
             _client.ConnectionInfo.Timeout =
                 TimeSpan.FromSeconds(5);
 
+            _client.HostKeyReceived += OnHostKeyReceived;
+
             _client.Connect();
 
             if (!_client.IsConnected)
@@ -125,6 +130,20 @@ namespace RouterPilot.Services
                 throw new SshConnectionException(
                     "SSH connection failed.");
             }
+        }
+
+        private void OnHostKeyReceived(
+            object? sender,
+            HostKeyEventArgs eventArgs)
+        {
+            SshHostKeyTrustDecision decision =
+                _hostKeyTrustService.Evaluate(
+                    _ip,
+                    eventArgs.FingerPrintSHA256);
+
+            eventArgs.CanTrust = decision is
+                SshHostKeyTrustDecision.Trusted or
+                SshHostKeyTrustDecision.TrustedAfterFirstUse;
         }
 
         private void ResetClient()

@@ -23,6 +23,7 @@ namespace RouterPilot.Services
         private readonly CookieContainer _adGuardCookies;
         private readonly HttpClient _adGuardClient;
         private readonly Uri _adGuardBaseUri;
+        private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
         private readonly object _adGuardCookieLock = new();
         private bool _disposed;
 
@@ -34,7 +35,11 @@ namespace RouterPilot.Services
         public RouterManager(
             string routerIp,
             string username,
-            string password)
+            string password,
+            ISshHostKeyTrustService hostKeyTrustService,
+            int adGuardPort,
+            bool useAdGuardHttps,
+            AdGuardTransportSecurityService adGuardTransportSecurity)
         {
             if (string.IsNullOrWhiteSpace(routerIp))
             {
@@ -61,11 +66,23 @@ namespace RouterPilot.Services
                 NormaliseRouterHost(
                     routerIp);
 
+            if (adGuardPort is < 1 or > 65535)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(adGuardPort),
+                    "AdGuard port must be between 1 and 65535.");
+            }
+
+            _adGuardTransportSecurity = adGuardTransportSecurity ??
+                throw new ArgumentNullException(
+                    nameof(adGuardTransportSecurity));
+
             _ssh =
                 new GLInetSshService(
                     _routerIp,
                     username,
-                    password);
+                    password,
+                    hostKeyTrustService);
 
             _sessionService =
                 new GLInetSessionService(
@@ -82,9 +99,11 @@ namespace RouterPilot.Services
                     _ssh);
 
             _adGuardBaseUri = new UriBuilder(
-                Uri.UriSchemeHttp,
+                useAdGuardHttps
+                    ? Uri.UriSchemeHttps
+                    : Uri.UriSchemeHttp,
                 _routerIp,
-                3000,
+                adGuardPort,
                 "/").Uri;
 
             _adGuardCookies = new CookieContainer();

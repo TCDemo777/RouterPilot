@@ -14,6 +14,7 @@ namespace RouterPilot.ViewModels
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly NotificationService _notificationService;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
+        public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
 
         private string _routerIp = "";
         private string _username = "";
@@ -32,6 +33,7 @@ namespace RouterPilot.ViewModels
         private bool _quietHoursEnabled;
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
+        private bool _useAdGuardHttps;
 
         public string RouterIp
         {
@@ -152,6 +154,17 @@ namespace RouterPilot.ViewModels
         public string QuietHoursStart { get => _quietHoursStart; set { if (SetProperty(ref _quietHoursStart, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursEnd { get => _quietHoursEnd; set { if (SetProperty(ref _quietHoursEnd, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
 
+        public bool IsAdGuardHttpConfigured => !_useAdGuardHttps;
+
+        public string AdGuardTransportStatus => AdGuardTransportSecurity.Status switch
+        {
+            AdGuardTransportSecurityStatus.Secure => "Secure",
+            AdGuardTransportSecurityStatus.Unencrypted => "Unencrypted",
+            _ => "Unavailable"
+        };
+
+        public string AdGuardTransportDetail => AdGuardTransportSecurity.Detail;
+
         public int StoredNotificationCount => _notificationService.Notifications.Count;
         public string MostRecentNotificationTime => _notificationService.Notifications.FirstOrDefault()?.Timestamp.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? RouterPilotStatusPresentation.NotAvailable;
         public string ActiveDeliveryChannels => !NotificationsEnabled
@@ -173,13 +186,17 @@ namespace RouterPilot.ViewModels
             SettingsService settingsService,
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailability,
+            AdGuardTransportSecurityService adGuardTransportSecurity,
             NotificationService notificationService)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
             AdGuardAvailability = adGuardAvailability;
+            AdGuardTransportSecurity = adGuardTransportSecurity;
             _notificationService = notificationService;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
+            AdGuardTransportSecurity.PropertyChanged +=
+                (_, _) => RefreshAdGuardTransportStatus();
 
             SaveCommand =
                 new RelayCommand(Save);
@@ -232,6 +249,9 @@ namespace RouterPilot.ViewModels
                     settings.DefaultPauseMinutes <= 0
                         ? 30
                         : settings.DefaultPauseMinutes;
+                _useAdGuardHttps = settings.UseAdGuardHttps;
+                OnPropertyChanged(nameof(IsAdGuardHttpConfigured));
+                RefreshAdGuardTransportStatus();
                 NotificationPreferences preferences = settings.NotificationPreferences ?? new NotificationPreferences();
                 NotificationsEnabled = preferences.Enabled;
                 NotificationCentreEnabled = preferences.NotificationCentreEnabled;
@@ -282,6 +302,10 @@ namespace RouterPilot.ViewModels
                         AdGuardPort = existing.AdGuardPort,
                         UseRouterHttps = existing.UseRouterHttps,
                         UseAdGuardHttps = existing.UseAdGuardHttps,
+                        TrustedSshHostFingerprints =
+                            existing.TrustedSshHostFingerprints ??
+                            new Dictionary<string, string>(
+                                StringComparer.OrdinalIgnoreCase),
                         RouterHost =
                             RouterConnectionOptions.NormaliseHost(RouterIp),
 
@@ -345,6 +369,12 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(MostRecentNotificationTime));
             OnPropertyChanged(nameof(ActiveDeliveryChannels));
             OnPropertyChanged(nameof(QuietHoursStatus));
+        }
+
+        private void RefreshAdGuardTransportStatus()
+        {
+            OnPropertyChanged(nameof(AdGuardTransportStatus));
+            OnPropertyChanged(nameof(AdGuardTransportDetail));
         }
 
         private bool IsQuietHoursActive() =>

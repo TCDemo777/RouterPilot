@@ -270,22 +270,65 @@ namespace RouterPilot.Services
                     cancellationToken);
             timeoutCts.CancelAfter(timeout);
 
-            using HttpResponseMessage response =
-                await _adGuardClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    timeoutCts.Token);
+            try
+            {
+                using HttpResponseMessage response =
+                    await _adGuardClient.SendAsync(
+                        request,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        timeoutCts.Token);
 
-            string content = await response.Content
-                .ReadAsStringAsync(timeoutCts.Token);
+                string content = await response.Content
+                    .ReadAsStringAsync(timeoutCts.Token);
 
-            Debug.WriteLine(
-                $"AdGuard status: {(int)response.StatusCode} " +
-                response.StatusCode);
+                _adGuardTransportSecurity.MarkAvailable(_adGuardBaseUri);
 
-            return new AdGuardHttpResponse(
-                response.StatusCode,
-                content);
+                Debug.WriteLine(
+                    $"AdGuard status: {(int)response.StatusCode} " +
+                    response.StatusCode);
+
+                return new AdGuardHttpResponse(
+                    response.StatusCode,
+                    content);
+            }
+            catch (HttpRequestException exception) when (
+                IsCertificateValidationFailure(exception))
+            {
+                _adGuardTransportSecurity.MarkUnavailable(
+                    "AdGuard Home HTTPS certificate validation failed.");
+                throw new InvalidOperationException(
+                    "AdGuard Home HTTPS certificate validation failed. " +
+                    "Verify the configured endpoint and certificate.",
+                    exception);
+            }
+            catch (HttpRequestException)
+            {
+                _adGuardTransportSecurity.MarkUnavailable(
+                    "AdGuard Home transport is unavailable.");
+                throw;
+            }
+            catch (TaskCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                _adGuardTransportSecurity.MarkUnavailable(
+                    "AdGuard Home transport timed out.");
+                throw;
+            }
+        }
+
+        private static bool IsCertificateValidationFailure(Exception exception)
+        {
+            for (Exception? current = exception;
+                 current is not null;
+                 current = current.InnerException)
+            {
+                if (current is System.Security.Authentication.AuthenticationException)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static AdGuardProtectionStatus
