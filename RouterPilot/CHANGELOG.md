@@ -1,5 +1,35 @@
 # RouterPilot Changelog
 
+# RouterPilot v1.8.1
+
+## Security
+- Removed unconditional GL.iNet HTTPS certificate acceptance and added explicit certificate trust-on-first-use with persistent SHA-256 certificate pinning.
+- Blocked changed router certificates and SSH host keys until the user explicitly trusts a replacement fingerprint.
+- Added first-use SSH host-key confirmation using SHA-256 fingerprints.
+- Updated AdGuard endpoint construction to honour the configured HTTP/HTTPS scheme and port, without HTTPS-to-HTTP downgrade.
+- Identified HTTP AdGuard compatibility mode as unencrypted, removed raw AdGuard/RPC response-body logging, and improved safe exception and diagnostic redaction.
+- Restricted update and release URLs to trusted HTTPS GitHub hosts and hardened `.gitignore` for user data, backups, diagnostics and key material.
+- Added a privacy warning before exporting unencrypted `.rpb` backup archives.
+
+## Changed
+- TLS trust prompts now show certificate subject, issuer, validity, SHA-256 fingerprint and Windows certificate-validation context.
+- Diagnostics exports minimise sensitive network and client information while retaining useful troubleshooting context.
+- Backup export clearly explains that `.rpb` files are not encrypted.
+- Security-sensitive connection trust is persisted per router endpoint.
+
+## Fixed
+- Fixed insecure TLS validation bypass and missing SSH host verification.
+- Fixed hard-coded AdGuard transport configuration and unsafe update URL acceptance.
+- Fixed sensitive raw response logging and remaining full-exception logging in hardened lifecycle paths.
+
+## Security Notes
+- Stock Flint 2 AdGuard Home compatibility may still use HTTP on port 3000. RouterPilot warns when this unencrypted mode is enabled, supports configured HTTPS, and never silently downgrades HTTPS to HTTP.
+- `.rpb` backups are not encrypted. Stored RouterPilot passwords remain DPAPI-protected, but backup archives can contain readable configuration, client, notification and schedule metadata.
+
+## Documentation
+- Added `SECURITY.md`.
+- Added `SECURITY-AUDIT-v1.8.1.md`.
+
 ## [1.8.0] - 2026-08-06
 
 ### Added

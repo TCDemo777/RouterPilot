@@ -306,6 +306,10 @@ namespace RouterPilot.ViewModels
                             existing.TrustedSshHostFingerprints ??
                             new Dictionary<string, string>(
                                 StringComparer.OrdinalIgnoreCase),
+                        TrustedRouterCertificateFingerprints =
+                            existing.TrustedRouterCertificateFingerprints ??
+                            new Dictionary<string, string>(
+                                StringComparer.OrdinalIgnoreCase),
                         RouterHost =
                             RouterConnectionOptions.NormaliseHost(RouterIp),
 

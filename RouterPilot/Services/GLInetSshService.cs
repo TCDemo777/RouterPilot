@@ -97,7 +97,7 @@ namespace RouterPilot.Services
             catch (Exception ex)
             {
                 ResetClient();
-                return "SSH_ERROR: " + ex.Message;
+                return "SSH_ERROR: " + ex.GetType().Name;
             }
         }
 

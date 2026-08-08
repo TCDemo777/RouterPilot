@@ -295,7 +295,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
                                        or UnauthorizedAccessException
                                        or JsonException)
         {
-            Debug.WriteLine($"Unable to load notification history: {ex}");
+            Debug.WriteLine($"Unable to load notification history ({ex.GetType().Name}).");
             return new List<AppNotification>();
         }
     }
@@ -360,7 +360,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
                                        or UnauthorizedAccessException
                                        or JsonException)
         {
-            Debug.WriteLine($"Unable to save notification history: {ex}");
+            Debug.WriteLine($"Unable to save notification history ({ex.GetType().Name}).");
         }
     }
 
@@ -463,7 +463,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Unable to save notification history: {ex}");
+            Debug.WriteLine($"Unable to save notification history ({ex.GetType().Name}).");
         }
         finally
         {

@@ -74,7 +74,7 @@ public sealed class AdGuardServiceScheduleService : IAsyncDisposable
             if (File.Exists(_path))
                 loaded = JsonSerializer.Deserialize<List<AdGuardServiceSchedule>>(await File.ReadAllTextAsync(_path), JsonOptions) ?? [];
         }
-        catch (Exception ex) { Debug.WriteLine($"Unable to load AdGuard service schedules: {ex.Message}"); }
+        catch (Exception ex) { Debug.WriteLine($"Unable to load AdGuard service schedules ({ex.GetType().Name})."); }
 
         await _dispatcher.InvokeAsync(() =>
         {

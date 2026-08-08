@@ -37,6 +37,7 @@ namespace RouterPilot.Services
             string username,
             string password,
             ISshHostKeyTrustService hostKeyTrustService,
+            IRouterCertificateTrustService certificateTrustService,
             int adGuardPort,
             bool useAdGuardHttps,
             AdGuardTransportSecurityService adGuardTransportSecurity)
@@ -88,7 +89,8 @@ namespace RouterPilot.Services
                 new GLInetSessionService(
                     _routerIp,
                     username,
-                    password);
+                    password,
+                    certificateTrustService);
 
             _routerInfo =
                 new RouterInfoService(

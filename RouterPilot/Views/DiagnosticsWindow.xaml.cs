@@ -11,6 +11,7 @@ namespace RouterPilot.Views
     {
         private readonly SettingsService _settingsService;
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly IRouterCertificateTrustService _certificateTrustService;
 
         public DiagnosticsWindow()
         {
@@ -20,6 +21,8 @@ namespace RouterPilot.Views
                 new SettingsService();
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
+            _certificateTrustService = ((App)Application.Current).Services
+                .GetRequiredService<IRouterCertificateTrustService>();
         }
                 private async Task<RouterManager> CreateRouterManagerAsync()
         {
@@ -34,7 +37,8 @@ namespace RouterPilot.Views
                 new GLInetSessionService(
                     settings.RouterHost,
                     settings.Username,
-                    password);
+                    password,
+                    _certificateTrustService);
 
             string adminToken =
                 await sessionService.GetAdminTokenAsync();
@@ -70,7 +74,7 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
-                OutputBox.Text = ex.Message;
+                OutputBox.Text = FormatFailure(ex);
             }
         }
 
@@ -173,8 +177,7 @@ Latency
             }
             catch (Exception ex)
             {
-                OutputBox.Text =
-                    ex.ToString();
+                OutputBox.Text = FormatFailure(ex);
             }
         }
 
@@ -214,8 +217,7 @@ Process
             }
             catch (Exception ex)
             {
-                OutputBox.Text =
-                    ex.ToString();
+                OutputBox.Text = FormatFailure(ex);
             }
         }
 
@@ -236,8 +238,7 @@ Process
             }
             catch (Exception ex)
             {
-                OutputBox.Text =
-                    ex.ToString();
+                OutputBox.Text = FormatFailure(ex);
             }
         }
 
@@ -260,8 +261,7 @@ Process
             }
             catch (Exception ex)
             {
-                OutputBox.Text =
-                    ex.ToString();
+                OutputBox.Text = FormatFailure(ex);
             }
         }
 
@@ -285,7 +285,8 @@ Process
                     new GLInetSessionService(
                         settings.RouterHost,
                         settings.Username,
-                        password);
+                        password,
+                        _certificateTrustService);
 
                 string adminToken =
                     await sessionService.GetAdminTokenAsync();
@@ -309,9 +310,13 @@ The token has not been displayed for security.";
             }
             catch (Exception ex)
             {
-                OutputBox.Text =
-                    ex.ToString();
+                OutputBox.Text = FormatFailure(ex);
             }
         }
+
+        private static string FormatFailure(Exception exception) =>
+            "Operation failed (" +
+            DiagnosticRedactor.FailureCategory(exception) +
+            ").";
     }
 }

@@ -20,6 +20,10 @@ public sealed class AppSettings
     // SHA256:<non-padded-base64-fingerprint>.
     public Dictionary<string, string> TrustedSshHostFingerprints { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+    // Endpoint-bound TLS certificate pins. Values are SHA-256 fingerprints of
+    // the presented certificate DER data.
+    public Dictionary<string, string> TrustedRouterCertificateFingerprints { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
     public bool StartWithWindows { get; set; }
     public string Theme { get; set; } = "System";
     public int RefreshIntervalSeconds { get; set; } = 30;

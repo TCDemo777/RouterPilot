@@ -21,22 +21,25 @@ Companion for GL.iNet Routers & AdGuard Home
 - Configurable Windows notifications, Notification Centre delivery and quiet hours
 - Maintenance Centre with safe router actions, shared action history and diagnostics
 - Portable `.rpb` Backup & Restore with manifest validation and pre-restore backups
+- SSH host-key verification and HTTPS certificate trust-on-first-use for router connections
 - Router diagnostics, safe diagnostic export, ping, traceroute and DNS lookup tools
 - Automatic GitHub release update checks
 - Secure password storage using Windows user-scoped encryption
 - Light, dark and system theme support
 - Notification-area integration with close-to-tray behaviour
 
-## What's new in 1.8.0
+## What's new in 1.8.1
 
-Version 1.8.0 adds local maintenance, configurable Windows notifications and safe portable backup and restore while preserving RouterPilot's existing router and AdGuard Home monitoring.
+Version 1.8.1 is a security and reliability update following the Maintenance Centre, notification and backup work introduced in v1.8.0.
 
-- Added the Maintenance Centre with supported, confirmation-gated router actions and shared maintenance history
-- Added verified AdGuard Home restart handling and a shared diagnostics workflow for About and Maintenance
-- Added Windows notification delivery, channel preferences, quiet hours and Send Test Notification
-- Added `.rpb` configuration backups with manifests, SHA-256 validation, selective restore and automatic pre-restore backups
-- Improved maintenance, notification-preference, backup/restore and About-page presentation
-- Preserved RouterPilot data migration, GL.iNet Wi-Fi discovery and AdGuard-independent router monitoring
+- Added explicit SHA-256 trust-on-first-use/pinning for GL.iNet HTTPS certificates and SSH host keys
+- Honoured configured AdGuard HTTP/HTTPS transport settings without silent downgrade
+- Redacted diagnostic and lifecycle logging, restricted update URLs to trusted HTTPS GitHub hosts, and hardened repository exclusions
+- Added clear privacy warnings for unencrypted `.rpb` backup archives
+
+## Security
+
+RouterPilot v1.8.1 includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) and [SECURITY-AUDIT-v1.8.1.md](SECURITY-AUDIT-v1.8.1.md) for the security model and documented compatibility considerations.
 
 The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/RouterPilot). RouterPilot now uses `%LocalAppData%\RouterPilot`; on first startup it safely copies supported legacy files from `%LocalAppData%\AdGuardTray` without changing or deleting the legacy folder.
 
@@ -58,9 +61,9 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-1.8.0-x64.msi` and `RouterPilot-1.8.0-win-x64.zip`.
+Release assets are published as `RouterPilot-1.8.1-x64.msi` and `RouterPilot-1.8.1-win-x64.zip`.
 
-When upgrading from v1.7.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. Backup files use the portable `.rpb` format and can be created or restored from Maintenance.
+When upgrading from v1.8.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
 
 ## Building from source
 

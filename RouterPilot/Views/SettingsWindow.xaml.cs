@@ -79,6 +79,14 @@ namespace RouterPilot.Views
                         AdGuardPort = existing.AdGuardPort,
                         UseRouterHttps = existing.UseRouterHttps,
                         UseAdGuardHttps = existing.UseAdGuardHttps,
+                        TrustedSshHostFingerprints =
+                            existing.TrustedSshHostFingerprints ??
+                            new Dictionary<string, string>(
+                                StringComparer.OrdinalIgnoreCase),
+                        TrustedRouterCertificateFingerprints =
+                            existing.TrustedRouterCertificateFingerprints ??
+                            new Dictionary<string, string>(
+                                StringComparer.OrdinalIgnoreCase),
                         Theme = existing.Theme,
                         RefreshIntervalSeconds = existing.RefreshIntervalSeconds,
                         DefaultPauseMinutes = existing.DefaultPauseMinutes,

@@ -57,6 +57,8 @@ namespace RouterPilot
             serviceCollection.AddSingleton<SettingsService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,
                 SshHostKeyTrustService>();
+            serviceCollection.AddSingleton<IRouterCertificateTrustService,
+                RouterCertificateTrustService>();
             serviceCollection.AddSingleton<AdGuardTransportSecurityService>();
             serviceCollection.AddSingleton<IToastNotificationService, WindowsToastNotificationService>();
             serviceCollection.AddSingleton<IRouterManagerProvider,
@@ -258,7 +260,7 @@ namespace RouterPilot
                 catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Unable to flush AdGuard service schedules during shutdown: {ex}");
+                    Debug.WriteLine($"Unable to flush AdGuard service schedules during shutdown ({ex.GetType().Name}).");
                 }
 
                 try
@@ -273,7 +275,7 @@ namespace RouterPilot
                 catch (Exception ex)
                 {
                     Debug.WriteLine(
-                        $"Unable to flush maintenance history during shutdown: {ex}");
+                        $"Unable to flush maintenance history during shutdown ({ex.GetType().Name}).");
                 }
 
                 try
@@ -288,7 +290,7 @@ namespace RouterPilot
                 catch (Exception ex)
                 {
                     Debug.WriteLine(
-                        $"Unable to flush notification history during shutdown: {ex}");
+                        $"Unable to flush notification history during shutdown ({ex.GetType().Name}).");
                 }
 
                 try
@@ -298,7 +300,7 @@ namespace RouterPilot
                 catch (Exception ex)
                 {
                     Debug.WriteLine(
-                        $"Unable to dispose application services cleanly: {ex}");
+                        $"Unable to dispose application services cleanly ({ex.GetType().Name}).");
                 }
 
                 _services = null;
