@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Diagnostics;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -97,6 +98,34 @@ namespace RouterPilot.Views
 
             _isUpdatingPassword =
                 false;
+        }
+
+        private void OpenFirmwareReleaseNotes_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_viewModel.FirmwareUpdate.ReleaseNotesUrl))
+            {
+                MessageBox.Show(
+                    _viewModel.FirmwareUpdate.ReleaseNotes,
+                    "Firmware release notes",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            if (Uri.TryCreate(_viewModel.FirmwareUpdate.ReleaseNotesUrl,
+                    UriKind.Absolute,
+                    out Uri? uri) &&
+                uri.Scheme == Uri.UriSchemeHttps &&
+                (uri.Host.Equals("gl-inet.com", System.StringComparison.OrdinalIgnoreCase) ||
+                 uri.Host.EndsWith(".gl-inet.com", System.StringComparison.OrdinalIgnoreCase)))
+            {
+                Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+                {
+                    UseShellExecute = true
+                });
+            }
         }
     }
 }

@@ -31,6 +31,7 @@ public sealed class AppSettings
     public DateTimeOffset? LastSuccessfulUpdateCheckUtc { get; set; }
     public string LatestVersionSeen { get; set; } = string.Empty;
     public string LastNotifiedUpdateVersion { get; set; } = string.Empty;
+    public string LastNotifiedFirmwareVersion { get; set; } = string.Empty;
     public FirmwareUpdateCheck FirmwareUpdateCheck { get; set; } = new();
     public NotificationPreferences NotificationPreferences { get; set; } = new();
 

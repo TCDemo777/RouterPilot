@@ -28,7 +28,7 @@ public partial class MaintenanceView : UserControl
     {
         if (sender is not Button { DataContext: MaintenanceActionItem action } ||
             DataContext is not MaintenanceViewModel viewModel ||
-            !Confirm(action))
+            !ConfirmAction(action))
         {
             return;
         }
@@ -36,7 +36,39 @@ public partial class MaintenanceView : UserControl
         await viewModel.ExecuteAsync(action, _refreshAll);
     }
 
-    private static bool Confirm(MaintenanceActionItem action)
+    private void ActionMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void RunActionMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: MaintenanceActionItem action } ||
+            DataContext is not MaintenanceViewModel viewModel || !ConfirmAction(action))
+            return;
+        _ = RunActionAsync(viewModel, action);
+    }
+
+    private async Task RunActionAsync(MaintenanceViewModel viewModel, MaintenanceActionItem action) =>
+        await viewModel.ExecuteAsync(action, _refreshAll);
+
+    private void ViewActionHistory_Click(object sender, RoutedEventArgs e) =>
+        MaintenanceHistoryHeading.BringIntoView();
+
+    private void CopyLastResult_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: MaintenanceActionItem action } &&
+            !string.IsNullOrWhiteSpace(action.LastResult))
+        {
+            Clipboard.SetText(action.LastResult);
+        }
+    }
+
+    internal static bool ConfirmAction(MaintenanceActionItem action)
     {
         (string message, MessageBoxImage icon)? confirmation = action.Action switch
         {

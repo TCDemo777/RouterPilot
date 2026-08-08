@@ -80,8 +80,20 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="{Binding Title}" />
-                                    <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
-                                               Text="{Binding Availability}" ToolTip="{Binding AvailabilityReason}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Margin="0,7,8,0" FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
+                                                   Text="{Binding Availability}" ToolTip="{Binding AvailabilityReason}" />
+                                        <Button Width="28" Height="28" Padding="0" Content="⋮" ToolTip="More actions"
+                                                Click="ActionMenu_Click">
+                                            <Button.ContextMenu>
+                                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                                    <MenuItem Header="Run" Click="RunActionMenu_Click" />
+                                                    <MenuItem Header="View History" Click="ViewActionHistory_Click" />
+                                                    <MenuItem Header="Copy Last Result" Click="CopyLastResult_Click" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                    </StackPanel>
                                 </Grid>
                                 <StackPanel Grid.Row="1" Margin="0,8,0,12">
                                     <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding Description}" />
@@ -127,12 +139,28 @@
                         <Button x:Name="CheckFirmwareButton" Width="144" Height="36" Margin="0,0,0,10" Style="{DynamicResource Button.Primary}"
                                 Content="Check for Updates" IsEnabled="{Binding CanCheckFirmware}" Click="CheckFirmware_Click" />
                         <Button Width="144" Height="36"
-                                Content="View Release Notes" Click="OpenFirmwarePage_Click">
+                                 Content="View Release Notes" Click="OpenFirmwarePage_Click">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasFirmwareReleaseNotes}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="144" Height="36" Margin="0,10,0,0"
+                                Content="Open Firmware Page" Click="OpenFirmwarePage_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding FirmwareLink}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding FirmwareLink}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
@@ -175,7 +203,7 @@
                 </Grid>
             </Border>
 
-            <TextBlock Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Maintenance history" />
+            <TextBlock x:Name="MaintenanceHistoryHeading" Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Maintenance history" />
             <Border Padding="0" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                 <Grid>

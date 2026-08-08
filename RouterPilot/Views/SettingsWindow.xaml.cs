@@ -87,6 +87,8 @@ namespace RouterPilot.Views
                             existing.TrustedRouterCertificateFingerprints ??
                             new Dictionary<string, string>(
                                 StringComparer.OrdinalIgnoreCase),
+                        FirmwareUpdateCheck = existing.FirmwareUpdateCheck ?? new FirmwareUpdateCheck(),
+                        LastNotifiedFirmwareVersion = existing.LastNotifiedFirmwareVersion,
                         Theme = existing.Theme,
                         RefreshIntervalSeconds = existing.RefreshIntervalSeconds,
                         DefaultPauseMinutes = existing.DefaultPauseMinutes,

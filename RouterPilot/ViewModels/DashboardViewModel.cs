@@ -31,6 +31,12 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string firmwareVersion = "-";
 
+        // OpenWrt's board release and the GL.iNet firmware release are
+        // separate values. Keep both so UI surfaces cannot label the former
+        // as the installed vendor firmware.
+        [ObservableProperty]
+        private string routerFirmwareVersion = "-";
+
         [ObservableProperty]
         private string hostname = "-";
 

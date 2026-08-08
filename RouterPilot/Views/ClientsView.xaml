@@ -243,6 +243,23 @@
                         <Setter Property="Padding" Value="0"/>
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="View Details" Click="ContextViewDetails_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Copy IP Address" Click="ContextCopyIp_Click" />
+                                    <MenuItem Header="Copy MAC Address" Click="ContextCopyMac_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Ping" Click="ContextPing_Click" />
+                                    <MenuItem Header="Traceroute" Click="ContextTraceroute_Click" />
+                                    <MenuItem Header="View DNS Activity" Click="ContextDnsActivity_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Favourite / Remove Favourite" Click="ContextFavorite_Click" />
+                                    <MenuItem Header="Edit Profile" Click="ContextEditProfile_Click" />
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </ListBox.ItemContainerStyle>
 
@@ -253,7 +270,8 @@
                                 Background="{DynamicResource Brush.Surface}"
                                 CornerRadius="10"
                                 BorderBrush="{DynamicResource Brush.Border}"
-                                BorderThickness="1">
+                                BorderThickness="1"
+                                PreviewMouseRightButtonDown="ClientCard_PreviewMouseRightButtonDown">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

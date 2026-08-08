@@ -83,15 +83,39 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
 
             if (result.Status == FirmwareUpdateCheckStatus.UpdateAvailable)
             {
-                await _notificationService.AddAsync(new AppNotification
+                AppSettings settings = _settingsService.Load();
+                if (string.Equals(settings.LastNotifiedFirmwareVersion, result.LatestVersion,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                bool delivered = await _notificationService.AddAsync(new AppNotification
                 {
                     Title = "Router firmware update available",
                     Message = $"Current: {result.CurrentVersion}; latest: {result.LatestVersion}.",
                     Severity = NotificationSeverity.Information,
                     Category = NotificationCategory.Router,
                     EventType = NotificationEventType.FirmwareUpdateAvailable,
-                    DeduplicationKey = $"FirmwareUpdate-{result.CurrentVersion}-{result.LatestVersion}"
+                    DeduplicationKey = $"FirmwareUpdate-{settings.RouterHost}-{result.LatestVersion}"
                 });
+
+                if (delivered)
+                {
+                    settings.LastNotifiedFirmwareVersion = result.LatestVersion;
+                    settings.FirmwareUpdateCheck = result;
+                    _settingsService.Save(settings);
+                }
+            }
+            else if (result.Status == FirmwareUpdateCheckStatus.UpToDate)
+            {
+                AppSettings settings = _settingsService.Load();
+                if (!string.IsNullOrEmpty(settings.LastNotifiedFirmwareVersion))
+                {
+                    settings.LastNotifiedFirmwareVersion = string.Empty;
+                    settings.FirmwareUpdateCheck = result;
+                    _settingsService.Save(settings);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

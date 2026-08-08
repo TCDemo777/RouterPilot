@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -195,6 +196,91 @@ namespace RouterPilot.Views
             }
         }
 
+        private void ClientCard_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: ClientInfo } card ||
+                ItemsControl.ContainerFromElement(ClientsGrid, card) is not ListBoxItem item ||
+                item.ContextMenu is null)
+                return;
+
+            // Context actions are scoped to the card under the pointer. Do
+            // not alter SelectedClient or trigger the left-click auto-scroll.
+            item.ContextMenu.PlacementTarget = item;
+            item.ContextMenu.IsOpen = true;
+            e.Handled = true;
+        }
+
+        private static ClientInfo? ContextClient(object sender) =>
+            sender is MenuItem { DataContext: ClientInfo client } ? client : null;
+
+        private void ContextViewDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is ClientInfo client)
+                OpenClientDetails(client);
+        }
+
+        private void ContextCopyIp_Click(object sender, RoutedEventArgs e) =>
+            CopyClientValue(ContextClient(sender)?.IpAddress, "IP address copied.");
+
+        private void ContextCopyMac_Click(object sender, RoutedEventArgs e) =>
+            CopyClientValue(ContextClient(sender)?.MacAddress, "MAC address copied.");
+
+        private async void ContextPing_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is ClientInfo client)
+                await RunClientDiagnosticAsync(client, ping: true);
+        }
+
+        private async void ContextTraceroute_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is ClientInfo client)
+                await RunClientDiagnosticAsync(client, ping: false);
+        }
+
+        private void ContextDnsActivity_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is not null && Window.GetWindow(this) is DashboardWindow dashboard)
+                dashboard.NavigateToDnsActivity();
+        }
+
+        private void ContextFavorite_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is ClientInfo client)
+                _viewModel.ToggleFavorite(client);
+        }
+
+        private void ContextEditProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is ClientInfo client)
+                OpenClientDetails(client);
+        }
+
+        private void CopyClientValue(string? value, string confirmation)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "-")
+                return;
+            Clipboard.SetText(value);
+            _viewModel.StatusMessage = confirmation;
+        }
+
+        private async Task RunClientDiagnosticAsync(ClientInfo client, bool ping)
+        {
+            try
+            {
+                RouterManager router = await ((App)Application.Current).Services
+                    .GetRequiredService<IRouterManagerProvider>().GetRouterManagerAsync();
+                string result = ping
+                    ? await router.PingClientAsync(client.IpAddress)
+                    : await router.TracerouteAsync(client.IpAddress);
+                _viewModel.PingResult = result;
+                _viewModel.StatusMessage = (ping ? "Ping" : "Traceroute") + " completed for " + client.Name + ".";
+            }
+            catch
+            {
+                _viewModel.StatusMessage = (ping ? "Ping" : "Traceroute") + " could not be completed.";
+            }
+        }
+
         private void ActivateClient(ClientInfo client)
         {
             string selectedKey = GetClientSelectionKey(client);
@@ -261,6 +347,11 @@ namespace RouterPilot.Views
                 return;
             }
 
+            OpenClientDetails(client);
+        }
+
+        private void OpenClientDetails(ClientInfo client)
+        {
             var window =
                 new ClientDetailsWindow(client)
                 {

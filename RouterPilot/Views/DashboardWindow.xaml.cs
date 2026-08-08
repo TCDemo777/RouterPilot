@@ -89,6 +89,17 @@ namespace RouterPilot.Views
                 .GetRequiredService<AdGuardMaintenanceStateService>();
             _firmwareUpdateService = ((App)Application.Current).Services
                 .GetRequiredService<FirmwareUpdateService>();
+            _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
+                _firmwareUpdateService.Current.CurrentVersion)
+                ? "-"
+                : _firmwareUpdateService.Current.CurrentVersion;
+            _firmwareUpdateService.PropertyChanged += (_, _) =>
+            {
+                _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
+                    _firmwareUpdateService.Current.CurrentVersion)
+                    ? "-"
+                    : _firmwareUpdateService.Current.CurrentVersion;
+            };
             _viewModel.AdGuardMaintenanceState = _adGuardMaintenanceStateService.State;
             _adGuardMaintenanceStateService.PropertyChanged += (_, e) =>
             {
@@ -101,6 +112,8 @@ namespace RouterPilot.Views
 
             _settingsService =
                 new SettingsService();
+
+            PageContent.Content = CreateOverviewView();
 
             Loaded +=
                 DashboardWindow_Loaded;
@@ -905,11 +918,21 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
-            PageContent.Content =
-                new OverviewView();
+            PageContent.Content = CreateOverviewView();
 
             SelectNavigationButton(
                 OverviewButton);
+        }
+
+        private OverviewView CreateOverviewView() => new(
+            _maintenanceViewModel,
+            _viewModel,
+            RefreshNowAsync);
+
+        public void NavigateToDnsActivity()
+        {
+            PageContent.Content = new LogsView();
+            SelectNavigationButton(LogsButton);
         }
 
         private void Protection_Click(

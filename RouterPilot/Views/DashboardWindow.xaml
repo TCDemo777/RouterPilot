@@ -223,10 +223,8 @@
                         Grid.Row="1"
                         Grid.Column="1"
                         HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        ClipToBounds="True">
-            <views:OverviewView/>
-        </ContentControl>
+                         VerticalContentAlignment="Stretch"
+                         ClipToBounds="True" />
 
         <Border Grid.Row="2"
                 Grid.Column="0"

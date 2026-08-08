@@ -233,8 +233,17 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Firmware" />
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="OpenWrt snapshot" />
                                 <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding FirmwareVersion}" />
+                            </Grid>
+
+                            <Grid Style="{StaticResource Overview.DetailRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Router firmware" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding RouterFirmwareVersion}" />
                             </Grid>
 
                             <Grid Style="{StaticResource Overview.DetailRow}">
@@ -587,6 +596,28 @@
                     </Grid>
                 </Border>
             </Grid>
+
+            <TextBlock Margin="0,32,0,16"
+                       Style="{StaticResource Text.SectionTitle}"
+                       Text="Quick actions" />
+            <Border Style="{StaticResource Card}">
+                <WrapPanel>
+                    <Button Margin="0,0,10,10" MinWidth="112" Height="36" Style="{DynamicResource Button.Primary}"
+                            Tag="RefreshAll" Content="Refresh" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="132" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RunDiagnostics" Content="Run Diagnostics" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="154" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartAdGuard" Content="Restart AdGuard Home" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="118" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartWifi" Content="Restart Wi-Fi" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="122" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="CreateBackup" Content="Create Backup" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="132" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="CheckFirmware" Content="Check Firmware" Click="QuickAction_Click" />
+                    <Button Margin="0,0,10,10" MinWidth="126" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="OpenRouter" Content="Open Router UI" Click="QuickAction_Click" />
+                </WrapPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

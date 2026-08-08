@@ -1,4 +1,6 @@
 using System;
+using System.Windows;
+using System.Threading.Tasks;
 using RouterPilot.Configuration;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -13,6 +15,7 @@ namespace RouterPilot.ViewModels
         private readonly SettingsService _settingsService;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly NotificationService _notificationService;
+        private readonly FirmwareUpdateService _firmwareUpdateService;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
         public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
 
@@ -34,6 +37,7 @@ namespace RouterPilot.ViewModels
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
+        private string _searchText = string.Empty;
 
         public string RouterIp
         {
@@ -154,6 +158,21 @@ namespace RouterPilot.ViewModels
         public string QuietHoursStart { get => _quietHoursStart; set { if (SetProperty(ref _quietHoursStart, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursEnd { get => _quietHoursEnd; set { if (SetProperty(ref _quietHoursEnd, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
 
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (SetProperty(ref _searchText, value))
+                {
+                    OnPropertyChanged(nameof(GeneralSectionVisibility));
+                    OnPropertyChanged(nameof(RouterSectionVisibility));
+                    OnPropertyChanged(nameof(NotificationsSectionVisibility));
+                    OnPropertyChanged(nameof(FirmwareSectionVisibility));
+                }
+            }
+        }
+
         public bool IsAdGuardHttpConfigured => !_useAdGuardHttps;
 
         public string AdGuardTransportStatus => AdGuardTransportSecurity.Status switch
@@ -176,27 +195,54 @@ namespace RouterPilot.ViewModels
                     : WindowsToastsEnabled ? "Windows notifications" : "Neither";
         public string QuietHoursStatus => IsQuietHoursActive() ? "Active" : "Disabled";
 
+        public FirmwareUpdateCheck FirmwareUpdate => _firmwareUpdateService.Current;
+        public bool IsFirmwareChecking => _firmwareUpdateService.IsChecking;
+        public string FirmwareCurrentVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.CurrentVersion) ? RouterPilotStatusPresentation.NotAvailable : FirmwareUpdate.CurrentVersion;
+        public string FirmwareLatestVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.LatestVersion) ? RouterPilotStatusPresentation.NotAvailable : FirmwareUpdate.LatestVersion;
+        public string FirmwareStatus => IsFirmwareChecking ? "Pending" : FirmwareUpdate.Status switch
+        {
+            FirmwareUpdateCheckStatus.UpToDate => "Up to date",
+            FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
+            FirmwareUpdateCheckStatus.Error => "Error",
+            _ => RouterPilotStatusPresentation.NotAvailable
+        };
+        public string FirmwareLastChecked => FirmwareUpdate.LastChecked is { } checkedAt
+            ? checkedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+            : RouterPilotStatusPresentation.NotAvailable;
+        public bool HasFirmwareReleaseNotes => !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotes) ||
+                                                !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotesUrl) ||
+                                                !string.IsNullOrWhiteSpace(FirmwareUpdate.DownloadUrl);
+
+        public Visibility GeneralSectionVisibility => Matches("General Startup Appearance Theme Application dashboard refresh") ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility RouterSectionVisibility => Matches("Router Connection Authentication SSH password AdGuard Home router communication protection") ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility NotificationsSectionVisibility => Matches("Notifications Windows Notification Centre Quiet Hours categories test") ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility FirmwareSectionVisibility => Matches("Firmware Current Latest Update Release Notes Check") ? Visibility.Visible : Visibility.Collapsed;
+
         public IRelayCommand SaveCommand { get; }
 
         public IRelayCommand ReloadCommand { get; }
 
         public IAsyncRelayCommand TestWindowsNotificationCommand { get; }
+        public IAsyncRelayCommand CheckFirmwareUpdateCommand { get; }
 
         public SettingsViewModel(
             SettingsService settingsService,
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailability,
             AdGuardTransportSecurityService adGuardTransportSecurity,
-            NotificationService notificationService)
+            NotificationService notificationService,
+            FirmwareUpdateService firmwareUpdateService)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
             AdGuardAvailability = adGuardAvailability;
             AdGuardTransportSecurity = adGuardTransportSecurity;
             _notificationService = notificationService;
+            _firmwareUpdateService = firmwareUpdateService;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
             AdGuardTransportSecurity.PropertyChanged +=
                 (_, _) => RefreshAdGuardTransportStatus();
+            _firmwareUpdateService.PropertyChanged += (_, _) => RefreshFirmwareStatus();
 
             SaveCommand =
                 new RelayCommand(Save);
@@ -206,6 +252,7 @@ namespace RouterPilot.ViewModels
 
             TestWindowsNotificationCommand =
                 new AsyncRelayCommand(TestWindowsNotificationAsync);
+            CheckFirmwareUpdateCommand = new AsyncRelayCommand(CheckFirmwareUpdateAsync);
 
             Load();
         }
@@ -311,6 +358,7 @@ namespace RouterPilot.ViewModels
                             new Dictionary<string, string>(
                                 StringComparer.OrdinalIgnoreCase),
                         FirmwareUpdateCheck = existing.FirmwareUpdateCheck ?? new FirmwareUpdateCheck(),
+                        LastNotifiedFirmwareVersion = existing.LastNotifiedFirmwareVersion,
                         RouterHost =
                             RouterConnectionOptions.NormaliseHost(RouterIp),
 
@@ -381,6 +429,23 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(AdGuardTransportStatus));
             OnPropertyChanged(nameof(AdGuardTransportDetail));
         }
+
+        private void RefreshFirmwareStatus()
+        {
+            OnPropertyChanged(nameof(FirmwareUpdate));
+            OnPropertyChanged(nameof(IsFirmwareChecking));
+            OnPropertyChanged(nameof(FirmwareCurrentVersion));
+            OnPropertyChanged(nameof(FirmwareLatestVersion));
+            OnPropertyChanged(nameof(FirmwareStatus));
+            OnPropertyChanged(nameof(FirmwareLastChecked));
+            OnPropertyChanged(nameof(HasFirmwareReleaseNotes));
+        }
+
+        private async Task CheckFirmwareUpdateAsync() =>
+            await _firmwareUpdateService.CheckManuallyAsync();
+
+        private bool Matches(string terms) => string.IsNullOrWhiteSpace(SearchText) ||
+            terms.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase);
 
         private bool IsQuietHoursActive() =>
             new NotificationPreferences
