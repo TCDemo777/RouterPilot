@@ -14,10 +14,10 @@
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
 
-    <Version>1.8.0</Version>
-    <AssemblyVersion>1.8.0.0</AssemblyVersion>
-    <FileVersion>1.8.0.0</FileVersion>
-    <InformationalVersion>1.8.0</InformationalVersion>
+    <Version>1.8.1</Version>
+    <AssemblyVersion>1.8.1.0</AssemblyVersion>
+    <FileVersion>1.8.1.0</FileVersion>
+    <InformationalVersion>1.8.1</InformationalVersion>
 
     <ApplicationIcon>Assets\RouterPilot.ico</ApplicationIcon>
     <RootNamespace>RouterPilot</RootNamespace>
