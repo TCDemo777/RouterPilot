@@ -2,6 +2,7 @@ using CryptSharp;
 using System;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -15,12 +16,15 @@ namespace RouterPilot.Services
         private readonly string _rpcUrl;
         private readonly string _username;
         private readonly string _password;
+        private readonly string _routerHost;
+        private readonly IRouterCertificateTrustService _certificateTrustService;
         private bool _disposed;
 
     public GLInetSessionService(
         string routerIp,
         string username,
-        string password)
+        string password,
+        IRouterCertificateTrustService certificateTrustService)
         {
             if (string.IsNullOrWhiteSpace(routerIp))
             {
@@ -45,6 +49,10 @@ namespace RouterPilot.Services
 
             _username = username;
             _password = password;
+            _routerHost = routerIp.Trim();
+            _certificateTrustService = certificateTrustService ??
+                throw new ArgumentNullException(
+                    nameof(certificateTrustService));
 
             string normalisedRouterIp = routerIp
                 .Trim()
@@ -69,14 +77,36 @@ namespace RouterPilot.Services
                 AllowAutoRedirect = false,
 
                 ServerCertificateCustomValidationCallback =
-        HttpClientHandler
-            .DangerousAcceptAnyServerCertificateValidator
+                    ValidateRouterCertificate
             };
 
             _httpClient = new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromSeconds(10)
             };
+        }
+
+        private bool ValidateRouterCertificate(
+            HttpRequestMessage _,
+            X509Certificate2? certificate,
+            X509Chain? __,
+            System.Net.Security.SslPolicyErrors sslPolicyErrors)
+        {
+            if (certificate is null ||
+                sslPolicyErrors.HasFlag(
+                    System.Net.Security.SslPolicyErrors.RemoteCertificateNotAvailable))
+            {
+                return false;
+            }
+
+            RouterCertificateTrustDecision decision =
+                _certificateTrustService.Evaluate(
+                    _routerHost,
+                    certificate,
+                    sslPolicyErrors);
+
+            return decision is RouterCertificateTrustDecision.Trusted or
+                RouterCertificateTrustDecision.TrustedAfterFirstUse;
         }
 
         public async Task<string> GetAdminTokenAsync(
@@ -321,7 +351,7 @@ namespace RouterPilot.Services
 
             throw new InvalidOperationException(
                 $"GL.iNet RPC error " +
-                $"{code?.ToString() ?? "unknown"}: {message}");
+                $"{code?.ToString() ?? "unknown"}.");
         }
 
         private void ThrowIfDisposed()

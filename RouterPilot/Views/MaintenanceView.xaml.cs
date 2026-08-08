@@ -14,6 +14,7 @@ namespace RouterPilot.Views;
 public partial class MaintenanceView : UserControl
 {
     private readonly Func<Task> _refreshAll;
+    private bool _backupPrivacyWarningAcknowledged;
 
     public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll)
     {
@@ -72,6 +73,18 @@ public partial class MaintenanceView : UserControl
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true)
             return;
+
+        if (!_backupPrivacyWarningAcknowledged &&
+            MessageBox.Show(
+                "RouterPilot backup files are not encrypted. Passwords remain protected by Windows, but the backup may contain network, device and configuration information. Store backup files securely.",
+                "Backup privacy notice",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        _backupPrivacyWarningAcknowledged = true;
 
         MaintenanceOperationResult? result = await viewModel.CreateBackupAsync(dialog.FileName);
         if (result is not null)

@@ -62,7 +62,7 @@ public sealed class SettingsService
                 or JsonException)
         {
             Debug.WriteLine(
-                $"Unable to load settings: {ex}");
+                $"Unable to load settings ({ex.GetType().Name}).");
             return new AppSettings();
         }
     }
@@ -149,7 +149,7 @@ public sealed class SettingsService
                 or FormatException)
         {
             Debug.WriteLine(
-                $"Unable to decrypt saved password: {ex}");
+                $"Unable to decrypt saved password ({ex.GetType().Name}).");
             return string.Empty;
         }
     }

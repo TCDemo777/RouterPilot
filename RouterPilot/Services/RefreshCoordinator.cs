@@ -265,7 +265,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         catch (Exception ex)
         {
             Debug.WriteLine(
-                $"Refresh task '{taskName}' lifecycle transition failed: {ex}");
+                $"Refresh task '{taskName}' lifecycle transition failed ({ex.GetType().Name}).");
         }
     }
 
@@ -283,7 +283,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         catch (Exception ex)
         {
             Debug.WriteLine(
-                $"Refresh task '{taskName}' loop stopped with an error: {ex}");
+                $"Refresh task '{taskName}' loop stopped with an error ({ex.GetType().Name}).");
         }
     }
 
@@ -321,7 +321,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
                 catch (Exception ex)
                 {
                     Debug.WriteLine(
-                        $"Refresh task '{registration.Name}' failed: {ex}");
+                        $"Refresh task '{registration.Name}' failed ({ex.GetType().Name}).");
                 }
             }
         }

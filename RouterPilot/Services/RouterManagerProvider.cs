@@ -18,6 +18,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
 
     private readonly SettingsService _settingsService;
     private readonly ISshHostKeyTrustService _hostKeyTrustService;
+    private readonly IRouterCertificateTrustService _certificateTrustService;
     private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly object _disposeLock = new();
@@ -31,10 +32,12 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
     public RouterManagerProvider(
         SettingsService settingsService,
         ISshHostKeyTrustService hostKeyTrustService,
+        IRouterCertificateTrustService certificateTrustService,
         AdGuardTransportSecurityService adGuardTransportSecurity)
     {
         _settingsService = settingsService;
         _hostKeyTrustService = hostKeyTrustService;
+        _certificateTrustService = certificateTrustService;
         _adGuardTransportSecurity = adGuardTransportSecurity;
     }
 
@@ -87,6 +90,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 settings.Username,
                 password,
                 _hostKeyTrustService,
+                _certificateTrustService,
                 settings.AdGuardPort,
                 settings.UseAdGuardHttps,
                 _adGuardTransportSecurity);

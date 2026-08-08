@@ -110,8 +110,10 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel>
                         <TextBlock Style="{StaticResource Text.SectionTitle}" Text="RouterPilot data" />
-                        <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
-                                   Text="Back up settings, notification history, client profiles and service schedules in one portable .rpb package." />
+                         <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                                    Text="Back up settings, notification history, client profiles and service schedules in one portable .rpb package." />
+                         <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                                    Text="Backup files are not encrypted. Passwords remain protected by Windows; store backups securely." />
                         <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.Secondary}"
                                    Text="{Binding LastBackupDate, StringFormat=Last backup: {0}}" />
                         <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}"
