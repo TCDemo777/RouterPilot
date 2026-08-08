@@ -63,6 +63,26 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# RouterPilot local data, exports and security-sensitive material
+**/settings.json
+**/notifications.json
+**/client-profiles.json
+**/adguard-service-schedules.json
+**/maintenance-history.json
+/RouterPilot.db
+*.rpb
+*.zip
+*.bak
+*.pem
+*.key
+*.pfx
+*.p12
+*.db
+*.sqlite
+*.sqlite3
+diagnostics/
+diagnostic-exports/
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 

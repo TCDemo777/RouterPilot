@@ -234,7 +234,7 @@ namespace RouterPilot.Services
             {
                 throw new HttpRequestException(
                     $"Router RPC returned HTTP {(int)response.StatusCode} " +
-                    $"{response.ReasonPhrase}. Response: {responseText}");
+                    $"{response.StatusCode}.");
             }
 
             if (string.IsNullOrWhiteSpace(responseText))
@@ -250,7 +250,7 @@ namespace RouterPilot.Services
             catch (JsonException exception)
             {
                 throw new InvalidOperationException(
-                    $"The router returned invalid JSON: {responseText}",
+                    "The router returned invalid JSON.",
                     exception);
             }
         }

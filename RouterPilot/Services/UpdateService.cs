@@ -105,7 +105,7 @@ public sealed class UpdateService : IDisposable
             Tag = tag,
             Version = SemanticVersion.Normalize(tag),
             PublishedAt = item.TryGetProperty("published_at", out JsonElement date) && date.TryGetDateTimeOffset(out DateTimeOffset published) ? published : null,
-            ReleaseNotesUrl = Uri.TryCreate(GetString(item, "html_url"), UriKind.Absolute, out Uri? url) ? url : null,
+            ReleaseNotesUrl = TryGetTrustedGitHubUrl(GetString(item, "html_url")),
             IsPrerelease = GetBoolean(item, "prerelease")
         };
     }
@@ -121,6 +121,20 @@ public sealed class UpdateService : IDisposable
 
     private static string GetString(JsonElement item, string name) => item.TryGetProperty(name, out JsonElement value) ? value.GetString() ?? string.Empty : string.Empty;
     private static bool GetBoolean(JsonElement item, string name) => item.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.True;
+
+    private static Uri? TryGetTrustedGitHubUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(uri.Host, "www.github.com", StringComparison.OrdinalIgnoreCase)
+            ? uri
+            : null;
+    }
 
     public void Dispose()
     {

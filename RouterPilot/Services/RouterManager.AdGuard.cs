@@ -348,17 +348,11 @@ namespace RouterPilot.Services
                 string action,
                 AdGuardControlResponse response)
         {
-            string detail =
-                string.IsNullOrWhiteSpace(
-                    response.Content)
-                    ? "No response body was returned."
-                    : response.Content.Trim();
-
             return new InvalidOperationException(
                 $"Unable to {action}. " +
                 $"AdGuard Home returned HTTP " +
                 $"{(int)response.StatusCode} " +
-                $"{response.StatusCode}. {detail}");
+                $"{response.StatusCode}.");
         }
 
 
@@ -848,21 +842,15 @@ namespace RouterPilot.Services
             }
             catch (HttpRequestException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard HTTP error: " +
-                    ex.Message);
+                LogAdGuardFailure("statistics", ex);
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard JSON error: " +
-                    ex.Message);
+                LogAdGuardFailure("statistics", ex);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(
-                    "AdGuard statistics error: " +
-                    ex);
+                LogAdGuardFailure("statistics", ex);
             }
 
             return stats;
@@ -959,9 +947,7 @@ namespace RouterPilot.Services
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(
-                        "Unable to read query-log configuration: " +
-                        ex.Message);
+                    LogAdGuardFailure("query-log configuration", ex);
                 }
 
                 foreach (ClientInfo client in clients)
@@ -1019,21 +1005,15 @@ namespace RouterPilot.Services
             }
             catch (HttpRequestException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard clients HTTP error: " +
-                    ex.Message);
+                LogAdGuardFailure("clients", ex);
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard clients JSON error: " +
-                    ex.Message);
+                LogAdGuardFailure("clients", ex);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(
-                    "AdGuard clients error: " +
-                    ex);
+                LogAdGuardFailure("clients", ex);
             }
 
             return new List<ClientInfo>();
@@ -1049,9 +1029,7 @@ namespace RouterPilot.Services
             report.AppendLine(
                 "Generated: " +
                 DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
-            report.AppendLine(
-                "Router: " +
-                _routerIp);
+            report.AppendLine("Router endpoint: configured");
             report.AppendLine();
 
             try
@@ -1061,10 +1039,7 @@ namespace RouterPilot.Services
 
                 report.AppendLine("Authentication");
                 report.AppendLine("--------------");
-                report.AppendLine("Admin token received: Yes");
-                report.AppendLine(
-                    "Token length: " +
-                    token.Length);
+                report.AppendLine("Administrative authentication: succeeded");
                 report.AppendLine();
 
                 AdGuardClientsResponse clientsResponse =
@@ -1087,19 +1062,7 @@ namespace RouterPilot.Services
                         "Configured clients parsed: " +
                         clients.Count);
 
-                    string sampleClients =
-                        string.Join(
-                            ", ",
-                            clients
-                                .Take(8)
-                                .Select(client =>
-                                    $"{client.Name} [{client.IpAddress}]"));
-
-                    report.AppendLine(
-                        "Sample identifiers: " +
-                        (sampleClients.Length == 0
-                            ? "(none)"
-                            : sampleClients));
+                    report.AppendLine("Client identifiers: excluded from diagnostics");
                 }
 
                 report.AppendLine();
@@ -1168,7 +1131,9 @@ namespace RouterPilot.Services
                 report.AppendLine();
                 report.AppendLine("Diagnostics failed");
                 report.AppendLine("------------------");
-                report.AppendLine(ex.ToString());
+                report.AppendLine(
+                    "Failure category: " +
+                    DiagnosticRedactor.FailureCategory(ex));
             }
 
             return report.ToString();
@@ -1214,31 +1179,12 @@ namespace RouterPilot.Services
                         "(missing)"));
 
                 if (count > 0)
-                {
-                    string sample =
-                        string.Join(
-                            ", ",
-                            data.EnumerateArray()
-                                .Take(8)
-                                .Select(entry =>
-                                    GetClientStringProperty(
-                                        entry,
-                                        "client"))
-                                .Where(value =>
-                                    !string.IsNullOrWhiteSpace(value)));
-
-                    report.AppendLine(
-                        "Sample client values: " +
-                        (sample.Length == 0
-                            ? "(none)"
-                            : sample));
-                }
+                    report.AppendLine("Query-log client identifiers: excluded from diagnostics");
             }
-            catch (JsonException ex)
+            catch (JsonException)
             {
                 report.AppendLine(
-                    "Invalid JSON: " +
-                    ex.Message);
+                    "Invalid JSON response.");
             }
         }
 
@@ -1289,36 +1235,11 @@ namespace RouterPilot.Services
                         : topClientCount));
 
                 if (topClientCount > 0)
-                {
-                    var samples =
-                        new List<string>();
-
-                    foreach (JsonElement item in
-                        topClients.EnumerateArray().Take(8))
-                    {
-                        if (item.ValueKind != JsonValueKind.Object)
-                        {
-                            continue;
-                        }
-
-                        foreach (JsonProperty property in
-                            item.EnumerateObject())
-                        {
-                            samples.Add(
-                                $"{property.Name}={property.Value}");
-                        }
-                    }
-
-                    report.AppendLine(
-                        "Sample top_clients: " +
-                        string.Join(", ", samples));
-                }
+                    report.AppendLine("Top-client identifiers: excluded from diagnostics");
             }
-            catch (JsonException ex)
+            catch (JsonException)
             {
-                report.AppendLine(
-                    "Invalid JSON: " +
-                    ex.Message);
+                report.AppendLine("Response format: invalid JSON");
             }
         }
 
@@ -1359,11 +1280,9 @@ namespace RouterPilot.Services
                         "interval",
                         -1));
             }
-            catch (JsonException ex)
+            catch (JsonException)
             {
-                report.AppendLine(
-                    "Invalid JSON: " +
-                    ex.Message);
+                report.AppendLine("Response format: invalid JSON");
             }
         }
 
@@ -1430,21 +1349,15 @@ namespace RouterPilot.Services
             }
             catch (HttpRequestException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard query-log HTTP error: " +
-                    ex.Message);
+                LogAdGuardFailure("query-log", ex);
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine(
-                    "AdGuard query-log JSON error: " +
-                    ex.Message);
+                LogAdGuardFailure("query-log", ex);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(
-                    "AdGuard query-log error: " +
-                    ex);
+                LogAdGuardFailure("query-log", ex);
             }
 
             return new List<QueryLogEntry>();
@@ -1941,6 +1854,16 @@ namespace RouterPilot.Services
                        StringComparison.OrdinalIgnoreCase);
         }
 
+        private static void LogAdGuardFailure(
+            string operation,
+            Exception exception)
+        {
+            Debug.WriteLine(
+                "AdGuard operation failed. " +
+                $"Operation: {operation}; " +
+                $"Category: {DiagnosticRedactor.FailureCategory(exception)}.");
+        }
+
         private static void LogFailedQueryLogResponse(
             AdGuardQueryLogResponse response)
         {
@@ -1950,13 +1873,6 @@ namespace RouterPilot.Services
                 response.StatusCode +
                 ".");
 
-            if (!string.IsNullOrWhiteSpace(
-                    response.Content))
-            {
-                Debug.WriteLine(
-                    "AdGuard query-log response: " +
-                    response.Content);
-            }
         }
 
         private static List<ClientInfo>
@@ -2288,13 +2204,6 @@ namespace RouterPilot.Services
                 response.StatusCode +
                 ".");
 
-            if (!string.IsNullOrWhiteSpace(
-                    response.Content))
-            {
-                Debug.WriteLine(
-                    "AdGuard clients response: " +
-                    response.Content);
-            }
         }
 
         private async Task<string>
@@ -2812,13 +2721,6 @@ namespace RouterPilot.Services
                 response.StatusCode +
                 ".");
 
-            if (!string.IsNullOrWhiteSpace(
-                    response.Content))
-            {
-                Debug.WriteLine(
-                    "AdGuard response: " +
-                    response.Content);
-            }
         }
 
         private static AdGuardStatistics

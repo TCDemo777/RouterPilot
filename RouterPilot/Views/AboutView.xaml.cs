@@ -179,10 +179,10 @@ namespace RouterPilot.Views
             catch (Exception ex)
             {
                 DiagnosticsTextBox.Text =
-                    ex.ToString();
+                    $"{action} failed ({DiagnosticRedactor.FailureCategory(ex)}).";
 
                 AppendLog(
-                    $"{action} failed: {ex.Message}");
+                    $"{action} failed ({DiagnosticRedactor.FailureCategory(ex)}).");
             }
         }
 
@@ -297,14 +297,15 @@ namespace RouterPilot.Views
             {
                 DiagnosticsTextBox.Text =
                     "Unable to enable query logging.\n\n" +
-                    ex;
+                    "Failure category: " +
+                    DiagnosticRedactor.FailureCategory(ex);
 
                 QueryLogWarningBorder.Visibility =
                     Visibility.Visible;
 
                 AppendLog(
-                    "Query-log repair failed: " +
-                    ex.Message);
+                    "Query-log repair failed (" +
+                    DiagnosticRedactor.FailureCategory(ex) + ").");
             }
             finally
             {
@@ -367,28 +368,32 @@ namespace RouterPilot.Views
                     Path.Combine(
                         tempFolder,
                         "diagnostics.txt"),
-                    DiagnosticsTextBox.Text,
+                    DiagnosticRedactor.RedactForExport(
+                        DiagnosticsTextBox.Text),
                     Encoding.UTF8);
 
                 File.WriteAllText(
                     Path.Combine(
                         tempFolder,
                         "system.txt"),
-                    SystemTextBox.Text,
+                    DiagnosticRedactor.RedactForExport(
+                        SystemTextBox.Text),
                     Encoding.UTF8);
 
                 File.WriteAllText(
                     Path.Combine(
                         tempFolder,
                         "support-log.txt"),
-                    GetSupportLogText(),
+                    DiagnosticRedactor.RedactForExport(
+                        GetSupportLogText()),
                     Encoding.UTF8);
 
                 File.WriteAllText(
                     Path.Combine(
                         tempFolder,
                         "build.txt"),
-                    GetBuildInformation(),
+                    DiagnosticRedactor.RedactForExport(
+                        GetBuildInformation()),
                     Encoding.UTF8);
 
                 if (File.Exists(dialog.FileName))
@@ -412,11 +417,11 @@ namespace RouterPilot.Views
             catch (Exception ex)
             {
                 AppendLog(
-                    "Diagnostics export failed: " +
-                    ex.Message);
+                    "Diagnostics export failed (" +
+                    DiagnosticRedactor.FailureCategory(ex) + ").");
 
                 MessageBox.Show(
-                    ex.Message,
+                    "RouterPilot could not export diagnostics.",
                     "Unable to export diagnostics",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

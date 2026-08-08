@@ -104,13 +104,25 @@ public sealed class DiagnosticsExecutionService
         {
             Directory.CreateDirectory(temporaryPath);
             await File.WriteAllTextAsync(
-                Path.Combine(temporaryPath, "diagnostics.txt"), report, Encoding.UTF8, cancellationToken);
+                Path.Combine(temporaryPath, "diagnostics.txt"),
+                DiagnosticRedactor.RedactForExport(report),
+                Encoding.UTF8,
+                cancellationToken);
             await File.WriteAllTextAsync(
-                Path.Combine(temporaryPath, "system.txt"), BuildSystemInformation(), Encoding.UTF8, cancellationToken);
+                Path.Combine(temporaryPath, "system.txt"),
+                DiagnosticRedactor.RedactForExport(BuildSystemInformation()),
+                Encoding.UTF8,
+                cancellationToken);
             await File.WriteAllTextAsync(
-                Path.Combine(temporaryPath, "support-log.txt"), _historyService.GetLogText(), Encoding.UTF8, cancellationToken);
+                Path.Combine(temporaryPath, "support-log.txt"),
+                DiagnosticRedactor.RedactForExport(_historyService.GetLogText()),
+                Encoding.UTF8,
+                cancellationToken);
             await File.WriteAllTextAsync(
-                Path.Combine(temporaryPath, "build.txt"), BuildInformation(), Encoding.UTF8, cancellationToken);
+                Path.Combine(temporaryPath, "build.txt"),
+                DiagnosticRedactor.RedactForExport(BuildInformation()),
+                Encoding.UTF8,
+                cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
             if (File.Exists(outputPath))
@@ -178,7 +190,7 @@ public sealed class DiagnosticsExecutionService
             $".NET: {RuntimeInformation.FrameworkDescription}{Environment.NewLine}" +
             $"OS: {RuntimeInformation.OSDescription}{Environment.NewLine}" +
             $"Process architecture: {RuntimeInformation.ProcessArchitecture}{Environment.NewLine}" +
-            $"Router address: {settings.RouterHost}{Environment.NewLine}" +
+            "Router endpoint: configured" + Environment.NewLine +
             $"Refresh interval: {settings.RefreshIntervalSeconds} seconds{Environment.NewLine}" +
             "Password and protected settings: REDACTED";
     }
