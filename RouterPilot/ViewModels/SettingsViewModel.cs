@@ -310,6 +310,7 @@ namespace RouterPilot.ViewModels
                             existing.TrustedRouterCertificateFingerprints ??
                             new Dictionary<string, string>(
                                 StringComparer.OrdinalIgnoreCase),
+                        FirmwareUpdateCheck = existing.FirmwareUpdateCheck ?? new FirmwareUpdateCheck(),
                         RouterHost =
                             RouterConnectionOptions.NormaliseHost(RouterIp),
 

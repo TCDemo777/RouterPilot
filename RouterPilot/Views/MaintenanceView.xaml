@@ -100,6 +100,47 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <TextBlock Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Router firmware" />
+            <Border Padding="18" Margin="0,0,0,16" Background="{DynamicResource Brush.Surface}"
+                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="CURRENT" />
+                        <TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding FirmwareCurrentVersion}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="LATEST" />
+                        <TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding FirmwareLatestVersion}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="STATUS" />
+                        <TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Foreground="{Binding FirmwareStatusColour}" Text="{Binding FirmwareStatusText}" />
+                        <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Muted}" Text="{Binding FirmwareLastChecked, StringFormat=Last checked: {0}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Margin="24,0,0,0" VerticalAlignment="Top">
+                        <Button x:Name="CheckFirmwareButton" Width="144" Height="36" Margin="0,0,0,10" Style="{DynamicResource Button.Primary}"
+                                Content="Check for Updates" IsEnabled="{Binding CanCheckFirmware}" Click="CheckFirmware_Click" />
+                        <Button Width="144" Height="36"
+                                Content="View Release Notes" Click="OpenFirmwarePage_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasFirmwareReleaseNotes}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <TextBlock Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Backup &amp; Restore" />
             <Border Padding="18" Margin="0,0,0,16" Background="{DynamicResource Brush.Surface}"
                     BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="12">

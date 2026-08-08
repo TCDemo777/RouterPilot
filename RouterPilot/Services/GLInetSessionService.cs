@@ -137,6 +137,28 @@ namespace RouterPilot.Services
                 cancellationToken);
         }
 
+        /// <summary>Calls a documented GL.iNet SDK4 ubus RPC method using an authenticated session SID.</summary>
+        public Task<JsonDocument> CallAsync(
+            string sessionId,
+            string service,
+            string method,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(service);
+            ArgumentException.ThrowIfNullOrWhiteSpace(method);
+
+            return PostRpcAsync(
+                new
+                {
+                    jsonrpc = "2.0",
+                    id = 3,
+                    method = "call",
+                    @params = new object[] { sessionId, service, method, new { } }
+                },
+                cancellationToken);
+        }
+
         private async Task<ChallengeResult> GetChallengeAsync(
             CancellationToken cancellationToken)
         {

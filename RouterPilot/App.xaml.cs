@@ -77,6 +77,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();
             serviceCollection.AddSingleton<MaintenanceOperationService>();
+            serviceCollection.AddSingleton<FirmwareUpdateService>();
             serviceCollection.AddSingleton<MaintenanceViewModel>();
             serviceCollection.AddSingleton<UpdateService>();
             serviceCollection.AddSingleton<IClock, SystemClock>();

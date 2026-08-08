@@ -32,6 +32,7 @@ namespace RouterPilot.Views
         private readonly AdGuardServiceScheduleService _scheduleService;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
+        private readonly FirmwareUpdateService _firmwareUpdateService;
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
         private bool _trafficRefreshInProgress;
@@ -86,6 +87,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<AdGuardAvailabilityService>();
             _adGuardMaintenanceStateService = ((App)Application.Current).Services
                 .GetRequiredService<AdGuardMaintenanceStateService>();
+            _firmwareUpdateService = ((App)Application.Current).Services
+                .GetRequiredService<FirmwareUpdateService>();
             _viewModel.AdGuardMaintenanceState = _adGuardMaintenanceStateService.State;
             _adGuardMaintenanceStateService.PropertyChanged += (_, e) =>
             {
@@ -219,6 +222,13 @@ namespace RouterPilot.Views
 
                 _viewModel.FirmwareVersion =
                     info.Firmware;
+
+                // The stock GL.iNet update check is an independent, read-only
+                // operation. Do not delay dashboard startup or the normal refresh.
+                _ = _firmwareUpdateService.CheckAutomaticallyAsync(
+                    router,
+                    info.Firmware,
+                    cancellationToken);
 
                 _viewModel.Uptime =
                     info.Uptime;

@@ -34,7 +34,8 @@ public enum NotificationEventType
     MaintenanceFailed,
     DiagnosticsCompleted,
     ScheduleSucceeded,
-    ScheduleFailed
+    ScheduleFailed,
+    FirmwareUpdateAvailable
 }
 
 public partial class AppNotification : ObservableObject

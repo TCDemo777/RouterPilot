@@ -14,6 +14,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly MaintenanceOperationService _operations;
     private readonly IBackupRestoreService _backupRestoreService;
     private readonly MaintenanceHistoryService _historyService;
+    private readonly FirmwareUpdateService _firmwareUpdateService;
     private DashboardViewModel _dashboard;
 
     [ObservableProperty]
@@ -28,11 +29,14 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public MaintenanceViewModel(
         MaintenanceOperationService operations,
         MaintenanceHistoryService historyService,
-        IBackupRestoreService backupRestoreService)
+        IBackupRestoreService backupRestoreService,
+        FirmwareUpdateService firmwareUpdateService)
     {
         _operations = operations;
         _backupRestoreService = backupRestoreService;
         _historyService = historyService;
+        _firmwareUpdateService = firmwareUpdateService;
+        _firmwareUpdateService.PropertyChanged += FirmwareUpdateService_PropertyChanged;
         History = historyService.Entries;
         _historyService.Changed += HistoryService_Changed;
         Actions = new ObservableCollection<MaintenanceActionItem>(
@@ -58,6 +62,40 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string BackupFolder => _backupRestoreService.BackupFolder;
 
     public bool CanManageBackups => !IsBusy;
+
+    public FirmwareUpdateCheck FirmwareUpdate => _firmwareUpdateService.Current;
+    public string FirmwareCurrentVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.CurrentVersion)
+        ? RouterPilotStatusPresentation.NotAvailable
+        : FirmwareUpdate.CurrentVersion;
+    public string FirmwareLatestVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.LatestVersion)
+        ? RouterPilotStatusPresentation.NotAvailable
+        : FirmwareUpdate.LatestVersion;
+    public bool IsFirmwareChecking => _firmwareUpdateService.IsChecking;
+    public bool CanCheckFirmware => !IsFirmwareChecking && _dashboard.RouterConnected;
+    public string FirmwareStatusText => IsFirmwareChecking
+        ? "Pending"
+        : FirmwareUpdate.Status switch
+        {
+            FirmwareUpdateCheckStatus.UpToDate => "Up to date",
+            FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
+            FirmwareUpdateCheckStatus.Error => "Error",
+            _ => RouterPilotStatusPresentation.NotAvailable
+        };
+    public string FirmwareStatusColour => RouterPilotStatusPresentation.Colour(
+        IsFirmwareChecking ? RouterPilotStatus.Pending : FirmwareUpdate.Status switch
+        {
+            FirmwareUpdateCheckStatus.UpToDate => RouterPilotStatus.Active,
+            FirmwareUpdateCheckStatus.UpdateAvailable => RouterPilotStatus.Pending,
+            FirmwareUpdateCheckStatus.Error => RouterPilotStatus.Error,
+            _ => RouterPilotStatus.NotAvailable
+        });
+    public string FirmwareLastChecked => FirmwareUpdate.LastChecked is { } value
+        ? value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+        : RouterPilotStatusPresentation.NotAvailable;
+    public bool HasFirmwareReleaseNotes => !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotes) ||
+                                            !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotesUrl) ||
+                                            !string.IsNullOrWhiteSpace(FirmwareUpdate.DownloadUrl);
+    public string? FirmwareLink => FirmwareUpdate.ReleaseNotesUrl ?? FirmwareUpdate.DownloadUrl;
 
     public string LastBackupDate => History
         .FirstOrDefault(item => item.Action == MaintenanceAction.CreateBackup)?.TimestampDisplay ?? RouterPilotStatusPresentation.NotAvailable;
@@ -179,6 +217,15 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         }
     }
 
+    public async Task CheckFirmwareAsync()
+    {
+        if (!CanCheckFirmware)
+            return;
+
+        await _firmwareUpdateService.CheckManuallyAsync();
+        OnFirmwarePropertiesChanged();
+    }
+
     public void AttachDashboard(DashboardViewModel dashboard)
     {
         if (ReferenceEquals(_dashboard, dashboard))
@@ -203,6 +250,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(HealthSummary));
             OnPropertyChanged(nameof(HealthSummaryDetail));
             OnPropertyChanged(nameof(HealthSummaryColour));
+            OnPropertyChanged(nameof(CanCheckFirmware));
             UpdateAvailability();
         }
     }
@@ -223,6 +271,23 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(LastBackupResult));
         OnPropertyChanged(nameof(LastBackupDestination));
         OnPropertyChanged(nameof(LastBackupSize));
+    }
+
+    private void FirmwareUpdateService_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+        OnFirmwarePropertiesChanged();
+
+    private void OnFirmwarePropertiesChanged()
+    {
+        OnPropertyChanged(nameof(FirmwareUpdate));
+        OnPropertyChanged(nameof(FirmwareCurrentVersion));
+        OnPropertyChanged(nameof(FirmwareLatestVersion));
+        OnPropertyChanged(nameof(IsFirmwareChecking));
+        OnPropertyChanged(nameof(CanCheckFirmware));
+        OnPropertyChanged(nameof(FirmwareStatusText));
+        OnPropertyChanged(nameof(FirmwareStatusColour));
+        OnPropertyChanged(nameof(FirmwareLastChecked));
+        OnPropertyChanged(nameof(HasFirmwareReleaseNotes));
+        OnPropertyChanged(nameof(FirmwareLink));
     }
 
     private void UpdateActionHistory()

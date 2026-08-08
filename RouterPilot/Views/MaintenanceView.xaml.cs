@@ -166,4 +166,38 @@ public partial class MaintenanceView : UserControl
             UseShellExecute = true
         });
     }
+
+    private async void CheckFirmware_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel)
+            return;
+
+        await viewModel.CheckFirmwareAsync();
+    }
+
+    private void OpenFirmwarePage_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(viewModel.FirmwareLink))
+        {
+            MessageBox.Show(viewModel.FirmwareUpdate.ReleaseNotes,
+                "Firmware release notes", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string link = viewModel.FirmwareLink!;
+        if (!Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !(uri.Host.Equals("gl-inet.com", StringComparison.OrdinalIgnoreCase) ||
+              uri.Host.EndsWith(".gl-inet.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+    }
 }

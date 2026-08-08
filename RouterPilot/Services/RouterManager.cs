@@ -140,6 +140,143 @@ namespace RouterPilot.Services
                 .GetRouterInfoAsync();
         }
 
+        /// <summary>
+        /// Uses the stock GL.iNet SDK4 upgrade service's read-only
+        /// <c>check_firmware_online</c> RPC. This method never downloads or installs firmware.
+        /// </summary>
+        public async Task<FirmwareUpdateCheck> CheckFirmwareUpdateAsync(
+            CancellationToken cancellationToken = default)
+        {
+            string sessionId = await _sessionService.GetAdminTokenAsync(cancellationToken);
+            using JsonDocument document = await _sessionService.CallAsync(
+                sessionId,
+                "upgrade",
+                "check_firmware_online",
+                cancellationToken);
+
+            JsonElement root = document.RootElement;
+            if (!root.TryGetProperty("result", out JsonElement result) ||
+                result.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException("The router firmware check returned no result.");
+            }
+
+
+            string current = ReadFirmwareValue(result,
+                "current_version", "current_firmware_version", "version");
+            string latest = ReadFirmwareValue(result,
+                "new_firmware_version", "new_version", "version_new", "latest_version", "firmware_version");
+            string channel = ReadFirmwareValue(result,
+                "new_firmware_type", "current_type", "channel", "firmware_type");
+
+            bool prompted = result.TryGetProperty("prompt", out JsonElement prompt) &&
+                prompt.ValueKind is JsonValueKind.True;
+
+            var check = new FirmwareUpdateCheck
+            {
+                CurrentVersion = current,
+                LatestVersion = latest,
+                ReleaseChannel = channel,
+                ReleaseDate = ReadFirmwareDate(result, "new_firmware_time", "release_date", "date"),
+                ReleaseNotesUrl = ValidateFirmwareUrl(ReadFirmwareValue(result,
+                    "release_notes_url", "release_note_url", "changelog_url")),
+                ReleaseNotes = ReadFirmwareValue(result,
+                    "release_note", "release_notes"),
+                DownloadUrl = ValidateFirmwareUrl(ReadFirmwareValue(result,
+                    "new_firmware_url", "download_url", "url")),
+                LastChecked = DateTimeOffset.UtcNow
+            };
+
+            if (TryCompareFirmwareVersions(current, latest, out int comparison))
+            {
+                check.Status = comparison < 0
+                    ? FirmwareUpdateCheckStatus.UpdateAvailable
+                    : FirmwareUpdateCheckStatus.UpToDate;
+            }
+            else
+            {
+                // A router prompt without a comparable concrete version is not enough
+                // to claim an update. Keep the result explicit and safe.
+                check.Status = FirmwareUpdateCheckStatus.NotAvailable;
+                check.ErrorCategory = prompted
+                    ? "version-comparison-unavailable"
+                    : "version-unavailable";
+            }
+
+            return check;
+        }
+
+        private static string ReadFirmwareValue(JsonElement element, params string[] names)
+        {
+            foreach (string name in names)
+            {
+                if (element.TryGetProperty(name, out JsonElement value) &&
+                    value.ValueKind == JsonValueKind.String)
+                {
+                    return value.GetString()?.Trim() ?? string.Empty;
+                }
+            }
+            return string.Empty;
+        }
+
+        private static DateTimeOffset? ReadFirmwareDate(JsonElement element, params string[] names)
+        {
+            string value = ReadFirmwareValue(element, names);
+            return DateTimeOffset.TryParse(value, out DateTimeOffset date) ? date : null;
+        }
+
+        private static string? ValidateFirmwareUrl(string value)
+        {
+            if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+                uri.Scheme != Uri.UriSchemeHttps)
+            {
+                return null;
+            }
+
+            string host = uri.Host;
+            return host.Equals("gl-inet.com", StringComparison.OrdinalIgnoreCase) ||
+                   host.EndsWith(".gl-inet.com", StringComparison.OrdinalIgnoreCase)
+                ? uri.AbsoluteUri
+                : null;
+        }
+
+        public static bool TryCompareFirmwareVersions(string current, string latest, out int comparison)
+        {
+            comparison = 0;
+            static int[]? Parse(string value)
+            {
+                System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
+                    value ?? string.Empty, @"\d+(?:\.\d+)+");
+                if (!match.Success)
+                    return null;
+
+                string[] parts = match.Value.Split('.');
+                var result = new int[parts.Length];
+                for (int index = 0; index < parts.Length; index++)
+                {
+                    if (!int.TryParse(parts[index], out result[index]))
+                        return null;
+                }
+                return result;
+            }
+
+            int[]? left = Parse(current);
+            int[]? right = Parse(latest);
+            if (left is null || right is null)
+                return false;
+
+            int length = Math.Max(left.Length, right.Length);
+            for (int index = 0; index < length; index++)
+            {
+                int l = index < left.Length ? left[index] : 0;
+                int r = index < right.Length ? right[index] : 0;
+                if (l == r) continue;
+                comparison = l.CompareTo(r);
+                return true;
+            }
+            return true;
+        }
+
         //
         // Network
         //
