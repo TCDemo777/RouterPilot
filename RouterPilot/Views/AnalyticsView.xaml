@@ -203,27 +203,85 @@
                 </Grid>
             </Border>
 
-            <!-- Internet speed test: deliberately unavailable until a router-native
-                 capability is verified. RouterPilot must not install or invoke
-                 unverified router tools, nor mislabel a PC-side measurement as WAN. -->
             <Border Style="{StaticResource SectionContainerStyle}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Internet Speed Test" />
-                        <TextBlock Style="{StaticResource Text.Secondary}"
-                                   TextWrapping="Wrap"
-                                   Text="Unsupported on this router. RouterPilot has not detected a verified router-native speed-test capability and will not install or run unverified software." />
-                        <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}"
-                                   Text="Source: N/A" />
-                    </StackPanel>
-                    <Border Grid.Column="1" Style="{StaticResource Badge.Warning}">
-                        <TextBlock Foreground="{DynamicResource Brush.Warning}" FontWeight="SemiBold" Text="Unsupported" />
-                    </Border>
-                </Grid>
+                <StackPanel x:Name="SpeedTestPanel">
+                    <Grid Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Internet Speed Test" />
+                            <TextBlock Style="{StaticResource Text.Secondary}" Text="User-initiated throughput measurement. RouterPilot uses the router only when a verified installed backend is available." />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Margin="0,0,0,14" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Text="{Binding RouterAvailabilityText}" />
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="PING" />
+                            <TextBlock x:Name="SpeedTestPingText" Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding PingDisplay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="DOWNLOAD" />
+                            <TextBlock x:Name="SpeedTestDownloadText" Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding DownloadDisplay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="UPLOAD" />
+                            <TextBlock x:Name="SpeedTestUploadText" Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding UploadDisplay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="SOURCE" />
+                            <TextBlock x:Name="SpeedTestSourceText" Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding SourceDisplay}" ToolTip="{Binding SourceToolTip}">
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Text.Muted}" Text="Provider" />
+                        <TextBlock x:Name="SpeedTestProviderText" Grid.Column="1" Margin="10,0,24,0" Style="{StaticResource Text.Body}" Text="{Binding ProviderDisplay}" ToolTip="Running the test connects to an external Measurement Lab measurement server." />
+                        <TextBlock Grid.Column="2" Style="{StaticResource Text.Muted}" Text="Last tested" />
+                        <TextBlock x:Name="SpeedTestLastTestedText" Grid.Column="3" Margin="10,0,0,0" Style="{StaticResource Text.Body}" Text="{Binding LastTestedDisplay}" />
+                    </Grid>
+
+                    <TextBlock x:Name="SpeedTestStatusText" Margin="0,0,0,14" Style="{StaticResource Text.Muted}" Text="{Binding StatusDisplay, StringFormat=Status: {0}}" />
+                    <TextBlock x:Name="SpeedTestErrorText" Margin="0,-8,0,14" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Visibility="Collapsed" />
+
+                    <WrapPanel Margin="0,0,0,10">
+                        <Button x:Name="RunSpeedTestButton" Width="144" Height="36" Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Run Speed Test" Click="RunSpeedTestButton_Click" />
+                        <Button Width="90" Height="36" Margin="0,0,10,0" Style="{DynamicResource Button.Secondary}" Content="Cancel" IsEnabled="{Binding IsRunning}" Click="CancelSpeedTest_Click" />
+                        <Button MinWidth="190" Height="36" Style="{DynamicResource Button.Secondary}" Content="Clear Speed Test History" Click="ClearSpeedTestHistory_Click" />
+                    </WrapPanel>
+                    <Separator Margin="0,0,0,12" />
+                    <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.SectionTitle}" Text="Recent tests" />
+                    <TextBlock x:Name="NoSpeedTestsText" Text="No speed tests yet.">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers><DataTrigger Binding="{Binding HasHistory}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl x:Name="RecentSpeedTestsList" ItemsSource="{Binding RecentHistory}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4,0,4">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource Text.Muted}" Text="{Binding Timestamp, StringFormat={}{0:g}}" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Text.Secondary}" Text="{Binding SourceDisplay}" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource Text.Secondary}" Text="{Binding DownloadDisplay}" />
+                                    <TextBlock Grid.Column="3" Style="{StaticResource Text.Secondary}" Text="{Binding UploadDisplay}" />
+                                    <TextBlock Grid.Column="4" HorizontalAlignment="Right" Style="{StaticResource Text.Secondary}" Text="{Binding PingDisplay}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </Border>
 
             <!-- Resource health -->

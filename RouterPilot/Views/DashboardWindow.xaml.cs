@@ -755,24 +755,32 @@ namespace RouterPilot.Views
             object sender,
             DependencyPropertyChangedEventArgs e)
         {
-            if (IsVisible)
+            try
             {
-                _previousTrafficSnapshot = null;
-                _trafficBaselineRequired = true;
-
-                if (IsLoaded)
+                if (IsVisible)
                 {
-                    await _refreshCoordinator.SetEnabledAsync(
-                        TrafficRefreshTask,
-                        true);
+                    _previousTrafficSnapshot = null;
+                    _trafficBaselineRequired = true;
+
+                    if (IsLoaded)
+                    {
+                        await _refreshCoordinator.SetEnabledAsync(
+                            TrafficRefreshTask,
+                            true);
+                    }
+
+                    return;
                 }
 
-                return;
+                await _refreshCoordinator.SetEnabledAsync(
+                    TrafficRefreshTask,
+                    false);
             }
-
-            await _refreshCoordinator.SetEnabledAsync(
-                TrafficRefreshTask,
-                false);
+            catch (ObjectDisposedException)
+            {
+                // Visibility can change after shutdown has disposed the refresh
+                // coordinator. An async event handler must not crash the app.
+            }
         }
 
         protected override void OnClosing(
@@ -982,10 +990,10 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
-            var analyticsView = new AnalyticsView
-            {
-                DataContext = _viewModel
-            };
+            var analyticsView = new AnalyticsView(
+                ((App)Application.Current).Services.GetRequiredService<IInternetSpeedTestService>(),
+                ((App)Application.Current).Services.GetRequiredService<SettingsService>(),
+                _viewModel);
             PageContent.Content = analyticsView;
 
             SelectNavigationButton(

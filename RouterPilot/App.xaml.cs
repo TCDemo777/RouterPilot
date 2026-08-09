@@ -54,6 +54,7 @@ namespace RouterPilot
 
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddSingleton(applicationDataPaths);
+            serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,
                 SshHostKeyTrustService>();
@@ -82,6 +83,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();
             serviceCollection.AddSingleton<MaintenanceOperationService>();
             serviceCollection.AddSingleton<FirmwareUpdateService>();
+            serviceCollection.AddSingleton<IInternetSpeedTestService, InternetSpeedTestService>();
             serviceCollection.AddSingleton<MaintenanceViewModel>();
             serviceCollection.AddSingleton<UpdateService>();
             serviceCollection.AddSingleton<IClock, SystemClock>();
@@ -114,6 +116,7 @@ namespace RouterPilot
             await Services.GetRequiredService<MaintenanceHistoryService>()
                 .InitializeAsync();
             _ = Services.GetRequiredService<TimelineService>().InitializeAsync();
+            _ = Services.GetRequiredService<IInternetSpeedTestService>().InitializeAsync();
             await Services.GetRequiredService<AdGuardServiceScheduleService>()
                 .InitializeAsync();
 

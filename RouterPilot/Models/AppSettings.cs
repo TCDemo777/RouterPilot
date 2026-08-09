@@ -33,6 +33,7 @@ public sealed class AppSettings
     public string LastNotifiedUpdateVersion { get; set; } = string.Empty;
     public string LastNotifiedFirmwareVersion { get; set; } = string.Empty;
     public FirmwareUpdateCheck FirmwareUpdateCheck { get; set; } = new();
+    public bool SpeedTestBandwidthWarningAcknowledged { get; set; }
     public NotificationPreferences NotificationPreferences { get; set; } = new();
 
     public bool IsConfigured =>

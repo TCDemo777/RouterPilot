@@ -1,0 +1,28 @@
+<Window x:Class="RouterPilot.Views.SpeedTestBandwidthWarningDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Run Internet Speed Test"
+        SizeToContent="WidthAndHeight"
+        MinWidth="430"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Speed tests use significant Internet bandwidth for a short period and may temporarily affect other network activity."
+                   TextWrapping="Wrap" />
+        <CheckBox x:Name="SuppressWarningCheckBox"
+                  Grid.Row="1"
+                  Margin="0,16,0,20"
+                  Content="Don't show this warning again" />
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="86" Margin="0,0,8,0" IsCancel="True" Content="Cancel" Click="Cancel_Click" />
+            <Button Width="86" IsDefault="True" Content="Run Test" Click="Run_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
