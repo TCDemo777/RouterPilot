@@ -55,7 +55,7 @@
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="72"/>
+            <RowDefinition Height="56"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="35"/>
         </Grid.RowDefinitions>
@@ -67,16 +67,20 @@
 
         <Border Grid.Row="0"
                 Grid.Column="0"
-                Grid.ColumnSpan="2"
                 Background="{DynamicResource Brush.Surface}"
                 BorderBrush="{DynamicResource Brush.Border}"
                 BorderThickness="0,0,0,1">
-            <Grid Margin="20,0">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock FontSize="24"
-                               FontWeight="Bold"
-                               Text="RouterPilot"/>
-                </StackPanel>
+            <Image Width="44" Height="44" Margin="14,6" HorizontalAlignment="Left" Stretch="Uniform" Source="/Assets/RouterPilotLogo.png"/>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" FontSize="18" FontWeight="Bold" Text="RouterPilot"/>
+                <TextBlock x:Name="HeaderVersion" Grid.Column="1" Margin="10,2,0,0" VerticalAlignment="Center" FontSize="11" Style="{DynamicResource Text.Muted}"/>
+                <TextBlock Grid.Column="2" Margin="24,0,16,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterModel}" Text="{Binding RouterModel}"/>
+                <StackPanel Grid.Column="3" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="Router"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding RouterStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding RouterStatusColour}" Text="{Binding RouterStatusText}"/></StackPanel></StackPanel>
+                <StackPanel Grid.Column="4" Margin="14,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="Internet"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding InternetStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding InternetStatusColour}" Text="{Binding InternetStatusText}"/></StackPanel></StackPanel>
+                <StackPanel Grid.Column="5" Margin="14,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="AdGuard"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding AdGuardStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding AdGuardStatusColour}" Text="{Binding AdGuardStatusText}"/></StackPanel></StackPanel>
             </Grid>
         </Border>
 
@@ -88,19 +92,18 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0"
-                           Margin="20,22,20,14"
+                           Margin="14,14,14,8"
                            FontSize="12"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource Brush.TextMuted}"
                            Text="NAVIGATION"/>
 
                 <StackPanel Grid.Row="1">
+                    <TextBlock Margin="18,8,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="#35404D"
@@ -126,6 +129,8 @@
                             Content="Network"
                             Click="Network_Click"/>
 
+                    <TextBlock Margin="18,12,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
+
                     <Button x:Name="MaintenanceButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
@@ -143,6 +148,20 @@
                             Background="Transparent"
                             Content="DNS Activity"
                             Click="Logs_Click"/>
+
+                    <Button x:Name="TimelineButton"
+                            Style="{StaticResource SidebarNavigationButton}"
+                            HorizontalContentAlignment="Stretch"
+                            Background="Transparent"
+                            Click="Timeline_Click">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Timeline"/>
+                            <Border Grid.Column="1" MinWidth="22" Padding="5,1" Background="{DynamicResource Brush.Primary}" CornerRadius="9">
+                                <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding UnreadCount}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                                <TextBlock HorizontalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="White" Text="{Binding UnreadCount}"/>
+                            </Border>
+                        </Grid>
+                    </Button>
 
                     <Button x:Name="NotificationButton"
                             Style="{StaticResource SidebarNavigationButton}"
@@ -202,20 +221,6 @@
 
                 </StackPanel>
 
-                <Border Grid.Row="3" Margin="10,8,10,12" Padding="10" Background="#192027" CornerRadius="8">
-                    <StackPanel>
-                        <TextBlock Foreground="#D7DCE2"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Text="RouterPilot"/>
-                        <TextBlock Margin="0,3,0,0"
-                                   Foreground="#8F9AA6"
-                                   FontSize="10.5"
-                                   LineHeight="14"
-                                   TextWrapping="Wrap"
-                                   Text="Router and DNS management"/>
-                    </StackPanel>
-                </Border>
             </Grid>
         </Border>
 

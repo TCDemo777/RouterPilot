@@ -34,6 +34,14 @@ public partial class StatisticCard : UserControl
             typeof(StatisticCard),
             new PropertyMetadata(null));
 
+    /// <summary>Uses the compact, single-line status-value treatment for state labels.</summary>
+    public static readonly DependencyProperty UseCompactStatusValueProperty =
+        DependencyProperty.Register(
+            nameof(UseCompactStatusValue),
+            typeof(bool),
+            typeof(StatisticCard),
+            new PropertyMetadata(false));
+
     public static readonly DependencyProperty IconGlyphProperty =
         DependencyProperty.Register(
             nameof(IconGlyph),
@@ -151,6 +159,12 @@ public partial class StatisticCard : UserControl
     {
         get => (Brush)GetValue(ValueForegroundProperty);
         set => SetValue(ValueForegroundProperty, value);
+    }
+
+    public bool UseCompactStatusValue
+    {
+        get => (bool)GetValue(UseCompactStatusValueProperty);
+        set => SetValue(UseCompactStatusValueProperty, value);
     }
 
     public string IconGlyph

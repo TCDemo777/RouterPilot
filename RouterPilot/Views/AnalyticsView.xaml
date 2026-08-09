@@ -44,8 +44,10 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer Background="{DynamicResource Brush.WindowBackground}">
-        <StackPanel Margin="24">
+    <ScrollViewer Background="{DynamicResource Brush.WindowBackground}"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource Page.Content}">
 
             <!-- Heading -->
             <Grid Margin="0,0,0,24">
@@ -201,6 +203,29 @@
                 </Grid>
             </Border>
 
+            <!-- Internet speed test: deliberately unavailable until a router-native
+                 capability is verified. RouterPilot must not install or invoke
+                 unverified router tools, nor mislabel a PC-side measurement as WAN. -->
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Internet Speed Test" />
+                        <TextBlock Style="{StaticResource Text.Secondary}"
+                                   TextWrapping="Wrap"
+                                   Text="Unsupported on this router. RouterPilot has not detected a verified router-native speed-test capability and will not install or run unverified software." />
+                        <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}"
+                                   Text="Source: N/A" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Badge.Warning}">
+                        <TextBlock Foreground="{DynamicResource Brush.Warning}" FontWeight="SemiBold" Text="Unsupported" />
+                    </Border>
+                </Grid>
+            </Border>
+
             <!-- Resource health -->
             <Border Margin="0,0,0,20" Style="{StaticResource Card}">
                 <StackPanel>
@@ -275,12 +300,10 @@
                 Foreground="{DynamicResource Brush.Warning}"
                 Text="{Binding AdGuardAvailabilityMessage}" />
 
-            <TextBlock
-                Margin="0,0,0,12"
-                Style="{StaticResource Text.SectionTitle}"
-                Text="DNS Summary" />
-
-            <WrapPanel Margin="0,0,-12,12">
+            <Border Style="{StaticResource SectionContainerStyle}">
+            <StackPanel>
+            <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.SectionTitle}" Text="DNS Summary" />
+            <WrapPanel Margin="0,0,-12,0">
                 <controls:StatisticCard
                     Width="250"
                     Margin="0,0,12,12"
@@ -311,13 +334,10 @@
                     Title="BLOCKING RATE"
                     Value="{Binding AdGuardBlockRateDisplay}" />
             </WrapPanel>
+            </StackPanel>
+            </Border>
 
             <!-- Chart -->
-            <TextBlock
-                Margin="0,8,0,12"
-                Style="{StaticResource Text.SectionTitle}"
-                Text="Traffic history" />
-
             <Border
                 MinHeight="330"
                 Margin="0,0,0,20"
@@ -338,7 +358,7 @@
                         <StackPanel>
                             <TextBlock
                                 Style="{StaticResource Text.SectionTitle}"
-                                Text="DNS query history" />
+                                Text="Traffic history" />
                             <TextBlock
                                 Margin="0,4,0,0"
                                 Style="{StaticResource Text.Muted}"
@@ -384,9 +404,10 @@
             </Border>
 
             <!-- Rankings -->
+            <Border Style="{StaticResource SectionContainerStyle}">
+            <StackPanel>
             <TextBlock
-                Margin="0,0,0,12"
-                Style="{StaticResource Text.SectionTitle}"
+                Style="{StaticResource SectionHeaderStyle}"
                 Text="Top activity" />
 
             <Grid Margin="0,0,0,16">
@@ -673,7 +694,7 @@
             <!-- Requested domains full width -->
             <Border
                 MinHeight="330"
-                Margin="0,0,0,16"
+                Margin="0"
                 Style="{StaticResource Card}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -798,6 +819,8 @@
                         </ListBox>
                     </Grid>
                 </Grid>
+            </Border>
+            </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>

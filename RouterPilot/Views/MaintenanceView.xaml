@@ -6,14 +6,13 @@
              Foreground="{DynamicResource Brush.TextPrimary}">
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="24">
+        <StackPanel Style="{StaticResource Page.Content}">
             <TextBlock Style="{StaticResource Text.PageTitle}" Text="Maintenance" />
             <TextBlock Margin="0,8,0,24"
                        Style="{StaticResource Text.Secondary}"
                        Text="Safely manage supported router services and review recent maintenance activity." />
 
-            <Border Margin="0,0,0,24" Padding="16" CornerRadius="12"
-                    Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+            <Border Style="{StaticResource SectionContainerStyle}" Padding="16">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <Ellipse Width="10" Height="10" Margin="0,4,12,0" VerticalAlignment="Top" Fill="{Binding HealthSummaryColour}" />
@@ -24,26 +23,32 @@
                 </Grid>
             </Border>
 
-            <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="Current status" />
-            <WrapPanel Margin="0,0,-16,32">
-                <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ROUTER"
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Current status" />
+                    <WrapPanel Margin="0,0,-16,-16">
+                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ROUTER"
                                         Value="{Binding Dashboard.RouterStatusText}"
                                         ValueForeground="{Binding Dashboard.RouterStatusColour}"
                                         Subtitle="Router connection" />
-                <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="INTERNET / WAN"
+                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="INTERNET / WAN"
                                         Value="{Binding Dashboard.InternetStatusText}"
                                         ValueForeground="{Binding Dashboard.InternetStatusColour}"
                                         Subtitle="WAN connectivity" />
-                <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="WI-FI"
+                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="WI-FI"
                                         Value="{Binding WifiStatusText}"
                                         ValueForeground="{Binding WifiStatusColour}"
                                         Subtitle="Router wireless interfaces" />
-                <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ADGUARD HOME"
+                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ADGUARD HOME"
                                         Value="{Binding Dashboard.AdGuardStatusText}"
                                         ValueForeground="{Binding Dashboard.AdGuardStatusColour}"
                                         Subtitle="DNS filtering service" />
-            </WrapPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
 
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -87,9 +92,10 @@
                                                 Click="ActionMenu_Click">
                                             <Button.ContextMenu>
                                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                                    <MenuItem Header="Run" Click="RunActionMenu_Click" />
+                                                    <MenuItem Header="Run" IsEnabled="{Binding IsAvailable}" ToolTip="{Binding AvailabilityReason}" Click="RunActionMenu_Click" />
                                                     <MenuItem Header="View History" Click="ViewActionHistory_Click" />
-                                                    <MenuItem Header="Copy Last Result" Click="CopyLastResult_Click" />
+                                                    <MenuItem Header="Copy Last Result" IsEnabled="{Binding HasLastResult}"
+                                                              ToolTip="Copies the safe result shown on this action card" Click="CopyLastResult_Click" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
                                         </Button>
@@ -111,10 +117,13 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+                </StackPanel>
+            </Border>
 
-            <TextBlock Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Router firmware" />
-            <Border Padding="18" Margin="0,0,0,16" Background="{DynamicResource Brush.Surface}"
-                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="12">
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router firmware" />
+            <Border Padding="0" BorderThickness="0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -168,10 +177,13 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Border>
 
-            <TextBlock Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Backup &amp; Restore" />
-            <Border Padding="18" Margin="0,0,0,16" Background="{DynamicResource Brush.Surface}"
-                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="12">
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Backup &amp; Restore" />
+            <Border Padding="0" BorderThickness="0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -202,9 +214,13 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Border>
 
-            <TextBlock x:Name="MaintenanceHistoryHeading" Margin="0,16,0,16" Style="{StaticResource Text.SectionTitle}" Text="Maintenance history" />
-            <Border Padding="0" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+            <TextBlock x:Name="MaintenanceHistoryHeading" Style="{StaticResource SectionHeaderStyle}" Text="Maintenance history" />
+            <Border Padding="0" BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -242,6 +258,8 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
+            </Border>
+                </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>

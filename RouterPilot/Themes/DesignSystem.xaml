@@ -148,6 +148,19 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
+    <!-- Page-level grouping: one logical section has one outer surface. -->
+    <Style x:Key="SectionContainerStyle" TargetType="Border" BasedOn="{StaticResource Card}">
+        <Setter Property="Margin" Value="0,0,0,20" />
+    </Style>
+
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource Text.SectionTitle}">
+        <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+
+    <Style x:Key="SectionSubheaderStyle" TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
+        <Setter Property="Margin" Value="0,4,0,16" />
+    </Style>
+
     <!-- Shared compact status badges -->
     <Style x:Key="Badge" TargetType="Border">
         <Setter Property="Padding" Value="8,3" />

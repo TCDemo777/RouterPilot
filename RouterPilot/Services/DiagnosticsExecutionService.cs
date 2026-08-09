@@ -18,48 +18,55 @@ public sealed class DiagnosticsExecutionService
     private readonly MaintenanceHistoryService _maintenanceHistoryService;
     private readonly NotificationService _notificationService;
     private readonly SettingsService _settingsService;
+    private readonly TimelineService _timelineService;
 
     public DiagnosticsExecutionService(
         IRouterManagerProvider routerManagerProvider,
         DiagnosticsHistoryService historyService,
         MaintenanceHistoryService maintenanceHistoryService,
         NotificationService notificationService,
-        SettingsService settingsService)
+        SettingsService settingsService,
+        TimelineService timelineService)
     {
         _routerManagerProvider = routerManagerProvider;
         _historyService = historyService;
         _maintenanceHistoryService = maintenanceHistoryService;
         _notificationService = notificationService;
         _settingsService = settingsService;
+        _timelineService = timelineService;
     }
+
+    /// <summary>Shared, safe result used by About when diagnostics originated from Maintenance.</summary>
+    public DiagnosticsExecutionResult? LatestResult { get; private set; }
+    public event EventHandler? LatestResultChanged;
 
     public async Task<DiagnosticsExecutionResult> RunAsync(
         DiagnosticExecutionSource source,
+        bool createBackup = false,
         CancellationToken cancellationToken = default)
     {
-        string? outputPath = SelectOutputPath();
-        if (string.IsNullOrWhiteSpace(outputPath))
-        {
-            return await CompleteAsync(
-                source,
-                DiagnosticExecutionOutcome.Cancelled,
-                "Diagnostics export cancelled.",
-                null);
-        }
-
         try
         {
             RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
             string report = await router.GetClientDiagnosticsAsync()
                 .WaitAsync(TimeSpan.FromSeconds(45), cancellationToken);
-            await CreateBundleAsync(outputPath, report, cancellationToken);
+            string? outputPath = null;
+            if (createBackup)
+            {
+                outputPath = SelectOutputPath();
+                if (string.IsNullOrWhiteSpace(outputPath))
+                    return await CompleteAsync(source, DiagnosticExecutionOutcome.Cancelled,
+                        "Diagnostics backup cancelled.", null, report, false);
+                await CreateBundleAsync(outputPath, report, cancellationToken);
+            }
 
             return await CompleteAsync(
                 source,
                 DiagnosticExecutionOutcome.Success,
-                "Diagnostics exported successfully.",
+                createBackup ? "Diagnostics backup created." : "Diagnostics completed.",
                 outputPath,
-                report);
+                report,
+                createBackup);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -146,12 +153,13 @@ public sealed class DiagnosticsExecutionService
         DiagnosticExecutionOutcome outcome,
         string message,
         string? outputPath,
-        string? report = null)
+        string? report = null,
+        bool notify = false)
     {
         await _historyService.AddAsync(outcome, $"{message}{(outputPath is null ? string.Empty : " " + outputPath)}", source, outputPath);
         await _maintenanceHistoryService.AddAsync(new MaintenanceHistoryEntry
         {
-            Action = MaintenanceAction.RunDiagnostics,
+            Action = notify ? MaintenanceAction.BackupDiagnostics : MaintenanceAction.RunDiagnostics,
             Source = source.ToString(),
             Outcome = outcome switch
             {
@@ -162,7 +170,7 @@ public sealed class DiagnosticsExecutionService
             Message = message
         });
 
-        if (outcome != DiagnosticExecutionOutcome.Cancelled)
+        if (EventRoutingPolicy.ShouldNotifyDiagnostics(outcome))
         {
             await _notificationService.AddAsync(new AppNotification
             {
@@ -179,7 +187,27 @@ public sealed class DiagnosticsExecutionService
             });
         }
 
-        return new DiagnosticsExecutionResult(outcome, report, message, outputPath);
+        var result = new DiagnosticsExecutionResult(outcome, report, message, outputPath);
+        LatestResult = result;
+        LatestResultChanged?.Invoke(this, EventArgs.Empty);
+
+        if (outcome != DiagnosticExecutionOutcome.Cancelled)
+        {
+            bool backupCreated = outcome == DiagnosticExecutionOutcome.Success && notify;
+            await _timelineService.AddAsync(new TimelineEvent
+            {
+                Category = TimelineCategory.Diagnostics,
+                EventType = backupCreated ? TimelineEventType.DiagnosticsBackupCreated : outcome == DiagnosticExecutionOutcome.Success ? TimelineEventType.DiagnosticsCompleted : TimelineEventType.DiagnosticsFailed,
+                Title = backupCreated ? "Diagnostics backup created" : outcome == DiagnosticExecutionOutcome.Success ? "Diagnostics completed" : "Diagnostics failed",
+                Message = message,
+                Severity = outcome == DiagnosticExecutionOutcome.Success ? TimelineSeverity.Success : TimelineSeverity.Error,
+                Source = source.ToString(),
+                CorrelationId = "diagnostics:" + source + ":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                DeduplicationKey = "diagnostics:" + Guid.NewGuid().ToString("N")
+            });
+        }
+
+        return result;
     }
 
     private string BuildSystemInformation()

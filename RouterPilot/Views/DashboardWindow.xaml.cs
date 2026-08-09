@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -36,6 +37,7 @@ namespace RouterPilot.Views
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
         private bool _trafficRefreshInProgress;
+        private bool _initialFirmwareCheckScheduled;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private bool _routerOnline = true;
 
@@ -70,6 +72,7 @@ namespace RouterPilot.Views
 
             DataContext =
                 _viewModel;
+            HeaderVersion.Text = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "-");
 
             _notificationService = ((App)Application.Current)
                 .Services.GetRequiredService<NotificationService>();
@@ -89,6 +92,7 @@ namespace RouterPilot.Views
                 .GetRequiredService<AdGuardMaintenanceStateService>();
             _firmwareUpdateService = ((App)Application.Current).Services
                 .GetRequiredService<FirmwareUpdateService>();
+            TimelineButton.DataContext = ((App)Application.Current).Services.GetRequiredService<TimelineService>();
             _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
                 _firmwareUpdateService.Current.CurrentVersion)
                 ? "-"
@@ -99,7 +103,9 @@ namespace RouterPilot.Views
                     _firmwareUpdateService.Current.CurrentVersion)
                     ? "-"
                     : _firmwareUpdateService.Current.CurrentVersion;
+                UpdateFirmwareHealthState();
             };
+            UpdateFirmwareHealthState();
             _viewModel.AdGuardMaintenanceState = _adGuardMaintenanceStateService.State;
             _adGuardMaintenanceStateService.PropertyChanged += (_, e) =>
             {
@@ -236,12 +242,17 @@ namespace RouterPilot.Views
                 _viewModel.FirmwareVersion =
                     info.Firmware;
 
-                // The stock GL.iNet update check is an independent, read-only
-                // operation. Do not delay dashboard startup or the normal refresh.
-                _ = _firmwareUpdateService.CheckAutomaticallyAsync(
-                    router,
-                    info.Firmware,
-                    cancellationToken);
+                // A changed installed version makes the old cached availability
+                // result unresolved until the single startup check completes.
+                if (!string.IsNullOrWhiteSpace(info.Firmware) &&
+                    !string.Equals(_firmwareUpdateService.Current.CurrentVersion, info.Firmware,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    _viewModel.FirmwareUpdateStatus = FirmwareUpdateCheckStatus.Pending;
+                    _viewModel.FirmwareLatestVersion = string.Empty;
+                }
+
+                ScheduleInitialFirmwareCheck(router, info.Firmware);
 
                 _viewModel.Uptime =
                     info.Uptime;
@@ -356,6 +367,27 @@ namespace RouterPilot.Views
 
                 _refreshInProgress = false;
             }
+        }
+
+        private void ScheduleInitialFirmwareCheck(RouterManager router, string currentVersion)
+        {
+            if (_initialFirmwareCheckScheduled)
+                return;
+
+            _initialFirmwareCheckScheduled = true;
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20));
+                if (IsLoaded && _viewModel.RouterConnected)
+                    await _firmwareUpdateService.CheckAutomaticallyAsync(router, currentVersion);
+            });
+        }
+
+        private void UpdateFirmwareHealthState()
+        {
+            FirmwareUpdateCheck cached = _firmwareUpdateService.Current;
+            _viewModel.FirmwareUpdateStatus = cached.Status;
+            _viewModel.FirmwareLatestVersion = cached.LatestVersion ?? string.Empty;
         }
 
         private async Task RefreshAdGuardAsync(
@@ -1005,6 +1037,14 @@ namespace RouterPilot.Views
                 LogsButton);
         }
 
+        private void Timeline_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            PageContent.Content = new TimelineView();
+            SelectNavigationButton(TimelineButton);
+        }
+
         private void Search_Click(
             object sender,
             RoutedEventArgs e)
@@ -1057,6 +1097,7 @@ namespace RouterPilot.Views
                 MaintenanceButton,
                 ClientsButton,
                 LogsButton,
+                TimelineButton,
                 NotificationButton,
                 SearchButton,
                 NavigationSettingsButton,

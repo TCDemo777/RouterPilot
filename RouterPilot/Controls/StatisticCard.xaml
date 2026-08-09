@@ -6,7 +6,18 @@
     MinWidth="150"
     MinHeight="120">
 
-    <Border Style="{StaticResource Card}">
+    <Border>
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                <!-- Overview status cards keep the same outer dimensions but use
+                     less horizontal inset so state labels have the full text column. -->
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding UseCompactStatusValue, ElementName=Root}" Value="True">
+                        <Setter Property="Padding" Value="14,20" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -52,7 +63,6 @@
                 Margin="0,4,0,3"
                 VerticalAlignment="Center">
                 <TextBlock
-                    FontSize="22"
                     LineHeight="25"
                     MaxHeight="54"
                     Text="{Binding Value, ElementName=Root, TargetNullValue=N/A, FallbackValue=N/A}"
@@ -61,9 +71,28 @@
                     ToolTip="{Binding Value, ElementName=Root, TargetNullValue=N/A, FallbackValue=N/A}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource Text.CardValue}">
+                            <Setter Property="FontSize" Value="22" />
                             <Setter Property="Foreground"
                                     Value="{Binding ValueForeground, ElementName=Root}" />
                             <Style.Triggers>
+                                <DataTrigger Binding="{Binding UseCompactStatusValue, ElementName=Root}" Value="True">
+                                    <Setter Property="MaxHeight" Value="25" />
+                                    <Setter Property="TextWrapping" Value="NoWrap" />
+                                </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding UseCompactStatusValue, ElementName=Root}" Value="True" />
+                                        <Condition Binding="{Binding Value, ElementName=Root}" Value="Disconnected" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="FontSize" Value="20" />
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding UseCompactStatusValue, ElementName=Root}" Value="True" />
+                                        <Condition Binding="{Binding Value, ElementName=Root}" Value="Connecting..." />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="FontSize" Value="20" />
+                                </MultiDataTrigger>
                                 <DataTrigger Binding="{Binding ValueForeground, ElementName=Root}" Value="{x:Null}">
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                 </DataTrigger>

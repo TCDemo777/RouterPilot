@@ -74,12 +74,10 @@
             </Grid>
 
             <!-- Health summary -->
-            <TextBlock
-                Margin="0,0,0,16"
-                Style="{StaticResource Text.SectionTitle}"
-                Text="System health" />
-
-            <Grid Margin="0,0,0,32">
+            <Border Margin="0,0,0,20" Style="{StaticResource Card}">
+            <StackPanel>
+            <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="System health" />
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="12" />
@@ -95,6 +93,7 @@
                 <controls:StatisticCard
                     Grid.Column="0"
                     Height="146"
+                    UseCompactStatusValue="True"
                     AccentBrush="{Binding RouterStatusColour}"
                     ValueForeground="{Binding RouterStatusColour}"
                     FooterText="{Binding RouterModel}"
@@ -107,6 +106,7 @@
                 <controls:StatisticCard
                     Grid.Column="2"
                     Height="146"
+                    UseCompactStatusValue="True"
                     AccentBrush="{Binding AdGuardStatusColour}"
                     ValueForeground="{Binding AdGuardStatusColour}"
                     IconBackground="{DynamicResource Brush.SuccessSubtle}"
@@ -118,6 +118,7 @@
                 <controls:StatisticCard
                     Grid.Column="4"
                     Height="146"
+                    UseCompactStatusValue="True"
                     AccentBrush="{Binding InternetStatusColour}"
                     ValueForeground="{Binding InternetStatusColour}"
                     FooterText="{Binding Latency}"
@@ -151,13 +152,34 @@
                     ValueForeground="{Binding MemoryHealthColour}"
                     Value="{Binding MemoryUsage}" />
             </Grid>
+            </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router Health"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthSummary}"/></StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right"><TextBlock HorizontalAlignment="Right" FontSize="22" FontWeight="SemiBold" Foreground="{Binding RouterHealthColour}" Text="{Binding RouterHealthState}"/><TextBlock HorizontalAlignment="Right" Style="{DynamicResource Text.Muted}" Text="{Binding RouterHealthScore, StringFormat={}{0}%}"/></StackPanel>
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="NEEDS ATTENTION"/>
+                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthAttentionText}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="HEALTHY"/>
+                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthHealthyText}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
 
             <!-- Main details -->
-            <TextBlock
-                Margin="0,0,0,16"
-                Style="{StaticResource Text.SectionTitle}"
-                Text="System details" />
-
+            <Border Margin="0,0,0,20" Style="{StaticResource Card}">
+            <StackPanel>
+            <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="System details" />
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -262,6 +284,15 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Uptime" />
                                 <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding Uptime}" />
+                            </Grid>
+
+                            <Grid Style="{StaticResource Overview.DetailRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Last reboot" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding RouterLastRebootEstimate}" ToolTip="Estimated from the current router uptime." />
                             </Grid>
 
                             <Grid Style="{StaticResource Overview.DetailRow}">
@@ -596,27 +627,29 @@
                     </Grid>
                 </Border>
             </Grid>
+            </StackPanel>
+            </Border>
 
-            <TextBlock Margin="0,32,0,16"
-                       Style="{StaticResource Text.SectionTitle}"
-                       Text="Quick actions" />
-            <Border Style="{StaticResource Card}">
+            <Border Margin="0,0,0,20" Style="{StaticResource Card}">
+                <StackPanel>
+                <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="Quick actions" />
                 <WrapPanel>
-                    <Button Margin="0,0,10,10" MinWidth="112" Height="36" Style="{DynamicResource Button.Primary}"
-                            Tag="RefreshAll" Content="Refresh" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="132" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RunDiagnostics" Content="Run Diagnostics" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="154" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RestartAdGuard" Content="Restart AdGuard Home" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="118" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RestartWifi" Content="Restart Wi-Fi" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="122" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="CreateBackup" Content="Create Backup" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="132" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="CheckFirmware" Content="Check Firmware" Click="QuickAction_Click" />
-                    <Button Margin="0,0,10,10" MinWidth="126" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="OpenRouter" Content="Open Router UI" Click="QuickAction_Click" />
+                    <Button x:Name="RefreshQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Primary}"
+                            Tag="RefreshAll" Content="Refresh" ToolTip="Refresh all current RouterPilot data" AutomationProperties.Name="Refresh all data" Click="QuickAction_Click" />
+                    <Button x:Name="DiagnosticsQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RunDiagnostics" Content="Run Diagnostics" ToolTip="Run the existing safe diagnostics workflow" AutomationProperties.Name="Run Diagnostics" Click="QuickAction_Click" />
+                    <Button x:Name="RestartAdGuardQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartAdGuard" Content="Restart AdGuard" ToolTip="Restart AdGuard Home" AutomationProperties.Name="Restart AdGuard Home" Click="QuickAction_Click" />
+                    <Button x:Name="RestartWifiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartWifi" Content="Restart Wi-Fi" ToolTip="Restart router wireless interfaces" AutomationProperties.Name="Restart Wi-Fi" Click="QuickAction_Click" />
+                    <Button x:Name="BackupQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="CreateBackup" Content="Create Backup" ToolTip="Create a RouterPilot backup package" AutomationProperties.Name="Create Backup" Click="QuickAction_Click" />
+                    <Button x:Name="FirmwareQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="CheckFirmware" Content="Check Firmware" ToolTip="Check for GL.iNet firmware updates" AutomationProperties.Name="Check Firmware" Click="QuickAction_Click" />
+                    <Button x:Name="RouterUiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
+                            Tag="OpenRouter" Content="Open Router UI" ToolTip="Open the configured router interface" AutomationProperties.Name="Open Router UI" Click="QuickAction_Click" />
                 </WrapPanel>
+                </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>

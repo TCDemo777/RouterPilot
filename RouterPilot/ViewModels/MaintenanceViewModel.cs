@@ -46,7 +46,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             new(MaintenanceAction.ReconnectWan, "Reconnect WAN", "Renews the router WAN interface."),
             new(MaintenanceAction.RebootRouter, "Reboot Router", "Restarts the router and interrupts local connectivity."),
             new(MaintenanceAction.RefreshAll, "Refresh All", "Runs RouterPilot's current dashboard refresh."),
-            new(MaintenanceAction.RunDiagnostics, "Run Diagnostics", "Collects the existing safe router support checks.")
+            new(MaintenanceAction.RunDiagnostics, "Run Diagnostics", "Collects the existing safe router support checks."),
+            new(MaintenanceAction.BackupDiagnostics, "Backup Diagnostics", "Exports the same safe diagnostics report as a ZIP archive.")
         ]);
 
         _dashboard = new DashboardViewModel();
@@ -312,7 +313,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     {
         foreach (MaintenanceActionItem action in Actions)
         {
-            bool requiresRouter = action.Action is not MaintenanceAction.RefreshAll and not MaintenanceAction.RunDiagnostics;
+            bool requiresRouter = action.Action is not MaintenanceAction.RefreshAll and not MaintenanceAction.RunDiagnostics and not MaintenanceAction.BackupDiagnostics;
             bool requiresAdGuard = action.Action == MaintenanceAction.RestartAdGuard;
             bool available = !IsBusy &&
                 (!requiresRouter || _dashboard.RouterConnected) &&
@@ -361,6 +362,11 @@ public sealed partial class MaintenanceActionItem : ObservableObject
 
     [ObservableProperty]
     private string lastResult = RouterPilotStatusPresentation.NotAvailable;
+
+    public bool HasLastResult => LastResult != RouterPilotStatusPresentation.NotAvailable;
+
+    partial void OnLastResultChanged(string value) =>
+        OnPropertyChanged(nameof(HasLastResult));
 
     [ObservableProperty]
     private string lastRun = RouterPilotStatusPresentation.NotAvailable;
