@@ -14,6 +14,7 @@ public sealed class MaintenanceOperationService
     private readonly DiagnosticsExecutionService _diagnosticsExecutionService;
     private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
     private readonly IBackupRestoreService _backupRestoreService;
+    private readonly TimelineService _timelineService;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
 
     public MaintenanceOperationService(
@@ -22,7 +23,8 @@ public sealed class MaintenanceOperationService
         MaintenanceHistoryService historyService,
         DiagnosticsExecutionService diagnosticsExecutionService,
         AdGuardMaintenanceStateService adGuardMaintenanceStateService,
-        IBackupRestoreService backupRestoreService)
+        IBackupRestoreService backupRestoreService,
+        TimelineService timelineService)
     {
         _routerManagerProvider = routerManagerProvider;
         _notificationService = notificationService;
@@ -30,6 +32,7 @@ public sealed class MaintenanceOperationService
         _diagnosticsExecutionService = diagnosticsExecutionService;
         _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
         _backupRestoreService = backupRestoreService;
+        _timelineService = timelineService;
     }
 
     public Task<MaintenanceOperationResult> CreateBackupAsync(
@@ -109,11 +112,12 @@ public sealed class MaintenanceOperationService
                 MaintenanceAction.ReconnectWan => await ReconnectWanAsync(cancellationToken),
                 MaintenanceAction.RebootRouter => await RebootRouterAsync(cancellationToken),
                 MaintenanceAction.RunDiagnostics => await RunDiagnosticsAsync(cancellationToken),
+                MaintenanceAction.BackupDiagnostics => await BackupDiagnosticsAsync(cancellationToken),
                 _ => throw new ArgumentOutOfRangeException(nameof(action))
             };
 
             MaintenanceOperationResult result = MaintenanceOperationResult.Success(message);
-            if (action != MaintenanceAction.RunDiagnostics)
+            if (action is not (MaintenanceAction.RunDiagnostics or MaintenanceAction.BackupDiagnostics))
             {
                 await RecordAsync(action, result, executionId);
             }
@@ -126,7 +130,7 @@ public sealed class MaintenanceOperationService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             MaintenanceOperationResult result = MaintenanceOperationResult.Cancelled("Maintenance action cancelled.");
-            if (action != MaintenanceAction.RunDiagnostics)
+            if (action is not (MaintenanceAction.RunDiagnostics or MaintenanceAction.BackupDiagnostics))
             {
                 await RecordAsync(action, result, executionId);
             }
@@ -138,7 +142,7 @@ public sealed class MaintenanceOperationService
                 action == MaintenanceAction.RestartAdGuard
                     ? "AdGuard Home could not be restarted."
                     : "RouterPilot could not complete this maintenance action.");
-            if (action != MaintenanceAction.RunDiagnostics)
+            if (action is not (MaintenanceAction.RunDiagnostics or MaintenanceAction.BackupDiagnostics))
             {
                 await RecordAsync(action, result, executionId);
             }
@@ -241,11 +245,26 @@ public sealed class MaintenanceOperationService
     {
         DiagnosticsExecutionResult result = await _diagnosticsExecutionService.RunAsync(
             DiagnosticExecutionSource.Maintenance,
-            cancellationToken);
+            createBackup: false,
+            cancellationToken: cancellationToken);
         return result.Outcome switch
         {
             DiagnosticExecutionOutcome.Success =>
-                "Diagnostics completed. Open About for the detailed support report and export options.",
+                "Diagnostics completed. Open About to view the detailed support report.",
+            DiagnosticExecutionOutcome.Cancelled => throw new MaintenanceOperationCancelledException(),
+            _ => throw new InvalidOperationException(result.Message)
+        };
+    }
+
+    private async Task<string> BackupDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        DiagnosticsExecutionResult result = await _diagnosticsExecutionService.RunAsync(
+            DiagnosticExecutionSource.Maintenance,
+            createBackup: true,
+            cancellationToken: cancellationToken);
+        return result.Outcome switch
+        {
+            DiagnosticExecutionOutcome.Success => "Diagnostics backup created.",
             DiagnosticExecutionOutcome.Cancelled => throw new MaintenanceOperationCancelledException(),
             _ => throw new InvalidOperationException(result.Message)
         };
@@ -272,8 +291,10 @@ public sealed class MaintenanceOperationService
             OutputSizeBytes = result.OutputSizeBytes
         });
 
-        await _notificationService.AddAsync(new AppNotification
+        if (EventRoutingPolicy.ShouldNotify(action, result.Outcome))
         {
+            await _notificationService.AddAsync(new AppNotification
+            {
             Title = action == MaintenanceAction.RestartAdGuard
                 ? result.Outcome == MaintenanceOutcome.Success
                     ? "AdGuard Home restarted successfully"
@@ -298,8 +319,34 @@ public sealed class MaintenanceOperationService
             EventType = result.Outcome == MaintenanceOutcome.Success
                 ? NotificationEventType.MaintenanceSucceeded
                 : NotificationEventType.MaintenanceFailed,
-            DeduplicationKey = "Maintenance-" + action + "-" + executionId
-        });
+                DeduplicationKey = "Maintenance-" + action + "-" + executionId
+            });
+        }
+
+        if (action != MaintenanceAction.RunDiagnostics)
+        {
+            bool isBackup = action is MaintenanceAction.CreateBackup or MaintenanceAction.RestoreBackup;
+            string title = action switch
+            {
+                MaintenanceAction.CreateBackup when result.Outcome == MaintenanceOutcome.Success => "Backup created",
+                MaintenanceAction.RestoreBackup when result.Outcome == MaintenanceOutcome.Success => "Restore completed",
+                _ => MaintenanceActionPresentation.Title(action) + (result.Outcome == MaintenanceOutcome.Success ? " completed" : " failed")
+            };
+            await _timelineService.AddAsync(new TimelineEvent
+            {
+                Category = isBackup ? TimelineCategory.Backup : TimelineCategory.Maintenance,
+                EventType = action == MaintenanceAction.CreateBackup ? TimelineEventType.BackupCreated :
+                    action == MaintenanceAction.RestoreBackup ? TimelineEventType.RestoreCompleted :
+                    result.Outcome == MaintenanceOutcome.Success ? TimelineEventType.MaintenanceCompleted : TimelineEventType.MaintenanceFailed,
+                Title = title,
+                Message = result.Message,
+                Severity = result.Outcome == MaintenanceOutcome.Success ? TimelineSeverity.Success :
+                    result.Outcome == MaintenanceOutcome.Cancelled ? TimelineSeverity.Warning : TimelineSeverity.Error,
+                Source = "Maintenance",
+                CorrelationId = executionId.ToString("N"),
+                DeduplicationKey = "maintenance:" + executionId.ToString("N")
+            });
+        }
     }
 }
 

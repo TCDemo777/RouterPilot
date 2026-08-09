@@ -169,7 +169,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="24">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="18"/>
@@ -177,7 +177,7 @@
         </Grid.RowDefinitions>
 
         <!-- Page header -->
-        <Grid>
+        <Grid Margin="24,24,24,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -199,7 +199,7 @@
                     Command="{Binding RefreshAllCommand}"/>
         </Grid>
 
-        <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
+        <TabControl Grid.Row="2" Margin="24,0,0,0" Background="Transparent" BorderThickness="0">
             <TabControl.Resources>
                 <DataTemplate x:Key="ProtectionTab.Core">
                     <StackPanel>
@@ -954,7 +954,7 @@
 
             <TabItem Header="Protection">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
+                    <StackPanel Margin="0,0,24,24">
                         <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Core}"/>
                         <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.DnsManagement}"/>
                     </StackPanel>
@@ -963,13 +963,13 @@
 
             <TabItem Header="Blocked Services">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.BlockedServices}"/>
+                    <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.BlockedServices}"/>
                 </ScrollViewer>
             </TabItem>
 
             <TabItem Header="Schedules">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Schedules}"/>
+                    <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Schedules}"/>
                 </ScrollViewer>
             </TabItem>
         </TabControl>

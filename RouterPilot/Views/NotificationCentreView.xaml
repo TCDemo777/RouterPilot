@@ -50,7 +50,8 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2">
+        <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
+        <Grid>
             <ListBox ItemsSource="{Binding NotificationsView}"
                      BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -185,5 +186,6 @@
                 </StackPanel>
             </Border>
         </Grid>
+        </Border>
     </Grid>
 </UserControl>

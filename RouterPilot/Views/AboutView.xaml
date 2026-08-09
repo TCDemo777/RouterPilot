@@ -46,7 +46,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="24"
+    <Grid
           ClipToBounds="True"
           Background="{DynamicResource Brush.WindowBackground}">
         <Grid.RowDefinitions>
@@ -55,7 +55,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <StackPanel>
+        <StackPanel Margin="24,24,24,0">
             <TextBlock Style="{DynamicResource Text.PageTitle}"
                        Text="About"/>
                     <TextBlock Margin="0,5,0,0"
@@ -64,15 +64,16 @@
         </StackPanel>
 
         <TabControl Grid.Row="2"
+                    Margin="24,0,0,0"
                     VerticalContentAlignment="Stretch"
                     Background="{DynamicResource Brush.WindowBackground}"
                     Foreground="{DynamicResource Brush.TextPrimary}"
                     BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="0">
             <TabItem Header="About">
-                <ScrollViewer Margin="0,12,0,0"
+                <ScrollViewer
                               VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
+                    <StackPanel Margin="0,12,24,24">
                         <Border Style="{DynamicResource Card}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -375,10 +376,10 @@
             </TabItem>
 
             <TabItem Header="Diagnostics">
-                <ScrollViewer Margin="0,12,0,0"
+                <ScrollViewer
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
+                    <StackPanel Margin="0,12,24,24">
                         <Border Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}"
@@ -485,7 +486,7 @@
                                                 Margin="0,0,8,0"
                                                 Style="{DynamicResource Button.Secondary}"
                                                 Click="ExportDiagnostics_Click"
-                                                Content="Export"/>
+                                                Content="Backup Diagnostics"/>
                                         <Button MinWidth="124"
                                                 Height="38"
                                                 Margin="0,0,8,0"
@@ -496,7 +497,7 @@
                                                 Height="38"
                                                 Style="{DynamicResource Button.Primary}"
                                                 Click="RunDiagnostics_Click"
-                                                Content="Run diagnostics"/>
+                                                Content="Run Diagnostics"/>
                                     </WrapPanel>
                                 </Grid>
 

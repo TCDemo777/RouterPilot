@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using RouterPilot.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -36,6 +37,16 @@ namespace RouterPilot.ViewModels
         // as the installed vendor firmware.
         [ObservableProperty]
         private string routerFirmwareVersion = "-";
+
+        // Cached state supplied by FirmwareUpdateService; the dashboard never initiates
+        // firmware I/O and only uses this confirmed result for presentation/scoring.
+        [ObservableProperty]
+        private FirmwareUpdateCheckStatus firmwareUpdateStatus = FirmwareUpdateCheckStatus.NotAvailable;
+
+        [ObservableProperty]
+        private string firmwareLatestVersion = string.Empty;
+
+        public bool FirmwareUpdateAvailable => FirmwareUpdateStatus == FirmwareUpdateCheckStatus.UpdateAvailable;
 
         [ObservableProperty]
         private string hostname = "-";
@@ -78,6 +89,131 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private string storageTotal = "-";
+
+        // Deterministic health weights: router 25, internet 20, AdGuard 15,
+        // CPU 10, memory 10, storage 5, temperature/latency/firmware reserve 15.
+        // Unknown metrics are neutral; only confirmed unhealthy data deducts points.
+        public int RouterHealthScore
+        {
+            get
+            {
+                if (!RouterConnected) return 0;
+                int score = 100;
+                if (!InternetConnected) score -= 20;
+                if (!IsAdGuardAvailable) score -= 15;
+                if (CpuPercentage >= 90) score -= 10; else if (CpuPercentage >= 70) score -= 5;
+                if (MemoryPercentage >= 90) score -= 10; else if (MemoryPercentage >= 75) score -= 5;
+                if (StoragePercentage >= 90) score -= 5; else if (StoragePercentage >= 75) score -= 3;
+                // Firmware currency is informational health context, not a reliability failure.
+                if (FirmwareUpdateAvailable) score -= 3;
+                return Math.Clamp(score, 0, 100);
+            }
+        }
+        public string RouterHealthState => !RouterConnected ? "Critical" : CpuUtilisationPending ? RouterPilotStatusPresentation.Pending :
+            RouterHealthScore >= 90 ? "Excellent" : RouterHealthScore >= 75 ? "Good" : RouterHealthScore >= 45 ? "Attention Required" : "Critical";
+        public string RouterHealthSummary => RouterHealthState == RouterPilotStatusPresentation.Pending ? "Collecting router health…" : $"Health: {RouterHealthScore}% — {RouterHealthState}";
+        public string RouterHealthColour => RouterPilotStatusPresentation.Colour(RouterHealthState switch { "Excellent" or "Good" => RouterPilotStatus.Active, "Critical" => RouterPilotStatus.Error, "Attention Required" => RouterPilotStatus.Pending, _ => RouterPilotStatus.Pending });
+
+        // These reasons deliberately mirror RouterHealthScore; they are presentation only,
+        // so health scoring remains deterministic and has a single authoritative implementation.
+        public IReadOnlyList<string> RouterHealthAttentionReasons
+        {
+            get
+            {
+                if (RouterHealthState == RouterPilotStatusPresentation.Pending)
+                    return ["Waiting for router health data…"];
+
+                List<string> reasons = [];
+                if (!RouterConnected) reasons.Add("Router is disconnected");
+                if (RouterConnected && !InternetConnected) reasons.Add("Internet connection is unavailable");
+                if (RouterConnected && !IsAdGuardAvailable) reasons.Add("AdGuard Home is unavailable");
+                if (FirmwareUpdateAvailable) reasons.Add($"Firmware update available ({FirmwareLatestVersion})");
+                if (CpuPercentage >= 90) reasons.Add("CPU usage is high");
+                else if (CpuPercentage >= 70) reasons.Add("CPU usage is elevated");
+                if (MemoryPercentage >= 90) reasons.Add("Memory usage is high");
+                else if (MemoryPercentage >= 75) reasons.Add("Memory usage is elevated");
+                if (StoragePercentage >= 90) reasons.Add("Storage is nearly full");
+                else if (StoragePercentage >= 75) reasons.Add("Storage usage is elevated");
+                return reasons.Take(3).ToList();
+            }
+        }
+
+        public IReadOnlyList<string> RouterHealthHealthyConditions
+        {
+            get
+            {
+                if (RouterHealthState == RouterPilotStatusPresentation.Pending || !RouterConnected)
+                    return [];
+
+                List<string> conditions = [];
+                if (InternetConnected) conditions.Add("Internet connected");
+                if (IsAdGuardAvailable) conditions.Add("AdGuard Home active");
+                if (CpuPercentage is > 0 and < 70) conditions.Add("CPU normal");
+                if (MemoryPercentage is > 0 and < 75) conditions.Add("Memory normal");
+                if (FirmwareUpdateStatus == FirmwareUpdateCheckStatus.UpToDate) conditions.Add("Firmware up to date");
+                return conditions.Take(3).ToList();
+            }
+        }
+
+        public string RouterHealthAttentionText => string.Join(Environment.NewLine, RouterHealthAttentionReasons.Select(reason => $"• {reason}"));
+        public string RouterHealthHealthyText => string.Join(Environment.NewLine, RouterHealthHealthyConditions.Select(condition => $"• {condition}"));
+
+        // Internet quality reuses the dashboard's existing latency value. Thresholds:
+        // <=30 ms Excellent, <=80 ms Good, <=150 ms Fair, >150 ms Poor.
+        public string InternetQualityState
+        {
+            get
+            {
+                if (!RouterConnected || !InternetConnected) return "Unavailable";
+                if (!TryGetLatencyMilliseconds(out double milliseconds)) return CpuUtilisationPending ? RouterPilotStatusPresentation.Pending : RouterPilotStatusPresentation.NotAvailable;
+                return milliseconds <= 30 ? "Excellent" : milliseconds <= 80 ? "Good" : milliseconds <= 150 ? "Fair" : "Poor";
+            }
+        }
+
+        public string InternetQualityDetail => InternetQualityState is "Unavailable" or RouterPilotStatusPresentation.Pending or RouterPilotStatusPresentation.NotAvailable
+            ? InternetQualityState
+            : Latency;
+
+        public string InternetQualityColour => RouterPilotStatusPresentation.Colour(InternetQualityState switch
+        {
+            "Excellent" or "Good" => RouterPilotStatus.Active,
+            "Fair" => RouterPilotStatus.Pending,
+            "Poor" => RouterPilotStatus.Error,
+            _ => RouterPilotStatus.NotAvailable
+        });
+
+        public string RouterLastRebootEstimate
+        {
+            get
+            {
+                if (!TryParseUptime(Uptime, out TimeSpan uptime)) return RouterPilotStatusPresentation.NotAvailable;
+                return $"Approximately {DateTimeOffset.Now - uptime:dd MMM yyyy HH:mm}";
+            }
+        }
+
+        private bool TryGetLatencyMilliseconds(out double milliseconds)
+        {
+            Match match = Regex.Match(Latency ?? string.Empty, @"(?<ms>\d+(?:[\.,]\d+)?)\s*ms", RegexOptions.IgnoreCase);
+            return double.TryParse(match.Groups["ms"].Value.Replace(',', '.'), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out milliseconds);
+        }
+
+        private static bool TryParseUptime(string? value, out TimeSpan uptime)
+        {
+            uptime = default;
+            if (string.IsNullOrWhiteSpace(value) || value == "-") return false;
+            Match day = Regex.Match(value, @"(?<value>\d+)\s*day", RegexOptions.IgnoreCase);
+            Match hour = Regex.Match(value, @"(?<value>\d+)\s*hour", RegexOptions.IgnoreCase);
+            Match minute = Regex.Match(value, @"(?<value>\d+)\s*min", RegexOptions.IgnoreCase);
+            if (day.Success || hour.Success || minute.Success)
+            {
+                uptime = TimeSpan.FromDays(day.Success ? int.Parse(day.Groups["value"].Value) : 0)
+                    + TimeSpan.FromHours(hour.Success ? int.Parse(hour.Groups["value"].Value) : 0)
+                    + TimeSpan.FromMinutes(minute.Success ? int.Parse(minute.Groups["value"].Value) : 0);
+                return uptime > TimeSpan.Zero;
+            }
+            return TimeSpan.TryParse(value, out uptime);
+        }
 
         public string CpuHealthText =>
             CpuPercentage >= 90
@@ -1096,6 +1232,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(InternetStatusText));
             OnPropertyChanged(nameof(InternetStatusColour));
             OnPropertyChanged(nameof(OverallStatusColour));
+            NotifyRouterHealthChanged();
         }
 
 
@@ -1322,6 +1459,23 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(MemoryHealthColour));
             OnPropertyChanged(nameof(StorageHealthText));
             OnPropertyChanged(nameof(StorageHealthColour));
+            NotifyRouterHealthChanged();
+        }
+
+        private void NotifyRouterHealthChanged()
+        {
+            OnPropertyChanged(nameof(RouterHealthScore));
+            OnPropertyChanged(nameof(RouterHealthState));
+            OnPropertyChanged(nameof(RouterHealthSummary));
+            OnPropertyChanged(nameof(RouterHealthColour));
+            OnPropertyChanged(nameof(RouterHealthAttentionReasons));
+            OnPropertyChanged(nameof(RouterHealthHealthyConditions));
+            OnPropertyChanged(nameof(RouterHealthAttentionText));
+            OnPropertyChanged(nameof(RouterHealthHealthyText));
+            OnPropertyChanged(nameof(InternetQualityState));
+            OnPropertyChanged(nameof(InternetQualityDetail));
+            OnPropertyChanged(nameof(InternetQualityColour));
+            OnPropertyChanged(nameof(RouterLastRebootEstimate));
         }
 
         partial void OnCpuPercentageChanged(double value)
@@ -1345,6 +1499,23 @@ namespace RouterPilot.ViewModels
         {
             NotifyResourceHealthChanged();
         }
+
+        partial void OnLatencyChanged(string value)
+        {
+            OnPropertyChanged(nameof(InternetQualityState));
+            OnPropertyChanged(nameof(InternetQualityDetail));
+            OnPropertyChanged(nameof(InternetQualityColour));
+        }
+
+        partial void OnUptimeChanged(string value) => OnPropertyChanged(nameof(RouterLastRebootEstimate));
+
+        partial void OnFirmwareUpdateStatusChanged(FirmwareUpdateCheckStatus value)
+        {
+            OnPropertyChanged(nameof(FirmwareUpdateAvailable));
+            NotifyRouterHealthChanged();
+        }
+
+        partial void OnFirmwareLatestVersionChanged(string value) => NotifyRouterHealthChanged();
 
     }
 }

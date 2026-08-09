@@ -199,14 +199,13 @@ namespace RouterPilot.Views
         private void ClientCard_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is not FrameworkElement { DataContext: ClientInfo } card ||
-                ItemsControl.ContainerFromElement(ClientsGrid, card) is not ListBoxItem item ||
-                item.ContextMenu is null)
+                card.ContextMenu is null)
                 return;
 
             // Context actions are scoped to the card under the pointer. Do
             // not alter SelectedClient or trigger the left-click auto-scroll.
-            item.ContextMenu.PlacementTarget = item;
-            item.ContextMenu.IsOpen = true;
+            card.ContextMenu.PlacementTarget = card;
+            card.ContextMenu.IsOpen = true;
             e.Handled = true;
         }
 

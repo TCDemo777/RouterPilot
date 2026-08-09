@@ -76,7 +76,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-    <Grid Margin="24">
+    <Grid Style="{StaticResource Page.Content}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="18"/>

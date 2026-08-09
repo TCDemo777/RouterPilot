@@ -10,6 +10,7 @@ public enum MaintenanceAction
     ReconnectWan,
     RefreshAll,
     RunDiagnostics,
+    BackupDiagnostics,
     CreateBackup,
     RestoreBackup
 }
@@ -62,6 +63,7 @@ public static class MaintenanceActionPresentation
         MaintenanceAction.ReconnectWan => "Reconnect WAN",
         MaintenanceAction.RefreshAll => "Refresh All",
         MaintenanceAction.RunDiagnostics => "Run Diagnostics",
+        MaintenanceAction.BackupDiagnostics => "Backup Diagnostics",
         MaintenanceAction.CreateBackup => "Create Backup",
         MaintenanceAction.RestoreBackup => "Restore Backup",
         _ => action.ToString()

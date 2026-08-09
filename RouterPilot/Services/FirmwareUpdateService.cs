@@ -13,17 +13,20 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     private readonly SettingsService _settingsService;
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly NotificationService _notificationService;
+    private readonly TimelineService _timelineService;
     private readonly SemaphoreSlim _checkGate = new(1, 1);
     private FirmwareUpdateCheck _current;
     private bool _isChecking;
 
     public FirmwareUpdateService(SettingsService settingsService,
         IRouterManagerProvider routerManagerProvider,
-        NotificationService notificationService)
+        NotificationService notificationService,
+        TimelineService timelineService)
     {
         _settingsService = settingsService;
         _routerManagerProvider = routerManagerProvider;
         _notificationService = notificationService;
+        _timelineService = timelineService;
         _current = _settingsService.Load().FirmwareUpdateCheck ?? new FirmwareUpdateCheck();
     }
 
@@ -34,6 +37,16 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     public Task CheckAutomaticallyAsync(RouterManager router, string knownCurrentVersion,
         CancellationToken cancellationToken = default)
     {
+        // A router may have been updated while RouterPilot was closed. A changed
+        // installed version invalidates the cached availability result, even when
+        // its normal 12-hour validity window has not elapsed.
+        if (!string.IsNullOrWhiteSpace(knownCurrentVersion) &&
+            !string.Equals(_current.CurrentVersion, knownCurrentVersion,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return CheckAsync(router, knownCurrentVersion, cancellationToken);
+        }
+
         if (_current.LastChecked is { } checkedAt &&
             DateTimeOffset.UtcNow - checkedAt < AutomaticCheckInterval)
         {
@@ -56,13 +69,15 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            await PersistAsync(new FirmwareUpdateCheck
+            var failed = new FirmwareUpdateCheck
             {
                 CurrentVersion = _current.CurrentVersion,
                 Status = FirmwareUpdateCheckStatus.Error,
                 LastChecked = DateTimeOffset.UtcNow,
                 ErrorCategory = ClassifyFailure(exception)
-            });
+            };
+            await PersistAsync(failed);
+            await RecordFailureAsync(failed);
         }
     }
 
@@ -79,11 +94,40 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
             if (string.IsNullOrWhiteSpace(result.CurrentVersion))
                 result.CurrentVersion = knownCurrentVersion ?? string.Empty;
 
+            FirmwareUpdateCheck previous = _current;
             await PersistAsync(result);
+
+            if (!string.IsNullOrWhiteSpace(previous.CurrentVersion) &&
+                !string.IsNullOrWhiteSpace(result.CurrentVersion) &&
+                !string.Equals(previous.CurrentVersion, result.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                bool completedAdvertisedUpdate = string.Equals(previous.LatestVersion, result.CurrentVersion,
+                    StringComparison.OrdinalIgnoreCase);
+                await _timelineService.AddAsync(new TimelineEvent
+                {
+                    Category = TimelineCategory.Firmware,
+                    EventType = completedAdvertisedUpdate ? TimelineEventType.FirmwareUpdateCompleted : TimelineEventType.FirmwareChanged,
+                    Title = completedAdvertisedUpdate ? "Firmware update completed" : "Router firmware changed",
+                    Message = $"{previous.CurrentVersion} → {result.CurrentVersion}.",
+                    Severity = TimelineSeverity.Success,
+                    Source = "Firmware check",
+                    DeduplicationKey = $"firmware-changed:{_settingsService.Load().RouterHost}:{previous.CurrentVersion}:{result.CurrentVersion}"
+                });
+            }
 
             if (result.Status == FirmwareUpdateCheckStatus.UpdateAvailable)
             {
                 AppSettings settings = _settingsService.Load();
+                await _timelineService.AddAsync(new TimelineEvent
+                {
+                    Category = TimelineCategory.Firmware,
+                    EventType = TimelineEventType.FirmwareUpdateAvailable,
+                    Title = "Router firmware update available",
+                    Message = $"Current: {result.CurrentVersion}; latest: {result.LatestVersion}.",
+                    Severity = TimelineSeverity.Information,
+                    Source = "Firmware check",
+                    DeduplicationKey = $"firmware-update:{settings.RouterHost}:{result.LatestVersion}"
+                });
                 if (string.Equals(settings.LastNotifiedFirmwareVersion, result.LatestVersion,
                         StringComparison.OrdinalIgnoreCase))
                 {
@@ -124,13 +168,15 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            await PersistAsync(new FirmwareUpdateCheck
+            var failed = new FirmwareUpdateCheck
             {
                 CurrentVersion = knownCurrentVersion ?? _current.CurrentVersion,
                 Status = FirmwareUpdateCheckStatus.Error,
                 LastChecked = DateTimeOffset.UtcNow,
                 ErrorCategory = ClassifyFailure(exception)
-            });
+            };
+            await PersistAsync(failed);
+            await RecordFailureAsync(failed);
         }
         finally
         {
@@ -147,6 +193,20 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         _settingsService.Save(settings);
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Current)));
         return Task.CompletedTask;
+    }
+
+    private async Task RecordFailureAsync(FirmwareUpdateCheck failed)
+    {
+        await _timelineService.AddAsync(new TimelineEvent
+        {
+            Category = TimelineCategory.Firmware,
+            EventType = TimelineEventType.FirmwareCheckFailed,
+            Title = "Firmware check failed",
+            Message = "RouterPilot could not check for firmware updates.",
+            Severity = TimelineSeverity.Error,
+            Source = "Firmware check",
+            DeduplicationKey = $"firmware-check-failed:{_settingsService.Load().RouterHost}:{failed.ErrorCategory}:{DateTimeOffset.UtcNow:yyyyMMddHH}"
+        });
     }
 
     private void SetChecking(bool checking)

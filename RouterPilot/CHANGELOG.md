@@ -1,5 +1,29 @@
 # RouterPilot Changelog
 
+# RouterPilot v1.9.0
+
+## Added
+- Added the Event Timeline: a persistent, unified history with local category, severity and date filters, search, read state and safe CSV, JSON and text export.
+- Added Overview Quick Actions, contextual client actions and Maintenance overflow actions that reuse the established maintenance, diagnostics, backup and firmware workflows.
+- Added GL.iNet firmware update discovery, background firmware-state refresh, installed-version change tracking and per-version update-notification deduplication.
+- Added Router Health with concise health explanations and Internet Quality based on existing connectivity and latency data.
+
+## Changed
+- Redesigned the application shell with a compact global header showing labelled Router, Internet and AdGuard Home states and refresh status.
+- Applied the shared one-section/one-outer-box presentation pattern and consistent page content/scrollbar alignment across updated RouterPilot pages.
+- Split diagnostics into Run Diagnostics, which updates the shared safe output, and Backup Diagnostics, which creates the existing redacted ZIP export.
+- Clarified router information by showing the LuCI snapshot separately from the installed GL.iNet router firmware.
+- Improved Timeline/notification relevance and deduplication so routine checks do not create repeated history or notification noise.
+
+## Fixed
+- Fixed duplicate firmware update notifications and duplicate Timeline events for the same available firmware version.
+- Fixed stale firmware health state after a router firmware update by scheduling one non-blocking check after a confirmed connection.
+- Fixed Overview status-value layout so standard connection states fit without clipping.
+- Fixed Clients context-menu/XAML regressions and page scrollbar/right-margin inconsistencies.
+
+## Security
+- v1.9 preserves DPAPI credential protection, HTTPS certificate TOFU/pinning, SSH host-key verification, diagnostics redaction, command allow-listing and trusted external URL validation introduced in v1.8.1.
+
 # RouterPilot v1.8.1
 
 ## Security

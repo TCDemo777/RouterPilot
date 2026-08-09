@@ -4,8 +4,8 @@
 
 | Version | Support status |
 | --- | --- |
-| 1.8.1 | Supported |
-| 1.8.0 | Update recommended |
+| 1.9.0 | Supported |
+| 1.8.1 | Update recommended |
 | Older releases | Update recommended |
 
 ## Reporting a Vulnerability
@@ -23,6 +23,7 @@ Please report vulnerabilities privately where possible. Use GitHub's private vul
 - Backup archives validate their manifest, filenames and SHA-256 file hashes before restore.
 - The update checker does not download or execute release assets automatically.
 - Windows notifications contain text only; they do not implement command or deep-link activation.
+- Timeline exports contain only the safe, user-visible event fields. They exclude credentials, tokens, cookies, raw responses and diagnostic reports.
 
 ## Known / Accepted Risks
 

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -26,7 +27,28 @@ namespace RouterPilot.Views
             _maintenance.AttachDashboard(dashboard);
             _refreshAll = refreshAll;
             DataContext = dashboard;
+            _maintenance.PropertyChanged += Maintenance_PropertyChanged;
+            Loaded += (_, _) => RefreshQuickActionAvailability();
+            Unloaded += (_, _) => _maintenance.PropertyChanged -= Maintenance_PropertyChanged;
         }
+
+        private void Maintenance_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+            Dispatcher.InvokeAsync(RefreshQuickActionAvailability);
+
+        private void RefreshQuickActionAvailability()
+        {
+            bool free = !_maintenance.IsBusy;
+            RefreshQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RefreshAll);
+            DiagnosticsQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RunDiagnostics);
+            RestartAdGuardQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RestartAdGuard);
+            RestartWifiQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RestartWifi);
+            BackupQuickAction.IsEnabled = free;
+            FirmwareQuickAction.IsEnabled = free && _maintenance.CanCheckFirmware;
+            RouterUiQuickAction.IsEnabled = !_maintenance.IsBusy && _maintenance.Dashboard.RouterConnected;
+        }
+
+        private bool ActionAvailable(MaintenanceAction action) =>
+            _maintenance.Actions.FirstOrDefault(item => item.Action == action)?.IsAvailable == true;
 
         private async void QuickAction_Click(object sender, RoutedEventArgs e)
         {

@@ -1,0 +1,86 @@
+<UserControl x:Class="RouterPilot.Views.TimelineView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Brush.WindowBackground}"
+             Foreground="{DynamicResource Brush.TextPrimary}">
+    <UserControl.Resources>
+        <Style x:Key="Timeline.Entry" TargetType="Border" BasedOn="{StaticResource Card.Compact}">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Style="{StaticResource Page.Content}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="18"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Timeline"/>
+                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Chronological RouterPilot activity and safe operation results."/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Timeline"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Timeline"/></StackPanel>
+            </Grid>
+            <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Height="36" Padding="10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
+                <ComboBox Grid.Column="2" Width="128" Height="36" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
+                <ComboBox Grid.Column="4" Width="120" Height="36" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
+                <ComboBox Grid.Column="6" Width="128" Height="36" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>
+            </Grid>
+            </Border>
+            <Border Grid.Row="4" Style="{StaticResource SectionContainerStyle}" Margin="0">
+            <StackPanel>
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Event history"/>
+                <ItemsControl ItemsSource="{Binding EventsView}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource Timeline.Entry}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="5"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <Border CornerRadius="3">
+                                        <Border.Style>
+                                            <Style TargetType="Border"><Setter Property="Background" Value="{DynamicResource Brush.Primary}"/><Style.Triggers>
+                                                <DataTrigger Binding="{Binding Severity}" Value="Success"><Setter Property="Background" Value="{DynamicResource Brush.Success}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Severity}" Value="Warning"><Setter Property="Background" Value="{DynamicResource Brush.Warning}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Severity}" Value="Error"><Setter Property="Background" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                            </Style.Triggers></Style>
+                                        </Border.Style>
+                                    </Border>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding Title}"/>
+                                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Body}" TextWrapping="Wrap" Text="{Binding Message}"/>
+                                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                            <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding Category}"/>
+                                            <TextBlock Margin="8,0" Style="{DynamicResource Text.Muted}" Text="•"/>
+                                            <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding EventType}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Top" Style="{DynamicResource Text.Muted}" Text="{Binding TimestampDisplay}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Padding="32" Style="{StaticResource Card}" Visibility="{Binding EmptyStateVisibility}">
+                    <StackPanel Style="{StaticResource EmptyState}">
+                        <TextBlock Style="{StaticResource Icon.EmptyState}" Text="&#xE81C;"/>
+                        <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.EmptyStateTitle}" Text="{Binding EmptyStateText}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

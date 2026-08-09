@@ -73,6 +73,10 @@ namespace RouterPilot
                 sp => new MaintenanceHistoryService(
                     Dispatcher,
                     sp.GetRequiredService<ApplicationDataPathProvider>()));
+            serviceCollection.AddSingleton(
+                sp => new TimelineService(
+                    Dispatcher,
+                    sp.GetRequiredService<ApplicationDataPathProvider>()));
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();
@@ -97,6 +101,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<AdGuardMaintenanceStateService>();
             serviceCollection.AddSingleton<NewDeviceNotificationTracker>();
             serviceCollection.AddSingleton<NotificationCentreViewModel>();
+            serviceCollection.AddSingleton<TimelineViewModel>();
             serviceCollection.AddTransient<ClientsViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
             serviceCollection.AddSingleton<ProtectionViewModel>();
@@ -108,6 +113,7 @@ namespace RouterPilot
                 .InitializeAsync();
             await Services.GetRequiredService<MaintenanceHistoryService>()
                 .InitializeAsync();
+            _ = Services.GetRequiredService<TimelineService>().InitializeAsync();
             await Services.GetRequiredService<AdGuardServiceScheduleService>()
                 .InitializeAsync();
 
@@ -277,6 +283,18 @@ namespace RouterPilot
                 {
                     Debug.WriteLine(
                         $"Unable to flush maintenance history during shutdown ({ex.GetType().Name}).");
+                }
+
+                try
+                {
+                    await _services.GetRequiredService<TimelineService>().FlushAsync();
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unable to flush Timeline history during shutdown ({ex.GetType().Name}).");
                 }
 
                 try

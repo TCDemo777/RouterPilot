@@ -49,7 +49,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="24">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="18"/>
@@ -57,7 +57,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Grid>
+        <Grid Margin="24,24,24,0">
             <StackPanel>
                 <TextBlock Style="{DynamicResource Text.PageTitle}"
                            Text="Network"/>
@@ -70,7 +70,7 @@
         <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <StackPanel Margin="24,0,24,24">
 
                 <!-- Top summary -->
                 <Grid Margin="0,0,0,16">
@@ -363,9 +363,14 @@
                                        Text="{Binding Hostname}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
-                                       Text="FIRMWARE"/>
+                                       Text="OPENWRT SNAPSHOT"/>
                             <TextBlock Style="{StaticResource Network.Value}"
                                        Text="{Binding FirmwareVersion}"/>
+
+                            <TextBlock Style="{StaticResource Network.Label}"
+                                       Text="ROUTER FIRMWARE"/>
+                            <TextBlock Style="{StaticResource Network.Value}"
+                                       Text="{Binding RouterFirmwareVersion}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
                                        Text="UPTIME"/>

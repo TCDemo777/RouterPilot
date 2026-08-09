@@ -243,8 +243,19 @@
                         <Setter Property="Padding" Value="0"/>
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                        <Setter Property="ContextMenu">
-                            <Setter.Value>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border MinHeight="205"
+                                Padding="15"
+                                Background="{DynamicResource Brush.Surface}"
+                                CornerRadius="10"
+                                 BorderBrush="{DynamicResource Brush.Border}"
+                                 BorderThickness="1"
+                                 PreviewMouseRightButtonDown="ClientCard_PreviewMouseRightButtonDown">
+                            <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="View Details" Click="ContextViewDetails_Click" />
                                     <Separator />
@@ -258,20 +269,7 @@
                                     <MenuItem Header="Favourite / Remove Favourite" Click="ContextFavorite_Click" />
                                     <MenuItem Header="Edit Profile" Click="ContextEditProfile_Click" />
                                 </ContextMenu>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.ItemContainerStyle>
-
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border MinHeight="205"
-                                Padding="15"
-                                Background="{DynamicResource Brush.Surface}"
-                                CornerRadius="10"
-                                BorderBrush="{DynamicResource Brush.Border}"
-                                BorderThickness="1"
-                                PreviewMouseRightButtonDown="ClientCard_PreviewMouseRightButtonDown">
+                            </Border.ContextMenu>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

@@ -16,7 +16,7 @@ Companion for GL.iNet Routers & AdGuard Home
 - GL.iNet main, Guest and IoT network awareness
 - Favourite clients, persistent device history and connection activity
 - Live and historical WAN throughput, DNS, CPU and memory charts
-- Network Timeline, Router Insights, weekly summaries and deterministic network intelligence
+- Event Timeline with persistent activity history, local filtering/search and safe export
 - Persistent Notification Centre with router, AdGuard and new-device events
 - Configurable Windows notifications, Notification Centre delivery and quiet hours
 - Maintenance Centre with safe router actions, shared action history and diagnostics
@@ -28,18 +28,21 @@ Companion for GL.iNet Routers & AdGuard Home
 - Light, dark and system theme support
 - Notification-area integration with close-to-tray behaviour
 
-## What's new in 1.8.1
+## What's new in 1.9.0
 
-Version 1.8.1 is a security and reliability update following the Maintenance Centre, notification and backup work introduced in v1.8.0.
+RouterPilot v1.9.0 improves everyday visibility and management without changing router configuration automatically.
 
-- Added explicit SHA-256 trust-on-first-use/pinning for GL.iNet HTTPS certificates and SSH host keys
-- Honoured configured AdGuard HTTP/HTTPS transport settings without silent downgrade
-- Redacted diagnostic and lifecycle logging, restricted update URLs to trusted HTTPS GitHub hosts, and hardened repository exclusions
-- Added clear privacy warnings for unencrypted `.rpb` backup archives
+- Added a persistent Event Timeline with filtering, search, date filtering, read state and safe CSV/JSON/text export
+- Added firmware update awareness, background checks after connection, installed/latest version presentation and deduplicated update notifications
+- Added Router Health explanations and Internet Quality using existing router and connectivity data
+- Added Overview Quick Actions, client context menus and Maintenance overflow actions that reuse established services
+- Redesigned the global application header with labelled Router, Internet and AdGuard Home states and smart refresh feedback
+- Clarified the distinction between LuCI snapshot and installed GL.iNet router firmware, and improved diagnostics with separate Run Diagnostics and Backup Diagnostics actions
+- Standardised major page sections, spacing and page scrollbar alignment for a more cohesive desktop experience
 
 ## Security
 
-RouterPilot v1.8.1 includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) and [SECURITY-AUDIT-v1.8.1.md](SECURITY-AUDIT-v1.8.1.md) for the security model and documented compatibility considerations.
+RouterPilot includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) and [SECURITY-AUDIT-v1.8.1.md](SECURITY-AUDIT-v1.8.1.md) for the security model and documented compatibility considerations.
 
 The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/RouterPilot). RouterPilot now uses `%LocalAppData%\RouterPilot`; on first startup it safely copies supported legacy files from `%LocalAppData%\AdGuardTray` without changing or deleting the legacy folder.
 
@@ -61,7 +64,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-1.8.1-x64.msi` and `RouterPilot-1.8.1-win-x64.zip`.
+Release assets are published as `RouterPilot-1.9.0-x64.msi` and `RouterPilot-1.9.0-win-x64.zip`.
 
 When upgrading from v1.8.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
 
@@ -70,6 +73,7 @@ When upgrading from v1.8.0, install the MSI or replace the portable application 
 ```powershell
 dotnet restore .\RouterPilot.sln
 dotnet build .\RouterPilot.sln -c Release
+dotnet build .\RouterPilot\RouterPilot.csproj -c Release
 ```
 
 The application executable is `RouterPilot.exe`.

@@ -41,6 +41,7 @@ namespace RouterPilot.Views
                 .GetRequiredService<DiagnosticsExecutionService>();
             _diagnosticsHistoryService = ((App)Application.Current).Services
                 .GetRequiredService<DiagnosticsHistoryService>();
+            _diagnosticsExecutionService.LatestResultChanged += DiagnosticsExecution_LatestResultChanged;
             Loaded += AboutView_Loaded;
             Unloaded += AboutView_Unloaded;
             VersionTextBlock.Text = "Version " + GetApplicationVersion();
@@ -80,6 +81,24 @@ namespace RouterPilot.Views
             EventArgs e)
         {
             RefreshSupportLog();
+        }
+
+        private void DiagnosticsExecution_LatestResultChanged(object? sender, EventArgs e) =>
+            Dispatcher.Invoke(DisplayLatestDiagnosticsResult);
+
+        private void DisplayLatestDiagnosticsResult()
+        {
+            DiagnosticsExecutionResult? result = _diagnosticsExecutionService.LatestResult;
+            if (result is null)
+                return;
+
+            DiagnosticsTextBox.Text = result.Outcome == DiagnosticExecutionOutcome.Success &&
+                                      !string.IsNullOrWhiteSpace(result.Report)
+                ? result.Report
+                : result.Message;
+            QueryLogWarningBorder.Visibility = result.Report?.Contains("Enabled: False", StringComparison.OrdinalIgnoreCase) == true
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
@@ -334,98 +353,24 @@ namespace RouterPilot.Views
                 "Diagnostics copied.");
         }
 
-        private void ExportDiagnostics_Click(
+        private async void ExportDiagnostics_Click(
             object sender,
             RoutedEventArgs e)
         {
-            var dialog =
-                new SaveFileDialog
-                {
-                    Filter = "ZIP archive (*.zip)|*.zip",
-                    FileName =
-                        "RouterPilot_Diagnostics_" +
-                        DateTime.Now.ToString("yyyy-MM-dd_HHmmss") +
-                        ".zip"
-                };
+            await BackupDiagnosticsAsync();
+        }
 
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
-
-            try
-            {
-                string tempFolder =
-                    Path.Combine(
-                        Path.GetTempPath(),
-                        "RouterPilotDiagnostics_" +
-                        Guid.NewGuid().ToString("N"));
-
-                Directory.CreateDirectory(
-                    tempFolder);
-
-                File.WriteAllText(
-                    Path.Combine(
-                        tempFolder,
-                        "diagnostics.txt"),
-                    DiagnosticRedactor.RedactForExport(
-                        DiagnosticsTextBox.Text),
-                    Encoding.UTF8);
-
-                File.WriteAllText(
-                    Path.Combine(
-                        tempFolder,
-                        "system.txt"),
-                    DiagnosticRedactor.RedactForExport(
-                        SystemTextBox.Text),
-                    Encoding.UTF8);
-
-                File.WriteAllText(
-                    Path.Combine(
-                        tempFolder,
-                        "support-log.txt"),
-                    DiagnosticRedactor.RedactForExport(
-                        GetSupportLogText()),
-                    Encoding.UTF8);
-
-                File.WriteAllText(
-                    Path.Combine(
-                        tempFolder,
-                        "build.txt"),
-                    DiagnosticRedactor.RedactForExport(
-                        GetBuildInformation()),
-                    Encoding.UTF8);
-
-                if (File.Exists(dialog.FileName))
-                {
-                    File.Delete(
-                        dialog.FileName);
-                }
-
-                ZipFile.CreateFromDirectory(
-                    tempFolder,
-                    dialog.FileName);
-
-                Directory.Delete(
-                    tempFolder,
-                    true);
-
-                AppendLog(
-                    "Diagnostics exported to " +
-                    dialog.FileName);
-            }
-            catch (Exception ex)
-            {
-                AppendLog(
-                    "Diagnostics export failed (" +
-                    DiagnosticRedactor.FailureCategory(ex) + ").");
-
-                MessageBox.Show(
-                    "RouterPilot could not export diagnostics.",
-                    "Unable to export diagnostics",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
+        private async Task BackupDiagnosticsAsync()
+        {
+            DiagnosticsExecutionResult result = await _diagnosticsExecutionService.RunAsync(
+                DiagnosticExecutionSource.About,
+                createBackup: true);
+            if (!string.IsNullOrWhiteSpace(result.Report))
+                DiagnosticsTextBox.Text = result.Report;
+            else if (result.Outcome != DiagnosticExecutionOutcome.Success)
+                DiagnosticsTextBox.Text = result.Message;
+            RefreshSupportLog();
+            DisplayLatestDiagnosticsResult();
         }
 
         private void RefreshSystem_Click(
