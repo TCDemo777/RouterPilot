@@ -26,24 +26,24 @@
             <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Current status" />
-                    <WrapPanel Margin="0,0,-16,-16">
-                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ROUTER"
+                    <UniformGrid Columns="4" Margin="0,0,0,0">
+                        <controls:StatisticCard Margin="0,0,12,12" Title="ROUTER"
                                         Value="{Binding Dashboard.RouterStatusText}"
                                         ValueForeground="{Binding Dashboard.RouterStatusColour}"
                                         Subtitle="Router connection" />
-                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="INTERNET / WAN"
+                        <controls:StatisticCard Margin="0,0,12,12" Title="INTERNET / WAN"
                                         Value="{Binding Dashboard.InternetStatusText}"
                                         ValueForeground="{Binding Dashboard.InternetStatusColour}"
                                         Subtitle="WAN connectivity" />
-                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="WI-FI"
+                        <controls:StatisticCard Margin="0,0,12,12" Title="WI-FI"
                                         Value="{Binding WifiStatusText}"
                                         ValueForeground="{Binding WifiStatusColour}"
                                         Subtitle="Router wireless interfaces" />
-                        <controls:StatisticCard Width="210" Margin="0,0,16,16" Title="ADGUARD HOME"
+                        <controls:StatisticCard Margin="0,0,12,12" Title="ADGUARD HOME"
                                         Value="{Binding Dashboard.AdGuardStatusText}"
                                         ValueForeground="{Binding Dashboard.AdGuardStatusColour}"
                                         Subtitle="DNS filtering service" />
-                    </WrapPanel>
+                    </UniformGrid>
                 </StackPanel>
             </Border>
 
@@ -68,11 +68,11 @@
 
             <ItemsControl ItemsSource="{Binding Actions}">
                 <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="300" MinHeight="190" Margin="0,0,16,16" Padding="18"
+                        <Border MinHeight="184" Height="184" Margin="0,0,12,12" Padding="16"
                                 Background="{DynamicResource Brush.Surface}"
                                 BorderBrush="{DynamicResource Brush.Border}"
                                 BorderThickness="1" CornerRadius="12">
@@ -84,7 +84,9 @@
                                 </Grid.RowDefinitions>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource Text.SectionTitle}" Text="{Binding Title}" />
+                                    <TextBlock FontSize="15" FontWeight="SemiBold" LineHeight="18" MaxHeight="36"
+                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Margin="0,7,8,0" FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
                                                    Text="{Binding Availability}" ToolTip="{Binding AvailabilityReason}" />
@@ -101,7 +103,7 @@
                                         </Button>
                                     </StackPanel>
                                 </Grid>
-                                <StackPanel Grid.Row="1" Margin="0,8,0,12">
+                                <StackPanel Grid.Row="1" Margin="0,6,0,8">
                                     <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding Description}" />
                                     <TextBlock Margin="0,9,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
                                                Text="{Binding LastRun, StringFormat=Last run: {0}}" />

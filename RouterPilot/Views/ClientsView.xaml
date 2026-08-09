@@ -71,6 +71,7 @@
                              ToolTip="Search name, address, manufacturer, device type or health"/>
 
                     <ComboBox x:Name="SortOptionComboBox"
+                              Style="{StaticResource RouterPilot.ComboBox}"
                               Grid.Column="2"
                               Height="36"
                               VerticalContentAlignment="Center"

@@ -149,20 +149,6 @@
                             Content="DNS Activity"
                             Click="Logs_Click"/>
 
-                    <Button x:Name="TimelineButton"
-                            Style="{StaticResource SidebarNavigationButton}"
-                            HorizontalContentAlignment="Stretch"
-                            Background="Transparent"
-                            Click="Timeline_Click">
-                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="Timeline"/>
-                            <Border Grid.Column="1" MinWidth="22" Padding="5,1" Background="{DynamicResource Brush.Primary}" CornerRadius="9">
-                                <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding UnreadCount}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
-                                <TextBlock HorizontalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="White" Text="{Binding UnreadCount}"/>
-                            </Border>
-                        </Grid>
-                    </Button>
-
                     <Button x:Name="NotificationButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             HorizontalContentAlignment="Stretch"
@@ -212,6 +198,20 @@
                             Background="Transparent"
                             Content="Settings"
                             Click="NavigationSettings_Click"/>
+
+                    <Button x:Name="TimelineButton"
+                            Style="{StaticResource SidebarNavigationButton}"
+                            HorizontalContentAlignment="Stretch"
+                            Background="Transparent"
+                            Click="Timeline_Click">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Logs"/>
+                            <Border Grid.Column="1" MinWidth="22" Padding="5,1" Background="{DynamicResource Brush.Primary}" CornerRadius="9">
+                                <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding UnreadCount}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                                <TextBlock HorizontalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="White" Text="{Binding UnreadCount}"/>
+                            </Border>
+                        </Grid>
+                    </Button>
 
                     <Button x:Name="AboutButton"
                             Style="{StaticResource SidebarNavigationButton}"

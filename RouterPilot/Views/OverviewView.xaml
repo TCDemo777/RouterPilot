@@ -636,16 +636,12 @@
                 <WrapPanel>
                     <Button x:Name="RefreshQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Primary}"
                             Tag="RefreshAll" Content="Refresh" ToolTip="Refresh all current RouterPilot data" AutomationProperties.Name="Refresh all data" Click="QuickAction_Click" />
-                    <Button x:Name="DiagnosticsQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RunDiagnostics" Content="Run Diagnostics" ToolTip="Run the existing safe diagnostics workflow" AutomationProperties.Name="Run Diagnostics" Click="QuickAction_Click" />
                     <Button x:Name="RestartAdGuardQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
                             Tag="RestartAdGuard" Content="Restart AdGuard" ToolTip="Restart AdGuard Home" AutomationProperties.Name="Restart AdGuard Home" Click="QuickAction_Click" />
                     <Button x:Name="RestartWifiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
                             Tag="RestartWifi" Content="Restart Wi-Fi" ToolTip="Restart router wireless interfaces" AutomationProperties.Name="Restart Wi-Fi" Click="QuickAction_Click" />
                     <Button x:Name="BackupQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
                             Tag="CreateBackup" Content="Create Backup" ToolTip="Create a RouterPilot backup package" AutomationProperties.Name="Create Backup" Click="QuickAction_Click" />
-                    <Button x:Name="FirmwareQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="CheckFirmware" Content="Check Firmware" ToolTip="Check for GL.iNet firmware updates" AutomationProperties.Name="Check Firmware" Click="QuickAction_Click" />
                     <Button x:Name="RouterUiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
                             Tag="OpenRouter" Content="Open Router UI" ToolTip="Open the configured router interface" AutomationProperties.Name="Open Router UI" Click="QuickAction_Click" />
                 </WrapPanel>

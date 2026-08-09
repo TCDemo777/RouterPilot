@@ -549,7 +549,7 @@ namespace RouterPilot.Views
             RoutedEventArgs e)
         {
             CopyText(
-                SupportLogTextBox.Text,
+                GetSupportLogText(),
                 "Support log copied.");
         }
 
@@ -600,13 +600,8 @@ namespace RouterPilot.Views
 
         private void RefreshSupportLog()
         {
-            if (SupportLogTextBox is null)
-            {
-                return;
-            }
-
-            SupportLogTextBox.Text = GetSupportLogText();
-            SupportLogTextBox.ScrollToEnd();
+            // Support history remains available to its dedicated Logs page.
+            // About no longer hosts a duplicate output control.
         }
 
         private void LoadChangelog()

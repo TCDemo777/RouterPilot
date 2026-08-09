@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace RouterPilot.Models
 {
@@ -51,6 +52,9 @@ namespace RouterPilot.Models
             _ => RouterPilotStatus.NotAvailable
         });
         public int ClientCount => Clients.Count;
+        public bool HasUsefulClientIpAddress => Clients.Any(client => WifiClientInfo.Useful(client.IpAddress));
+        public bool HasUsefulClientMacAddress => Clients.Any(client => WifiClientInfo.Useful(client.MacAddress));
+        public bool HasUsefulClientSignal => Clients.Any(client => WifiClientInfo.Useful(client.Signal));
         public ObservableCollection<WifiClientInfo> Clients { get; } = new();
     }
 }

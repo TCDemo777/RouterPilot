@@ -187,9 +187,7 @@
                                 <TextBlock Margin="0,18,0,7" Style="{StaticResource Settings.FieldLabel}"
                                            Text="APPEARANCE"/>
                                 <ComboBox Height="38"
-                                          Background="{DynamicResource Brush.Surface}"
-                                          Foreground="{DynamicResource Brush.TextPrimary}"
-                                          BorderBrush="{DynamicResource Brush.BorderStrong}"
+                                          Style="{StaticResource RouterPilot.ComboBox}"
                                           SelectedValue="{Binding Theme, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           SelectedValuePath="Tag">
                                     <ComboBoxItem Content="Follow Windows" Tag="System"/>
@@ -284,45 +282,6 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Firmware" Visibility="{Binding FirmwareSectionVisibility}" />
-                        <Border Style="{DynamicResource Card}" Visibility="{Binding FirmwareSectionVisibility}">
-                            <StackPanel>
-                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router firmware" />
-                                <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"
-                                           Text="Check the firmware offered by the connected GL.iNet router. RouterPilot never downloads or installs firmware." />
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="CURRENT" />
-                                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding FirmwareCurrentVersion}" />
-                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.CardCaption}" Text="STATUS" />
-                                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding FirmwareStatus}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="LATEST" />
-                                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding FirmwareLatestVersion}" />
-                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.CardCaption}" Text="LAST CHECKED" />
-                                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding FirmwareLastChecked}" />
-                                    </StackPanel>
-                                </Grid>
-                                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                                    <Button MinWidth="144" Height="38" Style="{DynamicResource Button.Primary}"
-                                            Command="{Binding CheckFirmwareUpdateCommand}" Content="Check for Updates" />
-                                    <Button Margin="10,0,0,0" MinWidth="144" Height="38"
-                                            Content="View Release Notes" Click="OpenFirmwareReleaseNotes_Click">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasFirmwareReleaseNotes}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
                         <TextBlock Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Notifications" Visibility="{Binding NotificationsSectionVisibility}" />
                         <Border Style="{DynamicResource Card}" Visibility="{Binding NotificationsSectionVisibility}">
                             <StackPanel>
@@ -356,13 +315,6 @@
                                     <TextBox Grid.Column="0" Style="{StaticResource Settings.Input}" Text="{Binding QuietHoursStart, UpdateSourceTrigger=PropertyChanged}" ToolTip="Quiet hours start (HH:mm)"/>
                                     <TextBox Grid.Column="2" Style="{StaticResource Settings.Input}" Text="{Binding QuietHoursEnd, UpdateSourceTrigger=PropertyChanged}" ToolTip="Quiet hours end (HH:mm)"/>
                                 </Grid>
-                                <Button Margin="0,14,0,0"
-                                        MinWidth="190"
-                                        Height="38"
-                                        HorizontalAlignment="Left"
-                                        Style="{DynamicResource Button.Secondary}"
-                                        Command="{Binding TestWindowsNotificationCommand}"
-                                        Content="Send Test Notification"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>

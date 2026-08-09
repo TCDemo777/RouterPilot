@@ -222,7 +222,6 @@ namespace RouterPilot.ViewModels
 
         public IRelayCommand ReloadCommand { get; }
 
-        public IAsyncRelayCommand TestWindowsNotificationCommand { get; }
         public IAsyncRelayCommand CheckFirmwareUpdateCommand { get; }
 
         public SettingsViewModel(
@@ -250,8 +249,6 @@ namespace RouterPilot.ViewModels
             ReloadCommand =
                 new RelayCommand(Load);
 
-            TestWindowsNotificationCommand =
-                new AsyncRelayCommand(TestWindowsNotificationAsync);
             CheckFirmwareUpdateCommand = new AsyncRelayCommand(CheckFirmwareUpdateAsync);
 
             Load();
@@ -454,49 +451,6 @@ namespace RouterPilot.ViewModels
                 QuietHoursStart = TimeOnly.TryParse(QuietHoursStart, out TimeOnly start) ? start : new TimeOnly(22, 0),
                 QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)
             }.IsQuietHours(DateTimeOffset.Now);
-
-        private async System.Threading.Tasks.Task TestWindowsNotificationAsync()
-        {
-            NotificationPreferences preferences = new()
-            {
-                Enabled = NotificationsEnabled,
-                NotificationCentreEnabled = NotificationCentreEnabled,
-                WindowsToastsEnabled = WindowsToastsEnabled,
-                QuietHoursEnabled = QuietHoursEnabled,
-                QuietHoursStart = TimeOnly.TryParse(QuietHoursStart, out TimeOnly start) ? start : new TimeOnly(22, 0),
-                QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)
-            };
-
-            if (!preferences.Enabled)
-            {
-                StatusMessage = "Notifications are disabled.";
-                return;
-            }
-
-            if (!preferences.NotificationCentreEnabled && !preferences.WindowsToastsEnabled)
-            {
-                StatusMessage = "No notification delivery channel is enabled.";
-                return;
-            }
-
-            bool delivered = await _notificationService.AddAsync(
-                new AppNotification
-                {
-                    Title = "RouterPilot test notification",
-                    Message = "Notification delivery is working.",
-                    Severity = NotificationSeverity.Information,
-                    Category = NotificationCategory.System,
-                    EventType = NotificationEventType.General,
-                    DeduplicationKey = "RouterPilot-TestNotification-" + Guid.NewGuid()
-                },
-                preferences);
-
-            StatusMessage = preferences.WindowsToastsEnabled && preferences.IsQuietHours(DateTimeOffset.Now)
-                ? "Test notification added. Windows toast suppressed by quiet hours."
-                : delivered
-                    ? "Test notification sent."
-                    : "Test notification could not be delivered.";
-        }
 
         private string? Validate()
         {

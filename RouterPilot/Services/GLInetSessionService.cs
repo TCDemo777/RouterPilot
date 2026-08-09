@@ -159,6 +159,31 @@ namespace RouterPilot.Services
                 cancellationToken);
         }
 
+        internal Task<JsonDocument> CallPortForwardAsync(string sessionId, PortForwardRpcOperation operation, object parameters, CancellationToken cancellationToken = default)
+        {
+            string method = operation switch
+            {
+                PortForwardRpcOperation.Add => "add_port_forward",
+                PortForwardRpcOperation.Update => "set_port_forward",
+                PortForwardRpcOperation.Delete => "remove_port_forward",
+                _ => throw new ArgumentOutOfRangeException(nameof(operation))
+            };
+            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, cancellationToken);
+        }
+#if DEBUG
+        internal Task<JsonDocument> CallPortForwardVerifierAsync(string sessionId, string operation, object parameters)
+        {
+            string method = operation switch
+            {
+                "add" => "add_port_forward",
+                "set" => "set_port_forward",
+                "remove" => "remove_port_forward",
+                _ => throw new ArgumentOutOfRangeException(nameof(operation))
+            };
+            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, CancellationToken.None);
+        }
+#endif
+
         private async Task<ChallengeResult> GetChallengeAsync(
             CancellationToken cancellationToken)
         {

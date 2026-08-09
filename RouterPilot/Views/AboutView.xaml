@@ -564,56 +564,6 @@
                 </Border>
             </TabItem>
 
-            <TabItem Header="Logs">
-                <Border Margin="0,12,0,0" Padding="18" Background="{DynamicResource Brush.Surface}"
-                        CornerRadius="12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="10"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock FontSize="18"
-                                           FontWeight="Bold"
-                                           Text="Live support activity"/>
-                                <TextBlock Margin="0,4,0,0"
-                                           Foreground="{DynamicResource Brush.TextSecondary}"
-                                           Text="Timestamped actions, diagnostics and errors from the current support session"/>
-                            </StackPanel>
-                            <Grid Grid.Column="1"
-                                  Margin="18,0,0,0"
-                                  VerticalAlignment="Center">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="112"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="112"/>
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0"
-                                        Height="38"
-                                        Style="{DynamicResource Button.Secondary}"
-                                        Click="CopyLog_Click"
-                                        Content="Copy"/>
-                                <Button Grid.Column="2"
-                                        Height="38"
-                                        Style="{DynamicResource Button.Secondary}"
-                                        Click="ClearLog_Click"
-                                        Content="Clear"/>
-                            </Grid>
-                        </Grid>
-                        <TextBox x:Name="SupportLogTextBox" Grid.Row="2"
-                                 Style="{StaticResource About.OutputBox}"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto"/>
-                    </Grid>
-                </Border>
-            </TabItem>
-
             <TabItem Header="Changelog">
                 <Border Margin="0,12,0,0" Padding="18" Background="{DynamicResource Brush.Surface}"
                         CornerRadius="12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">

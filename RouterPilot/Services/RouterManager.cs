@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -602,194 +604,483 @@ namespace RouterPilot.Services
         private static void CorrelateDhcpScopes(IEnumerable<DhcpLeaseInfo> leases, IEnumerable<DhcpReservationInfo> reservations, IReadOnlyList<DhcpNetworkScopeInfo> scopes) { foreach (var item in leases.Cast<dynamic>().Concat(reservations.Cast<dynamic>())) { var matches=scopes.Where(scope=>scope.DhcpEnabled && scope.ContainsAddress(IPAddress.TryParse((string)item.IpAddress,out var ip)?ip:IPAddress.None)).ToList(); item.ScopeDisplay=matches.Count==1?matches[0].DisplayName:matches.Count>1?"Ambiguous":"Unknown"; } }
 
 #if DEBUG
-        public async Task<string> RunDhcpReservationWriteVerificationAsync()
+        public async Task<string> GetPortForwardContractProbeReportAsync()
         {
-            string initialOutput = await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null");
-            Dictionary<string, DhcpUciSection> initialSections = ParseDhcpUciSections(initialOutput);
-            List<DhcpUciSection> initialHosts = initialSections.Values.Where(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
-            DhcpUciSection? lanScope = initialSections.Values.FirstOrDefault(section => section.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase) && GetDhcpOption(section, "interface", section.Id).Equals("lan", StringComparison.OrdinalIgnoreCase) && !GetDhcpOption(section, "ignore").Equals("1", StringComparison.Ordinal));
-            if (lanScope is null) return "WRITE CONTRACT VERIFIED: NO — enabled LAN DHCP scope unavailable.";
-
-            string addressInfo = await _ssh.RunCommandAsync("addr=$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e '@[\"ipv4-address\"][0].address' 2>/dev/null); mask=$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e '@[\"ipv4-address\"][0].mask' 2>/dev/null); printf '%s|%s' \"$addr\" \"$mask\"");
-            string[] addressParts = addressInfo.Trim().Split('|');
-            if (addressParts.Length != 2 || !IPAddress.TryParse(addressParts[0], out IPAddress? lanAddress) || !int.TryParse(addressParts[1], out int prefix) || prefix is < 8 or > 30) return "WRITE CONTRACT VERIFIED: NO — LAN subnet unavailable.";
-
-            string leaseOutput = await _ssh.RunCommandAsync("cat /tmp/dhcp.leases 2>/dev/null");
-            var excludedIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (DhcpLeaseInfo lease in ParseDhcpLeaseSnapshot(leaseOutput)) excludedIps.Add(lease.IpAddress);
-            foreach (DhcpUciSection host in initialHosts) excludedIps.Add(GetDhcpOption(host, "ip", string.Empty));
-            excludedIps.Add(lanAddress.ToString());
-            foreach (WifiClientInfo client in await GetGlClientInventoryAsync()) excludedIps.Add(client.IpAddress);
-            if (!int.TryParse(GetDhcpOption(lanScope, "start"), out int start) || !int.TryParse(GetDhcpOption(lanScope, "limit"), out int limit) || !TryChooseTemporaryIpv4(lanAddress, prefix, start, limit, excludedIps, out string firstIp, out string secondIp)) return "WRITE CONTRACT VERIFIED: NO — no two safe temporary LAN addresses found.";
-
-            var existingMacs = new HashSet<string>(initialHosts.Select(host => NormaliseMacAddress(GetDhcpOption(host, "mac", string.Empty))), StringComparer.OrdinalIgnoreCase);
-            foreach (DhcpLeaseInfo lease in ParseDhcpLeaseSnapshot(leaseOutput)) existingMacs.Add(NormaliseMacAddress(lease.MacAddress));
-            string tempMac = CreateTemporaryMac(existingMacs);
-            if (string.IsNullOrEmpty(tempMac)) return "WRITE CONTRACT VERIFIED: NO — no unique locally-administered temporary MAC found.";
-
-            int originalCount = initialHosts.Count;
-            string originalSignature = CreateDhcpHostSignature(initialHosts);
-            bool added = false;
+            string firewall = await SafeFirewallProbeAsync("uci show firewall 2>/dev/null");
+            string fw4 = await SafeFirewallProbeAsync("command -v fw4 2>/dev/null");
+            string nft = await SafeFirewallProbeAsync("command -v nft 2>/dev/null");
+            string iptables = await SafeFirewallProbeAsync("command -v iptables 2>/dev/null");
+            string ubusList = await SafeFirewallProbeAsync("ubus list 2>/dev/null");
+            string firewallService = await SafeFirewallProbeAsync("ubus call service list '{\"name\":\"firewall\"}' 2>/dev/null");
+            string configPackages = await SafeFirewallProbeAsync("ls -1 /etc/config 2>/dev/null");
+            string webProcesses = await SafeFirewallProbeAsync("ps w 2>/dev/null | grep -E '[u]httpd|[n]ginx|[l]ighttpd' | head -n 12");
+            string uhttpdConfig = await SafeFirewallProbeAsync("uci show uhttpd 2>/dev/null");
+            string nginxRoots = await SafeFirewallProbeAsync("grep -hE '^[[:space:]]*(root|alias)[[:space:]]+' /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf 2>/dev/null | head -n 24");
+            string nginxRouting = await SafeFirewallProbeAsync("grep -nE '^[[:space:]]*(include|location|root|alias|proxy_pass|rewrite)[[:space:]]+' /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf 2>/dev/null | head -n 120");
+            string uiPackagesOutput = await SafeFirewallProbeAsync("opkg list-installed 2>/dev/null | cut -d ' ' -f 1 | grep -Ei '(gl.*(ui|web)|luci|admin|portal|frontend)' | head -n 30");
+            var uiPackages = uiPackagesOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(IsSafePackageIdentifier).Distinct(StringComparer.OrdinalIgnoreCase).Take(30).ToList();
+            var uiPackageFiles = new List<string>();
+            foreach (string package in uiPackages)
+                uiPackageFiles.AddRange((await SafeFirewallProbeAsync($"opkg files {package} 2>/dev/null")).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            var assetRoots = ExtractProbeAssetRoots(uhttpdConfig, nginxRoots, uiPackageFiles).Take(16).ToList();
+            string[] firewallUiPackages = { "gl-sdk4-ui-firewallview", "gl-sdk4-ui-advanced", "gl-sdk4-ui-core" };
+            var firewallUiFiles = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var firewallUiDependencies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (string package in firewallUiPackages)
+            {
+                firewallUiFiles[package] = (await SafeFirewallProbeAsync($"opkg files {package} 2>/dev/null"))
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim()).Where(IsSafeFrontendAssetPath).ToList();
+                firewallUiDependencies[package] = ExtractPackageDependencies(await SafeFirewallProbeAsync($"opkg status {package} 2>/dev/null"));
+            }
+            var firewallUiSearchableFiles = firewallUiFiles.Values.SelectMany(files => files).Where(IsSearchableProbeAssetFile).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            string firewallUiMatches = await SearchProbeFilesAsync(firewallUiSearchableFiles, "grep -IlE 'port[_ -]?forward|portforward|redirect|dmz|nat|src_dport|dest_ip|dest_port|firewall|external port|internal port'");
+            string firewallUiIdentifiers = await SearchProbeFilesAsync(firewallUiSearchableFiles, "grep -hoE '[A-Za-z][A-Za-z0-9_.-]*(port_forward|portforward|redirect|firewall|dmz|nat)[A-Za-z0-9_.-]*'");
+            string firewallUiRpcTokens = await SearchProbeFilesAsync(firewallUiSearchableFiles, "grep -hoE '(module|func)[[:space:]]*:[[:space:]]*[^,}[:space:]]+'");
+            var firewallBackendFiles = (await SafeFirewallProbeAsync("opkg files gl-sdk4-firewall 2>/dev/null"))
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim()).Where(IsSafeProbeBackendPath).ToList();
+            var firewallBackendDependencies = ExtractPackageDependencies(await SafeFirewallProbeAsync("opkg status gl-sdk4-firewall 2>/dev/null"));
+            var firewallBackendSearchable = firewallBackendFiles.Where(IsSearchableProbeBackendFile).ToList();
+            string firewallBackendIdentifiers = await SearchProbeBackendFilesAsync(firewallBackendSearchable, "grep -hoE '[A-Za-z][A-Za-z0-9_.-]*(port_forward|portforward|redirect|forward|dmz|open_port|firewall|src_dport|dest_ip|dest_port)[A-Za-z0-9_.-]*'");
+            string firewallBackendFunctions = await SearchProbeBackendFilesAsync(firewallBackendSearchable, "grep -hoE 'function[[:space:]]+[A-Za-z0-9_.:]+'");
+            string firewallBackendDispatch = await SearchProbeBackendFilesAsync(firewallBackendSearchable, "grep -hoE '(module|register|gl-session|ubus|rpc|oui)[A-Za-z0-9_.:-]*'");
+            string firewallBackendApply = await SearchProbeBackendFilesAsync(firewallBackendSearchable, "grep -hoE '(uci[[:space:]]+commit[[:space:]]+firewall|/etc/init.d/firewall[[:space:]]+(reload|restart)|nft|iptables)'");
+            string firewallRpcMetadata = await SafeFirewallProbeAsync("file -L /usr/lib/oui-httpd/rpc/firewall 2>/dev/null; ls -ld /usr/lib/oui-httpd/rpc/firewall 2>/dev/null; readlink -f /usr/lib/oui-httpd/rpc/firewall 2>/dev/null");
+            string firewallRpcIdentifiers = await SafeFirewallProbeAsync("strings /usr/lib/oui-httpd/rpc/firewall 2>/dev/null | grep -E 'port_forward|portforward|redirect|dmz|firewall|add_|set_|del_|get_|list_|src_dport|dest_ip|dest_port|proto|module|func' | sort -u | head -n 180");
+            string portForwardMutationSignatures = await SafeFirewallProbeAsync("strings -a /usr/lib/oui-httpd/rpc/firewall 2>/dev/null | grep -E -C 10 'add_port_forward|set_port_forward|remove_port_forward' | head -n 240");
+            string firewallValidatorContract = await SafeFirewallProbeAsync("grep -n -E -C 8 'add_port_forward|set_port_forward|remove_port_forward|port|proto|dest_ip|dest_port|src_dport|forward|valid|required|range' /usr/share/gl-validator.d/firewall.lua 2>/dev/null | head -n 260");
+            string firewallUiSource = await ReadFirewallViewSourceAsync();
+            string addPortForwardCallSite = ExtractFrontendCallContexts(firewallUiSource, "add_port_forward");
+            string setPortForwardCallSite = ExtractFrontendCallContexts(firewallUiSource, "set_port_forward");
+            string removePortForwardCallSite = ExtractFrontendCallContexts(firewallUiSource, "remove_port_forward");
+            string portForwardSupport = await SafeFirewallProbeAsync("grep -hE 'port_forward|firewall[.]pf|uci|nft|iptables|reload|restart|start|stop|add_|set_|del_|remove|dmz|src_dport|dest_ip|dest_port' /etc/init.d/port_forward /etc/firewall.pf /etc/uci-defaults/03_port_forward.sh 2>/dev/null | head -n 180");
+            PortForwardReadProbeResult portForwardRead = await TryGetPortForwardListProbeAsync();
+            string frontendFiles = await SearchProbeAssetsAsync(assetRoots, "grep -RIlE --include='*.js' --include='*.json' --include='*.html' --include='*.map' 'port[_ -]?forward|portforward|redirect|firewall|dmz|nat|forwarding'");
+            string frontendIdentifiers = await SearchProbeAssetsAsync(assetRoots, "grep -RhoE --include='*.js' --include='*.json' --include='*.html' --include='*.map' '[A-Za-z][A-Za-z0-9_.-]*(port_forward|portforward|redirect|firewall|dmz|nat)[A-Za-z0-9_.-]*'");
+            string frontendRpcTokens = await SearchProbeAssetsAsync(assetRoots, "grep -RhoE --include='*.js' --include='*.json' --include='*.html' --include='*.map' '(module|func)[[:space:]]*:[[:space:]]*[^,}[:space:]]+'");
+            string frontendDispatchTokens = await SearchProbeAssetsAsync(assetRoots, "grep -RhoE --include='*.js' --include='*.json' --include='*.html' --include='*.map' '(gl-session[.]call|rpc[.]call|ubus[.]call)'");
+            Dictionary<string, FirewallProbeSection> sections = ParseUciProbeSections(firewall, "firewall");
+            var counts = sections.Values.GroupBy(s => s.Type).OrderBy(g => g.Key).ToDictionary(g => g.Key, g => g.Count());
+            var candidates = FindPortForwardCandidates(sections.Values).ToList();
+            var ubusObjects = ubusList.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(IsRelevantPortForwardObject).Take(24).ToList();
+            var frontendFileNames = frontendFiles.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(IsSafeFrontendAssetPath).Take(24).ToList();
+            var frontendApiIdentifiers = frontendIdentifiers.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(value => value.Length <= 160 && IsSafeProbeIdentifier(value)).Take(64).ToList();
+            var frontendRpcIdentifiers = frontendRpcTokens.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(IsSafeFrontendRpcToken).Take(80).ToList();
+            var frontendDispatchIdentifiers = frontendDispatchTokens.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(value => value.Length <= 64 && IsSafeProbeIdentifier(value)).Take(24).ToList();
+            var packageNames = configPackages.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim()).Where(IsRelevantPortForwardPackage).Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList();
+            var packageSections = new List<FirewallProbeSection>();
+            foreach (string package in packageNames)
+            {
+                string output = package.Equals("firewall", StringComparison.OrdinalIgnoreCase)
+                    ? firewall : await SafeFirewallProbeAsync($"uci show {package} 2>/dev/null");
+                packageSections.AddRange(ParseUciProbeSections(output, package).Values);
+            }
+            var overlayCandidates = FindPortForwardCandidates(packageSections)
+                .Where(section => !section.Package.Equals("firewall", StringComparison.OrdinalIgnoreCase)).ToList();
+            var dmzRecords = packageSections.Where(section => section.Type.Contains("dmz", StringComparison.OrdinalIgnoreCase) ||
+                section.Id.Contains("dmz", StringComparison.OrdinalIgnoreCase) || section.Options.Keys.Any(key => key.Contains("dmz", StringComparison.OrdinalIgnoreCase))).ToList();
+            bool dynamicMappingSource = ubusObjects.Any(name => name.Contains("upnp", StringComparison.OrdinalIgnoreCase) || name.Contains("pcp", StringComparison.OrdinalIgnoreCase) || name.Contains("natpmp", StringComparison.OrdinalIgnoreCase)) ||
+                packageNames.Any(name => name.Contains("upnp", StringComparison.OrdinalIgnoreCase) || name.Contains("pcp", StringComparison.OrdinalIgnoreCase) || name.Contains("natpmp", StringComparison.OrdinalIgnoreCase));
+            var allForwardCandidates = candidates.Concat(overlayCandidates).ToList();
+            IReadOnlyList<DhcpNetworkScopeInfo> scopes = allForwardCandidates.Count == 0 ? Array.Empty<DhcpNetworkScopeInfo>() : await GetDhcpNetworkScopesAsync(CancellationToken.None);
+            List<WifiClientInfo> clients = allForwardCandidates.Count == 0 ? new List<WifiClientInfo>() : await GetGlClientInventoryAsync();
+            var potentialWriteMethods = new List<string>();
             var report = new StringBuilder();
-            report.AppendLine("RouterPilot controlled DHCP reservation verification (Debug only)");
-            report.AppendLine("LOCAL NETWORK INFORMATION — DO NOT PUBLISH");
-            report.AppendLine($"Baseline reservations: {originalCount}; temporary MAC: {tempMac}; test IPs: {firstIp} -> {secondIp}");
-            try
-            {
-                string addOutput = await _ssh.RunCommandAsync("uci add dhcp host 2>/dev/null");
-                string? createdId = addOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line => line.Trim()).FirstOrDefault(value => Regex.IsMatch(value, "^[A-Za-z0-9_]+$"));
-                if (string.IsNullOrWhiteSpace(createdId)) throw new InvalidOperationException();
-                await RequireDhcpWriteSuccessAsync($"uci set dhcp.{createdId}.mac='{tempMac}' && uci set dhcp.{createdId}.ip='{firstIp}'");
-                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
-                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
-                added = true;
-                Dictionary<string, DhcpUciSection> afterAdd = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
-                DhcpUciSection? temp = FindDhcpHost(afterAdd, tempMac, firstIp);
-                if (temp is null || afterAdd.Values.Count(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)) != originalCount + 1) throw new InvalidOperationException();
-                report.AppendLine("Add: verified by fresh MAC/IP read-back.");
-
-                await RequireDhcpWriteSuccessAsync($"uci set 'dhcp.{temp.Id}.ip={secondIp}'");
-                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
-                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
-                Dictionary<string, DhcpUciSection> afterEdit = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
-                temp = FindDhcpHost(afterEdit, tempMac, secondIp);
-                if (temp is null || FindDhcpHost(afterEdit, tempMac, firstIp) is not null) throw new InvalidOperationException();
-                report.AppendLine("Edit: verified by fresh MAC/IP identity resolution.");
-
-                await RequireDhcpWriteSuccessAsync($"uci set 'dhcp.{temp.Id}.ip={firstIp}'");
-                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
-                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
-                Dictionary<string, DhcpUciSection> afterRestore = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
-                temp = FindDhcpHost(afterRestore, tempMac, firstIp);
-                if (temp is null) throw new InvalidOperationException();
-                report.AppendLine("Edit rollback: verified.");
-
-                await RequireDhcpWriteSuccessAsync($"uci delete 'dhcp.{temp.Id}'");
-                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
-                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
-                added = false;
-                Dictionary<string, DhcpUciSection> finalSections = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
-                List<DhcpUciSection> finalHosts = finalSections.Values.Where(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
-                bool dnsmasqRunning = (await _ssh.RunCommandAsync("pidof dnsmasq 2>/dev/null")).Trim().Length > 0;
-                if (finalHosts.Count != originalCount || FindDhcpHost(finalSections, tempMac, firstIp) is not null || !CreateDhcpHostSignature(finalHosts).Equals(originalSignature, StringComparison.Ordinal) || !dnsmasqRunning) throw new InvalidOperationException();
-                report.AppendLine("Delete / add rollback: verified; all original MAC/IP/tag pairs unchanged.");
-                report.AppendLine("dnsmasq health: running. Apply mechanism: /etc/init.d/dnsmasq reload.");
-                report.AppendLine("WRITE CONTRACT VERIFIED: YES");
-            }
-            catch
-            {
-                if (added) { try { Dictionary<string, DhcpUciSection> current = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null")); DhcpUciSection? temp = current.Values.FirstOrDefault(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase) && NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(tempMac)); if (temp is not null) { await RequireDhcpWriteSuccessAsync($"uci delete 'dhcp.{temp.Id}'"); await RequireDhcpWriteSuccessAsync("uci commit dhcp"); await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload"); } } catch { } }
-                report.AppendLine("WRITE CONTRACT VERIFIED: NO");
-                report.AppendLine("The temporary operation did not complete; RouterPilot attempted cleanup. Check DHCP before further writes.");
-            }
-            return report.ToString();
-        }
-
-        private async Task RequireDhcpWriteSuccessAsync(string command)
-        {
-            string output = await _ssh.RunCommandAsync($"{command}; rc=$?; printf '\\n__RP_RC:%s' \"$rc\"");
-            if (!output.Contains("__RP_RC:0", StringComparison.Ordinal)) throw new InvalidOperationException();
-        }
-
-        private static DhcpUciSection? FindDhcpHost(Dictionary<string, DhcpUciSection> sections, string mac, string ip) => sections.Values.FirstOrDefault(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase) && NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(mac) && GetDhcpOption(section, "ip", string.Empty).Equals(ip, StringComparison.OrdinalIgnoreCase));
-        private static string CreateDhcpHostSignature(IEnumerable<DhcpUciSection> hosts) => string.Join("|", hosts.Select(host => $"{NormaliseMacAddress(GetDhcpOption(host, "mac", string.Empty))}/{GetDhcpOption(host, "ip", string.Empty)}/{GetDhcpOption(host, "tag", string.Empty)}").OrderBy(value => value, StringComparer.Ordinal));
-        private static string CreateTemporaryMac(ISet<string> existing) { for (int i = 0; i < 16; i++) { byte[] bytes = RandomNumberGenerator.GetBytes(6); bytes[0] = (byte)((bytes[0] | 2) & 0xFE); string mac = string.Join(":", bytes.Select(value => value.ToString("X2"))); if (!existing.Contains(NormaliseMacAddress(mac))) return mac; } return string.Empty; }
-        private static bool TryChooseTemporaryIpv4(IPAddress gateway, int prefix, int start, int limit, ISet<string> excluded, out string first, out string second) { first = second = string.Empty; if (gateway.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || limit < 2) return false; byte[] b = gateway.GetAddressBytes(); uint raw = ((uint)b[0] << 24) | ((uint)b[1] << 16) | ((uint)b[2] << 8) | b[3]; uint network = raw & (uint.MaxValue << (32 - prefix)); for (int offset = start + limit - 1; offset >= start; offset--) { uint value = network + (uint)offset; string ip = new IPAddress(new[] { (byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value }).ToString(); if (excluded.Contains(ip)) continue; if (string.IsNullOrEmpty(first)) first = ip; else { second = ip; return true; } } return false; }
-
-        /// <summary>
-        /// Debug-only UI support: obtains a bounded, read-only description of
-        /// the router's DHCP representation. It deliberately performs no UCI
-        /// mutation, commit, reload, or service control operation.
-        /// </summary>
-        public async Task<string> GetDhcpContractProbeReportAsync()
-        {
-            DhcpProbeCommandResult configuration = await RunDhcpProbeCommandAsync(
-                "DHCP UCI", "uci show dhcp 2>/dev/null");
-            DhcpProbeCommandResult leases = await RunDhcpProbeCommandAsync(
-                "Active lease file", "cat /tmp/dhcp.leases 2>/dev/null");
-            DhcpProbeCommandResult ubusObjects = await RunDhcpProbeCommandAsync(
-                "Relevant ubus objects", "ubus list 2>/dev/null | grep -E '^(dhcp|dnsmasq|service)'");
-            DhcpProbeCommandResult dnsmasqService = await RunDhcpProbeCommandAsync(
-                "dnsmasq service record", "ubus call service list '{\"name\":\"dnsmasq\"}' 2>/dev/null");
-
-            Dictionary<string, DhcpUciSection> sections = ParseDhcpUciSections(configuration.Output);
-            List<DhcpLeaseInfo> parsedLeases = ParseDhcpLeaseSnapshot(leases.Output);
-            var report = new StringBuilder();
-            report.AppendLine("RouterPilot DHCP Contract Probe (Debug only)");
-            report.AppendLine("LOCAL NETWORK INFORMATION — DO NOT PUBLISH");
+            report.AppendLine("RouterPilot Port Forwarding Contract Probe");
+            report.AppendLine("(Debug only)");
+            report.AppendLine("LOCAL NETWORK INFORMATION - DO NOT PUBLISH");
             report.AppendLine();
-            report.AppendLine("Router");
-            report.AppendLine("Transport: existing RouterPilot host-key-verified SSH session");
+            report.AppendLine("Firewall section summary");
+            foreach (var count in counts) report.AppendLine($"- {count.Key}: {count.Value}");
             report.AppendLine();
-
-            report.AppendLine("DHCP scopes");
-            foreach (DhcpUciSection section in sections.Values.Where(item => item.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase)))
-            {
-                report.AppendLine($"- Section: {section.Id}; interface: {GetDhcpOption(section, "interface", section.Id)}; " +
-                    $"ignore: {GetDhcpOption(section, "ignore", "0")}; start: {GetDhcpOption(section, "start")}; " +
-                    $"limit: {GetDhcpOption(section, "limit")}; lease time: {GetDhcpOption(section, "leasetime")}");
-            }
-
+            report.AppendLine($"Port-forward candidate count: {candidates.Count}");
+            AppendPortForwardCandidates(report, candidates, scopes, clients);
+            string identityStyle = candidates.Count == 0 ? "Not applicable" : candidates.Any(s => s.Id.StartsWith("@", StringComparison.Ordinal)) &&
+                candidates.Any(s => !s.Id.StartsWith("@", StringComparison.Ordinal)) ? "mixed" :
+                candidates.Any(s => s.Id.StartsWith("@", StringComparison.Ordinal)) ? "anonymous" : "named";
             report.AppendLine();
-            report.AppendLine("Static reservation schema");
-            List<DhcpUciSection> hostSections = sections.Values
-                .Where(item => item.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
-            if (hostSections.Count == 0)
+            report.AppendLine($"Named vs anonymous candidates: {identityStyle}");
+            report.AppendLine();
+            report.AppendLine("GL.iNet Port Forwarding Discovery");
+            report.AppendLine("GL.iNet Port Forwarding UI state: 0 configured rules (user-confirmed reference)");
+            report.AppendLine("GL.iNet Admin UI Discovery");
+            report.AppendLine($"Web server: {(string.IsNullOrWhiteSpace(webProcesses) ? "Not identified" : string.Join(" | ", webProcesses.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim())))}");
+            report.AppendLine($"Document root / asset roots: {(assetRoots.Count == 0 ? "Not identified" : string.Join(", ", assetRoots))}");
+            report.AppendLine($"GL.iNet UI packages: {(uiPackages.Count == 0 ? "None found" : string.Join(", ", uiPackages))}");
+            report.AppendLine("SDK4 UI Package Inspection");
+            foreach (string package in firewallUiPackages)
             {
-                report.AppendLine("- No UCI dhcp host sections found.");
+                report.AppendLine($"{package} dependencies: {(firewallUiDependencies[package].Count == 0 ? "None reported" : string.Join(", ", firewallUiDependencies[package]))}");
+                report.AppendLine($"{package} files ({firewallUiFiles[package].Count}):");
+                foreach (string file in firewallUiFiles[package]) report.AppendLine($"- {file} [{ClassifyProbeAssetFile(file)}]");
             }
-            else
+            report.AppendLine($"SDK4 matching files: {(string.IsNullOrWhiteSpace(firewallUiMatches) ? "None found" : string.Join(", ", firewallUiMatches.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim())))}");
+            report.AppendLine($"SDK4 route/API identifiers: {(string.IsNullOrWhiteSpace(firewallUiIdentifiers) ? "None found" : string.Join(", ", firewallUiIdentifiers.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim()).Where(IsSafeProbeIdentifier).Take(80)))}");
+            report.AppendLine($"SDK4 RPC module/function tokens: {(string.IsNullOrWhiteSpace(firewallUiRpcTokens) ? "None found" : string.Join("; ", firewallUiRpcTokens.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim()).Where(IsSafeFrontendRpcToken).Take(80)))}");
+            report.AppendLine($"nginx admin UI routing: {(string.IsNullOrWhiteSpace(nginxRouting) ? "No relevant routes found" : string.Join(" | ", nginxRouting.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim())))}");
+            report.AppendLine("gl-sdk4-firewall Backend Inspection");
+            report.AppendLine($"gl-sdk4-firewall dependencies: {(firewallBackendDependencies.Count == 0 ? "None reported" : string.Join(", ", firewallBackendDependencies))}");
+            report.AppendLine($"gl-sdk4-firewall files ({firewallBackendFiles.Count}):");
+            foreach (string file in firewallBackendFiles) report.AppendLine($"- {file} [{ClassifyProbeBackendFile(file)}]");
+            report.AppendLine($"Backend identifiers: {SummariseProbeOutput(firewallBackendIdentifiers)}");
+            report.AppendLine($"Backend functions: {SummariseProbeOutput(firewallBackendFunctions)}");
+            report.AppendLine($"Backend dispatch/registration identifiers: {SummariseProbeOutput(firewallBackendDispatch)}");
+            report.AppendLine($"Backend apply/storage identifiers: {SummariseProbeOutput(firewallBackendApply)}");
+            report.AppendLine("GL.iNet Port Forward Backend");
+            report.AppendLine($"RPC endpoint: /usr/lib/oui-httpd/rpc/firewall");
+            report.AppendLine($"RPC endpoint implementation metadata: {SummariseProbeOutput(firewallRpcMetadata)}");
+            report.AppendLine($"RPC endpoint identifiers: {SummariseProbeOutput(firewallRpcIdentifiers)}");
+            report.AppendLine($"Mutation signature evidence (static; not called): {SummariseProbeOutput(portForwardMutationSignatures)}");
+            report.AppendLine($"Validator evidence (static): {SummariseProbeOutput(firewallValidatorContract)}");
+            report.AppendLine("Port Forward Mutation Contract — Static Verification");
+            report.AppendLine($"Add call-site context: {SummariseProbeContractOutput(addPortForwardCallSite)}");
+            report.AppendLine($"Edit call-site context: {SummariseProbeContractOutput(setPortForwardCallSite)}");
+            report.AppendLine($"Delete call-site context: {SummariseProbeContractOutput(removePortForwardCallSite)}");
+            report.AppendLine("ADD: add_port_forward — signature pending frontend/validator extraction.");
+            report.AppendLine("EDIT: set_port_forward — signature and current-rule identity pending frontend/validator extraction.");
+            report.AppendLine("DELETE: remove_port_forward — signature and current-rule identity pending frontend/validator extraction.");
+            report.AppendLine($"Port-forward support evidence: {SummariseProbeOutput(portForwardSupport)}");
+            report.AppendLine("Verified Port Forward Read Contract");
+            report.AppendLine("RPC module: firewall (fixed endpoint mapping; verified only if the call below succeeds)");
+            report.AppendLine("Function: get_port_forward_list");
+            report.AppendLine("Parameters: {}");
+            report.AppendLine("Read-only evidence: distinct get_port_forward_list endpoint; no apply/reload/mutation method is invoked by this probe.");
+            report.AppendLine($"Invocation: {(portForwardRead.Success ? "Available" : "Unavailable")}");
+            report.AppendLine($"Response structure: {portForwardRead.ResponseShape}");
+            report.AppendLine($"Rule list field: {portForwardRead.RuleListField}");
+            report.AppendLine($"Configured rule count: {(portForwardRead.RuleCount.HasValue ? portForwardRead.RuleCount.Value.ToString() : "Unavailable")}");
+            report.AppendLine("Potential mutation functions: add_port_forward — NOT CALLED; set_port_forward — NOT CALLED; remove_port_forward — NOT CALLED.");
+            report.AppendLine("Rule identity evidence: old_proto and old_dest_port are present in the backend; parameter contracts remain unverified.");
+            report.AppendLine($"Web UI asset matches: {(frontendFileNames.Count == 0 ? "None found" : string.Join(", ", frontendFileNames))}");
+            report.AppendLine($"Web UI API identifiers: {(frontendApiIdentifiers.Count == 0 ? "None found" : string.Join(", ", frontendApiIdentifiers))}");
+            report.AppendLine($"Web UI RPC module/function tokens: {(frontendRpcIdentifiers.Count == 0 ? "None found" : string.Join("; ", frontendRpcIdentifiers))}");
+            report.AppendLine($"Web UI dispatch identifiers: {(frontendDispatchIdentifiers.Count == 0 ? "None found" : string.Join(", ", frontendDispatchIdentifiers))}");
+            report.AppendLine("RouterPilot GL.iNet RPC: authenticated /rpc Ubus dispatcher; no existing port-forward service identifier is hard-coded.");
+            report.AppendLine($"Relevant ubus objects: {(ubusObjects.Count == 0 ? "None found" : string.Join(", ", ubusObjects))}");
+            foreach (string ubusObject in ubusObjects)
             {
-                foreach (DhcpUciSection section in hostSections)
+                string signature = await SafeFirewallProbeAsync($"ubus -v list {ubusObject} 2>/dev/null");
+                report.AppendLine($"- {ubusObject}: {(string.IsNullOrWhiteSpace(signature) ? "Unavailable" : "Available")}");
+                foreach (UbusProbeMethod method in ExtractUbusMethods(signature))
                 {
-                    report.AppendLine($"- Section: {section.Id}; type: host; options: {string.Join(", ", section.Options.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))}");
-                    report.AppendLine($"  name: {GetDhcpOption(section, "name", "absent")}; mac: {RedactMac(GetDhcpOption(section, "mac", string.Empty))}; " +
-                        $"ip: {RedactIp(GetDhcpOption(section, "ip", string.Empty))}");
+                    string classification = IsClearlyReadOnlyMethod(method.Name) ? "READ" : IsLikelyWriteMethod(method.Name) ? "LIKELY WRITE" : "UNKNOWN";
+                    report.AppendLine($"  {method.Name}: {classification}; signature: {method.Signature}");
+                    if (classification == "LIKELY WRITE") potentialWriteMethods.Add($"{ubusObject}.{method.Name}");
+                    if (classification == "READ" && IsParameterlessReadSignature(method.Signature))
+                    {
+                        string readResult = await SafeFirewallProbeAsync($"ubus call {ubusObject} {method.Name} '{{}}' 2>/dev/null");
+                        report.AppendLine($"    read invocation: {(string.IsNullOrWhiteSpace(readResult) ? "Unavailable" : "Available")}");
+                    }
                 }
             }
-
+            report.AppendLine($"Relevant UCI/config packages: {(packageNames.Count == 0 ? "None found" : string.Join(", ", packageNames))}");
+            report.AppendLine($"Static forwarding records outside firewall UCI: {overlayCandidates.Count}");
+            AppendPortForwardCandidates(report, overlayCandidates, scopes, clients);
+            report.AppendLine($"Dynamic UPnP/NAT-PMP/PCP mapping source: {(dynamicMappingSource ? "Discovered (not invoked)" : "Not discovered")}");
+            report.AppendLine($"DMZ support/include configuration: {dmzRecords.Count}");
+            foreach (FirewallProbeSection section in dmzRecords) report.AppendLine($"- {section.Package}.{section.Id}; Type: {section.Type}; Options: {string.Join(", ", section.Options.Keys.OrderBy(key => key))}");
+            report.AppendLine("Actual DMZ/exposed-host state: Not discovered.");
+            string backend = !string.IsNullOrWhiteSpace(fw4) ? "fw4" : !string.IsNullOrWhiteSpace(nft) ? "nftables binary present" : !string.IsNullOrWhiteSpace(iptables) ? "iptables binary present" : "Not identified";
+            string preferredBackend = overlayCandidates.Count > 0 ? "Discovered GL.iNet UCI/config source (not yet verified)" : candidates.Count > 0 ? "Standard firewall UCI" : ubusObjects.Count > 0 ? "Relevant ubus service discovery required" : "Not discovered";
+            report.AppendLine($"Firewall backend: {backend}");
+            report.AppendLine($"Firewall service state: {(string.IsNullOrWhiteSpace(firewallService) ? "Unavailable" : "Available")}");
+            report.AppendLine($"firewall/service ubus objects: {(ubusObjects.Any(name => name.Equals("firewall", StringComparison.OrdinalIgnoreCase) || name.Equals("service", StringComparison.OrdinalIgnoreCase)) ? "Available" : "Unavailable")}");
+            report.AppendLine($"Preferred future read backend: {preferredBackend}");
+            report.AppendLine(overlayCandidates.Count > 0 ? "GL.iNet overlay: Structured static forwarding candidates were discovered; contract remains unverified." : "GL.iNet overlay: No structured static forwarding records were found in inspected relevant UCI packages.");
+            report.AppendLine($"Potential write methods (discovered - not called): {(potentialWriteMethods.Count == 0 ? "None" : string.Join(", ", potentialWriteMethods.Distinct(StringComparer.OrdinalIgnoreCase)))}");
             report.AppendLine();
-            report.AppendLine("Static reservations discovered");
-            report.AppendLine($"- Count: {hostSections.Count}");
-            report.AppendLine();
-            report.AppendLine("Active lease correlation");
-            int matchingLeases = parsedLeases.Count(lease => hostSections.Any(section =>
-                NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(lease.MacAddress)));
-            report.AppendLine($"- Active lease count: {parsedLeases.Count}");
-            report.AppendLine($"- Leases matching a static-host MAC: {matchingLeases}");
-            report.AppendLine();
-            report.AppendLine("DHCP/dnsmasq service discovery");
-            report.AppendLine($"- {ubusObjects.Category}: {ubusObjects.Status}");
-            report.AppendLine($"- {dnsmasqService.Category}: {dnsmasqService.Status}");
-            report.AppendLine();
-            report.AppendLine("Structured interfaces discovered");
-            foreach (string line in ubusObjects.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Take(12))
-            {
-                report.AppendLine($"- {line.Trim()}");
-            }
-
-            report.AppendLine();
-            report.AppendLine("Write contract status");
-            report.AppendLine("WRITE CONTRACT VERIFIED: NO");
-            report.AppendLine("Read-only probe only. No UCI mutation, commit, reload, or service restart was performed.");
+            report.AppendLine("GL.iNet RPC Port Forwarding Module Discovery");
+            report.AppendLine("Port Forward page identifier: Not identified unless shown by the targeted Web UI asset results above.");
+            report.AppendLine($"RPC module/read function: {(portForwardRead.Success ? "firewall.get_port_forward_list" : "firewall.get_port_forward_list could not be verified")}");
+            report.AppendLine($"Read parameters/response shape/rule count: {{}}; {portForwardRead.ResponseShape}; {(portForwardRead.RuleCount.HasValue ? portForwardRead.RuleCount.Value.ToString() : "unavailable")}.");
+            bool readBackendVerified = portForwardRead.Success;
+            bool emptyStateVerified = portForwardRead.Success && portForwardRead.RuleCount == 0;
+            report.AppendLine($"PORT FORWARD READ BACKEND IDENTIFIED: {(readBackendVerified ? "YES" : "NO")}");
+            report.AppendLine($"PORT FORWARD EMPTY-STATE READ VERIFIED: {(emptyStateVerified ? "YES" : "NO")}");
+            report.AppendLine("PORT FORWARD WRITE CONTRACT VERIFIED: NO");
+            report.AppendLine("Read-only discovery only.");
             return report.ToString();
         }
-
-        private async Task<DhcpProbeCommandResult> RunDhcpProbeCommandAsync(string category, string command)
+        private async Task<PortForwardReadProbeResult> TryGetPortForwardListProbeAsync()
         {
             try
             {
-                string output = await _ssh.RunCommandAsync(command);
-                return new DhcpProbeCommandResult(category, "Success", output);
+                string sessionId = await _sessionService.GetAdminTokenAsync();
+                using JsonDocument document = await _sessionService.CallAsync(sessionId, "firewall", "get_port_forward_list");
+                JsonElement root = document.RootElement;
+                ProbeJsonProperty? ruleList = FindPortForwardRuleList(root);
+                return new PortForwardReadProbeResult(
+                    true,
+                    DescribeProbeJsonShape(root),
+                    ruleList is null ? "Not exposed" : ruleList.Name,
+                    ruleList is not null && ruleList.Value.ValueKind == JsonValueKind.Array ? ruleList.Value.GetArrayLength() : null);
             }
             catch
             {
-                // The report needs a safe category only; it must never expose
-                // raw SSH output or exception details in normal diagnostics.
-                return new DhcpProbeCommandResult(category, "Unavailable/Error", string.Empty);
+                return new PortForwardReadProbeResult(false, "Unavailable", "Unavailable", null);
             }
         }
+        private async Task<string> ReadFirewallViewSourceAsync()
+        {
+            // The asset-retrieval experiment was retired once the firewall RPC
+            // contract was verified. Keep the old probe self-contained if a
+            // developer builds it, without reintroducing transfer tooling.
+            await Task.CompletedTask;
+            return string.Empty;
+        }
+        private static string ExtractFrontendCallContexts(string source, string literal)
+        {
+            if (string.IsNullOrWhiteSpace(source)) return "Unavailable";
+            var contexts = new List<string>();
+            int index = 0;
+            while ((index = source.IndexOf(literal, index, StringComparison.Ordinal)) >= 0 && contexts.Count < 4)
+            {
+                int start = Math.Max(0, index - 2600);
+                int length = Math.Min(source.Length - start, 5600);
+                string context = source.Substring(start, length)
+                    .Replace(";", ";\n", StringComparison.Ordinal)
+                    .Replace(",", ",\n", StringComparison.Ordinal)
+                    .Replace("{", "{\n", StringComparison.Ordinal)
+                    .Replace("}", "}\n", StringComparison.Ordinal);
+                contexts.Add(context);
+                index += literal.Length;
+            }
+            return contexts.Count == 0 ? "Not found" : string.Join("\n--- occurrence ---\n", contexts);
+        }
+        private static ProbeJsonProperty? FindPortForwardRuleList(JsonElement value)
+        {
+            if (value.ValueKind == JsonValueKind.Object)
+            {
+                foreach (JsonProperty property in value.EnumerateObject())
+                {
+                    if (property.Value.ValueKind == JsonValueKind.Array &&
+                        (property.Name.Contains("port", StringComparison.OrdinalIgnoreCase) ||
+                         property.Name.Contains("forward", StringComparison.OrdinalIgnoreCase) ||
+                         property.Name.Contains("rule", StringComparison.OrdinalIgnoreCase) ||
+                         property.Name.Equals("list", StringComparison.OrdinalIgnoreCase) ||
+                         property.Name.Equals("res", StringComparison.OrdinalIgnoreCase)))
+                        return new ProbeJsonProperty(property.Name, property.Value);
+                    ProbeJsonProperty? nested = FindPortForwardRuleList(property.Value);
+                    if (nested is not null) return nested;
+                }
+            }
+            else if (value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement item in value.EnumerateArray())
+                {
+                    ProbeJsonProperty? nested = FindPortForwardRuleList(item);
+                    if (nested is not null) return nested;
+                }
+            }
+            return null;
+        }
+        private static string DescribeProbeJsonShape(JsonElement value, int depth = 0)
+        {
+            if (value.ValueKind == JsonValueKind.Array)
+                return $"array[{value.GetArrayLength()}]";
+            if (value.ValueKind != JsonValueKind.Object)
+                return value.ValueKind.ToString().ToLowerInvariant();
+
+            return "object { " + string.Join(", ", value.EnumerateObject().Take(16).Select(property =>
+                depth < 2 && (property.Value.ValueKind == JsonValueKind.Object || property.Value.ValueKind == JsonValueKind.Array)
+                    ? $"{property.Name}: {DescribeProbeJsonShape(property.Value, depth + 1)}"
+                    : property.Value.ValueKind == JsonValueKind.Array
+                        ? $"{property.Name}: array[{property.Value.GetArrayLength()}]"
+                        : $"{property.Name}: {property.Value.ValueKind.ToString().ToLowerInvariant()}")) + " }";
+        }
+        private sealed record ProbeJsonProperty(string Name, JsonElement Value);
+        private sealed record PortForwardReadProbeResult(bool Success, string ResponseShape, string RuleListField, int? RuleCount);
+        public async Task<string> RunPortForwardWriteVerifierAsync()
+        {
+            const string name = "RouterPilot Verification";
+            const string ip = "192.168.1.105";
+            const string portA = "57333";
+            const string portB = "57334";
+            var report = new StringBuilder("Controlled Port Forwarding Verification\n");
+            string? ruleId = null;
+            IReadOnlyList<JsonElement> baseline = await ReadPortForwardRulesForVerifierAsync();
+            report.AppendLine($"Baseline rule count: {baseline.Count}");
+            if (baseline.Any(rule => ReadVerifierString(rule, "name") == name || ReadVerifierString(rule, "src_dport") is portA or portB)) return report.Append("ABORTED: temporary rule name or port is already present.").ToString();
+            var add = new { name, proto = "tcp", dest = "lan", dest_ip = ip, dest_port = portA, enabled = true, src = "wan", src_dport = portA };
+            try
+            {
+                await CallPortForwardVerifierAsync("add", add);
+                var added = await ReadPortForwardRulesForVerifierAsync();
+                var match = added.Where(rule => ReadVerifierString(rule, "name") == name && ReadVerifierString(rule, "src_dport") == portA && ReadVerifierString(rule, "dest_ip") == ip && ReadVerifierString(rule, "dest_port") == portA).ToList();
+                if (match.Count != 1 || string.IsNullOrWhiteSpace(ReadVerifierString(match[0], "id"))) throw new InvalidOperationException();
+                ruleId = ReadVerifierString(match[0], "id");
+                report.AppendLine($"Add: SUCCESS; id={ruleId}; schema={DescribeProbeJsonShape(match[0])}");
+                var edit = new { id = ruleId, name, proto = "tcp", dest = "lan", dest_ip = ip, dest_port = portA, enabled = true, src = "wan", src_dport = portB };
+                await CallPortForwardVerifierAsync("set", edit);
+                var edited = await ReadPortForwardRulesForVerifierAsync();
+                JsonElement? changed = edited.FirstOrDefault(rule => ReadVerifierString(rule, "id") == ruleId);
+                if (changed is null || ReadVerifierString(changed.Value, "src_dport") != portB || ReadVerifierString(changed.Value, "dest_ip") != ip || ReadVerifierString(changed.Value, "dest_port") != portA) throw new InvalidOperationException();
+                report.AppendLine("Edit: SUCCESS");
+                await CallPortForwardVerifierAsync("remove", new { id = ruleId });
+                var final = await ReadPortForwardRulesForVerifierAsync();
+                if (final.Any(rule => ReadVerifierString(rule, "id") == ruleId) || final.Count != baseline.Count) throw new InvalidOperationException();
+                report.AppendLine("Delete: SUCCESS");
+                report.AppendLine($"Final rule count: {final.Count}");
+                report.AppendLine("PORT FORWARD WRITE CONTRACT VERIFIED: YES");
+            }
+            catch
+            {
+                report.AppendLine("Verification: FAILURE");
+                if (!string.IsNullOrWhiteSpace(ruleId))
+                {
+                    try { await CallPortForwardVerifierAsync("remove", new { id = ruleId }); report.AppendLine("Cleanup: attempted"); } catch { report.AppendLine("Cleanup: could not be confirmed"); }
+                }
+                report.AppendLine("PORT FORWARD WRITE CONTRACT VERIFIED: NO");
+            }
+            return report.ToString();
+        }
+        private async Task CallPortForwardVerifierAsync(string operation, object payload)
+        {
+            string sid = await _sessionService.GetAdminTokenAsync();
+            using JsonDocument _ = await _sessionService.CallPortForwardVerifierAsync(sid, operation, payload);
+        }
+        private async Task<IReadOnlyList<JsonElement>> ReadPortForwardRulesForVerifierAsync()
+        {
+            string sid = await _sessionService.GetAdminTokenAsync();
+            using JsonDocument document = await _sessionService.CallAsync(sid, "firewall", "get_port_forward_list");
+            if (!document.RootElement.TryGetProperty("result", out JsonElement result) || !result.TryGetProperty("res", out JsonElement rules) || rules.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
+            return rules.EnumerateArray().Select(rule => rule.Clone()).ToList();
+        }
+        private static string ReadVerifierString(JsonElement rule, string name) => rule.TryGetProperty(name, out JsonElement value) ? value.ToString() : string.Empty;
+        private async Task<string> SafeFirewallProbeAsync(string command) { try { return await _ssh.RunCommandAsync(command); } catch { return string.Empty; } }
+        private async Task<string> SearchProbeAssetsAsync(IEnumerable<string> roots, string commandPrefix)
+        {
+            var matches = new List<string>();
+            foreach (string root in roots.Where(IsSafeProbeAssetRoot))
+                matches.AddRange((await SafeFirewallProbeAsync($"{commandPrefix} {root} 2>/dev/null | head -n 80")).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            return string.Join("\n", matches.Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        private async Task<string> SearchProbeFilesAsync(IEnumerable<string> files, string commandPrefix)
+        {
+            var matches = new List<string>();
+            foreach (string file in files.Where(IsSearchableProbeAssetFile))
+                matches.AddRange((await SafeFirewallProbeAsync($"{commandPrefix} {file} 2>/dev/null")).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            return string.Join("\n", matches.Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        private async Task<string> SearchProbeBackendFilesAsync(IEnumerable<string> files, string commandPrefix)
+        {
+            var matches = new List<string>();
+            foreach (string file in files.Where(IsSearchableProbeBackendFile))
+                matches.AddRange((await SafeFirewallProbeAsync($"{commandPrefix} {file} 2>/dev/null")).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            return string.Join("\n", matches.Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        private static string SummariseProbeOutput(string value) => string.IsNullOrWhiteSpace(value) ? "None found" : string.Join(", ", value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(item => item.Trim()).Where(item => item.Length <= 160).Take(120));
+        private static string SummariseProbeContractOutput(string value) => string.IsNullOrWhiteSpace(value) ? "None found" : string.Join(" | ", value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(item => item.Trim()).Where(item => item.Length <= 360).Take(160));
+        private static List<string> ExtractPackageDependencies(string status)
+        {
+            string? dependsLine = status.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault(line => line.StartsWith("Depends:", StringComparison.OrdinalIgnoreCase));
+            return dependsLine is null ? new List<string>() : dependsLine["Depends:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => value.Trim().TrimStart('+')).Where(IsSafePackageIdentifier).ToList();
+        }
+        private static IEnumerable<string> ExtractProbeAssetRoots(string uhttpdConfig, string nginxRoots, IEnumerable<string> packageFiles)
+        {
+            var roots = new List<string>();
+            foreach (string line in uhttpdConfig.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                if (line.Contains(".home=", StringComparison.Ordinal)) roots.Add(TrimUciValue(line[(line.IndexOf('=') + 1)..]));
+            foreach (string line in nginxRoots.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] fields = line.Trim().TrimEnd(';').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length >= 2) roots.Add(fields[1]);
+            }
+            foreach (string path in packageFiles.Select(value => value.Trim()).Where(IsSafeFrontendAssetPath))
+            {
+                string? directory = System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/');
+                if (!string.IsNullOrWhiteSpace(directory)) roots.Add(directory);
+            }
+            return roots.Where(IsSafeProbeAssetRoot).Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+        private static bool IsRelevantPortForwardObject(string name) => IsSafeProbeIdentifier(name) &&
+            (name.Equals("firewall", StringComparison.OrdinalIgnoreCase) || name.Equals("service", StringComparison.OrdinalIgnoreCase) ||
+             new[] { "firewall", "nat", "redirect", "port", "forward", "gl", "acl", "expose", "dmz", "upnp", "pcp" }.Any(token => name.Contains(token, StringComparison.OrdinalIgnoreCase)));
+        private static bool IsRelevantPortForwardPackage(string name) => IsSafeProbeIdentifier(name) &&
+            (name.Equals("firewall", StringComparison.OrdinalIgnoreCase) || name.Equals("glconfig", StringComparison.OrdinalIgnoreCase) || name.Equals("glinet", StringComparison.OrdinalIgnoreCase) ||
+             new[] { "firewall", "nat", "port", "forward", "dmz", "expose", "upnp", "pcp", "gl" }.Any(token => name.Contains(token, StringComparison.OrdinalIgnoreCase)));
+        private static bool IsSafeProbeIdentifier(string value) => Regex.IsMatch(value, "^[A-Za-z0-9_.-]+$");
+        private static bool IsSafePackageIdentifier(string value) => Regex.IsMatch(value, "^[A-Za-z0-9_.-]+$");
+        private static bool IsSafeProbeAssetRoot(string value) => Regex.IsMatch(value, "^/(www|usr/share|usr/lib/lua|opt)(/[A-Za-z0-9_./-]+)?$");
+        private static bool IsSafeFrontendAssetPath(string value) => IsSafeProbeAssetRoot(System.IO.Path.GetDirectoryName(value)?.Replace('\\', '/') ?? string.Empty) && Regex.IsMatch(value, "^/[A-Za-z0-9_./-]+$");
+        private static bool IsSearchableProbeAssetFile(string value) => IsSafeFrontendAssetPath(value) && new[] { ".js", ".json", ".html", ".map", ".lua" }.Contains(System.IO.Path.GetExtension(value), StringComparer.OrdinalIgnoreCase);
+        private static bool IsSafeProbeBackendPath(string value) => Regex.IsMatch(value, "^/(usr/lib|usr/share|usr/libexec|etc|www)(/[A-Za-z0-9_./-]+)?$");
+        private static bool IsSearchableProbeBackendFile(string value) => IsSafeProbeBackendPath(value) && new[] { ".lua", ".sh", ".json", ".conf" }.Contains(System.IO.Path.GetExtension(value), StringComparer.OrdinalIgnoreCase);
+        private static string ClassifyProbeAssetFile(string value)
+        {
+            string extension = System.IO.Path.GetExtension(value).ToLowerInvariant();
+            return extension switch { ".js" => "JavaScript", ".json" => "JSON/manifest", ".html" => "HTML", ".map" => "source map", ".lua" => "Lua", ".gz" => "gzip", ".br" => "Brotli", _ => "resource" };
+        }
+        private static string ClassifyProbeBackendFile(string value)
+        {
+            string extension = System.IO.Path.GetExtension(value).ToLowerInvariant();
+            return extension switch { ".lua" => "Lua", ".sh" => "shell", ".json" => "JSON/RPC descriptor", ".conf" => "configuration", ".so" => "shared library", _ => "resource/binary" };
+        }
+        private static bool IsSafeFrontendRpcToken(string value) => value.Length <= 180 && Regex.IsMatch(value, "^(module|func)\\s*:\\s*['\"]?[A-Za-z0-9_.-]+['\"]?$");
+        private static IEnumerable<FirewallProbeSection> FindPortForwardCandidates(IEnumerable<FirewallProbeSection> sections) =>
+            sections.Where(section => section.Type.Equals("redirect", StringComparison.OrdinalIgnoreCase) ||
+                (section.Options.ContainsKey("src_dport") && section.Options.ContainsKey("dest_ip")));
+        private static void AppendPortForwardCandidates(StringBuilder report, IEnumerable<FirewallProbeSection> candidates, IReadOnlyList<DhcpNetworkScopeInfo> scopes, IReadOnlyList<WifiClientInfo> clients)
+        {
+            foreach (FirewallProbeSection section in candidates)
+            {
+                report.AppendLine();
+                report.AppendLine($"Section: {section.Package}.{section.Id}; Type: {section.Type}; Options: {string.Join(", ", section.Options.Keys.OrderBy(x => x))}");
+                foreach (string key in new[] { "name", "proto", "src", "src_dport", "dest", "dest_ip", "dest_port", "enabled", "disabled", "family", "target", "src_ip", "reflection" })
+                    if (section.Options.TryGetValue(key, out string? value)) report.AppendLine($"{key}: {value}");
+                if (section.Options.TryGetValue("dest_ip", out string? destinationIp))
+                {
+                    WifiClientInfo? client = clients.FirstOrDefault(item => item.IpAddress.Equals(destinationIp, StringComparison.OrdinalIgnoreCase));
+                    report.AppendLine($"Device: {(client is null ? "Unknown" : client.Name)}");
+                    report.AppendLine($"DHCP scope: {GetProbeScopeDisplay(destinationIp, scopes)}");
+                }
+            }
+        }
+        private static string GetProbeScopeDisplay(string ipAddress, IReadOnlyList<DhcpNetworkScopeInfo> scopes)
+        {
+            if (!IPAddress.TryParse(ipAddress, out IPAddress? address)) return "Unknown";
+            var matches = scopes.Where(scope => scope.DhcpEnabled && scope.ContainsAddress(address)).ToList();
+            return matches.Count == 1 ? matches[0].DisplayName : matches.Count > 1 ? "Ambiguous" : "Unknown";
+        }
+        private static IEnumerable<UbusProbeMethod> ExtractUbusMethods(string signature) => Regex.Matches(signature, "^\\s*['\\\"]?([A-Za-z][A-Za-z0-9_-]*)['\\\"]?\\s*[:=]\\s*(.+)$", RegexOptions.Multiline)
+            .Select(match => new UbusProbeMethod(match.Groups[1].Value, match.Groups[2].Value.Trim()[..Math.Min(match.Groups[2].Value.Trim().Length, 240)]))
+            .GroupBy(method => method.Name, StringComparer.OrdinalIgnoreCase).Select(group => group.First()).Take(20);
+        private static bool IsParameterlessReadSignature(string signature) => Regex.IsMatch(signature, "^\\{\\s*\\}$");
+        private static bool IsClearlyReadOnlyMethod(string value) => new[] { "get", "list", "status", "dump", "show", "query" }.Contains(value, StringComparer.OrdinalIgnoreCase);
+        private static bool IsLikelyWriteMethod(string value) => new[] { "set", "add", "create", "delete", "del", "remove", "update", "apply", "reload", "enable", "disable", "commit" }.Contains(value, StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, FirewallProbeSection> ParseUciProbeSections(string output, string package)
+        {
+            var sections = new Dictionary<string, FirewallProbeSection>();
+            foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int equalsIndex = line.IndexOf('=');
+                if (equalsIndex <= 0 || !line.StartsWith(package + ".", StringComparison.Ordinal)) continue;
+                string[] path = line[..equalsIndex].Split('.', 3);
+                if (path.Length < 2) continue;
+                if (!sections.TryGetValue(path[1], out FirewallProbeSection? section)) sections[path[1]] = section = new FirewallProbeSection(package, path[1]);
+                if (path.Length == 2) section.Type = TrimUciValue(line[(equalsIndex + 1)..]);
+                else section.Options[path[2]] = TrimUciValue(line[(equalsIndex + 1)..]);
+            }
+            return sections;
+        }
+        private sealed class FirewallProbeSection(string package, string id)
+        {
+            public string Package { get; } = package;
+            public string Id { get; } = id;
+            public string Type { get; set; } = "other";
+            public Dictionary<string, string> Options { get; } = new();
+        }
+        private sealed record UbusProbeMethod(string Name, string Signature);
 #endif
+
 
         private static (List<DhcpConfigurationInfo> Configurations, List<DhcpReservationInfo> Reservations)
             ParseDhcpConfiguration(string output)
@@ -953,10 +1244,6 @@ namespace RouterPilot.Services
             public string Type { get; set; } = string.Empty;
             public Dictionary<string, string> Options { get; } = new(StringComparer.OrdinalIgnoreCase);
         }
-
-#if DEBUG
-        private sealed record DhcpProbeCommandResult(string Category, string Status, string Output);
-#endif
 
         private async Task<(List<WifiRadioInfo> Networks, string Output)>
             DiscoverWifiRadiosFromHostapdAsync()

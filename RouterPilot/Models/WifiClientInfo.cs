@@ -15,9 +15,18 @@ namespace RouterPilot.Models
             get
             {
                 string numeric = Signal.Replace("dBm", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-                if (!int.TryParse(numeric, out int dbm)) return "N/A";
+                if (!int.TryParse(numeric, out int dbm)) return "—";
                 return dbm >= -50 ? "Excellent" : dbm >= -60 ? "Good" : dbm >= -70 ? "Fair" : "Poor";
             }
         }
+
+        public string DisplayIpAddress => Useful(IpAddress) ? IpAddress : "—";
+        public string DisplayMacAddress => Useful(MacAddress) ? MacAddress : "—";
+        public string DisplaySignal => Useful(Signal) ? Signal : "—";
+
+        public static bool Useful(string? value) => !string.IsNullOrWhiteSpace(value) &&
+            !value.Equals("-", StringComparison.OrdinalIgnoreCase) &&
+            !value.Equals("N/A", StringComparison.OrdinalIgnoreCase) &&
+            !value.Equals("Not reported", StringComparison.OrdinalIgnoreCase);
     }
 }

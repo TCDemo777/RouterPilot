@@ -17,6 +17,8 @@ namespace RouterPilot.Views
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly IDhcpReservationService _dhcpReservationService;
         private readonly DhcpReservationValidator _dhcpReservationValidator;
+        private readonly IPortForwardService _portForwardService;
+        private readonly ILanClientService _lanClientService;
         private bool _maintenanceInProgress;
 
         public NetworkView()
@@ -28,131 +30,10 @@ namespace RouterPilot.Views
                 .GetRequiredService<IDhcpReservationService>();
             _dhcpReservationValidator = ((App)Application.Current).Services
                 .GetRequiredService<DhcpReservationValidator>();
+            _portForwardService = ((App)Application.Current).Services.GetRequiredService<IPortForwardService>();
+            _lanClientService = ((App)Application.Current).Services.GetRequiredService<ILanClientService>();
             UpdateNetworkTabVisibility();
-#if DEBUG
-            AddDhcpContractProbeButton();
-#endif
         }
-
-#if DEBUG
-        private void AddDhcpContractProbeButton()
-        {
-            var probeButton = new Button
-            {
-                Content = "Run DHCP Contract Probe",
-                Padding = new Thickness(14, 8, 14, 8),
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-            probeButton.Click += RunDhcpContractProbe_Click;
-            DhcpDebugToolsHost.Children.Add(probeButton);
-
-            var writeVerificationButton = new Button
-            {
-                Content = "Run Controlled DHCP Write Verification",
-                Padding = new Thickness(14, 8, 14, 8),
-                Margin = new Thickness(8, 0, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-            writeVerificationButton.Click += RunDhcpWriteVerification_Click;
-            DhcpDebugToolsHost.Children.Add(writeVerificationButton);
-        }
-
-        private async void RunDhcpWriteVerification_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button button) return;
-            if (MessageBox.Show(
-                    "This Debug-only verification will create, edit, and delete one generated temporary DHCP reservation, then reload dnsmasq. Existing reservations will not be targeted. Continue?",
-                    "Controlled DHCP Write Verification",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            button.IsEnabled = false;
-            try
-            {
-                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
-                string report = await router.RunDhcpReservationWriteVerificationAsync();
-                ShowDhcpContractProbeDialog(report);
-            }
-            catch
-            {
-                MessageBox.Show(
-                    "RouterPilot could not complete the controlled DHCP write verification.",
-                    "DHCP Write Verification",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-            finally
-            {
-                button.IsEnabled = true;
-            }
-        }
-
-        private async void RunDhcpContractProbe_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button button) return;
-            button.IsEnabled = false;
-            try
-            {
-                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
-                string report = await router.GetDhcpContractProbeReportAsync();
-                ShowDhcpContractProbeDialog(report);
-            }
-            catch
-            {
-                MessageBox.Show(
-                    "RouterPilot could not complete the read-only DHCP contract probe.",
-                    "DHCP Contract Probe",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-            finally
-            {
-                button.IsEnabled = true;
-            }
-        }
-
-        private static void ShowDhcpContractProbeDialog(string report)
-        {
-            var output = new TextBox
-            {
-                Text = report,
-                IsReadOnly = true,
-                TextWrapping = TextWrapping.Wrap,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
-                Margin = new Thickness(16)
-            };
-            var copyButton = new Button
-            {
-                Content = "Copy Report",
-                Padding = new Thickness(14, 8, 14, 8),
-                Margin = new Thickness(0, 0, 16, 16),
-                HorizontalAlignment = HorizontalAlignment.Right
-            };
-            copyButton.Click += (_, _) => Clipboard.SetText(report);
-
-            var panel = new DockPanel();
-            DockPanel.SetDock(copyButton, Dock.Bottom);
-            panel.Children.Add(copyButton);
-            panel.Children.Add(output);
-
-            new Window
-            {
-                Title = "DHCP Contract Probe — Local Debug Output",
-                Content = panel,
-                Width = 760,
-                Height = 560,
-                MinWidth = 560,
-                MinHeight = 360,
-                Owner = Application.Current.MainWindow,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner
-            }.ShowDialog();
-        }
-#endif
 
         private void AddDhcpReservation_Click(object sender, RoutedEventArgs e)
         {
@@ -271,19 +152,113 @@ namespace RouterPilot.Views
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
             if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
-                OverviewDetailsContent is null || WifiContent is null || DhcpContent is null)
+                OverviewDetailsContent is null || WifiContent is null || LanContent is null || DhcpContent is null || PortForwardContent is null)
             {
                 return;
             }
 
             bool showWifi = NetworkTabs.SelectedIndex == 1;
-            bool showDhcp = NetworkTabs.SelectedIndex == 2;
-            OverviewSummaryContent.Visibility = showWifi || showDhcp ? Visibility.Collapsed : Visibility.Visible;
-            OverviewMaintenanceContent.Visibility = showWifi || showDhcp ? Visibility.Collapsed : Visibility.Visible;
-            OverviewDetailsContent.Visibility = showWifi || showDhcp ? Visibility.Collapsed : Visibility.Visible;
+            bool showLan = NetworkTabs.SelectedIndex == 2;
+            bool showDhcp = NetworkTabs.SelectedIndex == 3;
+            bool showPortForward = NetworkTabs.SelectedIndex == 4;
+            OverviewSummaryContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
+            OverviewMaintenanceContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
+            OverviewDetailsContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
+            LanContent.Visibility = showLan ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
+            PortForwardContent.Visibility = showPortForward ? Visibility.Visible : Visibility.Collapsed;
+            if (showLan) _ = RefreshLanAsync();
+            if (showPortForward) _ = RefreshPortForwardAsync();
         }
+        private async Task RefreshPortForwardAsync()
+        {
+            if (DataContext is not DashboardViewModel viewModel || viewModel.PortForwardIsLoading) return;
+            viewModel.PortForwardIsLoading = true;
+            try { var rules = await _portForwardService.GetRulesAsync(CancellationToken.None); viewModel.PortForwardRules.Clear(); foreach (var rule in rules) viewModel.PortForwardRules.Add(rule); viewModel.SetPortForwardingCapabilities(true, true); viewModel.PortForwardStatus = string.Empty; }
+            catch { viewModel.SetPortForwardingCapabilities(false, false); viewModel.PortForwardStatus = "Port forwarding is unavailable for this router session."; }
+            finally { viewModel.PortForwardIsLoading = false; }
+        }
+        private async void RefreshPortForward_Click(object sender, RoutedEventArgs e) => await RefreshPortForwardAsync();
+        private async Task RefreshLanAsync()
+        {
+            if (DataContext is not DashboardViewModel viewModel || viewModel.LanIsLoading) return;
+            viewModel.LanIsLoading = true;
+            try { var clients = await _lanClientService.GetWiredClientsAsync(CancellationToken.None); viewModel.LanClients.Clear(); foreach (var client in clients) viewModel.LanClients.Add(client); viewModel.LanConnectedCount = clients.Count(client => client.IsOnline); viewModel.LanStatus = string.Empty; }
+            catch { viewModel.LanStatus = "Wired LAN devices are unavailable for this router session."; }
+            finally { viewModel.LanIsLoading = false; }
+        }
+        private async void RefreshLan_Click(object sender, RoutedEventArgs e) => await RefreshLanAsync();
+        private void AddPortForward_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true }) return;
+            ShowPortForwardDialog(null);
+        }
+        private void EditPortForward_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true } || sender is not FrameworkElement { Tag: PortForwardRuleInfo rule }) return;
+            ShowPortForwardDialog(rule);
+        }
+        private async void DeletePortForward_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true } || sender is not FrameworkElement { Tag: PortForwardRuleInfo rule }) return;
+            if (MessageBox.Show($"Delete port forward '{rule.Name}'?", "Port Forwarding", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            PortForwardOperationResult result = await _portForwardService.DeleteAsync(rule.Id, CancellationToken.None);
+            if (!result.Success) { MessageBox.Show(PortForwardFailureMessage(result.FailureCategory), "Port Forwarding", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            await RefreshPortForwardAsync();
+        }
+
+        private void ShowPortForwardDialog(PortForwardRuleInfo? existing)
+        {
+            if (DataContext is not DashboardViewModel viewModel) return;
+            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel.DhcpLeases, request => ExecutePortForwardAsync(existing, request));
+        }
+
+        private async Task<string?> ExecutePortForwardAsync(PortForwardRuleInfo? existing, PortForwardRuleRequest request)
+        {
+            if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true } viewModel) return "Port forwarding changes are unavailable while the router connection is not ready.";
+            viewModel.PortForwardIsLoading = true;
+            try
+            {
+                PortForwardOperationResult result = existing is null
+                    ? await _portForwardService.AddAsync(request, CancellationToken.None)
+                    : await _portForwardService.UpdateAsync(existing.Id, request, CancellationToken.None);
+                if (!result.Success) return PortForwardFailureMessage(result.FailureCategory);
+                viewModel.PortForwardIsLoading = false;
+                await RefreshPortForwardAsync();
+                return null;
+            }
+            catch { return "RouterPilot could not apply the port forward."; }
+            finally { viewModel.PortForwardIsLoading = false; }
+        }
+
+        private async void TogglePortForward_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true } viewModel || sender is not FrameworkElement { Tag: PortForwardRuleInfo rule }) return;
+            viewModel.PortForwardIsLoading = true;
+            try
+            {
+                PortForwardRuleRequest request = new() { Name = rule.Name, Protocol = rule.Protocol, SourceZone = rule.SourceZone, ExternalPort = rule.ExternalPort, DestinationZone = rule.DestinationZone, DestinationIp = rule.DestinationIp, InternalPort = rule.InternalPort, Enabled = !rule.Enabled };
+                PortForwardOperationResult result = await _portForwardService.UpdateAsync(rule.Id, request, CancellationToken.None);
+                if (!result.Success) { MessageBox.Show(PortForwardFailureMessage(result.FailureCategory), "Port Forwarding", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                viewModel.PortForwardIsLoading = false;
+                await RefreshPortForwardAsync();
+            }
+            finally { viewModel.PortForwardIsLoading = false; }
+        }
+
+        private static string PortForwardFailureMessage(string category) => category switch
+        {
+            "InvalidName" => "Enter a name of up to 64 characters.",
+            "InvalidProtocol" => "Select TCP, UDP, or TCP + UDP.",
+            "InvalidPort" => "Enter a single port number from 1 to 65535.",
+            "InvalidDestinationIp" => "Enter a valid IPv4 address.",
+            "OutsideKnownLanScope" => "The internal IP address is outside a known LAN scope.",
+            "PortConflict" => "A port forward with an overlapping protocol already uses that external port.",
+            "RuleNotFound" => "This port forward no longer exists. Refresh the list and try again.",
+            "VerificationFailed" => "RouterPilot could not verify the router state after this change. Refresh the list before trying again.",
+            _ => "RouterPilot could not apply the port forward."
+        };
 
         private async void RestartWifi_Click(object sender, RoutedEventArgs e)
         {
@@ -314,6 +289,7 @@ namespace RouterPilot.Views
 
             await RunMaintenanceAsync(async router => await router.RestartWanAsync());
         }
+
 
         private async System.Threading.Tasks.Task RunMaintenanceAsync(
             Func<RouterManager, System.Threading.Tasks.Task<string>> operation)

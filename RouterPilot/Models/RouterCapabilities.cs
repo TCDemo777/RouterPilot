@@ -9,6 +9,13 @@ namespace RouterPilot.Models
     {
         public WifiRouterCapabilities WiFi { get; } = new();
         public DhcpRouterCapabilities Dhcp { get; } = new();
+        public PortForwardRouterCapabilities PortForwarding { get; } = new();
+    }
+
+    public sealed class PortForwardRouterCapabilities
+    {
+        public bool Read { get; internal set; }
+        public bool Write { get; internal set; }
     }
 
     public sealed class WifiRouterCapabilities

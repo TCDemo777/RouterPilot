@@ -37,6 +37,7 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <ComboBox Width="130"
+                          Style="{StaticResource RouterPilot.ComboBox}"
                           Margin="0,0,10,0"
                           ItemsSource="{Binding Filters}"
                           SelectedItem="{Binding SelectedFilter}"/>

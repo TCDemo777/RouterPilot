@@ -657,6 +657,25 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<DhcpLeaseInfo> DhcpLeases { get; } = new();
         public ObservableCollection<DhcpReservationInfo> DhcpReservations { get; } = new();
         public ObservableCollection<DhcpNetworkScopeInfo> DhcpNetworkScopes { get; } = new();
+        public ObservableCollection<PortForwardRuleInfo> PortForwardRules { get; } = new();
+        public ObservableCollection<LanClientInfo> LanClients { get; } = new();
+        [ObservableProperty] private int lanConnectedCount;
+        [ObservableProperty] private bool lanIsLoading;
+        [ObservableProperty] private string lanStatus = string.Empty;
+        [ObservableProperty] private bool portForwardIsLoading;
+        [ObservableProperty] private string portForwardStatus = string.Empty;
+        public bool PortForwardingSupported => RouterCapabilities.PortForwarding.Read;
+        public bool PortForwardingWriteSupported => RouterCapabilities.PortForwarding.Write && !PortForwardIsLoading;
+
+        partial void OnPortForwardIsLoadingChanged(bool value) => OnPropertyChanged(nameof(PortForwardingWriteSupported));
+
+        public void SetPortForwardingCapabilities(bool read, bool write)
+        {
+            RouterCapabilities.PortForwarding.Read = read;
+            RouterCapabilities.PortForwarding.Write = write;
+            OnPropertyChanged(nameof(PortForwardingSupported));
+            OnPropertyChanged(nameof(PortForwardingWriteSupported));
+        }
         public ObservableCollection<string> DhcpWarnings { get; } = new();
 
         [ObservableProperty]

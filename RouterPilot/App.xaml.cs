@@ -86,6 +86,8 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IInternetSpeedTestService, InternetSpeedTestService>();
             serviceCollection.AddSingleton<DhcpReservationValidator>();
             serviceCollection.AddSingleton<IDhcpReservationService, DhcpReservationService>();
+            serviceCollection.AddSingleton<IPortForwardService, PortForwardService>();
+            serviceCollection.AddSingleton<ILanClientService, LanClientService>();
             serviceCollection.AddSingleton<MaintenanceViewModel>();
             serviceCollection.AddSingleton<UpdateService>();
             serviceCollection.AddSingleton<IClock, SystemClock>();

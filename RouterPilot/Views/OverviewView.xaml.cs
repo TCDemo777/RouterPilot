@@ -39,11 +39,9 @@ namespace RouterPilot.Views
         {
             bool free = !_maintenance.IsBusy;
             RefreshQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RefreshAll);
-            DiagnosticsQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RunDiagnostics);
             RestartAdGuardQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RestartAdGuard);
             RestartWifiQuickAction.IsEnabled = free && ActionAvailable(MaintenanceAction.RestartWifi);
             BackupQuickAction.IsEnabled = free;
-            FirmwareQuickAction.IsEnabled = free && _maintenance.CanCheckFirmware;
             RouterUiQuickAction.IsEnabled = !_maintenance.IsBusy && _maintenance.Dashboard.RouterConnected;
         }
 

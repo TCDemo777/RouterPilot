@@ -8,6 +8,12 @@
             <Setter Property="Margin" Value="0,0,0,8"/>
             <Setter Property="Padding" Value="14"/>
         </Style>
+        <Style x:Key="Timeline.FilterTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource Brush.TextPrimary}"/>
+        </Style>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Style="{StaticResource Page.Content}">
@@ -21,10 +27,10 @@
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Timeline"/>
+                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Logs"/>
                     <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Chronological RouterPilot activity and safe operation results."/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Timeline"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Timeline"/></StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Logs"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Logs"/></StackPanel>
             </Grid>
             <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
             <Grid>
@@ -34,10 +40,10 @@
                     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox Height="36" Padding="10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
-                <ComboBox Grid.Column="2" Width="128" Height="36" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
-                <ComboBox Grid.Column="4" Width="120" Height="36" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
-                <ComboBox Grid.Column="6" Width="128" Height="36" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>
+                <TextBox Style="{StaticResource Timeline.FilterTextBox}" Height="36" Padding="10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
+                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="2" Width="128" Height="36" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
+                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="4" Width="120" Height="36" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
+                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="6" Width="128" Height="36" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>
             </Grid>
             </Border>
             <Border Grid.Row="4" Style="{StaticResource SectionContainerStyle}" Margin="0">

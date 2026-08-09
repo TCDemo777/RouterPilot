@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Renci.SshNet;
@@ -168,7 +169,6 @@ namespace RouterPilot.Services
             _client.Dispose();
             _client = null;
         }
-
         public void Dispose()
         {
             if (_disposed)
