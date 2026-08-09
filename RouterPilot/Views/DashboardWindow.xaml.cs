@@ -34,6 +34,7 @@ namespace RouterPilot.Views
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
+        private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
         private bool _trafficRefreshInProgress;
@@ -281,6 +282,7 @@ namespace RouterPilot.Views
                 // Router and AdGuard work are independent. Start both groups
                 // together, then apply each successful result separately.
                 Task wifiTask = RefreshWifiNetworksAsync(router, cancellationToken);
+                Task dhcpTask = RefreshDhcpAsync(router, cancellationToken);
                 Task<NetworkInfo> networkTask = router.GetNetworkInfoAsync();
                 Task adGuardTask = RefreshAdGuardAsync(router, cancellationToken);
 
@@ -297,7 +299,7 @@ namespace RouterPilot.Views
 
                 // Both independent groups are always observed, even when the
                 // router network request fails.
-                await Task.WhenAll(wifiTask, adGuardTask);
+                await Task.WhenAll(wifiTask, dhcpTask, adGuardTask);
                 if (networkFailure is not null)
                 {
                     throw networkFailure;
@@ -780,6 +782,26 @@ namespace RouterPilot.Views
             {
                 // Visibility can change after shutdown has disposed the refresh
                 // coordinator. An async event handler must not crash the app.
+            }
+        }
+
+        private async Task RefreshDhcpAsync(
+            RouterManager router,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                _viewModel.UpdateDhcpSnapshot(snapshot, _clientProfileService.Load());
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[DhcpRefresh] failed category={ex.GetType().Name}");
             }
         }
 

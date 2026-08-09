@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource Brush.WindowBackground}">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <Style x:Key="Network.Label"
                TargetType="TextBlock">
             <Setter Property="Margin" Value="0,10,0,2"/>
@@ -52,7 +53,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="18"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -67,13 +68,24 @@
             </StackPanel>
         </Grid>
 
+        <TabControl x:Name="NetworkTabs"
+                    Grid.Row="1"
+                    Margin="24,12,24,14"
+                    Style="{StaticResource RouterPilotTabControlStyle}"
+                    ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
+                    SelectionChanged="NetworkTabs_SelectionChanged">
+            <TabItem Header="Overview"/>
+            <TabItem Header="Wi-Fi"/>
+            <TabItem Header="DHCP"/>
+        </TabControl>
+
         <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24,0,24,24">
 
-                <!-- Top summary -->
-                <Grid Margin="0,0,0,16">
+                <!-- Overview -->
+                <Grid x:Name="OverviewSummaryContent" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="12"/>
@@ -149,15 +161,26 @@
                     </Border>
                 </Grid>
 
-                <!-- Quick maintenance and Wi-Fi networks -->
-                <Grid Margin="0,0,0,16">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="16"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                <Border x:Name="OverviewMaintenanceContent" Margin="0,0,0,16" Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Quick maintenance"/>
+                        <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"
+                                   Text="Safely restart wireless services or reconnect the internet uplink."/>
+                        <WrapPanel>
+                            <Button MinWidth="132" Margin="0,0,8,8" Padding="16,9"
+                                    Click="RestartWifi_Click" Content="Restart Wi-Fi"/>
+                            <Button MinWidth="132" Margin="0,0,0,8" Padding="16,9"
+                                    Click="ReconnectWan_Click" Content="Reconnect WAN"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="MaintenanceStatusText" Margin="0,8,0,0"
+                                   Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
 
-                    <Border Grid.Row="2" Style="{DynamicResource Card}">
+                <!-- Wi-Fi -->
+                <StackPanel x:Name="WifiContent" Margin="0,0,0,16" Visibility="Collapsed">
+
+                    <Border Style="{DynamicResource Card}">
                         <StackPanel>
                             <Grid Margin="0,0,0,14">
                                 <Grid.ColumnDefinitions>
@@ -172,7 +195,7 @@
                                 <Border Grid.Column="1" Style="{StaticResource Network.HealthBadge}">
                                     <TextBlock FontSize="11" FontWeight="SemiBold"
                                                Foreground="{DynamicResource Brush.Success}"
-                                               Text="{Binding WifiNetworks.Count, StringFormat={}{0} networks}"/>
+                                               Text="{Binding WifiNetworks.Count, Mode=OneWay, StringFormat={}{0} networks}"/>
                                 </Border>
                             </Grid>
 
@@ -201,19 +224,20 @@
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                                         <TextBlock HorizontalAlignment="Right" FontWeight="SemiBold"
-                                                                   Foreground="{Binding StatusColour}"
-                                                                   Text="{Binding StatusDisplay}"/>
+                                                                   Foreground="{Binding StatusColour, Mode=OneWay}"
+                                                                   Text="{Binding StatusDisplay, Mode=OneWay}"/>
                                                         <TextBlock Margin="0,4,0,0" HorizontalAlignment="Right"
                                                                    Style="{DynamicResource Text.Muted}"
-                                                                   Text="{Binding ClientCount, StringFormat={}{0} connected}"/>
+                                                                   Text="{Binding ClientCount, Mode=OneWay, StringFormat={}{0} connected}"/>
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <Grid Margin="0,12,0,10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
+                                                    <Grid Margin="0,12,0,10">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0">
                                                         <TextBlock Style="{StaticResource Network.Label}" Text="INTERFACE"/>
@@ -226,6 +250,10 @@
                                                     <StackPanel Grid.Column="2">
                                                         <TextBlock Style="{StaticResource Network.Label}" Text="SECURITY"/>
                                                         <TextBlock Style="{StaticResource Network.Value}" Text="{Binding Security}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="3">
+                                                        <TextBlock Style="{StaticResource Network.Label}" Text="CHANNEL WIDTH"/>
+                                                        <TextBlock Style="{StaticResource Network.Value}" Text="{Binding ChannelWidth}"/>
                                                     </StackPanel>
                                                 </Grid>
 
@@ -248,9 +276,13 @@
                                                                            Foreground="{DynamicResource Brush.TextSecondary}"/>
                                                                 <TextBlock Grid.Column="2" Text="{Binding MacAddress}"
                                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
-                                                                <TextBlock Grid.Column="3" Text="{Binding Signal}"
-                                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
-                                                            </Grid>
+                                                                 <StackPanel Grid.Column="3">
+                                                                     <TextBlock Text="{Binding Signal, Mode=OneWay}"
+                                                                                Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                                     <TextBlock Margin="0,2,0,0" Text="{Binding SignalQuality, Mode=OneWay}"
+                                                                                Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                                 </StackPanel>
+                                                             </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
@@ -259,28 +291,162 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding HasGuestWifiNetworks, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Margin="0,8,0,4" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.TextPrimary}" Text="Guest networks"/>
+                                <ItemsControl ItemsSource="{Binding GuestWifiNetworks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,2" Foreground="{DynamicResource Brush.TextSecondary}">
+                                                <Run Text="{Binding Band, Mode=OneWay}"/><Run Text="  •  "/><Run Text="{Binding Ssid, Mode=OneWay}"/><Run Text="  •  "/><Run Text="{Binding StatusDisplay, Mode=OneWay}"/><Run Text="  •  "/><Run Text="{Binding ClientCount, Mode=OneWay, StringFormat={}{0} clients}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <TextBlock Margin="0,16,0,0"
+                                       Text="No guest Wi-Fi network detected.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}">
+                                        <Setter Property="FontWeight" Value="Normal"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasGuestWifiNetworks, Mode=OneWay}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
+                </StackPanel>
 
-                    <Border Grid.Row="0" Style="{DynamicResource Card}">
+                <!-- DHCP -->
+                <StackPanel x:Name="DhcpContent" Margin="0,0,0,16" Visibility="Collapsed">
+                    <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
                         <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Quick maintenance"/>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="DHCP status"/>
                             <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"
-                                       Text="Safely restart wireless services or reconnect the internet uplink."/>
-                            <WrapPanel>
-                                <Button MinWidth="132" Margin="0,0,8,8" Padding="16,9"
-                                        Click="RestartWifi_Click" Content="Restart Wi-Fi"/>
-                                <Button MinWidth="132" Margin="0,0,0,8" Padding="16,9"
-                                        Click="ReconnectWan_Click" Content="Reconnect WAN"/>
-                            </WrapPanel>
-                            <TextBlock x:Name="MaintenanceStatusText" Margin="0,8,0,0"
-                                       Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"/>
+                                       Text="Read-only DHCP scopes and address allocation settings."/>
+                            <TextBlock FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{Binding DhcpStatusColour, Mode=OneWay}"
+                                       Text="{Binding DhcpStatusDisplay, Mode=OneWay}"/>
+                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding DhcpConfigurations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0"><TextBlock Style="{StaticResource Network.Label}" Text="INTERFACE"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding Interface}"/></StackPanel>
+                                            <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Network.Label}" Text="START OFFSET"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding Start}"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Network.Label}" Text="MAXIMUM LEASES"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding Limit}"/></StackPanel>
+                                            <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource Network.Label}" Text="LEASE TIME"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding LeaseTime}"/></StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding DhcpWarnings}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,2" Foreground="{DynamicResource Brush.Warning}" Text="{Binding}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
-                </Grid>
 
-                <!-- Network information -->
-                <Grid Margin="0,0,0,16">
+                    <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="DHCP Networks"/>
+                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding DhcpNetworkScopes}">
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <Grid Margin="0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0"><TextBlock Style="{StaticResource Network.Label}" Text="NETWORK"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding DisplayName, Mode=OneWay}"/></StackPanel>
+                                        <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Network.Label}" Text="STATUS"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding Status, Mode=OneWay}"/></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Network.Label}" Text="ROUTER ADDRESS"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding RouterAddress, Mode=OneWay, TargetNullValue=N/A}"/></StackPanel>
+                                        <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource Network.Label}" Text="DYNAMIC RANGE"/><TextBlock Style="{StaticResource Network.Value}" Text="{Binding DynamicRangeDisplay, Mode=OneWay}"/></StackPanel>
+                                    </Grid>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Active leases"/>
+                            <TextBlock Margin="0,5,0,12" Style="{DynamicResource Text.Secondary}"
+                                       Text="Devices currently listed by the router DHCP lease table."/>
+                            <ItemsControl ItemsSource="{Binding DhcpLeases}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.5*"/><ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="1.4*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding ClientName}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding IpAddress}" Foreground="{DynamicResource Brush.TextSecondary}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding MacAddress}" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding RemainingLease, Mode=OneWay}" Foreground="{DynamicResource Brush.TextSecondary}"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding DeviceType}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,4,0,0" Text="No active DHCP leases.">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="FontWeight" Value="Normal"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasDhcpLeases, Mode=OneWay}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Static reservations"/>
+                                <Button Grid.Column="1" Content="+ Add Reservation" Style="{DynamicResource Button.Primary}"
+                                        Click="AddDhcpReservation_Click"
+                                        IsEnabled="{Binding CanManageDhcpReservations, Mode=OneWay}"/>
+                            </Grid>
+                            <TextBlock Margin="0,5,0,12" Style="{DynamicResource Text.Secondary}"
+                                       Text="Configured DHCP host reservations."/>
+                            <TextBlock Margin="0,0,0,8" Foreground="{DynamicResource Brush.TextSecondary}" Text="Pending…"
+                                       Visibility="{Binding DhcpReservationMutationInProgress, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
+                            <ItemsControl ItemsSource="{Binding DhcpReservations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="1.4*"/><ColumnDefinition Width="1.35*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Hostname}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding MacAddress}" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding IpAddress}" Foreground="{DynamicResource Brush.TextSecondary}"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding ScopeDisplay, Mode=OneWay}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                                <Button Content="Edit" Padding="9,5" Margin="8,0,0,0" Style="{DynamicResource Button.Secondary}"
+                                                        Tag="{Binding}" Click="EditDhcpReservation_Click"
+                                                        IsEnabled="{Binding DataContext.CanManageDhcpReservations, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"/>
+                                                <Button Content="Delete" Padding="9,5" Margin="6,0,0,0" Style="{DynamicResource Button.Secondary}"
+                                                        Tag="{Binding}" Click="DeleteDhcpReservation_Click"
+                                                        IsEnabled="{Binding DataContext.CanManageDhcpReservations, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,4,0,0" Text="No static DHCP reservations configured.">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="FontWeight" Value="Normal"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasDhcpReservations, Mode=OneWay}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel x:Name="DhcpDebugToolsHost" Margin="0,12,0,0"/>
+                </StackPanel>
+
+                <!-- Overview details -->
+                <Grid x:Name="OverviewDetailsContent" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="16"/>

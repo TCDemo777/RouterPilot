@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,6 +17,8 @@ namespace RouterPilot.Views
     {
         private readonly ClientsViewModel _viewModel;
         private readonly DispatcherTimer _refreshTimer;
+        private readonly IDhcpReservationService _dhcpReservationService;
+        private readonly DhcpReservationValidator _dhcpReservationValidator;
         private bool _isRefreshNotifierSubscribed;
 
         public ClientsView()
@@ -24,6 +27,8 @@ namespace RouterPilot.Views
 
             _viewModel = ((App)Application.Current).Services
                 .GetRequiredService<ClientsViewModel>();
+            _dhcpReservationService = ((App)Application.Current).Services.GetRequiredService<IDhcpReservationService>();
+            _dhcpReservationValidator = ((App)Application.Current).Services.GetRequiredService<DhcpReservationValidator>();
             DataContext = _viewModel;
 
             _refreshTimer =
@@ -196,7 +201,7 @@ namespace RouterPilot.Views
             }
         }
 
-        private void ClientCard_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        private async void ClientCard_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is not FrameworkElement { DataContext: ClientInfo } card ||
                 card.ContextMenu is null)
@@ -204,6 +209,7 @@ namespace RouterPilot.Views
 
             // Context actions are scoped to the card under the pointer. Do
             // not alter SelectedClient or trigger the left-click auto-scroll.
+            await ConfigureDhcpReservationActionAsync(card.ContextMenu, card.DataContext as ClientInfo);
             card.ContextMenu.PlacementTarget = card;
             card.ContextMenu.IsOpen = true;
             e.Handled = true;
@@ -253,6 +259,66 @@ namespace RouterPilot.Views
             if (ContextClient(sender) is ClientInfo client)
                 OpenClientDetails(client);
         }
+
+        private async void ContextDhcpReservation_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContextClient(sender) is not ClientInfo client || sender is not MenuItem { Tag: string action }) return;
+            DhcpClientReservationAction? state = await GetDhcpReservationActionAsync(client);
+            if (state is null) return;
+            if (!state.CanWrite)
+            {
+                MessageBox.Show($"DHCP reservation\n\nReserved IP: {state.Reservation?.IpAddress ?? client.IpAddress}", "DHCP Reservation", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            DhcpReservationInfo? existing = state.Reservation;
+            DhcpReservationEditorDialog.Show(Window.GetWindow(this), action, new DhcpReservationRequest { Hostname = client.Name, MacAddress = existing?.MacAddress ?? client.MacAddress, IpAddress = existing?.IpAddress ?? client.IpAddress }, request => ExecuteClientReservationAsync(existing, request));
+        }
+
+        private async Task ConfigureDhcpReservationActionAsync(ContextMenu menu, ClientInfo? client)
+        {
+            MenuItem? item = menu.Items.OfType<MenuItem>().FirstOrDefault(candidate => string.Equals(candidate.Tag as string, "DhcpReservationAction", StringComparison.Ordinal));
+            if (item is null) return;
+            DhcpClientReservationAction? state = client is null ? null : await GetDhcpReservationActionAsync(client);
+            item.Visibility = state is null ? Visibility.Collapsed : Visibility.Visible;
+            if (state is null) return;
+            item.Header = state.Reservation is null ? "Reserve Current IP" : state.CanWrite ? "Edit DHCP Reservation" : "View DHCP Reservation";
+        }
+
+        private async Task<DhcpClientReservationAction?> GetDhcpReservationActionAsync(ClientInfo client)
+        {
+            try
+            {
+                RouterManager router = await ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>().GetRouterManagerAsync();
+                DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync();
+                DhcpReservationEligibility eligibility = _dhcpReservationValidator.GetEligibility(client.MacAddress, client.IpAddress, snapshot.Scopes, snapshot.Reservations, snapshot.Leases);
+                DhcpReservationInfo? exact = snapshot.Reservations.FirstOrDefault(item => SameMac(item.MacAddress, client.MacAddress) && string.Equals(item.IpAddress, client.IpAddress, StringComparison.OrdinalIgnoreCase));
+                DhcpReservationInfo? sameMac = snapshot.Reservations.FirstOrDefault(item => SameMac(item.MacAddress, client.MacAddress));
+                bool canWrite = Application.Current.MainWindow?.DataContext is DashboardViewModel { CanManageDhcpReservations: true };
+                if (exact is not null || sameMac is not null) return new DhcpClientReservationAction(exact ?? sameMac, canWrite);
+                return eligibility.Eligible && canWrite ? new DhcpClientReservationAction(null, true) : null;
+            }
+            catch { return null; }
+        }
+
+        private async Task<string?> ExecuteClientReservationAsync(DhcpReservationInfo? existing, DhcpReservationRequest request)
+        {
+            try
+            {
+                _viewModel.StatusMessage = "Applying DHCP reservation…";
+                DhcpReservationOperationResult result = existing is null
+                    ? await _dhcpReservationService.AddReservationAsync(request, CancellationToken.None)
+                    : await _dhcpReservationService.UpdateReservationAsync(new DhcpReservationIdentity(existing.MacAddress, existing.IpAddress, existing.Hostname), request, CancellationToken.None);
+                if (!result.Success) return "RouterPilot could not apply or verify the DHCP reservation.";
+                if (Application.Current.MainWindow is DashboardWindow dashboard) await dashboard.RefreshNowAsync();
+                ClientRefreshNotifier.RequestRefresh();
+                _viewModel.StatusMessage = "DHCP reservation updated.";
+                return null;
+            }
+            catch { _viewModel.StatusMessage = "DHCP reservation could not be applied."; return "RouterPilot could not apply the DHCP reservation."; }
+        }
+
+        private static bool SameMac(string first, string second) => string.Concat(first.Where(char.IsLetterOrDigit)).Equals(string.Concat(second.Where(char.IsLetterOrDigit)), StringComparison.OrdinalIgnoreCase);
+        private sealed record DhcpClientReservationAction(DhcpReservationInfo? Reservation, bool CanWrite);
 
         private void CopyClientValue(string? value, string confirmation)
         {

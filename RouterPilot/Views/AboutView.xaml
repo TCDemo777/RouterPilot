@@ -4,26 +4,6 @@
              Background="{DynamicResource Brush.WindowBackground}"
              Foreground="{DynamicResource Brush.TextPrimary}">
     <UserControl.Resources>
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
-        </Style>
-
-        <Style TargetType="TabItem">
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="Background" Value="{DynamicResource Brush.Surface}"/>
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource Brush.SurfaceMuted}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="About.OutputBox" TargetType="TextBox">
             <Setter Property="Padding" Value="12"/>
             <Setter Property="Background" Value="{DynamicResource Brush.SurfaceMuted}"/>
@@ -64,8 +44,10 @@
         </StackPanel>
 
         <TabControl Grid.Row="2"
-                    Margin="24,0,0,0"
-                    VerticalContentAlignment="Stretch"
+                     Margin="24,0,0,0"
+                     Style="{StaticResource RouterPilotTabControlStyle}"
+                     ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
+                     VerticalContentAlignment="Stretch"
                     Background="{DynamicResource Brush.WindowBackground}"
                     Foreground="{DynamicResource Brush.TextPrimary}"
                     BorderBrush="{DynamicResource Brush.Border}"

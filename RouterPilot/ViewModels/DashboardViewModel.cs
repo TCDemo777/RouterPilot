@@ -646,6 +646,45 @@ namespace RouterPilot.ViewModels
 
         public ObservableCollection<WifiRadioInfo> WifiNetworks { get; } = new();
 
+        public RouterCapabilities RouterCapabilities { get; } = new();
+
+        public IEnumerable<WifiRadioInfo> GuestWifiNetworks => WifiNetworks
+            .Where(network => network.IsVerifiedGuestNetwork);
+
+        public bool HasGuestWifiNetworks => WifiNetworks.Any(network => network.IsVerifiedGuestNetwork);
+
+        public ObservableCollection<DhcpConfigurationInfo> DhcpConfigurations { get; } = new();
+        public ObservableCollection<DhcpLeaseInfo> DhcpLeases { get; } = new();
+        public ObservableCollection<DhcpReservationInfo> DhcpReservations { get; } = new();
+        public ObservableCollection<DhcpNetworkScopeInfo> DhcpNetworkScopes { get; } = new();
+        public ObservableCollection<string> DhcpWarnings { get; } = new();
+
+        [ObservableProperty]
+        private bool dhcpLoaded;
+
+        public string DhcpStatusDisplay => !DhcpLoaded
+            ? RouterPilotStatusPresentation.Pending
+            : DhcpConfigurations.Count == 0
+            ? RouterPilotStatusPresentation.NotAvailable
+            : DhcpConfigurations.Any(configuration => configuration.Enabled)
+                ? RouterPilotStatusPresentation.Active
+                : RouterPilotStatusPresentation.Disabled;
+
+        public string DhcpStatusColour => RouterPilotStatusPresentation.Colour(
+            !DhcpLoaded ? RouterPilotStatus.Pending :
+            DhcpConfigurations.Count == 0 ? RouterPilotStatus.NotAvailable :
+            DhcpConfigurations.Any(configuration => configuration.Enabled) ? RouterPilotStatus.Active : RouterPilotStatus.Disabled);
+
+        public bool HasDhcpLeases => DhcpLeases.Count > 0;
+        public bool HasDhcpReservations => DhcpReservations.Count > 0;
+        public bool DhcpReservationValidationReady { get; private set; }
+
+        [ObservableProperty]
+        private bool dhcpReservationMutationInProgress;
+
+        public bool CanManageDhcpReservations =>
+            RouterCapabilities.Dhcp.ReservationsWrite && !DhcpReservationMutationInProgress;
+
         [ObservableProperty]
         private string wifiRefreshError = string.Empty;
 
@@ -662,6 +701,20 @@ namespace RouterPilot.ViewModels
                 WifiNetworks.Add(network);
             }
 
+            RouterCapabilities.WiFi.Read = networkList.Count > 0;
+            // The same successful AP configuration read carries the network
+            // association used for guest discovery; a guest AP need not exist
+            // for the read capability itself to be available.
+            RouterCapabilities.WiFi.GuestRead = networkList.Count > 0;
+            RouterCapabilities.WiFi.ClientRead = networkList.Any(network => network.ClientCount > 0);
+            RouterCapabilities.WiFi.SignalRead = networkList
+                .SelectMany(network => network.Clients)
+                .Any(client => !string.Equals(client.Signal, "-", StringComparison.Ordinal));
+            RouterCapabilities.WiFi.ChannelWidthRead = networkList
+                .Any(network => !string.Equals(network.ChannelWidth, "N/A", StringComparison.Ordinal));
+            OnPropertyChanged(nameof(GuestWifiNetworks));
+            OnPropertyChanged(nameof(HasGuestWifiNetworks));
+
             WifiRadioInfo? radio24 = networkList.FirstOrDefault(r => r.Band.StartsWith("2.4", StringComparison.OrdinalIgnoreCase));
             WifiRadioInfo? radio5 = networkList.FirstOrDefault(r => r.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase));
 
@@ -674,6 +727,73 @@ namespace RouterPilot.ViewModels
             Wifi5Channel = radio5 == null ? "-" : $"Channel {radio5.Channel}";
             Wifi5Clients = $"{networkList.Where(r => r.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase)).Sum(r => r.ClientCount)} clients";
             Wifi5Status = radio5?.StatusDisplay ?? RouterPilotStatusPresentation.NotAvailable;
+        }
+
+        public void UpdateDhcpSnapshot(
+            DhcpSnapshot snapshot,
+            IReadOnlyDictionary<string, ClientProfile> profiles)
+        {
+            ApplyDhcpProfileCorrelation(snapshot.Leases, profiles);
+            ApplyDhcpProfileCorrelation(snapshot.Reservations, profiles);
+
+            ReplaceDhcpCollection(DhcpConfigurations, snapshot.Configurations);
+            ReplaceDhcpCollection(DhcpLeases, snapshot.Leases);
+            ReplaceDhcpCollection(DhcpReservations, snapshot.Reservations);
+            ReplaceDhcpCollection(DhcpNetworkScopes, snapshot.Scopes);
+            ReplaceDhcpCollection(DhcpWarnings, snapshot.Warnings);
+
+            RouterCapabilities.Dhcp.Read = snapshot.Configurations.Count > 0;
+            RouterCapabilities.Dhcp.ActiveLeases = true;
+            RouterCapabilities.Dhcp.ReservationsRead = snapshot.Reservations.Count > 0 || snapshot.Configurations.Count > 0;
+            DhcpReservationValidationReady = snapshot.Configurations.Count > 0 &&
+                snapshot.Scopes.Any(scope => scope.DhcpEnabled && scope.Status == "Active" &&
+                    scope.NetworkAddress is not null && scope.BroadcastAddress is not null && scope.RouterAddress is not null) &&
+                snapshot.Reservations is not null;
+            UpdateDhcpReservationWriteCapability();
+            OnPropertyChanged(nameof(DhcpReservationValidationReady));
+            OnPropertyChanged(nameof(CanManageDhcpReservations));
+            DhcpLoaded = true;
+            OnPropertyChanged(nameof(DhcpStatusDisplay));
+            OnPropertyChanged(nameof(DhcpStatusColour));
+            OnPropertyChanged(nameof(HasDhcpLeases));
+            OnPropertyChanged(nameof(HasDhcpReservations));
+        }
+
+        private static void ApplyDhcpProfileCorrelation(
+            IEnumerable<DhcpLeaseInfo> leases,
+            IReadOnlyDictionary<string, ClientProfile> profiles)
+        {
+            foreach (DhcpLeaseInfo lease in leases)
+            {
+                if (!profiles.TryGetValue(NormaliseClientMac(lease.MacAddress), out ClientProfile? profile)) continue;
+                lease.ProfileId = profile.Key;
+                lease.IsFavourite = profile.IsFavorite;
+                if (!string.IsNullOrWhiteSpace(profile.Nickname)) lease.ClientName = profile.Nickname;
+                if (!string.IsNullOrWhiteSpace(profile.Category)) lease.DeviceType = profile.Category;
+            }
+        }
+
+        private static void ApplyDhcpProfileCorrelation(
+            IEnumerable<DhcpReservationInfo> reservations,
+            IReadOnlyDictionary<string, ClientProfile> profiles)
+        {
+            foreach (DhcpReservationInfo reservation in reservations)
+            {
+                if (!profiles.TryGetValue(NormaliseClientMac(reservation.MacAddress), out ClientProfile? profile)) continue;
+                reservation.ProfileId = profile.Key;
+                reservation.IsFavourite = profile.IsFavorite;
+                if (!string.IsNullOrWhiteSpace(profile.Nickname)) reservation.Hostname = profile.Nickname;
+                if (!string.IsNullOrWhiteSpace(profile.Category)) reservation.DeviceType = profile.Category;
+            }
+        }
+
+        private static string NormaliseClientMac(string value) => new string(
+            (value ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+        private static void ReplaceDhcpCollection<T>(ObservableCollection<T> target, IEnumerable<T> values)
+        {
+            target.Clear();
+            foreach (T value in values) target.Add(value);
         }
 
         //
@@ -1291,7 +1411,16 @@ namespace RouterPilot.ViewModels
             bool value)
         {
             RefreshStatusIndicators();
+            UpdateDhcpReservationWriteCapability();
+            OnPropertyChanged(nameof(CanManageDhcpReservations));
         }
+
+        partial void OnDhcpReservationMutationInProgressChanged(bool value) =>
+            OnPropertyChanged(nameof(CanManageDhcpReservations));
+
+        private void UpdateDhcpReservationWriteCapability() =>
+            RouterCapabilities.Dhcp.ReservationsWrite =
+                DhcpReservationValidationReady && RouterConnected;
 
         partial void OnAdGuardRunningChanged(
             bool value)

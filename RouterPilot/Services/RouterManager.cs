@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -26,6 +29,10 @@ namespace RouterPilot.Services
         private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
         private readonly object _adGuardCookieLock = new();
         private bool _disposed;
+        private IReadOnlyList<DhcpConfigurationInfo>? _dhcpConfigurationCache;
+        private IReadOnlyList<DhcpReservationInfo>? _dhcpReservationCache;
+        private IReadOnlyList<DhcpNetworkScopeInfo>? _dhcpScopeCache;
+        private readonly SemaphoreSlim _dhcpScopeGate = new(1, 1);
 
         private readonly SemaphoreSlim _tokenLock =
             new SemaphoreSlim(1, 1);
@@ -341,6 +348,8 @@ namespace RouterPilot.Services
                     [ -n "$channel" ] || channel='auto'
                     encryption=$(uci -q get wireless.$s.encryption)
                     [ -n "$encryption" ] || encryption='open'
+                    network=$(uci -q get wireless.$s.network)
+                    width=$(uci -q get wireless.$dev.htmode)
                     disabled=$(uci -q get wireless.$s.disabled)
                     rdisabled=$(uci -q get wireless.$dev.disabled)
                     iface=''
@@ -360,7 +369,7 @@ namespace RouterPilot.Services
                     [ -z "$iface" -a "$state" = 'Online' ] && state='Configured'
                     display_iface="$iface"
                     [ -n "$display_iface" ] || display_iface="$dev"
-                    printf 'N|%s|%s|%s|%s|%s|%s|%s|%s\n' "$s" "$dev" "$display_iface" "$ssid" "$band" "$channel" "$encryption" "$state"
+                    printf 'N|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$s" "$dev" "$display_iface" "$ssid" "$band" "$channel" "$encryption" "$state" "$network" "$width"
                 done
                 runtime_count=$(iw dev 2>/dev/null | awk '$1 == "Interface" { count++ } END { print count + 0 }')
                 physical_count=$(uci show wireless 2>/dev/null | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p' | wc -l)
@@ -374,7 +383,7 @@ namespace RouterPilot.Services
             foreach (string line in networkOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string[] parts = line.Split('|');
-                if (parts.Length < 9 || parts[0] != "N")
+                if (parts.Length < 11 || parts[0] != "N")
                 {
                     continue;
                 }
@@ -396,7 +405,11 @@ namespace RouterPilot.Services
                     Band = band,
                     Channel = string.IsNullOrWhiteSpace(parts[6]) ? "auto" : parts[6].Trim(),
                     Security = FormatWifiSecurity(parts[7]),
-                    Status = string.IsNullOrWhiteSpace(parts[8]) ? "Configured" : parts[8].Trim()
+                    Status = string.IsNullOrWhiteSpace(parts[8]) ? "Configured" : parts[8].Trim(),
+                    NetworkAssociation = string.IsNullOrWhiteSpace(parts[9]) ? "N/A" : parts[9].Trim(),
+                    ChannelWidth = FormatWifiChannelWidth(parts[10]),
+                    HardwareMode = string.IsNullOrWhiteSpace(parts[5]) ? "N/A" : parts[5].Trim(),
+                    GuestClassification = ClassifyGuestNetwork(parts[9], parts[3], parts[2])
                 });
             }
 
@@ -506,6 +519,444 @@ namespace RouterPilot.Services
 
             return networks;
         }
+
+        /// <summary>
+        /// Reads DHCP state using only /tmp/dhcp.leases and UCI's read-only
+        /// show command. DHCP configuration is cached for this RouterManager
+        /// session; active leases remain part of the normal refresh lifecycle.
+        /// </summary>
+        public async Task<DhcpSnapshot> GetDhcpSnapshotAsync()
+        {
+            if (_dhcpConfigurationCache is null || _dhcpReservationCache is null)
+            {
+                string configurationOutput = await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null || true");
+                (List<DhcpConfigurationInfo> configurations, List<DhcpReservationInfo> reservations) =
+                    ParseDhcpConfiguration(configurationOutput);
+                _dhcpConfigurationCache = configurations;
+                _dhcpReservationCache = reservations;
+            }
+
+            string leaseOutput = await _ssh.RunCommandAsync("cat /tmp/dhcp.leases 2>/dev/null || true");
+            List<DhcpLeaseInfo> leases = ParseDhcpLeaseSnapshot(leaseOutput);
+            IReadOnlyList<DhcpNetworkScopeInfo> scopes = await GetDhcpNetworkScopesAsync(CancellationToken.None);
+            CorrelateDhcpScopes(leases, _dhcpReservationCache, scopes);
+            List<string> warnings = DetectDhcpConflicts(_dhcpReservationCache, leases);
+
+            return new DhcpSnapshot
+            {
+                Configurations = _dhcpConfigurationCache,
+                Reservations = _dhcpReservationCache,
+                Leases = leases,
+                Warnings = warnings
+                ,Scopes = scopes
+            };
+        }
+
+        public async Task<IReadOnlyList<DhcpNetworkScopeInfo>> GetDhcpNetworkScopesAsync(CancellationToken cancellationToken)
+        {
+            if (_dhcpScopeCache is not null) return _dhcpScopeCache;
+            await _dhcpScopeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (_dhcpScopeCache is not null) return _dhcpScopeCache;
+                string raw = await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null || true", cancellationToken);
+                var sections = ParseDhcpUciSections(raw).Values.Where(s => s.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase) && !GetDhcpOption(s, "ignore").Equals("1", StringComparison.Ordinal)).ToList();
+                var result = new List<DhcpNetworkScopeInfo>();
+                foreach (DhcpUciSection section in sections)
+                {
+                    string iface = GetDhcpOption(section, "interface", string.Empty);
+                    if (!Regex.IsMatch(iface, "^[A-Za-z0-9_-]+$")) { result.Add(new DhcpNetworkScopeInfo { ScopeId=section.Id, InterfaceName=iface, DisplayName=FriendlyScopeName(iface), DhcpEnabled=true, Status="Error", FailureCategory="Invalid interface identifier" }); continue; }
+                    string output = await _ssh.RunCommandAsync($"ubus call network.interface.{iface} status 2>/dev/null", cancellationToken);
+                    result.Add(ParseDhcpScope(section, iface, output));
+                }
+                _dhcpScopeCache = result;
+                return _dhcpScopeCache;
+            }
+            finally { _dhcpScopeGate.Release(); }
+        }
+
+        private static DhcpNetworkScopeInfo ParseDhcpScope(DhcpUciSection section, string iface, string json)
+        {
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(json);
+                JsonElement root = doc.RootElement;
+                bool up = root.TryGetProperty("up", out JsonElement upValue) && upValue.ValueKind == JsonValueKind.True;
+                var ips = root.TryGetProperty("ipv4-address", out JsonElement array) && array.ValueKind == JsonValueKind.Array ? array.EnumerateArray().Where(x => x.TryGetProperty("address", out _) && x.TryGetProperty("mask", out _)).ToList() : [];
+                if (ips.Count != 1) return new DhcpNetworkScopeInfo { ScopeId=section.Id, InterfaceName=iface, DisplayName=FriendlyScopeName(iface), DhcpEnabled=true, InterfaceUp=up, LeaseTime=GetDhcpOption(section,"leasetime"), Status=ips.Count > 1 ? "Ambiguous" : "N/A", FailureCategory=ips.Count > 1 ? "Multiple IPv4 addresses" : "No IPv4 address" };
+                string address = ips[0].GetProperty("address").GetString() ?? string.Empty;
+                int prefix = ips[0].GetProperty("mask").GetInt32();
+                if (!IPAddress.TryParse(address, out IPAddress? ip) || prefix is < 0 or > 32) throw new JsonException();
+                (IPAddress netmask, IPAddress network, IPAddress broadcast) = GetIpv4Subnet(ip, prefix);
+                int? start = int.TryParse(GetDhcpOption(section,"start"), out int s) ? s : null, limit = int.TryParse(GetDhcpOption(section,"limit"), out int l) ? l : null;
+                string? rangeStart=null, rangeEnd=null;
+                if (start >= 0 && limit > 0) { uint baseValue=ToUInt(network); uint end=baseValue+(uint)start.Value+(uint)limit.Value-1; if (end <= ToUInt(broadcast)) { rangeStart=FromUInt(baseValue+(uint)start.Value).ToString(); rangeEnd=FromUInt(end).ToString(); } }
+                return new DhcpNetworkScopeInfo { ScopeId=section.Id, InterfaceName=iface, DisplayName=FriendlyScopeName(iface), DhcpEnabled=true, InterfaceUp=up, IPv4Address=address, PrefixLength=prefix, Netmask=netmask.ToString(), NetworkAddress=network.ToString(), BroadcastAddress=broadcast.ToString(), RouterAddress=address, DhcpStart=start, DhcpLimit=limit, DynamicRangeStart=rangeStart, DynamicRangeEnd=rangeEnd, LeaseTime=GetDhcpOption(section,"leasetime"), Status=up ? "Active" : "N/A" };
+            }
+            catch { return new DhcpNetworkScopeInfo { ScopeId=section.Id, InterfaceName=iface, DisplayName=FriendlyScopeName(iface), DhcpEnabled=true, LeaseTime=GetDhcpOption(section,"leasetime"), Status="Error", FailureCategory="Interface status unavailable" }; }
+        }
+        private static string FriendlyScopeName(string value) => value.Equals("lan",StringComparison.OrdinalIgnoreCase)?"LAN":value.Equals("guest",StringComparison.OrdinalIgnoreCase)?"Guest":value.Equals("iot",StringComparison.OrdinalIgnoreCase)?"IoT":value;
+        private static (IPAddress,IPAddress,IPAddress) GetIpv4Subnet(IPAddress ip,int prefix) { uint mask=prefix==0?0:uint.MaxValue << (32-prefix), raw=ToUInt(ip), n=raw&mask; return (FromUInt(mask),FromUInt(n),FromUInt(n|~mask)); }
+        private static uint ToUInt(IPAddress ip) { byte[] b=ip.GetAddressBytes(); return ((uint)b[0]<<24)|((uint)b[1]<<16)|((uint)b[2]<<8)|b[3]; }
+        private static IPAddress FromUInt(uint value) => new(new[]{(byte)(value>>24),(byte)(value>>16),(byte)(value>>8),(byte)value});
+        private static void CorrelateDhcpScopes(IEnumerable<DhcpLeaseInfo> leases, IEnumerable<DhcpReservationInfo> reservations, IReadOnlyList<DhcpNetworkScopeInfo> scopes) { foreach (var item in leases.Cast<dynamic>().Concat(reservations.Cast<dynamic>())) { var matches=scopes.Where(scope=>scope.DhcpEnabled && scope.ContainsAddress(IPAddress.TryParse((string)item.IpAddress,out var ip)?ip:IPAddress.None)).ToList(); item.ScopeDisplay=matches.Count==1?matches[0].DisplayName:matches.Count>1?"Ambiguous":"Unknown"; } }
+
+#if DEBUG
+        public async Task<string> RunDhcpReservationWriteVerificationAsync()
+        {
+            string initialOutput = await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null");
+            Dictionary<string, DhcpUciSection> initialSections = ParseDhcpUciSections(initialOutput);
+            List<DhcpUciSection> initialHosts = initialSections.Values.Where(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
+            DhcpUciSection? lanScope = initialSections.Values.FirstOrDefault(section => section.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase) && GetDhcpOption(section, "interface", section.Id).Equals("lan", StringComparison.OrdinalIgnoreCase) && !GetDhcpOption(section, "ignore").Equals("1", StringComparison.Ordinal));
+            if (lanScope is null) return "WRITE CONTRACT VERIFIED: NO — enabled LAN DHCP scope unavailable.";
+
+            string addressInfo = await _ssh.RunCommandAsync("addr=$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e '@[\"ipv4-address\"][0].address' 2>/dev/null); mask=$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e '@[\"ipv4-address\"][0].mask' 2>/dev/null); printf '%s|%s' \"$addr\" \"$mask\"");
+            string[] addressParts = addressInfo.Trim().Split('|');
+            if (addressParts.Length != 2 || !IPAddress.TryParse(addressParts[0], out IPAddress? lanAddress) || !int.TryParse(addressParts[1], out int prefix) || prefix is < 8 or > 30) return "WRITE CONTRACT VERIFIED: NO — LAN subnet unavailable.";
+
+            string leaseOutput = await _ssh.RunCommandAsync("cat /tmp/dhcp.leases 2>/dev/null");
+            var excludedIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DhcpLeaseInfo lease in ParseDhcpLeaseSnapshot(leaseOutput)) excludedIps.Add(lease.IpAddress);
+            foreach (DhcpUciSection host in initialHosts) excludedIps.Add(GetDhcpOption(host, "ip", string.Empty));
+            excludedIps.Add(lanAddress.ToString());
+            foreach (WifiClientInfo client in await GetGlClientInventoryAsync()) excludedIps.Add(client.IpAddress);
+            if (!int.TryParse(GetDhcpOption(lanScope, "start"), out int start) || !int.TryParse(GetDhcpOption(lanScope, "limit"), out int limit) || !TryChooseTemporaryIpv4(lanAddress, prefix, start, limit, excludedIps, out string firstIp, out string secondIp)) return "WRITE CONTRACT VERIFIED: NO — no two safe temporary LAN addresses found.";
+
+            var existingMacs = new HashSet<string>(initialHosts.Select(host => NormaliseMacAddress(GetDhcpOption(host, "mac", string.Empty))), StringComparer.OrdinalIgnoreCase);
+            foreach (DhcpLeaseInfo lease in ParseDhcpLeaseSnapshot(leaseOutput)) existingMacs.Add(NormaliseMacAddress(lease.MacAddress));
+            string tempMac = CreateTemporaryMac(existingMacs);
+            if (string.IsNullOrEmpty(tempMac)) return "WRITE CONTRACT VERIFIED: NO — no unique locally-administered temporary MAC found.";
+
+            int originalCount = initialHosts.Count;
+            string originalSignature = CreateDhcpHostSignature(initialHosts);
+            bool added = false;
+            var report = new StringBuilder();
+            report.AppendLine("RouterPilot controlled DHCP reservation verification (Debug only)");
+            report.AppendLine("LOCAL NETWORK INFORMATION — DO NOT PUBLISH");
+            report.AppendLine($"Baseline reservations: {originalCount}; temporary MAC: {tempMac}; test IPs: {firstIp} -> {secondIp}");
+            try
+            {
+                string addOutput = await _ssh.RunCommandAsync("uci add dhcp host 2>/dev/null");
+                string? createdId = addOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line => line.Trim()).FirstOrDefault(value => Regex.IsMatch(value, "^[A-Za-z0-9_]+$"));
+                if (string.IsNullOrWhiteSpace(createdId)) throw new InvalidOperationException();
+                await RequireDhcpWriteSuccessAsync($"uci set dhcp.{createdId}.mac='{tempMac}' && uci set dhcp.{createdId}.ip='{firstIp}'");
+                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
+                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
+                added = true;
+                Dictionary<string, DhcpUciSection> afterAdd = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
+                DhcpUciSection? temp = FindDhcpHost(afterAdd, tempMac, firstIp);
+                if (temp is null || afterAdd.Values.Count(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)) != originalCount + 1) throw new InvalidOperationException();
+                report.AppendLine("Add: verified by fresh MAC/IP read-back.");
+
+                await RequireDhcpWriteSuccessAsync($"uci set 'dhcp.{temp.Id}.ip={secondIp}'");
+                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
+                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
+                Dictionary<string, DhcpUciSection> afterEdit = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
+                temp = FindDhcpHost(afterEdit, tempMac, secondIp);
+                if (temp is null || FindDhcpHost(afterEdit, tempMac, firstIp) is not null) throw new InvalidOperationException();
+                report.AppendLine("Edit: verified by fresh MAC/IP identity resolution.");
+
+                await RequireDhcpWriteSuccessAsync($"uci set 'dhcp.{temp.Id}.ip={firstIp}'");
+                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
+                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
+                Dictionary<string, DhcpUciSection> afterRestore = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
+                temp = FindDhcpHost(afterRestore, tempMac, firstIp);
+                if (temp is null) throw new InvalidOperationException();
+                report.AppendLine("Edit rollback: verified.");
+
+                await RequireDhcpWriteSuccessAsync($"uci delete 'dhcp.{temp.Id}'");
+                await RequireDhcpWriteSuccessAsync("uci commit dhcp");
+                await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload");
+                added = false;
+                Dictionary<string, DhcpUciSection> finalSections = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null"));
+                List<DhcpUciSection> finalHosts = finalSections.Values.Where(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
+                bool dnsmasqRunning = (await _ssh.RunCommandAsync("pidof dnsmasq 2>/dev/null")).Trim().Length > 0;
+                if (finalHosts.Count != originalCount || FindDhcpHost(finalSections, tempMac, firstIp) is not null || !CreateDhcpHostSignature(finalHosts).Equals(originalSignature, StringComparison.Ordinal) || !dnsmasqRunning) throw new InvalidOperationException();
+                report.AppendLine("Delete / add rollback: verified; all original MAC/IP/tag pairs unchanged.");
+                report.AppendLine("dnsmasq health: running. Apply mechanism: /etc/init.d/dnsmasq reload.");
+                report.AppendLine("WRITE CONTRACT VERIFIED: YES");
+            }
+            catch
+            {
+                if (added) { try { Dictionary<string, DhcpUciSection> current = ParseDhcpUciSections(await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null")); DhcpUciSection? temp = current.Values.FirstOrDefault(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase) && NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(tempMac)); if (temp is not null) { await RequireDhcpWriteSuccessAsync($"uci delete 'dhcp.{temp.Id}'"); await RequireDhcpWriteSuccessAsync("uci commit dhcp"); await RequireDhcpWriteSuccessAsync("/etc/init.d/dnsmasq reload"); } } catch { } }
+                report.AppendLine("WRITE CONTRACT VERIFIED: NO");
+                report.AppendLine("The temporary operation did not complete; RouterPilot attempted cleanup. Check DHCP before further writes.");
+            }
+            return report.ToString();
+        }
+
+        private async Task RequireDhcpWriteSuccessAsync(string command)
+        {
+            string output = await _ssh.RunCommandAsync($"{command}; rc=$?; printf '\\n__RP_RC:%s' \"$rc\"");
+            if (!output.Contains("__RP_RC:0", StringComparison.Ordinal)) throw new InvalidOperationException();
+        }
+
+        private static DhcpUciSection? FindDhcpHost(Dictionary<string, DhcpUciSection> sections, string mac, string ip) => sections.Values.FirstOrDefault(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase) && NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(mac) && GetDhcpOption(section, "ip", string.Empty).Equals(ip, StringComparison.OrdinalIgnoreCase));
+        private static string CreateDhcpHostSignature(IEnumerable<DhcpUciSection> hosts) => string.Join("|", hosts.Select(host => $"{NormaliseMacAddress(GetDhcpOption(host, "mac", string.Empty))}/{GetDhcpOption(host, "ip", string.Empty)}/{GetDhcpOption(host, "tag", string.Empty)}").OrderBy(value => value, StringComparer.Ordinal));
+        private static string CreateTemporaryMac(ISet<string> existing) { for (int i = 0; i < 16; i++) { byte[] bytes = RandomNumberGenerator.GetBytes(6); bytes[0] = (byte)((bytes[0] | 2) & 0xFE); string mac = string.Join(":", bytes.Select(value => value.ToString("X2"))); if (!existing.Contains(NormaliseMacAddress(mac))) return mac; } return string.Empty; }
+        private static bool TryChooseTemporaryIpv4(IPAddress gateway, int prefix, int start, int limit, ISet<string> excluded, out string first, out string second) { first = second = string.Empty; if (gateway.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || limit < 2) return false; byte[] b = gateway.GetAddressBytes(); uint raw = ((uint)b[0] << 24) | ((uint)b[1] << 16) | ((uint)b[2] << 8) | b[3]; uint network = raw & (uint.MaxValue << (32 - prefix)); for (int offset = start + limit - 1; offset >= start; offset--) { uint value = network + (uint)offset; string ip = new IPAddress(new[] { (byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value }).ToString(); if (excluded.Contains(ip)) continue; if (string.IsNullOrEmpty(first)) first = ip; else { second = ip; return true; } } return false; }
+
+        /// <summary>
+        /// Debug-only UI support: obtains a bounded, read-only description of
+        /// the router's DHCP representation. It deliberately performs no UCI
+        /// mutation, commit, reload, or service control operation.
+        /// </summary>
+        public async Task<string> GetDhcpContractProbeReportAsync()
+        {
+            DhcpProbeCommandResult configuration = await RunDhcpProbeCommandAsync(
+                "DHCP UCI", "uci show dhcp 2>/dev/null");
+            DhcpProbeCommandResult leases = await RunDhcpProbeCommandAsync(
+                "Active lease file", "cat /tmp/dhcp.leases 2>/dev/null");
+            DhcpProbeCommandResult ubusObjects = await RunDhcpProbeCommandAsync(
+                "Relevant ubus objects", "ubus list 2>/dev/null | grep -E '^(dhcp|dnsmasq|service)'");
+            DhcpProbeCommandResult dnsmasqService = await RunDhcpProbeCommandAsync(
+                "dnsmasq service record", "ubus call service list '{\"name\":\"dnsmasq\"}' 2>/dev/null");
+
+            Dictionary<string, DhcpUciSection> sections = ParseDhcpUciSections(configuration.Output);
+            List<DhcpLeaseInfo> parsedLeases = ParseDhcpLeaseSnapshot(leases.Output);
+            var report = new StringBuilder();
+            report.AppendLine("RouterPilot DHCP Contract Probe (Debug only)");
+            report.AppendLine("LOCAL NETWORK INFORMATION — DO NOT PUBLISH");
+            report.AppendLine();
+            report.AppendLine("Router");
+            report.AppendLine("Transport: existing RouterPilot host-key-verified SSH session");
+            report.AppendLine();
+
+            report.AppendLine("DHCP scopes");
+            foreach (DhcpUciSection section in sections.Values.Where(item => item.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase)))
+            {
+                report.AppendLine($"- Section: {section.Id}; interface: {GetDhcpOption(section, "interface", section.Id)}; " +
+                    $"ignore: {GetDhcpOption(section, "ignore", "0")}; start: {GetDhcpOption(section, "start")}; " +
+                    $"limit: {GetDhcpOption(section, "limit")}; lease time: {GetDhcpOption(section, "leasetime")}");
+            }
+
+            report.AppendLine();
+            report.AppendLine("Static reservation schema");
+            List<DhcpUciSection> hostSections = sections.Values
+                .Where(item => item.Type.Equals("host", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (hostSections.Count == 0)
+            {
+                report.AppendLine("- No UCI dhcp host sections found.");
+            }
+            else
+            {
+                foreach (DhcpUciSection section in hostSections)
+                {
+                    report.AppendLine($"- Section: {section.Id}; type: host; options: {string.Join(", ", section.Options.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))}");
+                    report.AppendLine($"  name: {GetDhcpOption(section, "name", "absent")}; mac: {RedactMac(GetDhcpOption(section, "mac", string.Empty))}; " +
+                        $"ip: {RedactIp(GetDhcpOption(section, "ip", string.Empty))}");
+                }
+            }
+
+            report.AppendLine();
+            report.AppendLine("Static reservations discovered");
+            report.AppendLine($"- Count: {hostSections.Count}");
+            report.AppendLine();
+            report.AppendLine("Active lease correlation");
+            int matchingLeases = parsedLeases.Count(lease => hostSections.Any(section =>
+                NormaliseMacAddress(GetDhcpOption(section, "mac", string.Empty)) == NormaliseMacAddress(lease.MacAddress)));
+            report.AppendLine($"- Active lease count: {parsedLeases.Count}");
+            report.AppendLine($"- Leases matching a static-host MAC: {matchingLeases}");
+            report.AppendLine();
+            report.AppendLine("DHCP/dnsmasq service discovery");
+            report.AppendLine($"- {ubusObjects.Category}: {ubusObjects.Status}");
+            report.AppendLine($"- {dnsmasqService.Category}: {dnsmasqService.Status}");
+            report.AppendLine();
+            report.AppendLine("Structured interfaces discovered");
+            foreach (string line in ubusObjects.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Take(12))
+            {
+                report.AppendLine($"- {line.Trim()}");
+            }
+
+            report.AppendLine();
+            report.AppendLine("Write contract status");
+            report.AppendLine("WRITE CONTRACT VERIFIED: NO");
+            report.AppendLine("Read-only probe only. No UCI mutation, commit, reload, or service restart was performed.");
+            return report.ToString();
+        }
+
+        private async Task<DhcpProbeCommandResult> RunDhcpProbeCommandAsync(string category, string command)
+        {
+            try
+            {
+                string output = await _ssh.RunCommandAsync(command);
+                return new DhcpProbeCommandResult(category, "Success", output);
+            }
+            catch
+            {
+                // The report needs a safe category only; it must never expose
+                // raw SSH output or exception details in normal diagnostics.
+                return new DhcpProbeCommandResult(category, "Unavailable/Error", string.Empty);
+            }
+        }
+#endif
+
+        private static (List<DhcpConfigurationInfo> Configurations, List<DhcpReservationInfo> Reservations)
+            ParseDhcpConfiguration(string output)
+        {
+            Dictionary<string, DhcpUciSection> sections = ParseDhcpUciSections(output);
+            
+            List<DhcpConfigurationInfo> configurations = sections.Values
+                .Where(section => section.Type.Equals("dhcp", StringComparison.OrdinalIgnoreCase))
+                .Select(section => new DhcpConfigurationInfo
+                {
+                    Id = section.Id,
+                    Interface = GetDhcpOption(section, "interface", section.Id),
+                    Enabled = !GetDhcpOption(section, "ignore").Equals("1", StringComparison.Ordinal),
+                    Start = GetDhcpOption(section, "start"),
+                    Limit = GetDhcpOption(section, "limit"),
+                    LeaseTime = GetDhcpOption(section, "leasetime")
+                })
+                .OrderBy(configuration => configuration.Interface, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            List<DhcpReservationInfo> reservations = sections.Values
+                .Where(section => section.Type.Equals("host", StringComparison.OrdinalIgnoreCase))
+                .Select(section => new DhcpReservationInfo
+                {
+                    Id = section.Id,
+                    Hostname = GetDhcpOption(section, "name", "Unknown device"),
+                    MacAddress = GetDhcpOption(section, "mac"),
+                    IpAddress = GetDhcpOption(section, "ip"),
+                    Enabled = !GetDhcpOption(section, "enabled").Equals("0", StringComparison.Ordinal)
+                })
+                .OrderBy(reservation => reservation.Hostname, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return (configurations, reservations);
+        }
+
+        private static Dictionary<string, DhcpUciSection> ParseDhcpUciSections(string output)
+        {
+            var sections = new Dictionary<string, DhcpUciSection>(StringComparer.OrdinalIgnoreCase);
+            foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int equalsIndex = line.IndexOf('=');
+                if (equalsIndex <= 0 || !line.StartsWith("dhcp.", StringComparison.Ordinal)) continue;
+
+                string left = line[..equalsIndex];
+                string value = TrimUciValue(line[(equalsIndex + 1)..]);
+                string[] path = left.Split('.', 3);
+                if (path.Length < 2) continue;
+
+                string id = path[1];
+                if (!sections.TryGetValue(id, out DhcpUciSection? section))
+                {
+                    section = new DhcpUciSection(id);
+                    sections.Add(id, section);
+                }
+
+                if (path.Length == 2)
+                {
+                    section.Type = value;
+                }
+                else if (path.Length == 3)
+                {
+                    section.Options[path[2]] = value;
+                }
+            }
+            return sections;
+        }
+
+        private static List<DhcpLeaseInfo> ParseDhcpLeaseSnapshot(string output)
+        {
+            var leases = new List<DhcpLeaseInfo>();
+            foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length < 4 || !long.TryParse(fields[0], out long expirySeconds)) continue;
+
+                bool isStatic = expirySeconds == 0;
+                DateTimeOffset? expiry = isStatic ? null : DateTimeOffset.FromUnixTimeSeconds(expirySeconds);
+                string hostname = fields[3] == "*" ? "Unknown device" : fields[3];
+                leases.Add(new DhcpLeaseInfo
+                {
+                    Hostname = hostname,
+                    ClientName = hostname,
+                    MacAddress = fields[1],
+                    IpAddress = fields[2],
+                    IsStatic = isStatic,
+                    Expiry = expiry,
+                    RemainingLease = FormatRemainingLease(expiry, isStatic)
+                });
+            }
+
+            return leases.OrderBy(lease => lease.Hostname, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        private static List<string> DetectDhcpConflicts(
+            IReadOnlyList<DhcpReservationInfo> reservations,
+            IReadOnlyList<DhcpLeaseInfo> leases)
+        {
+            var warnings = new List<string>();
+            foreach (IGrouping<string, DhcpReservationInfo> group in reservations
+                         .Where(reservation => HasDhcpValue(reservation.IpAddress))
+                         .GroupBy(reservation => reservation.IpAddress, StringComparer.OrdinalIgnoreCase)
+                         .Where(group => group.Count() > 1))
+            {
+                warnings.Add($"Multiple static reservations use {group.Key}.");
+            }
+
+            foreach (IGrouping<string, DhcpReservationInfo> group in reservations
+                         .Where(reservation => HasDhcpValue(reservation.MacAddress))
+                         .GroupBy(reservation => NormaliseMacAddress(reservation.MacAddress))
+                         .Where(group => group.Count() > 1))
+            {
+                warnings.Add("Multiple static reservations use the same MAC address.");
+            }
+
+            foreach (DhcpReservationInfo reservation in reservations.Where(reservation => HasDhcpValue(reservation.IpAddress)))
+            {
+                bool conflict = leases.Any(lease =>
+                    lease.IpAddress.Equals(reservation.IpAddress, StringComparison.OrdinalIgnoreCase) &&
+                    !NormaliseMacAddress(lease.MacAddress).Equals(NormaliseMacAddress(reservation.MacAddress), StringComparison.OrdinalIgnoreCase));
+                if (conflict) warnings.Add($"Active lease conflicts with reservation {reservation.IpAddress}.");
+            }
+
+            return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        private static string GetDhcpOption(DhcpUciSection section, string name, string fallback = "N/A") =>
+            section.Options.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+
+        private static string TrimUciValue(string value) => value.Trim().Trim('\'', '"');
+
+        private static bool HasDhcpValue(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value != "-" && !value.Equals("N/A", StringComparison.OrdinalIgnoreCase);
+
+        private static string FormatRemainingLease(DateTimeOffset? expiry, bool isStatic)
+        {
+            if (isStatic) return "Static";
+            if (expiry is null) return "N/A";
+            TimeSpan remaining = expiry.Value - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero) return "Expired";
+            if (remaining.TotalMinutes < 60) return $"{Math.Ceiling(remaining.TotalMinutes):0} min";
+            if (remaining.TotalHours < 24) return $"{Math.Ceiling(remaining.TotalHours):0} hr";
+            return $"{Math.Ceiling(remaining.TotalDays):0} days";
+        }
+
+        private static string RedactMac(string value)
+        {
+            string normalised = NormaliseMacAddress(value);
+            return normalised.Length == 12 ? $"{normalised[..6]}••••••" : "absent";
+        }
+
+        private static string RedactIp(string value)
+        {
+            string[] parts = value.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 4 ? $"{parts[0]}.{parts[1]}.{parts[2]}.x" : "absent";
+        }
+
+        private sealed class DhcpUciSection(string id)
+        {
+            public string Id { get; } = id;
+            public string Type { get; set; } = string.Empty;
+            public Dictionary<string, string> Options { get; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+#if DEBUG
+        private sealed record DhcpProbeCommandResult(string Category, string Status, string Output);
+#endif
 
         private async Task<(List<WifiRadioInfo> Networks, string Output)>
             DiscoverWifiRadiosFromHostapdAsync()
@@ -1408,6 +1859,37 @@ namespace RouterPilot.Services
             if (value.Contains("psk")) return "WPA";
             return string.IsNullOrWhiteSpace(encryption) ? "Unknown" : encryption.Trim();
         }
+
+        private static string FormatWifiChannelWidth(string hardwareMode)
+        {
+            if (string.IsNullOrWhiteSpace(hardwareMode))
+            {
+                return "N/A";
+            }
+
+            Match match = Regex.Match(hardwareMode, @"(?:HT|VHT|HE|EHT)(20|40|80|160|320)", RegexOptions.IgnoreCase);
+            return match.Success ? $"{match.Groups[1].Value} MHz" : "N/A";
+        }
+
+        private static WifiGuestClassification ClassifyGuestNetwork(
+            string networkAssociation,
+            string ssid,
+            string interfaceName)
+        {
+            if (!string.IsNullOrWhiteSpace(networkAssociation) &&
+                networkAssociation.Contains("guest", StringComparison.OrdinalIgnoreCase))
+            {
+                return WifiGuestClassification.VerifiedGuest;
+            }
+
+            return ContainsGuestMarker(ssid) || ContainsGuestMarker(interfaceName)
+                ? WifiGuestClassification.LikelyGuest
+                : WifiGuestClassification.Unknown;
+        }
+
+        private static bool ContainsGuestMarker(string value) =>
+            !string.IsNullOrWhiteSpace(value) &&
+            value.Contains("guest", StringComparison.OrdinalIgnoreCase);
 
         private static string InferBandFromChannel(string channelValue)
         {

@@ -2,14 +2,37 @@ using System.Collections.ObjectModel;
 
 namespace RouterPilot.Models
 {
+    public enum WifiGuestClassification
+    {
+        Unknown,
+        LikelyGuest,
+        VerifiedGuest
+    }
+
     public class WifiRadioInfo
     {
         public string Radio { get; set; } = "-";
         public string Interface { get; set; } = "-";
         public string Ssid { get; set; } = "-";
         public string Band { get; set; } = "-";
+        public string HardwareMode { get; set; } = "N/A";
         public string Channel { get; set; } = "-";
+        public string ChannelWidth { get; set; } = "N/A";
+        // No effective transmit-power read is performed in Sprint 1. The field
+        // is retained for a future verified read source without guessing.
+        public string TransmitPower { get; set; } = "N/A";
         public string Security { get; set; } = "-";
+        public string NetworkAssociation { get; set; } = "N/A";
+        public WifiGuestClassification GuestClassification { get; set; }
+        public string GuestClassificationDisplay => GuestClassification switch
+        {
+            WifiGuestClassification.VerifiedGuest => "Guest network",
+            WifiGuestClassification.LikelyGuest => "Likely guest network",
+            _ => ""
+        };
+        public bool IsGuestNetwork => GuestClassification != WifiGuestClassification.Unknown;
+        public bool IsVerifiedGuestNetwork => GuestClassification == WifiGuestClassification.VerifiedGuest;
+        public string Source { get; set; } = "UCI / runtime status";
         public string Status { get; set; } = RouterPilotStatusPresentation.NotAvailable;
 
         public string StatusDisplay => Status.Trim().ToLowerInvariant() switch

@@ -268,6 +268,8 @@
                                     <Separator />
                                     <MenuItem Header="Favourite / Remove Favourite" Click="ContextFavorite_Click" />
                                     <MenuItem Header="Edit Profile" Click="ContextEditProfile_Click" />
+                                    <Separator />
+                                    <MenuItem Header="DHCP Reservation" Tag="DhcpReservationAction" Click="ContextDhcpReservation_Click" />
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>
