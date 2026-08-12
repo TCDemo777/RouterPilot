@@ -402,6 +402,35 @@
         </Setter>
     </Style>
 
+    <DataTemplate x:Key="DiagnosticsExpanderHeaderTemplate">
+        <Grid MinHeight="28">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding}" />
+            <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="Expand" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}}" Value="True">
+                                <Setter Property="Text" Value="Collapse" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+    </DataTemplate>
+
+    <Style x:Key="DiagnosticsExpander" TargetType="Expander">
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Setter Property="HeaderTemplate" Value="{StaticResource DiagnosticsExpanderHeaderTemplate}" />
+    </Style>
+
     <Style x:Key="RouterPilot.ComboBox" TargetType="ComboBox">
         <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />

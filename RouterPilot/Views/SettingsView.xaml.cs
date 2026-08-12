@@ -100,6 +100,20 @@ namespace RouterPilot.Views
                 false;
         }
 
+        private void ResetDashboard_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (MessageBox.Show(
+                    "Restore all Overview cards and the default order?",
+                    "Reset Dashboard",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Question) == MessageBoxResult.OK)
+            {
+                _viewModel.ResetDashboard();
+            }
+        }
+
         private void OpenFirmwareReleaseNotes_Click(
             object sender,
             RoutedEventArgs e)

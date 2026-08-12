@@ -34,6 +34,7 @@ namespace RouterPilot.Views
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
+        private readonly IVpnSummaryService _vpnSummaryService;
         private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
@@ -41,6 +42,7 @@ namespace RouterPilot.Views
         private bool _initialFirmwareCheckScheduled;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private bool _routerOnline = true;
+        private int _vpnNetworkContextRefreshQueued;
 
         private NetworkTrafficSnapshot? _previousTrafficSnapshot;
         private bool _trafficBaselineRequired = true;
@@ -93,6 +95,10 @@ namespace RouterPilot.Views
                 .GetRequiredService<AdGuardMaintenanceStateService>();
             _firmwareUpdateService = ((App)Application.Current).Services
                 .GetRequiredService<FirmwareUpdateService>();
+            _vpnSummaryService = ((App)Application.Current).Services
+                .GetRequiredService<IVpnSummaryService>();
+            _vpnSummaryService.SummaryChanged += VpnSummaryService_SummaryChanged;
+            _viewModel.VpnSummary = _vpnSummaryService.Current;
             TimelineButton.DataContext = ((App)Application.Current).Services.GetRequiredService<TimelineService>();
             _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
                 _firmwareUpdateService.Current.CurrentVersion)
@@ -325,6 +331,8 @@ namespace RouterPilot.Views
 
                 _viewModel.Latency =
                     network.Latency;
+
+                await _vpnSummaryService.RefreshAsync(cancellationToken);
 
                 _viewModel.StatusMessage = _viewModel.AdGuardAvailability ==
                     AdGuardAvailabilityState.Available
@@ -923,6 +931,7 @@ namespace RouterPilot.Views
 
             ResetTrafficStatistics();
             _viewModel.ClearNetworkTraffic();
+            _vpnSummaryService.MarkUnavailable();
 
             _viewModel.StatusMessage =
                 message;
@@ -1197,10 +1206,73 @@ namespace RouterPilot.Views
 
             ProtectionStateNotifier.StateChanged -=
                 ProtectionStateNotifier_StateChanged;
+            _vpnSummaryService.SummaryChanged -= VpnSummaryService_SummaryChanged;
 
             _routerManagerUsageGate.Dispose();
 
             base.OnClosed(e);
+        }
+
+        private void VpnSummaryService_SummaryChanged(VpnSummaryState summary)
+        {
+            void Apply()
+            {
+                string previousState = _viewModel.VpnSummary.State;
+                _viewModel.VpnSummary = summary;
+
+                if (IsVpnNetworkContextTransition(previousState, summary.State))
+                {
+                    _ = RefreshNetworkContextForVpnTransitionAsync();
+                }
+            }
+            if (Dispatcher.CheckAccess()) Apply();
+            else _ = Dispatcher.InvokeAsync(Apply);
+        }
+
+        private static bool IsVpnNetworkContextTransition(string previousState, string currentState) =>
+            (string.Equals(currentState, "Connected", StringComparison.Ordinal) &&
+             !string.Equals(previousState, "Connected", StringComparison.Ordinal)) ||
+            (string.Equals(previousState, "Connected", StringComparison.Ordinal) &&
+             string.Equals(currentState, "Disconnected", StringComparison.Ordinal));
+
+        private async Task RefreshNetworkContextForVpnTransitionAsync()
+        {
+            if (!IsLoaded || Interlocked.Exchange(ref _vpnNetworkContextRefreshQueued, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                // Let the authoritative VPN state settle before re-reading the
+                // existing WAN/DNS source once. This is deliberately not polling.
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await _routerManagerUsageGate.WaitAsync();
+                try
+                {
+                    RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(CancellationToken.None);
+                    NetworkInfo network = await router.GetNetworkInfoAsync();
+                    _viewModel.InternetConnected = network.Connected;
+                    _viewModel.WanIp = network.WanIp;
+                    _viewModel.Gateway = network.Gateway;
+                    _viewModel.ExternalDns = network.ExternalDns;
+                    _viewModel.AdvertisedDns = network.AdvertisedDns;
+                    _viewModel.Latency = network.Latency;
+                    _viewModel.RefreshStatusIndicators();
+                }
+                finally
+                {
+                    _routerManagerUsageGate.Release();
+                }
+            }
+            catch
+            {
+                // The normal scheduled refresh remains the recovery path.
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _vpnNetworkContextRefreshQueued, 0);
+            }
         }
 
         private Task RunOnUiThreadAsync(Func<Task> callback)

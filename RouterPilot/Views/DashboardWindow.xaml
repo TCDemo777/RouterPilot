@@ -74,13 +74,10 @@
         </Border>
 
         <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
-            <Grid Margin="20,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Grid Margin="20,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" FontSize="18" FontWeight="Bold" Text="RouterPilot"/>
                 <TextBlock x:Name="HeaderVersion" Grid.Column="1" Margin="10,2,0,0" VerticalAlignment="Center" FontSize="11" Style="{DynamicResource Text.Muted}"/>
-                <TextBlock Grid.Column="2" Margin="24,0,16,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterModel}" Text="{Binding RouterModel}"/>
-                <StackPanel Grid.Column="3" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="Router"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding RouterStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding RouterStatusColour}" Text="{Binding RouterStatusText}"/></StackPanel></StackPanel>
-                <StackPanel Grid.Column="4" Margin="14,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="Internet"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding InternetStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding InternetStatusColour}" Text="{Binding InternetStatusText}"/></StackPanel></StackPanel>
-                <StackPanel Grid.Column="5" Margin="14,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="10" Style="{DynamicResource Text.Muted}" Text="AdGuard"/><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{Binding AdGuardStatusColour}"/><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding AdGuardStatusColour}" Text="{Binding AdGuardStatusText}"/></StackPanel></StackPanel>
+                <TextBlock Grid.Column="2" Margin="24,0,0,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterModel}" Text="{Binding RouterModel}"/>
             </Grid>
         </Border>
 
@@ -260,6 +257,14 @@
                                 <Ellipse Width="7" Height="7" Margin="0,0,6,0" Fill="{Binding InternetStatusColour}"/>
                                 <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="Internet "/>
                                 <TextBlock FontWeight="SemiBold" Foreground="{Binding InternetStatusColour}" Text="{Binding InternetStatusText}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource StatusPill}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="7" Height="7" Margin="0,0,6,0" Fill="{Binding VpnStatusColour}"/>
+                                <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="VPN "/>
+                                <TextBlock FontWeight="SemiBold" Foreground="{Binding VpnStatusColour}" Text="{Binding VpnFooterStatusText}"/>
                             </StackPanel>
                         </Border>
 

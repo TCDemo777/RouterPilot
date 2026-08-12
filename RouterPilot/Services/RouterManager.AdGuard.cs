@@ -1544,10 +1544,13 @@ namespace RouterPilot.Services
                 string displayTime =
                     timeText;
 
+                DateTimeOffset? timestampValue = null;
+
                 if (DateTimeOffset.TryParse(
                         timeText,
                         out DateTimeOffset timestamp))
                 {
+                    timestampValue = timestamp;
                     displayTime =
                         timestamp
                             .ToLocalTime()
@@ -1592,6 +1595,8 @@ namespace RouterPilot.Services
                                 displayTime)
                                 ? "-"
                                 : displayTime,
+
+                        Timestamp = timestampValue,
 
                         Client =
                             client,

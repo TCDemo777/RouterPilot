@@ -79,6 +79,7 @@
             <TabItem Header="LAN"/>
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
+            <TabItem Header="VPN"/>
         </TabControl>
 
         <ScrollViewer Grid.Row="2"
@@ -506,6 +507,7 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                <ContentControl x:Name="VpnContent" Visibility="Collapsed"/>
 
                 <!-- Overview details -->
                 <Grid x:Name="OverviewDetailsContent" Margin="0,0,0,16">
@@ -526,9 +528,16 @@
                                        Text="WAN connection and upstream gateway."/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
-                                       Text="WAN ADDRESS"/>
+                                       Text="PHYSICAL WAN ADDRESS"/>
                             <TextBlock Style="{StaticResource Network.Value}"
                                        Text="{Binding WanIp}"/>
+
+                            <TextBlock Style="{StaticResource Network.Label}"
+                                       Visibility="{Binding IsVpnConnected, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       Text="VPN"/>
+                            <TextBlock Style="{StaticResource Network.Value}"
+                                       Visibility="{Binding IsVpnConnected, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       Text="{Binding VpnContextLine}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
                                        Text="GATEWAY"/>
@@ -559,6 +568,11 @@
                                        Text="ADVERTISED DNS"/>
                             <TextBlock Style="{StaticResource Network.Value}"
                                        Text="{Binding AdvertisedDns}"/>
+
+                            <TextBlock Margin="0,2,0,0"
+                                       Style="{DynamicResource Text.Muted}"
+                                       Visibility="{Binding IsVpnConnected, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       Text="{Binding VpnDnsContext}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
                                        Text="ADGUARD SERVICE"/>

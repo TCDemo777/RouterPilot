@@ -19,6 +19,7 @@ namespace RouterPilot.Views
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private readonly IPortForwardService _portForwardService;
         private readonly ILanClientService _lanClientService;
+        private readonly VpnView _vpnView;
         private bool _maintenanceInProgress;
 
         public NetworkView()
@@ -32,6 +33,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<DhcpReservationValidator>();
             _portForwardService = ((App)Application.Current).Services.GetRequiredService<IPortForwardService>();
             _lanClientService = ((App)Application.Current).Services.GetRequiredService<ILanClientService>();
+            _vpnView = new VpnView(embedded: true);
+            VpnContent.Content = _vpnView;
             UpdateNetworkTabVisibility();
         }
 
@@ -152,7 +155,7 @@ namespace RouterPilot.Views
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
             if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
-                OverviewDetailsContent is null || WifiContent is null || LanContent is null || DhcpContent is null || PortForwardContent is null)
+                OverviewDetailsContent is null || WifiContent is null || LanContent is null || DhcpContent is null || PortForwardContent is null || VpnContent is null)
             {
                 return;
             }
@@ -161,15 +164,18 @@ namespace RouterPilot.Views
             bool showLan = NetworkTabs.SelectedIndex == 2;
             bool showDhcp = NetworkTabs.SelectedIndex == 3;
             bool showPortForward = NetworkTabs.SelectedIndex == 4;
-            OverviewSummaryContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
-            OverviewMaintenanceContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
-            OverviewDetailsContent.Visibility = showWifi || showLan || showDhcp || showPortForward ? Visibility.Collapsed : Visibility.Visible;
+            bool showVpn = NetworkTabs.SelectedIndex == 5;
+            OverviewSummaryContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
+            OverviewMaintenanceContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
+            OverviewDetailsContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
             LanContent.Visibility = showLan ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
             PortForwardContent.Visibility = showPortForward ? Visibility.Visible : Visibility.Collapsed;
+            VpnContent.Visibility = showVpn ? Visibility.Visible : Visibility.Collapsed;
             if (showLan) _ = RefreshLanAsync();
             if (showPortForward) _ = RefreshPortForwardAsync();
+            if (showVpn) _ = _vpnView.RefreshForHostAsync();
         }
         private async Task RefreshPortForwardAsync()
         {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Threading.Tasks;
 using RouterPilot.Configuration;
@@ -16,8 +17,10 @@ namespace RouterPilot.ViewModels
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly NotificationService _notificationService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
+        private readonly DashboardPreferencesService _dashboardPreferences;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
         public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
+        public ObservableCollection<DashboardCardPreference> DashboardCards => _dashboardPreferences.Cards;
 
         private string _routerIp = "";
         private string _username = "";
@@ -223,6 +226,14 @@ namespace RouterPilot.ViewModels
         public IRelayCommand ReloadCommand { get; }
 
         public IAsyncRelayCommand CheckFirmwareUpdateCommand { get; }
+        public IRelayCommand<DashboardCardPreference> MoveDashboardCardUpCommand { get; }
+        public IRelayCommand<DashboardCardPreference> MoveDashboardCardDownCommand { get; }
+
+        public void ResetDashboard()
+        {
+            _dashboardPreferences.Reset();
+            StatusMessage = "Dashboard layout reset to the default cards and order.";
+        }
 
         public SettingsViewModel(
             SettingsService settingsService,
@@ -230,7 +241,8 @@ namespace RouterPilot.ViewModels
             AdGuardAvailabilityService adGuardAvailability,
             AdGuardTransportSecurityService adGuardTransportSecurity,
             NotificationService notificationService,
-            FirmwareUpdateService firmwareUpdateService)
+            FirmwareUpdateService firmwareUpdateService,
+            DashboardPreferencesService dashboardPreferences)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
@@ -238,6 +250,7 @@ namespace RouterPilot.ViewModels
             AdGuardTransportSecurity = adGuardTransportSecurity;
             _notificationService = notificationService;
             _firmwareUpdateService = firmwareUpdateService;
+            _dashboardPreferences = dashboardPreferences;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
             AdGuardTransportSecurity.PropertyChanged +=
                 (_, _) => RefreshAdGuardTransportStatus();
@@ -250,6 +263,8 @@ namespace RouterPilot.ViewModels
                 new RelayCommand(Load);
 
             CheckFirmwareUpdateCommand = new AsyncRelayCommand(CheckFirmwareUpdateAsync);
+            MoveDashboardCardUpCommand = new RelayCommand<DashboardCardPreference>(_dashboardPreferences.MoveUp);
+            MoveDashboardCardDownCommand = new RelayCommand<DashboardCardPreference>(_dashboardPreferences.MoveDown);
 
             Load();
         }
@@ -390,7 +405,8 @@ namespace RouterPilot.ViewModels
                             QuietHoursEnabled = QuietHoursEnabled,
                             QuietHoursStart = TimeOnly.TryParse(QuietHoursStart, out TimeOnly start) ? start : new TimeOnly(22, 0),
                             QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)
-                        }
+                        },
+                        DashboardCards = existing.DashboardCards ?? new List<DashboardCardPreference>()
                     };
 
                 _settingsService.Save(

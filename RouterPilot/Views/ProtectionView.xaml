@@ -500,7 +500,8 @@
                                      ToolTip="Search services by name, ID or category"/>
 
                             <ComboBox Grid.Column="2"
-                                      Style="{StaticResource Protection.ComboBox}"
+                                      Height="36"
+                                      Style="{StaticResource RouterPilot.ComboBox}"
                                       ItemsSource="{Binding BlockedServiceCategories}"
                                       SelectedItem="{Binding SelectedBlockedServiceCategory, Mode=TwoWay}"
                                       ToolTip="Filter services by category"/>

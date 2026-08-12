@@ -1,0 +1,58 @@
+<UserControl x:Class="RouterPilot.Views.VpnView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:RouterPilot.Models"
+             Background="{DynamicResource Brush.WindowBackground}">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <StackPanel x:Name="PageHeader" Margin="24,24,24,0">
+            <TextBlock Style="{DynamicResource Text.PageTitle}" Text="VPN"/>
+            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Manage existing client VPN tunnels and review linked client profiles."/>
+        </StackPanel>
+        <TabControl x:Name="VpnTabs" Grid.Row="1" Margin="24,12,24,14" Style="{StaticResource RouterPilotTabControlStyle}" ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}" SelectionChanged="VpnTabs_SelectionChanged">
+            <TabItem Header="Dashboard"/><TabItem Header="Client Profiles"/>
+        </TabControl>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="24,0,24,24">
+                <StackPanel x:Name="DashboardContent">
+                    <Expander Header="VPN Dashboard — Existing Client Tunnels" IsExpanded="False" Style="{StaticResource DiagnosticsExpander}">
+                        <StackPanel>
+                            <Border Margin="0,8,0,0" Style="{DynamicResource Card.Compact}">
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="VPN DASHBOARD"/><TextBlock Margin="0,6,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="Existing client tunnels"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding VpnStatus}"/></StackPanel>
+                                </Grid>
+                            </Border>
+                            <Expander x:Name="DiagnosticsExpander" Header="Client Tunnels Details" Style="{StaticResource DiagnosticsExpander}" Expanded="DiagnosticsExpander_Expanded" Collapsed="DiagnosticsExpander_Collapsed">
+                                <Border Margin="0,8,0,0" Style="{DynamicResource Card.Compact}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="CLIENT TUNNELS DETAILS"/>
+                                        <TextBox x:Name="DiagnosticsTextBox" Margin="0,8,0,0" MinHeight="170" MaxHeight="360" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="{DynamicResource Brush.SurfaceMuted}" Foreground="{DynamicResource Brush.TextPrimary}" BorderBrush="{DynamicResource Brush.Border}"/>
+                                        <WrapPanel Margin="0,10,0,0"><Button Margin="0,0,8,0" Style="{StaticResource Button.Secondary}" Content="Copy Diagnostics" Click="CopyDiagnostics_Click"/><Button Margin="0,0,8,0" Style="{StaticResource Button.Secondary}" Content="Copy VPN Details" Click="CopyVpnDetails_Click"/><Button Style="{StaticResource Button.Secondary}" Content="Export Report" Click="ExportDebugReport_Click"/><TextBlock x:Name="DiagnosticsNotice" Margin="12,6,0,0" Style="{DynamicResource Text.Secondary}"/></WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+                        </StackPanel>
+                    </Expander>
+                    <TextBlock Margin="0,14,0,8" Text="No VPN tunnels are configured.">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasVpnTunnels}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding VpnTunnels}">
+                        <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type models:VpnTunnelInfo}"><Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Ellipse Width="8" Height="8" Margin="0,5,8,0" VerticalAlignment="Top"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/><Style.Triggers><DataTrigger Binding="{Binding ConnectionState}" Value="Connected"><Setter Property="Fill" Value="{DynamicResource Brush.Success}"/></DataTrigger><DataTrigger Binding="{Binding ConnectionState}" Value="Connecting"><Setter Property="Fill" Value="{DynamicResource Brush.Primary}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><StackPanel Grid.Column="1" Orientation="Horizontal"><TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Name}"/><Border Margin="10,0,0,0" Padding="8,3" CornerRadius="9" Background="{DynamicResource Brush.SurfaceMuted}"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Protocol}"/></Border><TextBlock Margin="10,2,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding ConnectionState}"/></StackPanel></Grid>
+                                <TextBlock Margin="16,7,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding LinkedProfilesDisplay}"/>
+                                <TextBlock Margin="16,5,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveLocation}" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/><TextBlock Margin="16,2,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding LiveServerName}" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <Grid Margin="16,12,0,0" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="VIRTUAL IP"/><TextBlock Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveVirtualIp}"/><TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.CardCaption}" Text="VPN SERVER"/><TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding LiveEndpoint}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TRAFFIC"/><TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveDownload, StringFormat=↓ Download  {0}}"/><TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveUpload, StringFormat=↑ Upload  {0}}"/></StackPanel></Grid>
+                                <WrapPanel Margin="16,12,0,0"><TextBlock Margin="0,0,16,0" Style="{DynamicResource Text.Muted}" Text="{Binding KillSwitchDisplay}"/><TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding InterfaceName, StringFormat=Interface: {0}}"/></WrapPanel></StackPanel>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button Padding="14,7" Tag="{Binding}" Click="ToggleTunnel_Click"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource Button.Primary}"><Setter Property="Content" Value="Connect"/><Style.Triggers><DataTrigger Binding="{Binding Enabled}" Value="True"><Setter Property="Content" Value="Disconnect"/><Setter Property="Background" Value="{DynamicResource Brush.Danger}"/></DataTrigger></Style.Triggers></Style></Button.Style></Button><Button Margin="0,8,0,0" Padding="14,6" Style="{StaticResource Button.Secondary}" Content="Refresh" Click="Refresh_Click"/></StackPanel>
+                        </Grid></Border></DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <StackPanel x:Name="ProfilesContent" Visibility="Collapsed">
+                    <Border Style="{DynamicResource Card.Compact}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CLIENT PROFILES"/><TextBlock Margin="0,6,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="VPN client profile groups"/></StackPanel><Button Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource Button.Secondary}" Content="Refresh" Click="Refresh_Click"/></Grid></Border>
+                    <TextBlock Margin="0,14,0,8" Text="No VPN client profiles are configured."><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasVpnProfiles}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                    <ItemsControl ItemsSource="{Binding VpnProfiles}"><ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type models:VpnClientProfileInfo}"><Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,8"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="130"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Name}"/><TextBlock Grid.Column="1" Style="{DynamicResource Text.Secondary}" Text="{Binding Protocol}"/><TextBlock Grid.Column="2" Style="{DynamicResource Text.Secondary}" Text="{Binding UsedByDisplay}"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

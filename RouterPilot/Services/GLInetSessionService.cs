@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace RouterPilot.Services
 {
-    public sealed class GLInetSessionService : IDisposable
+    public sealed partial class GLInetSessionService : IDisposable
     {
         private readonly HttpClient _httpClient;
         private readonly string _rpcUrl;
@@ -19,6 +19,8 @@ namespace RouterPilot.Services
         private readonly string _routerHost;
         private readonly IRouterCertificateTrustService _certificateTrustService;
         private bool _disposed;
+        private string? _currentSessionId;
+        private readonly SemaphoreSlim _sessionGate = new(1, 1);
 
     public GLInetSessionService(
         string routerIp,
@@ -114,28 +116,50 @@ namespace RouterPilot.Services
         {
             ThrowIfDisposed();
 
-            ChallengeResult challenge =
-                await GetChallengeAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(_currentSessionId))
+            {
+                return _currentSessionId;
+            }
 
-            string cryptPassword =
-                GenerateCryptPassword(
-                    _password,
-                    challenge.Algorithm,
-                    challenge.Salt);
+            await _sessionGate.WaitAsync(cancellationToken);
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(_currentSessionId))
+                {
+                    return _currentSessionId;
+                }
 
-            string loginText =
+                ChallengeResult challenge =
+                    await GetChallengeAsync(cancellationToken);
+
+                string cryptPassword =
+                    GenerateCryptPassword(
+                        _password,
+                        challenge.Algorithm,
+                        challenge.Salt);
+
+                string loginText =
     $"{_username}:{cryptPassword}:{challenge.Nonce}";
 
-            string loginHash =
-                Convert.ToHexString(
-                    SHA256.HashData(
-                        Encoding.UTF8.GetBytes(loginText)))
-                    .ToLowerInvariant();
+                string loginHash =
+                    Convert.ToHexString(
+                        SHA256.HashData(
+                            Encoding.UTF8.GetBytes(loginText)))
+                        .ToLowerInvariant();
 
-            return await LoginAsync(
-                loginHash,
-                cancellationToken);
+                string sessionId = await LoginAsync(
+                    loginHash,
+                    cancellationToken);
+                _currentSessionId = sessionId;
+                return sessionId;
+            }
+            finally
+            {
+                _sessionGate.Release();
+            }
         }
+
+        internal string GetCurrentSessionId() => _currentSessionId ?? throw new InvalidOperationException("No authenticated GL.iNet session is available.");
 
         /// <summary>Calls a documented GL.iNet SDK4 ubus RPC method using an authenticated session SID.</summary>
         public Task<JsonDocument> CallAsync(
@@ -416,7 +440,10 @@ namespace RouterPilot.Services
             }
 
             _disposed = true;
+            _currentSessionId = null;
+            DisposeVpnStatusSocket();
             _httpClient.Dispose();
+            _sessionGate.Dispose();
         }
 
         private sealed record ChallengeResult(

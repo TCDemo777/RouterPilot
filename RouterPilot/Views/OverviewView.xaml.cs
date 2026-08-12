@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using RouterPilot.Configuration;
 using RouterPilot.Models;
@@ -17,6 +18,7 @@ namespace RouterPilot.Views
     {
         private readonly MaintenanceViewModel _maintenance;
         private readonly Func<Task> _refreshAll;
+        private readonly DashboardPreferencesService _dashboardPreferences;
         private bool _backupPrivacyWarningAcknowledged;
 
         public OverviewView(MaintenanceViewModel maintenance,
@@ -26,10 +28,58 @@ namespace RouterPilot.Views
             _maintenance = maintenance;
             _maintenance.AttachDashboard(dashboard);
             _refreshAll = refreshAll;
+            _dashboardPreferences = ((App)Application.Current).Services
+                .GetRequiredService<DashboardPreferencesService>();
             DataContext = dashboard;
             _maintenance.PropertyChanged += Maintenance_PropertyChanged;
-            Loaded += (_, _) => RefreshQuickActionAvailability();
-            Unloaded += (_, _) => _maintenance.PropertyChanged -= Maintenance_PropertyChanged;
+            _dashboardPreferences.Changed += DashboardPreferences_Changed;
+            Loaded += (_, _) =>
+            {
+                RefreshQuickActionAvailability();
+                ApplyDashboardPreferences();
+            };
+            Unloaded += (_, _) =>
+            {
+                _maintenance.PropertyChanged -= Maintenance_PropertyChanged;
+                _dashboardPreferences.Changed -= DashboardPreferences_Changed;
+            };
+        }
+
+        private void DashboardPreferences_Changed(object? sender, EventArgs e) =>
+            Dispatcher.InvokeAsync(ApplyDashboardPreferences);
+
+        private void ApplyDashboardPreferences()
+        {
+            Dictionary<string, Border> controls = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["router"] = RouterDashboardCard,
+                ["adguard-home"] = AdGuardDashboardCard,
+                ["internet"] = InternetDashboardCard,
+                ["vpn-status"] = VpnDashboardCard
+            };
+
+            List<Border> visibleCards = _dashboardPreferences.Cards
+                .OrderBy(card => card.DisplayOrder)
+                .Where(card => card.IsVisible && controls.ContainsKey(card.Key))
+                .Select(card => controls[card.Key])
+                .ToList();
+
+            foreach (Border card in controls.Values)
+                card.Visibility = visibleCards.Contains(card) ? Visibility.Visible : Visibility.Collapsed;
+
+            for (int index = 0; index < visibleCards.Count; index++)
+            {
+                Border card = visibleCards[index];
+                bool finalOddCard = visibleCards.Count % 2 == 1 && index == visibleCards.Count - 1;
+                Grid.SetRow(card, (index / 2) * 2);
+                Grid.SetColumn(card, finalOddCard ? 0 : (index % 2) * 2);
+                Grid.SetColumnSpan(card, finalOddCard ? 3 : 1);
+            }
+
+            bool hasVisibleCards = visibleCards.Count > 0;
+            DashboardDetailsGrid.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
+            SystemDetailsHeading.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
+            SystemDetailsSection.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void Maintenance_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>

@@ -15,6 +15,7 @@ namespace RouterPilot.ViewModels
     public partial class DashboardViewModel : ObservableObject
     {
         private const int TrafficHistoryCapacity = 60;
+        private const int HealthHistoryCapacity = 60;
         private const int TrafficSampleIntervalSeconds = 2;
         private const int QueryHistoryCapacity = 120;
         private string _queryHistoryTimeUnits = "hours";
@@ -432,6 +433,18 @@ namespace RouterPilot.ViewModels
 
         public ObservableCollection<double> UploadHistory { get; } = new();
 
+        public ObservableCollection<double> CpuHistory { get; } = new();
+
+        public ObservableCollection<double> MemoryHistory { get; } = new();
+
+        public ISeries[] CpuSparklineSeries { get; }
+
+        public ISeries[] MemorySparklineSeries { get; }
+
+        public Axis[] SparklineXAxes { get; }
+
+        public Axis[] SparklineYAxes { get; }
+
         public ISeries[] NetworkTrafficSeries { get; }
 
         public Axis[] NetworkTrafficXAxes { get; }
@@ -521,6 +534,38 @@ namespace RouterPilot.ViewModels
                     MinLimit = 0
                 }
             };
+
+            SparklineXAxes = new Axis[]
+            {
+                new Axis { IsVisible = false, ShowSeparatorLines = false }
+            };
+
+            SparklineYAxes = new Axis[]
+            {
+                new Axis { IsVisible = false, ShowSeparatorLines = false, MinLimit = 0, MaxLimit = 100 }
+            };
+
+            CpuSparklineSeries = new ISeries[]
+            {
+                new LineSeries<double>
+                {
+                    Values = CpuHistory,
+                    GeometrySize = 0,
+                    LineSmoothness = 0.35,
+                    Fill = null
+                }
+            };
+
+            MemorySparklineSeries = new ISeries[]
+            {
+                new LineSeries<double>
+                {
+                    Values = MemoryHistory,
+                    GeometrySize = 0,
+                    LineSmoothness = 0.35,
+                    Fill = null
+                }
+            };
         }
 
         public string DnsServer
@@ -539,6 +584,9 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private string lastRefresh = "-";
+
+        [ObservableProperty]
+        private VpnSummaryState vpnSummary = new();
 
 
         //
@@ -625,16 +673,60 @@ namespace RouterPilot.ViewModels
                         : RouterPilotStatusPresentation.Colour(RouterPilotStatus.Disabled);
 
         public string InternetStatusText =>
-            RouterPilotStatusPresentation.Text(
-                InternetConnected
-                    ? RouterPilotStatus.Connected
-                    : RouterPilotStatus.Error);
+            !InternetConnected
+                ? RouterPilotStatusPresentation.Text(RouterPilotStatus.Error)
+                : IsVpnConnected
+                    ? "Connected via VPN"
+                    : RouterPilotStatusPresentation.Text(RouterPilotStatus.Connected);
 
         public string InternetStatusColour =>
             RouterPilotStatusPresentation.Colour(
                 InternetConnected
                     ? RouterPilotStatus.Connected
                     : RouterPilotStatus.Error);
+
+        public string VpnStatusText => VpnSummary.State;
+
+        public string VpnFooterStatusText => VpnSummary.State == "Connected" && !string.IsNullOrWhiteSpace(VpnSummary.Location)
+            ? $"Connected • {VpnSummary.Location}"
+            : VpnSummary.State;
+
+        public bool IsVpnConnected => string.Equals(VpnSummary.State, "Connected", StringComparison.Ordinal);
+
+        public string VpnContextLine => !IsVpnConnected
+            ? string.Empty
+            : !string.IsNullOrWhiteSpace(VpnSummary.Protocol) && !string.IsNullOrWhiteSpace(VpnSummary.Location)
+                ? $"Connected via VPN \u2022 {VpnSummary.Protocol} \u2022 {VpnSummary.Location}"
+                : !string.IsNullOrWhiteSpace(VpnSummary.Location)
+                    ? $"Connected via VPN \u2022 {VpnSummary.Location}"
+                    : !string.IsNullOrWhiteSpace(VpnSummary.Protocol)
+                        ? $"Connected via VPN \u2022 {VpnSummary.Protocol}"
+                        : "Connected via VPN";
+
+        public string VpnDnsContext => IsVpnConnected
+            ? "VPN active \u2014 router DNS shown"
+            : string.Empty;
+
+        public string VpnStatusColour => RouterPilotStatusPresentation.Colour(VpnSummary.State switch
+        {
+            "Connected" => RouterPilotStatus.Connected,
+            "Connecting" => RouterPilotStatus.Pending,
+            "Disconnected" => RouterPilotStatus.Disabled,
+            _ => RouterPilotStatus.NotAvailable
+        });
+
+        public string VpnStatusDetail => VpnSummary.State == "Connected"
+            ? !string.IsNullOrWhiteSpace(VpnSummary.Location) ? VpnSummary.Location
+                : !string.IsNullOrWhiteSpace(VpnSummary.ProfileName) ? VpnSummary.ProfileName
+                : VpnSummary.TunnelName
+            : VpnSummary.IsConfigured ? VpnSummary.TunnelName : string.Empty;
+
+        public string VpnProtocolDisplay => VpnSummary.Protocol;
+
+        public string VpnNetworkSummary => VpnSummary.State == "Connected"
+            ? !string.IsNullOrWhiteSpace(VpnSummary.Location) ? $"Connected \u2022 {VpnSummary.Location}"
+                : string.IsNullOrWhiteSpace(VpnSummary.Protocol) ? "Connected" : $"Connected via {VpnSummary.Protocol}"
+            : VpnSummary.State;
 
         public string OverallStatusColour =>
             RouterPilotStatusPresentation.Colour(
@@ -1370,6 +1462,15 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(AdGuardProtectionStatusColour));
             OnPropertyChanged(nameof(InternetStatusText));
             OnPropertyChanged(nameof(InternetStatusColour));
+            OnPropertyChanged(nameof(VpnStatusText));
+            OnPropertyChanged(nameof(VpnFooterStatusText));
+            OnPropertyChanged(nameof(VpnStatusColour));
+            OnPropertyChanged(nameof(VpnStatusDetail));
+            OnPropertyChanged(nameof(VpnProtocolDisplay));
+            OnPropertyChanged(nameof(VpnNetworkSummary));
+            OnPropertyChanged(nameof(IsVpnConnected));
+            OnPropertyChanged(nameof(VpnContextLine));
+            OnPropertyChanged(nameof(VpnDnsContext));
             OnPropertyChanged(nameof(OverallStatusColour));
             NotifyRouterHealthChanged();
         }
@@ -1432,6 +1533,11 @@ namespace RouterPilot.ViewModels
             RefreshStatusIndicators();
             UpdateDhcpReservationWriteCapability();
             OnPropertyChanged(nameof(CanManageDhcpReservations));
+        }
+
+        partial void OnVpnSummaryChanged(VpnSummaryState value)
+        {
+            RefreshStatusIndicators();
         }
 
         partial void OnDhcpReservationMutationInProgressChanged(bool value) =>
@@ -1628,6 +1734,11 @@ namespace RouterPilot.ViewModels
 
         partial void OnCpuPercentageChanged(double value)
         {
+            if (!CpuUtilisationPending && CpuUsage != "-" && double.IsFinite(value))
+            {
+                AddHistoryPoint(CpuHistory, value);
+            }
+
             NotifyResourceHealthChanged();
             OnPropertyChanged(nameof(CpuUsageDisplay));
         }
@@ -1640,6 +1751,11 @@ namespace RouterPilot.ViewModels
 
         partial void OnMemoryPercentageChanged(double value)
         {
+            if (MemoryUsage != "-" && double.IsFinite(value))
+            {
+                AddHistoryPoint(MemoryHistory, value);
+            }
+
             NotifyResourceHealthChanged();
         }
 
@@ -1664,6 +1780,15 @@ namespace RouterPilot.ViewModels
         }
 
         partial void OnFirmwareLatestVersionChanged(string value) => NotifyRouterHealthChanged();
+
+        private static void AddHistoryPoint(ObservableCollection<double> collection, double value)
+        {
+            collection.Add(Math.Clamp(value, 0, 100));
+            while (collection.Count > HealthHistoryCapacity)
+            {
+                collection.RemoveAt(0);
+            }
+        }
 
     }
 }

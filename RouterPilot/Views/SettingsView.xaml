@@ -319,6 +319,56 @@
                         </Border>
                     </StackPanel>
                 </Grid>
+
+                <Border Margin="0,16,0,0" Style="{DynamicResource Card}" Visibility="{Binding GeneralSectionVisibility}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Dashboard"/>
+                                <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}"
+                                           Text="Choose which Overview cards are visible and set their display order."/>
+                            </StackPanel>
+                            <Button Grid.Column="1" VerticalAlignment="Top" Style="{DynamicResource Button.Secondary}"
+                                    Content="Reset Dashboard" Click="ResetDashboard_Click"/>
+                        </Grid>
+                        <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding DashboardCards}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Padding="12" CornerRadius="8"
+                                            Background="{DynamicResource Brush.SurfaceMuted}"
+                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox VerticalAlignment="Center" IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
+                                            <TextBlock Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center"
+                                                       Style="{DynamicResource Text.Body}" FontWeight="SemiBold" Text="{Binding DisplayName}"/>
+                                            <Button Grid.Column="2" Width="34" Height="30" Padding="0"
+                                                    Style="{DynamicResource Button.Secondary}" Content="↑"
+                                                    ToolTip="Move card up"
+                                                    Command="{Binding DataContext.MoveDashboardCardUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Grid.Column="4" Width="34" Height="30" Padding="0"
+                                                    Style="{DynamicResource Button.Secondary}" Content="↓"
+                                                    ToolTip="Move card down"
+                                                    Command="{Binding DataContext.MoveDashboardCardDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 

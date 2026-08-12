@@ -56,6 +56,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<DashboardPreferencesService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,
                 SshHostKeyTrustService>();
             serviceCollection.AddSingleton<IRouterCertificateTrustService,
@@ -88,6 +89,10 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IDhcpReservationService, DhcpReservationService>();
             serviceCollection.AddSingleton<IPortForwardService, PortForwardService>();
             serviceCollection.AddSingleton<ILanClientService, LanClientService>();
+            serviceCollection.AddSingleton<IVpnService, VpnService>();
+            serviceCollection.AddSingleton<IVpnLiveStatusService, VpnLiveStatusService>();
+            serviceCollection.AddSingleton<IVpnSummaryService, VpnSummaryService>();
+            serviceCollection.AddSingleton<VpnViewModel>();
             serviceCollection.AddSingleton<MaintenanceViewModel>();
             serviceCollection.AddSingleton<UpdateService>();
             serviceCollection.AddSingleton<IClock, SystemClock>();

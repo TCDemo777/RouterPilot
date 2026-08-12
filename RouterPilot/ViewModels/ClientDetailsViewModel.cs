@@ -14,6 +14,7 @@ namespace RouterPilot.ViewModels
 {
     public partial class ClientDetailsViewModel : ObservableObject
     {
+        private const int RecentDnsHistoryLimit = 50;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly ClientProfileService _clientProfileService;
@@ -310,7 +311,9 @@ namespace RouterPilot.ViewModels
         {
             RecentQueries.Clear();
 
-            foreach (QueryLogEntry entry in entries.Take(200))
+            foreach (QueryLogEntry entry in entries
+                         .OrderByDescending(entry => entry.Timestamp ?? DateTimeOffset.MinValue)
+                         .Take(RecentDnsHistoryLimit))
             {
                 RecentQueries.Add(entry);
             }
@@ -337,9 +340,11 @@ namespace RouterPilot.ViewModels
                     0 =>
                         "No recent DNS activity found for this client.",
                     1 =>
-                        "1 recent DNS request loaded.",
+                    "1 recent DNS request loaded.",
                     _ =>
-                        $"{entries.Count} recent DNS requests loaded."
+                        entries.Count > RecentDnsHistoryLimit
+                            ? $"Showing the latest {RecentDnsHistoryLimit} of {entries.Count} DNS requests."
+                            : $"{entries.Count} recent DNS requests loaded."
                 };
         }
 
