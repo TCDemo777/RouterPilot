@@ -21,6 +21,8 @@ namespace RouterPilot.ViewModels
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
+        private readonly DhcpLeaseInfo? _dhcpLease;
+        private readonly DhcpReservationInfo? _dhcpReservation;
 
         public ObservableCollection<QueryLogEntry> RecentQueries { get; } =
             new();
@@ -41,6 +43,34 @@ namespace RouterPilot.ViewModels
         public string TotalQueriesDisplay => _client.TotalQueriesDisplay;
         public string BlockedQueriesDisplay => _client.BlockedQueriesDisplay;
         public string BlockRateDisplay => _client.BlockRateDisplay;
+        public bool IsEthernetConnection => _client.IsEthernetConnection;
+        public bool IsWifiConnection => _client.IsWifiConnection;
+        public string ConnectionType => IsEthernetConnection ? "Ethernet" : "Wi-Fi";
+        public string ConnectionSummary => _client.ConnectionSummary;
+        public string WifiNetwork => _client.WifiNetwork;
+        public string WifiBand => _client.ConnectionType;
+        public string WifiInterface => _client.LiveInterface;
+        public bool HasSignal => _client.HasSignalSummary;
+        public string SignalQuality => _client.SignalQuality;
+        public string SignalStrength => _client.SignalStrength;
+        public string SignalSummary => _client.SignalSummary;
+        public string HealthText => _client.HealthText;
+        public string HealthColour => _client.HealthColour;
+        public string FirstObserved => FormatObserved(_client.FirstSeenUtc);
+        public string LastObserved => FormatObserved(_client.LastObservedUtc);
+
+        public bool HasDhcpDetails => _dhcpLease is not null || _dhcpReservation is not null;
+        public string DhcpIpAddress => _dhcpReservation?.IpAddress ?? _dhcpLease?.IpAddress ?? _client.IpAddress;
+        public string DhcpLeaseType => _dhcpReservation is not null || _dhcpLease?.IsStatic == true ? "Reserved" : "Dynamic";
+        public string DhcpLeaseRemaining => _dhcpLease?.RemainingLease ?? "Not reported";
+        public string DhcpReservation => _dhcpReservation is null ? "No" : _dhcpReservation.Enabled ? "Yes" : "Disabled";
+        public string DhcpScope => _dhcpLease?.ScopeDisplay ?? _dhcpReservation?.ScopeDisplay ?? "Not reported";
+        public string DhcpSummary => $"{DhcpLeaseType} • {DhcpScope}";
+        public bool HasDhcpLeaseRemaining =>
+            !string.IsNullOrWhiteSpace(DhcpLeaseRemaining) &&
+            !string.Equals(DhcpLeaseRemaining, "N/A", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(DhcpLeaseRemaining, "Not reported", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(DhcpLeaseRemaining, "Static", StringComparison.OrdinalIgnoreCase);
 
         public bool HasRecentQueries => RecentQueries.Count > 0;
         public bool HasTopDomains => TopDomains.Count > 0;
@@ -71,13 +101,22 @@ namespace RouterPilot.ViewModels
         public ClientDetailsViewModel(
             ClientInfo client,
             IRouterManagerProvider routerManagerProvider,
-            AdGuardAvailabilityService adGuardAvailabilityService)
+            AdGuardAvailabilityService adGuardAvailabilityService,
+            IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
+            IEnumerable<DhcpReservationInfo>? dhcpReservations = null)
         {
             _client = client;
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
+
+            IEnumerable<DhcpLeaseInfo> availableLeases = dhcpLeases ?? Enumerable.Empty<DhcpLeaseInfo>();
+            IEnumerable<DhcpReservationInfo> availableReservations = dhcpReservations ?? Enumerable.Empty<DhcpReservationInfo>();
+            _dhcpLease = availableLeases.FirstOrDefault(lease => SameMac(lease.MacAddress, client.MacAddress))
+                ?? availableLeases.FirstOrDefault(lease => SameText(lease.IpAddress, client.IpAddress));
+            _dhcpReservation = availableReservations.FirstOrDefault(reservation => SameMac(reservation.MacAddress, client.MacAddress))
+                ?? availableReservations.FirstOrDefault(reservation => SameText(reservation.IpAddress, client.IpAddress));
 
             LoadProfile();
 
@@ -411,6 +450,28 @@ namespace RouterPilot.ViewModels
                 first.Trim(),
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool SameMac(string? first, string? second)
+        {
+            string normalisedFirst = new string((first ?? string.Empty)
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+            string normalisedSecond = new string((second ?? string.Empty)
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+
+            return normalisedFirst.Length == 12 &&
+                string.Equals(normalisedFirst, normalisedSecond, StringComparison.Ordinal);
+        }
+
+        private static string FormatObserved(DateTime observedUtc)
+        {
+            return observedUtc == default
+                ? "Not observed yet"
+                : observedUtc.ToLocalTime().ToString("dd MMM yyyy • HH:mm");
         }
 
 

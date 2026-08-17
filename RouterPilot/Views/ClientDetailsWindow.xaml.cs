@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using RouterPilot.Models;
 using RouterPilot.ViewModels;
@@ -15,10 +17,19 @@ namespace RouterPilot.Views
         {
             InitializeComponent();
 
+            DashboardViewModel? dashboard =
+                Application.Current.MainWindow?.DataContext as DashboardViewModel;
+            IEnumerable<DhcpLeaseInfo> dhcpLeases =
+                dashboard?.DhcpLeases.ToArray() ?? Array.Empty<DhcpLeaseInfo>();
+            IEnumerable<DhcpReservationInfo> dhcpReservations =
+                dashboard?.DhcpReservations.ToArray() ?? Array.Empty<DhcpReservationInfo>();
+
             _viewModel =
                 ActivatorUtilities.CreateInstance<ClientDetailsViewModel>(
                     ((App)Application.Current).Services,
-                    client);
+                    client,
+                    dhcpLeases,
+                    dhcpReservations);
 
             DataContext = _viewModel;
 

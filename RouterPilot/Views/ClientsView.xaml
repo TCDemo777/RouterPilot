@@ -354,13 +354,33 @@
                                 <StackPanel Grid.Row="4">
                                     <TextBlock Foreground="{DynamicResource Brush.TextSecondary}"
                                                TextTrimming="CharacterEllipsis"
-                                               Text="{Binding MacAddress}"/>
+                                               Text="{Binding ConnectionSummary}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasConnectionSummary}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <TextBlock Margin="0,4,0,0"
                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding ActivityAvailabilityToolTip}"
-                                               Text="{Binding LastSeenDisplay,
-                                                              StringFormat=Last seen: {0}}"/>
+                                               Text="{Binding SignalSummary}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSignalSummary}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
 
                                 <Grid Grid.Row="6">

@@ -71,6 +71,40 @@ namespace RouterPilot.Models
         public string SignalStrength { get; set; } = "-";
         public string LiveInterface { get; set; } = "-";
 
+        public bool IsEthernetConnection =>
+            string.Equals(ConnectionType, "Ethernet", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsWifiConnection =>
+            !IsEthernetConnection &&
+            (ConnectionType.Contains("GHz", StringComparison.OrdinalIgnoreCase) ||
+             WifiClientInfo.Useful(WifiNetwork));
+
+        public string ConnectionSummary
+        {
+            get
+            {
+                if (IsEthernetConnection) return "Ethernet";
+                if (!IsWifiConnection) return string.Empty;
+
+                List<string> parts = new() { "Wi-Fi" };
+                if (WifiClientInfo.Useful(ConnectionType)) parts.Add(ConnectionType);
+                if (WifiClientInfo.Useful(WifiNetwork)) parts.Add(WifiNetwork);
+                return string.Join(" • ", parts);
+            }
+        }
+
+        // Reuse the established Wi-Fi signal categorisation rather than
+        // introducing a second set of dBm thresholds for the Clients view.
+        public string SignalQuality => new WifiClientInfo { Signal = SignalStrength }.SignalQuality;
+
+        public bool HasConnectionSummary => !string.IsNullOrWhiteSpace(ConnectionSummary);
+
+        public bool HasSignalSummary =>
+            IsWifiConnection && SignalQuality != "—";
+
+        public string SignalSummary =>
+            HasSignalSummary ? $"{SignalQuality} • {SignalStrength}" : string.Empty;
+
         public string FirstSeenDisplay =>
             FirstSeenUtc == default ? "—" : FirstSeenUtc.ToLocalTime().ToString("g");
 

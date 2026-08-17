@@ -16,9 +16,10 @@
         <Style x:Key="CopyButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource Button.Secondary}">
-            <Setter Property="Padding" Value="9,4"/>
-            <Setter Property="Margin" Value="8,0,0,0"/>
-            <Setter Property="MinWidth" Value="50"/>
+            <Setter Property="Padding" Value="7,3"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="MinWidth" Value="42"/>
+            <Setter Property="FontSize" Value="11"/>
         </Style>
 
         <Style x:Key="RankingList" TargetType="ListBox">
@@ -73,7 +74,7 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.7*"/>
+                <ColumnDefinition Width="1.8*"/>
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
@@ -86,10 +87,21 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="14"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="14"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <DockPanel LastChildFill="True">
+                        <Border DockPanel.Dock="Right"
+                                Padding="8,3"
+                                Background="{DynamicResource Brush.SurfaceMuted}"
+                                CornerRadius="9">
+                            <TextBlock FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding HealthColour}"
+                                       Text="{Binding HealthText}"/>
+                        </Border>
                         <Border DockPanel.Dock="Left" Width="42" Height="42" Margin="0,0,12,0"
                                 Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="21">
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -105,34 +117,99 @@
                     </DockPanel>
 
                     <Grid Grid.Row="2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                            <StackPanel>
-                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="IP ADDRESS"/>
-                                <DockPanel Margin="0,5,0,0" LastChildFill="True">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
-                                            Command="{Binding CopyIpCommand}" Content="Copy"/>
-                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
-                                               TextWrapping="Wrap" ToolTip="{Binding IpAddress}"
-                                               Text="{Binding IpAddress}"/>
-                                </DockPanel>
-                            </StackPanel>
+                        <StackPanel>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="IP ADDRESS"/>
+                            <DockPanel Margin="0,4,0,0" LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
+                                        Command="{Binding CopyIpCommand}" Content="Copy"/>
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding IpAddress}"
+                                           Text="{Binding IpAddress}"/>
+                            </DockPanel>
+                        </StackPanel>
 
-                            <StackPanel Grid.Column="2">
-                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MAC ADDRESS"/>
-                                <DockPanel Margin="0,5,0,0" LastChildFill="True">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
-                                            Command="{Binding CopyMacCommand}" Content="Copy"/>
-                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
-                                               TextWrapping="Wrap" ToolTip="{Binding MacAddress}"
-                                               Text="{Binding MacAddress}"/>
-                                </DockPanel>
-                            </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MAC ADDRESS"/>
+                            <DockPanel Margin="0,4,0,0" LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
+                                        Command="{Binding CopyMacCommand}" Content="Copy"/>
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding MacAddress}"
+                                           Text="{Binding MacAddress}"/>
+                            </DockPanel>
+                        </StackPanel>
                     </Grid>
+
+                    <StackPanel Grid.Row="4">
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="CONNECTION"/>
+                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding ConnectionSummary}" Text="{Binding ConnectionSummary}"/>
+                        <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
+                                   Text="{Binding SignalSummary}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSignal}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <StackPanel Margin="0,12,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasDhcpDetails}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="DHCP"/>
+                            <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding DhcpSummary}"/>
+                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
+                                       Text="{Binding DhcpLeaseRemaining, StringFormat=Lease remaining: {0}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasDhcpLeaseRemaining}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OBSERVED"/>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="First observed"/>
+                                    <TextBlock Text="{Binding FirstObserved}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="Last observed"/>
+                                    <TextBlock Text="{Binding LastObserved}"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
             </Border>
 
