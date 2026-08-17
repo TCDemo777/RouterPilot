@@ -48,6 +48,15 @@ namespace RouterPilot.Views
         private void DashboardPreferences_Changed(object? sender, EventArgs e) =>
             Dispatcher.InvokeAsync(ApplyDashboardPreferences);
 
+        private void OverviewView_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Five 150px cards plus the 12px gaps need approximately 810px of
+            // usable content width. Below that point, use a balanced 3 + 2 grid
+            // rather than allowing the cards' MinWidth to overflow the clipped
+            // horizontal ScrollViewer.
+            SystemHealthCards.Columns = e.NewSize.Width >= 820 ? 5 : 3;
+        }
+
         private void ApplyDashboardPreferences()
         {
             Dictionary<string, Border> controls = new(StringComparer.OrdinalIgnoreCase)
@@ -55,6 +64,7 @@ namespace RouterPilot.Views
                 ["router"] = RouterDashboardCard,
                 ["adguard-home"] = AdGuardDashboardCard,
                 ["internet"] = InternetDashboardCard,
+                ["network-health"] = NetworkHealthDashboardCard,
                 ["vpn-status"] = VpnDashboardCard
             };
 
@@ -64,13 +74,19 @@ namespace RouterPilot.Views
                 .Select(card => controls[card.Key])
                 .ToList();
 
+            // Network Health is a peer health section, not a member of the
+            // two-column System details grid.
+            List<Border> layoutCards = visibleCards
+                .Where(card => !ReferenceEquals(card, NetworkHealthDashboardCard))
+                .ToList();
+
             foreach (Border card in controls.Values)
                 card.Visibility = visibleCards.Contains(card) ? Visibility.Visible : Visibility.Collapsed;
 
-            for (int index = 0; index < visibleCards.Count; index++)
+            for (int index = 0; index < layoutCards.Count; index++)
             {
-                Border card = visibleCards[index];
-                bool finalOddCard = visibleCards.Count % 2 == 1 && index == visibleCards.Count - 1;
+                Border card = layoutCards[index];
+                bool finalOddCard = layoutCards.Count % 2 == 1 && index == layoutCards.Count - 1;
                 Grid.SetRow(card, (index / 2) * 2);
                 Grid.SetColumn(card, finalOddCard ? 0 : (index % 2) * 2);
                 Grid.SetColumnSpan(card, finalOddCard ? 3 : 1);
@@ -80,6 +96,12 @@ namespace RouterPilot.Views
             DashboardDetailsGrid.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
             SystemDetailsHeading.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
             SystemDetailsSection.Visibility = hasVisibleCards ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void HealthIssueNavigate_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string target } && Application.Current.MainWindow is DashboardWindow dashboard)
+                dashboard.NavigateToHealthTarget(target);
         }
 
         private void Maintenance_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>

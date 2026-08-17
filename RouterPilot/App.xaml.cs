@@ -56,6 +56,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<IPublicIpService, PublicIpService>();
             serviceCollection.AddSingleton<DashboardPreferencesService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,
                 SshHostKeyTrustService>();
@@ -79,6 +80,7 @@ namespace RouterPilot
                 sp => new TimelineService(
                     Dispatcher,
                     sp.GetRequiredService<ApplicationDataPathProvider>()));
+            serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();

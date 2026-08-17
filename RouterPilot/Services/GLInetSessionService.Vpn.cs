@@ -32,4 +32,9 @@ public sealed partial class GLInetSessionService
     }
 }
 
-internal enum VpnRpcOperation { GetTunnels, GetProfiles, SetTunnelEnabled }
+internal enum VpnRpcOperation
+{
+    GetTunnels,
+    GetProfiles,
+    SetTunnelEnabled
+}

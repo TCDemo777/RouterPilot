@@ -71,7 +71,7 @@ public sealed class VpnService : IVpnService
     internal static IReadOnlyList<VpnClientProfileInfo> Correlate(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) => profiles.Select(profile =>
     {
         List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
-        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)) };
+        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = profile.ServerConfigCount };
     }).ToList();
     private static VpnOperationResult Failure(int tunnelId, string category) => new() { TunnelId = tunnelId, FailureCategory = category, Message = "RouterPilot could not update the VPN tunnel." };
 }

@@ -21,6 +21,7 @@ namespace RouterPilot.Views
     {
         private const string DashboardRefreshTask = "DashboardRefresh";
         private const string TrafficRefreshTask = "TrafficRefresh";
+        private const string PublicIpRefreshTask = "PublicIpRefresh";
         private const string AdGuardScheduleTask = "AdGuardServiceSchedules";
 
         private readonly DashboardViewModel _viewModel;
@@ -35,6 +36,8 @@ namespace RouterPilot.Views
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
         private readonly IVpnSummaryService _vpnSummaryService;
+        private readonly IPublicIpService _publicIpService;
+        private readonly INetworkHealthService _networkHealthService;
         private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
@@ -43,6 +46,7 @@ namespace RouterPilot.Views
         private readonly IRouterManagerProvider _routerManagerProvider;
         private bool _routerOnline = true;
         private int _vpnNetworkContextRefreshQueued;
+        private bool _healthSourcesReady;
 
         private NetworkTrafficSnapshot? _previousTrafficSnapshot;
         private bool _trafficBaselineRequired = true;
@@ -97,8 +101,16 @@ namespace RouterPilot.Views
                 .GetRequiredService<FirmwareUpdateService>();
             _vpnSummaryService = ((App)Application.Current).Services
                 .GetRequiredService<IVpnSummaryService>();
+            _publicIpService = ((App)Application.Current).Services
+                .GetRequiredService<IPublicIpService>();
+            _networkHealthService = ((App)Application.Current).Services
+                .GetRequiredService<INetworkHealthService>();
             _vpnSummaryService.SummaryChanged += VpnSummaryService_SummaryChanged;
+            _publicIpService.ResultChanged += PublicIpService_ResultChanged;
+            _networkHealthService.SnapshotChanged += NetworkHealthService_SnapshotChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
+            ApplyPublicIpResult(_publicIpService.Current);
+            _viewModel.NetworkHealth = _networkHealthService.Current;
             TimelineButton.DataContext = ((App)Application.Current).Services.GetRequiredService<TimelineService>();
             _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
                 _firmwareUpdateService.Current.CurrentVersion)
@@ -151,6 +163,11 @@ namespace RouterPilot.Views
                     () => RefreshNetworkTrafficAsync(cancellationToken)),
                 enabled: false);
             _refreshCoordinator.Register(
+                PublicIpRefreshTask,
+                TimeSpan.FromMinutes(10),
+                cancellationToken => RefreshPublicIpAsync(forceRefresh: false, cancellationToken: cancellationToken),
+                enabled: false);
+            _refreshCoordinator.Register(
                 AdGuardScheduleTask,
                 TimeSpan.FromMinutes(1),
                 cancellationToken => _scheduleService.EvaluateDueAsync(cancellationToken),
@@ -170,6 +187,12 @@ namespace RouterPilot.Views
             await _refreshCoordinator.SetEnabledAsync(
                 DashboardRefreshTask,
                 true);
+
+            if (_viewModel.InternetConnected)
+            {
+                _ = _refreshCoordinator.RunNowAsync(PublicIpRefreshTask);
+            }
+            await _refreshCoordinator.SetEnabledAsync(PublicIpRefreshTask, true);
 
             await _refreshCoordinator.RunNowAsync(AdGuardScheduleTask);
             await _refreshCoordinator.SetEnabledAsync(AdGuardScheduleTask, true);
@@ -340,6 +363,9 @@ namespace RouterPilot.Views
                         : "Connected - AdGuard Home unavailable";
 
                 await UpdateRouterConnectivityAsync(isOnline: true);
+
+                _healthSourcesReady = true;
+                EvaluateNetworkHealth();
 
                 _viewModel.RefreshStatusIndicators();
 
@@ -743,10 +769,13 @@ namespace RouterPilot.Views
             _previousTrafficSnapshot = snapshot;
         }
 
-        public Task RefreshNowAsync()
+        public async Task RefreshNowAsync()
         {
-            return _refreshCoordinator
-                .RunNowAsync(DashboardRefreshTask);
+            await _refreshCoordinator.RunNowAsync(DashboardRefreshTask);
+            if (_viewModel.InternetConnected)
+            {
+                await RefreshPublicIpAsync(forceRefresh: true, CancellationToken.None);
+            }
         }
 
         private void DashboardWindow_StateChanged(
@@ -951,6 +980,12 @@ namespace RouterPilot.Views
 
             _routerOnline = isOnline;
 
+            if (!isOnline && _healthSourcesReady)
+            {
+                _viewModel.RouterConnected = false;
+                EvaluateNetworkHealth();
+            }
+
             await _notificationService.AddAsync(new AppNotification
             {
                 Title = isOnline
@@ -970,6 +1005,11 @@ namespace RouterPilot.Views
                     ? "RouterOnline"
                     : "RouterOffline"
             });
+
+            if (isOnline && _viewModel.InternetConnected)
+            {
+                _ = RefreshPublicIpAsync(forceRefresh: true, CancellationToken.None);
+            }
         }
 
         public Task PrepareForShutdownAsync()
@@ -999,6 +1039,16 @@ namespace RouterPilot.Views
             _maintenanceViewModel,
             _viewModel,
             RefreshNowAsync);
+
+        public void NavigateToHealthTarget(string target)
+        {
+            if (string.Equals(target, "protection", StringComparison.OrdinalIgnoreCase))
+                Protection_Click(this, new RoutedEventArgs());
+            else if (string.Equals(target, "analytics", StringComparison.OrdinalIgnoreCase))
+                Analytics_Click(this, new RoutedEventArgs());
+            else
+                Network_Click(this, new RoutedEventArgs());
+        }
 
         public void NavigateToDnsActivity()
         {
@@ -1207,6 +1257,8 @@ namespace RouterPilot.Views
             ProtectionStateNotifier.StateChanged -=
                 ProtectionStateNotifier_StateChanged;
             _vpnSummaryService.SummaryChanged -= VpnSummaryService_SummaryChanged;
+            _publicIpService.ResultChanged -= PublicIpService_ResultChanged;
+            _networkHealthService.SnapshotChanged -= NetworkHealthService_SnapshotChanged;
 
             _routerManagerUsageGate.Dispose();
 
@@ -1223,6 +1275,7 @@ namespace RouterPilot.Views
                 if (IsVpnNetworkContextTransition(previousState, summary.State))
                 {
                     _ = RefreshNetworkContextForVpnTransitionAsync();
+                    _ = RefreshPublicIpAsync(forceRefresh: true, CancellationToken.None);
                 }
             }
             if (Dispatcher.CheckAccess()) Apply();
@@ -1273,6 +1326,50 @@ namespace RouterPilot.Views
             {
                 Interlocked.Exchange(ref _vpnNetworkContextRefreshQueued, 0);
             }
+        }
+
+        private async Task RefreshPublicIpAsync(bool forceRefresh, CancellationToken cancellationToken)
+        {
+            if (!_viewModel.InternetConnected)
+            {
+                return;
+            }
+
+            try
+            {
+                await _publicIpService.RefreshAsync(forceRefresh, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
+        private void PublicIpService_ResultChanged(PublicIpResult result)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ApplyPublicIpResult(result);
+            }
+            else
+            {
+                _ = Dispatcher.InvokeAsync(() => ApplyPublicIpResult(result));
+            }
+        }
+
+        private void ApplyPublicIpResult(PublicIpResult result)
+        {
+            _viewModel.PublicIp = result.PublicIp ?? string.Empty;
+            _viewModel.PublicIpStatus = result.Status;
+        }
+
+        private void EvaluateNetworkHealth() => _networkHealthService.Evaluate(new NetworkHealthInput(
+            _healthSourcesReady, _viewModel.RouterConnected, _viewModel.InternetConnected,
+            _viewModel.AdGuardMaintenanceState, _viewModel.CpuHistory.ToList(), _viewModel.MemoryHistory.ToList()));
+
+        private void NetworkHealthService_SnapshotChanged(NetworkHealthSnapshot snapshot)
+        {
+            if (Dispatcher.CheckAccess()) _viewModel.NetworkHealth = snapshot;
+            else _ = Dispatcher.InvokeAsync(() => _viewModel.NetworkHealth = snapshot);
         }
 
         private Task RunOnUiThreadAsync(Func<Task> callback)

@@ -3,7 +3,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:RouterPilot.Controls"
-    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF">
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+    SizeChanged="OverviewView_SizeChanged">
 
     <UserControl.Resources>
         <Style x:Key="Overview.DetailLabel" TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
@@ -78,21 +79,10 @@
             <Border Margin="0,0,0,20" Style="{StaticResource Card}">
             <StackPanel>
             <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="System health" />
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+            <UniformGrid x:Name="SystemHealthCards" Columns="5" VerticalAlignment="Top">
 
                 <controls:StatisticCard
-                    Grid.Column="0"
+                    Margin="0,0,12,12"
                     Height="146"
                     UseCompactStatusValue="True"
                     AccentBrush="{Binding RouterStatusColour}"
@@ -105,7 +95,7 @@
                     Value="{Binding RouterStatusText}" />
 
                 <controls:StatisticCard
-                    Grid.Column="2"
+                    Margin="0,0,12,12"
                     Height="146"
                     UseCompactStatusValue="True"
                     AccentBrush="{Binding AdGuardStatusColour}"
@@ -117,7 +107,7 @@
                     Value="{Binding AdGuardStatusText}" />
 
                 <controls:StatisticCard
-                    Grid.Column="4"
+                    Margin="0,0,12,12"
                     Height="146"
                     UseCompactStatusValue="True"
                     AccentBrush="{Binding InternetStatusColour}"
@@ -130,7 +120,7 @@
                     Value="{Binding InternetStatusText}" />
 
                 <controls:StatisticCard
-                    Grid.Column="6"
+                    Margin="0,0,12,12"
                     Height="146"
                     AccentBrush="{Binding CpuHealthColour}"
                     FooterText="{Binding CpuHealthText}"
@@ -142,7 +132,7 @@
                     Value="{Binding CpuUsageDisplay}" />
 
                 <controls:StatisticCard
-                    Grid.Column="8"
+                    Margin="0,0,0,12"
                     Height="146"
                     AccentBrush="{Binding MemoryHealthColour}"
                     FooterText="{Binding MemoryUsage}"
@@ -152,7 +142,7 @@
                     Title="MEMORY"
                     ValueForeground="{Binding MemoryHealthColour}"
                     Value="{Binding MemoryUsage}" />
-            </Grid>
+            </UniformGrid>
             </StackPanel>
             </Border>
 
@@ -163,6 +153,12 @@
                         <StackPanel><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router Health"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthSummary}"/></StackPanel>
                         <StackPanel Grid.Column="1" HorizontalAlignment="Right"><TextBlock HorizontalAlignment="Right" FontSize="22" FontWeight="SemiBold" Foreground="{Binding RouterHealthColour}" Text="{Binding RouterHealthState}"/><TextBlock HorizontalAlignment="Right" Style="{DynamicResource Text.Muted}" Text="{Binding RouterHealthScore, StringFormat={}{0}%}"/></StackPanel>
                     </Grid>
+                    <StackPanel Margin="0,14,0,0">
+                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealth.Summary}" />
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding NetworkHealth.PrimaryIssues}">
+                            <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,3,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}"/><TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding Description}"/></StackPanel><Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Button.Secondary}" Tag="{Binding NavigationTarget}" Content="View" Click="HealthIssueNavigate_Click"/></Grid></DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <StackPanel>
@@ -178,6 +174,15 @@
             </Border>
 
             <!-- Main details -->
+            <Border x:Name="NetworkHealthDashboardCard" Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Health"/><TextBlock Grid.Column="1" FontSize="18" FontWeight="SemiBold" Foreground="{Binding NetworkHealthColour}" Text="{Binding NetworkHealth.OverallState}"/></Grid>
+                    <StackPanel Grid.Row="1" Margin="0,12,0,0"><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealth.Summary}"/><ContentControl Margin="0,6,0,0" Content="{Binding NetworkHealth.PrimaryNetworkIssue}"><ContentControl.ContentTemplate><DataTemplate><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}"/><TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding Description}"/></StackPanel></DataTemplate></ContentControl.ContentTemplate></ContentControl></StackPanel>
+                    <Button Grid.Row="2" Margin="0,8,0,0" HorizontalAlignment="Right" Style="{DynamicResource Button.Secondary}" Tag="{Binding NetworkHealth.PrimaryNetworkIssue.NavigationTarget}" Content="View Network" Click="HealthIssueNavigate_Click" Visibility="{Binding NetworkHealth.HasPrimaryNetworkIssue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </Grid>
+            </Border>
+
             <Border x:Name="SystemDetailsSection" Margin="0,0,0,20" Style="{StaticResource Card}">
             <StackPanel>
             <TextBlock x:Name="SystemDetailsHeading" Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="System details" />
@@ -240,10 +245,19 @@
                                     FontWeight="SemiBold"
                                     Foreground="{Binding RouterStatusColour}"
                                     Text="{Binding RouterStatusText}" />
-                            </Border>
-                        </Grid>
+                </Border>
+
+            </Grid>
 
                         <StackPanel Grid.Row="2">
+                            <Grid Style="{StaticResource Overview.DetailRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Public IP" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding PublicIpDisplay}" />
+                            </Grid>
                             <Grid Style="{StaticResource Overview.DetailRow}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -577,7 +591,7 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Physical WAN address" />
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Physical WAN" />
                                 <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding WanIp}" />
                             </Grid>
 
@@ -708,6 +722,8 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+
+
             </Grid>
             </StackPanel>
             </Border>

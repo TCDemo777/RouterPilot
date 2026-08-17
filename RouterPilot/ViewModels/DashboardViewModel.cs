@@ -28,6 +28,24 @@ namespace RouterPilot.ViewModels
         private bool routerConnected;
 
         [ObservableProperty]
+        private NetworkHealthSnapshot networkHealth = NetworkHealthSnapshot.Loading;
+
+        public string NetworkHealthColour => RouterPilotStatusPresentation.Colour(NetworkHealth.OverallState switch
+        {
+            NetworkHealthState.Healthy => RouterPilotStatus.Active,
+            NetworkHealthState.Critical => RouterPilotStatus.Error,
+            NetworkHealthState.Attention => RouterPilotStatus.Pending,
+            _ => RouterPilotStatus.NotAvailable
+        });
+
+        public string NetworkHealthInternetSummary => InternetStatusText;
+        public string NetworkHealthWanSummary => InternetConnected ? "Connected" : "Unavailable";
+        public string NetworkHealthPublicIpSummary => PublicIpStatus == PublicIpStatus.Available ? "Available" : "Unavailable";
+        public string NetworkHealthAdGuardSummary => AdGuardStatusText;
+        public string NetworkHealthRouterSummary => $"CPU {CpuUsageDisplay} • Memory {MemoryUsage}";
+        public string NetworkHealthVpnSummary => IsVpnConnected ? $"{VpnSummary.ProfileName} • {VpnSummary.Location}" : "Disconnected";
+
+        [ObservableProperty]
         private string routerModel = "-";
 
         [ObservableProperty]
@@ -371,6 +389,19 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private string wanIp = "-";
+
+        [ObservableProperty]
+        private string publicIp = "Unavailable";
+
+        [ObservableProperty]
+        private PublicIpStatus publicIpStatus = PublicIpStatus.Unknown;
+
+        public string PublicIpDisplay => PublicIpStatus switch
+        {
+            PublicIpStatus.Loading => "Refreshing…",
+            PublicIpStatus.Available when !string.IsNullOrWhiteSpace(PublicIp) => PublicIp,
+            _ => "Unavailable"
+        };
 
         [ObservableProperty]
         private string gateway = "-";
@@ -1535,10 +1566,16 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(CanManageDhcpReservations));
         }
 
+        partial void OnNetworkHealthChanged(NetworkHealthSnapshot value) => OnPropertyChanged(nameof(NetworkHealthColour));
+
         partial void OnVpnSummaryChanged(VpnSummaryState value)
         {
             RefreshStatusIndicators();
         }
+
+        partial void OnPublicIpChanged(string value) => OnPropertyChanged(nameof(PublicIpDisplay));
+
+        partial void OnPublicIpStatusChanged(PublicIpStatus value) => OnPropertyChanged(nameof(PublicIpDisplay));
 
         partial void OnDhcpReservationMutationInProgressChanged(bool value) =>
             OnPropertyChanged(nameof(CanManageDhcpReservations));

@@ -45,7 +45,9 @@ public partial class RouterManager
                 int groupId = ReadInt(group, "group_id");
                 if (groupId <= 0) continue;
                 List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(groupId)).ToList();
-                profiles.Add(new VpnClientProfileInfo { GroupId = groupId, Name = ReadString(group, "group_name", "Unnamed profile"), Protocol = protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)) });
+                int serverConfigCount = group.TryGetProperty("peers", out JsonElement peers) && peers.ValueKind == JsonValueKind.Array
+                    ? peers.EnumerateArray().Count(peer => ReadInt(peer, "peer_id") > 0 || ReadInt(peer, "client_id") > 0) : 0;
+                profiles.Add(new VpnClientProfileInfo { GroupId = groupId, Name = ReadString(group, "group_name", "Unnamed profile"), Protocol = protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = serverConfigCount });
             }
         }
         return profiles;
@@ -79,7 +81,7 @@ public partial class RouterManager
     internal async Task<bool> SetVpnTunnelEnabledAsync(int tunnelId, bool enabled, CancellationToken token)
     {
         string sid = await _sessionService.GetAdminTokenAsync(token);
-        using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.SetTunnelEnabled, tunnelId, enabled, token);
+        using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.SetTunnelEnabled, tunnelId, enabled, cancellationToken: token);
         return !document.RootElement.TryGetProperty("error", out _) && document.RootElement.TryGetProperty("result", out _);
     }
 

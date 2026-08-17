@@ -21,6 +21,8 @@ public sealed class VpnTunnelInfo
     public bool? Masquerade { get; init; }
     public bool? LocalAccess { get; init; }
     public string? ServicePolicy { get; init; }
+    // -1 means the router did not associate a profile group with this tunnel.
+    public int ServerConfigCount { get; init; } = -1;
     public VpnLiveStatusInfo? LiveStatus { get; init; }
     public string ConnectionState => LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
     public bool HasLiveConnection => LiveStatus?.IsConnected == true;
@@ -30,6 +32,14 @@ public sealed class VpnTunnelInfo
     public string LiveEndpoint => LiveStatus?.EndpointDisplay ?? string.Empty;
     public string LiveDownload => LiveStatus?.DownloadDisplay ?? string.Empty;
     public string LiveUpload => LiveStatus?.UploadDisplay ?? string.Empty;
+    public bool HasServerSelectionLimitation => !Enabled && (ServerConfigCount == 0 || ServerConfigCount > 1);
+    public bool CanConnect => Enabled || !HasServerSelectionLimitation;
+    public string ServerSelectionLimitationText => ServerConfigCount == 0
+        ? "No VPN server is configured for this profile."
+        : "Multiple VPN servers configured";
+    public string ServerSelectionLimitationDetail => ServerConfigCount > 1
+        ? "RouterPilot currently supports connecting VPN profiles with a single allocated server. Select or configure a single server in the GL.iNet interface, then refresh RouterPilot."
+        : string.Empty;
 }
 
 public sealed class VpnLiveStatusInfo
@@ -82,6 +92,7 @@ public sealed class VpnClientProfileInfo
     public bool IsUsedByTunnel { get; init; }
     public IReadOnlyList<int> TunnelIds { get; init; } = [];
     public string UsedByDisplay { get; init; } = string.Empty;
+    public int ServerConfigCount { get; init; }
 }
 
 public sealed class VpnOperationResult

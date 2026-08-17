@@ -49,8 +49,13 @@ public partial class VpnView : UserControl
         {
             IReadOnlyList<VpnTunnelInfo> tunnels = await _service.GetTunnelsAsync(CancellationToken.None);
             IReadOnlyList<VpnClientProfileInfo> profiles = await _service.GetClientProfilesAsync(CancellationToken.None);
-            var names = profiles.ToDictionary(profile => profile.GroupId, profile => profile.Name);
-            var linkedTunnels = tunnels.Select(tunnel => new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=tunnel.ProfileGroupIds.Select(id => names.TryGetValue(id, out string? name) ? name : "Unknown profile").FirstOrDefault() ?? string.Empty, LinkedProfilesDisplay=tunnel.ProfileGroupIds.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", tunnel.ProfileGroupIds.Select(id => names.TryGetValue(id, out string? name) ? name : "Unknown profile")), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy }).ToList();
+            var profilesByGroup = profiles.ToDictionary(profile => profile.GroupId);
+            var linkedTunnels = tunnels.Select(tunnel =>
+            {
+                List<VpnClientProfileInfo> linkedProfiles = tunnel.ProfileGroupIds.Where(profilesByGroup.ContainsKey).Select(id => profilesByGroup[id]).ToList();
+                int serverConfigCount = linkedProfiles.Count == 1 ? linkedProfiles[0].ServerConfigCount : -1;
+                return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount };
+            }).ToList();
             _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles));
             try { await _liveStatus.EnsureSubscribedAsync(CancellationToken.None); }
             catch (Exception exception)
@@ -216,6 +221,11 @@ public partial class VpnView : UserControl
     {
         if (sender is not FrameworkElement { Tag: VpnTunnelInfo tunnel } || _viewModel.VpnIsLoading) return;
         bool target = !tunnel.Enabled;
+        if (target && !tunnel.CanConnect)
+        {
+            _viewModel.VpnStatus = tunnel.ServerSelectionLimitationText;
+            return;
+        }
         if (!target && MessageBox.Show($"Disconnect {tunnel.Name}? Network traffic using this tunnel may be interrupted.", "Disconnect VPN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         Button? button = sender as Button;
         if (button is not null) button.IsEnabled = false;

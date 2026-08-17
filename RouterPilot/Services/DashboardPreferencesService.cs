@@ -11,6 +11,7 @@ public sealed class DashboardPreferencesService
         ("router", "Router"),
         ("adguard-home", "AdGuard Home"),
         ("internet", "Internet"),
+        ("network-health", "Network Health"),
         ("vpn-status", "VPN")
     };
 

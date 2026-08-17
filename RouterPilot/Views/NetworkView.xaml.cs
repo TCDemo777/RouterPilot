@@ -19,6 +19,7 @@ namespace RouterPilot.Views
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private readonly IPortForwardService _portForwardService;
         private readonly ILanClientService _lanClientService;
+        private readonly IPublicIpService _publicIpService;
         private readonly VpnView _vpnView;
         private bool _maintenanceInProgress;
 
@@ -33,6 +34,7 @@ namespace RouterPilot.Views
                 .GetRequiredService<DhcpReservationValidator>();
             _portForwardService = ((App)Application.Current).Services.GetRequiredService<IPortForwardService>();
             _lanClientService = ((App)Application.Current).Services.GetRequiredService<ILanClientService>();
+            _publicIpService = ((App)Application.Current).Services.GetRequiredService<IPublicIpService>();
             _vpnView = new VpnView(embedded: true);
             VpnContent.Content = _vpnView;
             UpdateNetworkTabVisibility();
@@ -293,11 +295,14 @@ namespace RouterPilot.Views
                 return;
             }
 
-            await RunMaintenanceAsync(async router => await router.RestartWanAsync());
+            if (await RunMaintenanceAsync(async router => await router.RestartWanAsync()))
+            {
+                await _publicIpService.RefreshAsync(forceRefresh: true);
+            }
         }
 
 
-        private async System.Threading.Tasks.Task RunMaintenanceAsync(
+        private async System.Threading.Tasks.Task<bool> RunMaintenanceAsync(
             Func<RouterManager, System.Threading.Tasks.Task<string>> operation)
         {
             _maintenanceInProgress = true;
@@ -309,10 +314,12 @@ namespace RouterPilot.Views
                 RouterManager routerManager =
                     await _routerManagerProvider.GetRouterManagerAsync();
                 MaintenanceStatusText.Text = await operation(routerManager);
+                return true;
             }
             catch (Exception ex)
             {
                 MaintenanceStatusText.Text = "Operation failed: " + ex.Message;
+                return false;
             }
             finally
             {

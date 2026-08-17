@@ -38,7 +38,9 @@ public enum TimelineEventType
     FirmwareCheckFailed
     ,
     FirmwareChanged,
-    FirmwareUpdateCompleted
+    FirmwareUpdateCompleted,
+    NetworkIssueDetected,
+    NetworkIssueResolved
 }
 
 /// <summary>Safe, user-facing cross-application activity record.</summary>

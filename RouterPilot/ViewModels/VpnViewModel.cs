@@ -36,6 +36,7 @@ public sealed partial class VpnViewModel : ObservableObject
             Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds,
             ActiveProfileName=tunnel.ActiveProfileName, LinkedProfilesDisplay=tunnel.LinkedProfilesDisplay, FromType=tunnel.FromType,
             ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy,
+            ServerConfigCount=tunnel.ServerConfigCount,
             LiveStatus=statusMap.TryGetValue(tunnel.TunnelId, out VpnLiveStatusInfo? status) && status.Enabled ? status : null
         }).ToList();
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);

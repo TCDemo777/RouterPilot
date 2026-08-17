@@ -110,7 +110,7 @@
                                        Text="{Binding InternetStatusText}"/>
                             <TextBlock Margin="0,5,0,0"
                                        Style="{DynamicResource Text.Muted}"
-                                       Text="{Binding WanIp}"/>
+                                       Text="{Binding PublicIpDisplay}"/>
                         </StackPanel>
                     </Border>
 
@@ -531,6 +531,11 @@
                                        Text="PHYSICAL WAN ADDRESS"/>
                             <TextBlock Style="{StaticResource Network.Value}"
                                        Text="{Binding WanIp}"/>
+
+                            <TextBlock Style="{StaticResource Network.Label}"
+                                       Text="PUBLIC INTERNET"/>
+                            <TextBlock Style="{StaticResource Network.Value}"
+                                       Text="{Binding PublicIpDisplay}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
                                        Visibility="{Binding IsVpnConnected, Converter={StaticResource BooleanToVisibilityConverter}}"
