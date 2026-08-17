@@ -40,7 +40,10 @@ public enum TimelineEventType
     FirmwareChanged,
     FirmwareUpdateCompleted,
     NetworkIssueDetected,
-    NetworkIssueResolved
+    NetworkIssueResolved,
+    InternetConnectionLost,
+    InternetConnectionRestored,
+    PublicIpChanged
 }
 
 /// <summary>Safe, user-facing cross-application activity record.</summary>

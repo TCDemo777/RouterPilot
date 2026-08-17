@@ -84,6 +84,17 @@
             </Grid>
 
             <!-- Live network activity -->
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.SectionTitle}" Text="History range" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Margin="0,0,6,0" Style="{DynamicResource Button.Secondary}" Tag="1H" Content="1H" Click="HistoryRange_Click" />
+                    <Button Margin="0,0,6,0" Style="{DynamicResource Button.Secondary}" Tag="24H" Content="24H" Click="HistoryRange_Click" />
+                    <Button Margin="0,0,6,0" Style="{DynamicResource Button.Secondary}" Tag="7D" Content="7D" Click="HistoryRange_Click" />
+                    <Button Style="{DynamicResource Button.Secondary}" Tag="30D" Content="30D" Click="HistoryRange_Click" />
+                </StackPanel>
+            </Grid>
+
             <Grid Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -201,6 +212,31 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
+            </Border>
+
+            <Border Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Internet Reliability" />
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" Text="Observed while RouterPilot is running. Unmonitored time is excluded." />
+                            <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="{Binding InternetReliabilityObserved}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" MinWidth="104" Height="32" Style="{DynamicResource Button.Secondary}" Content="Clear History" Click="ClearMetricHistory_Click" />
+                    </Grid>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="16"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="AVAILABILITY"/><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding InternetReliabilityAvailability}"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="CURRENT STATUS"/><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{Binding InternetStatusColour}" Text="{Binding InternetReliabilityStatus}"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="CURRENT UPTIME"/><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding InternetReliabilityUptime}"/></StackPanel>
+                        <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource Text.CardCaption}" Text="OUTAGES"/><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding InternetReliabilityOutages}"/></StackPanel>
+                        <StackPanel Grid.Row="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="TOTAL DOWNTIME"/><TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding InternetReliabilityDowntime}"/></StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="LONGEST OUTAGE"/><TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding InternetReliabilityLongestOutage}"/></StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="LAST OUTAGE"/><TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding InternetReliabilityLastOutage}"/></StackPanel>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <Border Style="{StaticResource SectionContainerStyle}">

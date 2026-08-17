@@ -38,6 +38,8 @@ namespace RouterPilot.Views
         private readonly IVpnSummaryService _vpnSummaryService;
         private readonly IPublicIpService _publicIpService;
         private readonly INetworkHealthService _networkHealthService;
+        private readonly IMetricHistoryService _metricHistoryService;
+        private readonly TimelineService _timelineService;
         private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
         private bool _refreshInProgress;
@@ -47,6 +49,7 @@ namespace RouterPilot.Views
         private bool _routerOnline = true;
         private int _vpnNetworkContextRefreshQueued;
         private bool _healthSourcesReady;
+        private bool? _observedInternetState;
 
         private NetworkTrafficSnapshot? _previousTrafficSnapshot;
         private bool _trafficBaselineRequired = true;
@@ -105,8 +108,13 @@ namespace RouterPilot.Views
                 .GetRequiredService<IPublicIpService>();
             _networkHealthService = ((App)Application.Current).Services
                 .GetRequiredService<INetworkHealthService>();
+            _metricHistoryService = ((App)Application.Current).Services
+                .GetRequiredService<IMetricHistoryService>();
+            _timelineService = ((App)Application.Current).Services
+                .GetRequiredService<TimelineService>();
             _vpnSummaryService.SummaryChanged += VpnSummaryService_SummaryChanged;
             _publicIpService.ResultChanged += PublicIpService_ResultChanged;
+            _publicIpService.PublicIpChanged += PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged += NetworkHealthService_SnapshotChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
             ApplyPublicIpResult(_publicIpService.Current);
@@ -365,6 +373,9 @@ namespace RouterPilot.Views
                 await UpdateRouterConnectivityAsync(isOnline: true);
 
                 _healthSourcesReady = true;
+                // History is a best-effort sink. It must never participate in
+                // the router refresh success/failure path or replace live state.
+                _ = RecordMetricAndReliabilityHistoryAsync();
                 EvaluateNetworkHealth();
 
                 _viewModel.RefreshStatusIndicators();
@@ -765,6 +776,8 @@ namespace RouterPilot.Views
                 _downloadTotalMbps / _trafficSampleCount,
                 _uploadTotalMbps / _trafficSampleCount,
                 snapshot.InterfaceName);
+            _metricHistoryService.RecordMetric(MetricKind.WanDownloadMbps, downloadMbps, snapshot.CapturedAtUtc);
+            _metricHistoryService.RecordMetric(MetricKind.WanUploadMbps, uploadMbps, snapshot.CapturedAtUtc);
 
             _previousTrafficSnapshot = snapshot;
         }
@@ -1258,6 +1271,7 @@ namespace RouterPilot.Views
                 ProtectionStateNotifier_StateChanged;
             _vpnSummaryService.SummaryChanged -= VpnSummaryService_SummaryChanged;
             _publicIpService.ResultChanged -= PublicIpService_ResultChanged;
+            _publicIpService.PublicIpChanged -= PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged -= NetworkHealthService_SnapshotChanged;
 
             _routerManagerUsageGate.Dispose();
@@ -1360,6 +1374,32 @@ namespace RouterPilot.Views
         {
             _viewModel.PublicIp = result.PublicIp ?? string.Empty;
             _viewModel.PublicIpStatus = result.Status;
+        }
+
+        private async void PublicIpService_PublicIpChanged(string? previousIp, string currentIp)
+        {
+            string vpnState = _viewModel.VpnSummary.State;
+            string context = string.Equals(vpnState, "Connected", StringComparison.Ordinal) ? "VPN active" : string.Equals(vpnState, "Disconnected", StringComparison.Ordinal) ? "VPN inactive" : "VPN state changing";
+            await _timelineService.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = TimelineEventType.PublicIpChanged, Title = "Public IP changed", Message = string.IsNullOrWhiteSpace(previousIp) ? context : $"{previousIp} → {currentIp} • {context}", Severity = TimelineSeverity.Information, DeduplicationKey = $"public-ip:{previousIp}:{currentIp}" });
+        }
+
+        private async Task RecordMetricAndReliabilityHistoryAsync()
+        {
+            try
+            {
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                if (_viewModel.CpuUsage != "-") _metricHistoryService.RecordMetric(MetricKind.CpuPercent, _viewModel.CpuPercentage, now);
+                if (_viewModel.MemoryUsage != "-") _metricHistoryService.RecordMetric(MetricKind.MemoryPercent, _viewModel.MemoryPercentage, now);
+                bool online = _viewModel.InternetConnected;
+                bool changed = _observedInternetState.HasValue && _observedInternetState.Value != online;
+                await _metricHistoryService.RecordInternetStateAsync(online, now);
+                if (changed) await _timelineService.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = online ? TimelineEventType.InternetConnectionRestored : TimelineEventType.InternetConnectionLost, Title = online ? "Internet connection restored" : "Internet connection lost", Message = online ? "Internet connectivity is available again." : "Internet connectivity is unavailable.", Severity = online ? TimelineSeverity.Success : TimelineSeverity.Warning, DeduplicationKey = $"internet:{(online ? "online" : "offline")}:{now:yyyyMMddHHmm}" });
+                _observedInternetState = online;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Metric history recording failed without affecting dashboard refresh ({ex.GetType().Name}).");
+            }
         }
 
         private void EvaluateNetworkHealth() => _networkHealthService.Evaluate(new NetworkHealthInput(

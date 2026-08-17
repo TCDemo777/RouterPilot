@@ -468,6 +468,15 @@ namespace RouterPilot.ViewModels
 
         public ObservableCollection<double> MemoryHistory { get; } = new();
 
+        [ObservableProperty] private string internetReliabilityAvailability = "Insufficient history";
+        [ObservableProperty] private string internetReliabilityStatus = "Checking";
+        [ObservableProperty] private string internetReliabilityUptime = "-";
+        [ObservableProperty] private string internetReliabilityOutages = "-";
+        [ObservableProperty] private string internetReliabilityDowntime = "-";
+        [ObservableProperty] private string internetReliabilityObserved = "-";
+        [ObservableProperty] private string internetReliabilityLongestOutage = "-";
+        [ObservableProperty] private string internetReliabilityLastOutage = "No outages observed";
+
         public ISeries[] CpuSparklineSeries { get; }
 
         public ISeries[] MemorySparklineSeries { get; }

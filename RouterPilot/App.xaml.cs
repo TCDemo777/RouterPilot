@@ -80,6 +80,7 @@ namespace RouterPilot
                 sp => new TimelineService(
                     Dispatcher,
                     sp.GetRequiredService<ApplicationDataPathProvider>()));
+            serviceCollection.AddSingleton<IMetricHistoryService, MetricHistoryService>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
@@ -127,6 +128,7 @@ namespace RouterPilot
             await Services.GetRequiredService<MaintenanceHistoryService>()
                 .InitializeAsync();
             _ = Services.GetRequiredService<TimelineService>().InitializeAsync();
+            await Services.GetRequiredService<IMetricHistoryService>().InitializeAsync();
             _ = Services.GetRequiredService<IInternetSpeedTestService>().InitializeAsync();
             await Services.GetRequiredService<AdGuardServiceScheduleService>()
                 .InitializeAsync();
@@ -309,6 +311,16 @@ namespace RouterPilot
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Unable to flush Timeline history during shutdown ({ex.GetType().Name}).");
+                }
+
+                try
+                {
+                    await _services.GetRequiredService<IMetricHistoryService>().FlushAsync();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unable to flush metric history during shutdown ({ex.GetType().Name}).");
                 }
 
                 try

@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace RouterPilot.Views
 {
@@ -16,6 +17,8 @@ namespace RouterPilot.Views
         private readonly IInternetSpeedTestService _speedTestService;
         private readonly SettingsService _settingsService;
         private readonly DashboardViewModel _dashboard;
+        private readonly IMetricHistoryService _metricHistoryService;
+        private TimeSpan _selectedHistoryRange = TimeSpan.FromHours(1);
 
         public AnalyticsView(IInternetSpeedTestService speedTestService, SettingsService settingsService,
             DashboardViewModel dashboard)
@@ -24,11 +27,59 @@ namespace RouterPilot.Views
             _speedTestService = speedTestService;
             _settingsService = settingsService;
             _dashboard = dashboard;
+            _metricHistoryService = ((App)Application.Current).Services.GetRequiredService<IMetricHistoryService>();
             DataContext = _dashboard;
             SpeedTestPanel.DataContext = _speedTestService;
             _speedTestService.PropertyChanged += SpeedTestService_PropertyChanged;
             Unloaded += AnalyticsView_Unloaded;
             RefreshRecentHistory();
+            RefreshReliability();
+        }
+
+        private void HistoryRange_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string tag }) return;
+            _selectedHistoryRange = tag switch { "24H" => TimeSpan.FromDays(1), "7D" => TimeSpan.FromDays(7), "30D" => TimeSpan.FromDays(30), _ => TimeSpan.FromHours(1) };
+            RefreshReliability();
+        }
+
+        private void RefreshReliability()
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            InternetReliabilitySummary summary = _metricHistoryService.GetReliability(_selectedHistoryRange, now);
+            _dashboard.InternetReliabilityAvailability = summary.HasSufficientHistory ? $"{summary.AvailabilityPercent:0.##}%" : "Not enough data";
+            _dashboard.InternetReliabilityStatus = summary.IsOnline is true ? "Online" : summary.IsOnline is false ? "Offline" : "Checking";
+            _dashboard.InternetReliabilityUptime = summary.CurrentStateSince is { } since
+                ? (summary.IsOnline is true ? $"At least {FormatDuration(now - since)}" : $"Outage {FormatDuration(now - since)}")
+                : "< 1 min";
+            _dashboard.InternetReliabilityObserved = summary.ObservedDuration > TimeSpan.Zero ? $"{FormatDuration(summary.ObservedDuration)} of selected {FormatDuration(_selectedHistoryRange)}" : "No observed time yet";
+            _dashboard.InternetReliabilityOutages = summary.OutageCount.ToString();
+            _dashboard.InternetReliabilityDowntime = summary.OfflineDuration > TimeSpan.Zero ? FormatDuration(summary.OfflineDuration) : "None";
+            _dashboard.InternetReliabilityLongestOutage = summary.LongestOutage > TimeSpan.Zero ? FormatDuration(summary.LongestOutage) : "None";
+            _dashboard.InternetReliabilityLastOutage = summary.LastOutageStartedAt is { } start && summary.LastOutageDuration is { } duration ? $"{start.LocalDateTime:g} • {duration:h\\:mm\\:ss}" : "No outages observed";
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            if (duration < TimeSpan.FromMinutes(1)) return "< 1 min";
+            if (duration < TimeSpan.FromHours(1)) return $"{(int)duration.TotalMinutes} min";
+            if (duration < TimeSpan.FromDays(1)) return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+            return $"{duration.Days}d {duration.Hours}h";
+        }
+
+        private async void ClearMetricHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (MessageBox.Show("Clear local CPU, memory, WAN, and Internet reliability history? Timeline and speed-test history will not be changed.", "Clear Metric History", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+                return;
+            await _metricHistoryService.ClearAsync();
+            _dashboard.InternetReliabilityAvailability = "Not enough data";
+            _dashboard.InternetReliabilityStatus = "Checking";
+            _dashboard.InternetReliabilityUptime = "< 1 min";
+            _dashboard.InternetReliabilityOutages = "0";
+            _dashboard.InternetReliabilityDowntime = "None";
+            _dashboard.InternetReliabilityObserved = "No observed time yet";
+            _dashboard.InternetReliabilityLongestOutage = "None";
+            _dashboard.InternetReliabilityLastOutage = "No outages observed";
         }
 
         private async void RunSpeedTestButton_Click(object sender, RoutedEventArgs e)
