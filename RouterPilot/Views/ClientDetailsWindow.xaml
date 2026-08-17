@@ -73,17 +73,13 @@
         </DockPanel>
 
         <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.8*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+            <Border Style="{StaticResource CardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -92,9 +88,16 @@
                         <RowDefinition Height="14"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <DockPanel LastChildFill="True">
-                        <Border DockPanel.Dock="Right"
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="42"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="3"
                                 Padding="8,3"
+                                VerticalAlignment="Center"
                                 Background="{DynamicResource Brush.SurfaceMuted}"
                                 CornerRadius="9">
                             <TextBlock FontSize="11"
@@ -102,19 +105,19 @@
                                        Foreground="{Binding HealthColour}"
                                        Text="{Binding HealthText}"/>
                         </Border>
-                        <Border DockPanel.Dock="Left" Width="42" Height="42" Margin="0,0,12,0"
+                        <Border Grid.Column="0" Width="42" Height="42"
                                 Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="21">
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                        FontSize="18" Foreground="{DynamicResource Brush.Primary}" Text="&#xE716;"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
                             <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}"
                                        Text="CLIENT IDENTITY"/>
                             <TextBlock Margin="0,3,0,0" FontSize="15" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" Text="{Binding ClientName}"/>
                         </StackPanel>
-                    </DockPanel>
+                    </Grid>
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
@@ -125,28 +128,50 @@
 
                         <StackPanel>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="IP ADDRESS"/>
-                            <DockPanel Margin="0,4,0,0" LastChildFill="True">
-                                <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
-                                        Command="{Binding CopyIpCommand}" Content="Copy"/>
+                            <Grid Margin="0,4,0,0" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding IpAddress}"
                                            Text="{Binding IpAddress}"/>
-                            </DockPanel>
+                                <Button Grid.Column="2" Style="{StaticResource CopyButtonStyle}"
+                                        Command="{Binding CopyIpCommand}" Content="Copy"/>
+                            </Grid>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MAC ADDRESS"/>
-                            <DockPanel Margin="0,4,0,0" LastChildFill="True">
-                                <Button DockPanel.Dock="Right" Style="{StaticResource CopyButtonStyle}"
-                                        Command="{Binding CopyMacCommand}" Content="Copy"/>
+                            <Grid Margin="0,4,0,0" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding MacAddress}"
                                            Text="{Binding MacAddress}"/>
-                            </DockPanel>
+                                <Button Grid.Column="2" Style="{StaticResource CopyButtonStyle}"
+                                        Command="{Binding CopyMacCommand}" Content="Copy"/>
+                            </Grid>
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel Grid.Row="4">
+                    <Border Grid.Row="3" Height="1" VerticalAlignment="Center"
+                            Background="{DynamicResource Brush.Border}"/>
+
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.25*"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="CONNECTION"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding ConnectionSummary}" Text="{Binding ConnectionSummary}"/>
@@ -163,8 +188,9 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        </StackPanel>
 
-                        <StackPanel Margin="0,12,0,0">
+                        <StackPanel Grid.Column="2">
                             <StackPanel.Style>
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -188,11 +214,11 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            </TextBlock.Style>
+                        </TextBlock>
                         </StackPanel>
 
-                        <StackPanel Margin="0,12,0,0">
+                        <StackPanel Grid.Column="4">
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OBSERVED"/>
                             <Grid Margin="0,4,0,0">
                                 <Grid.ColumnDefinitions>
@@ -209,11 +235,20 @@
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
             </Border>
 
-            <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="TOTAL QUERIES"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Primary}"
@@ -222,7 +257,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="4" Style="{StaticResource CardStyle}">
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="BLOCKED"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Danger}"
@@ -231,7 +266,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="6" Style="{StaticResource CardStyle}">
+            <Border Grid.Column="4" Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="BLOCK RATE"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Warning}"
@@ -240,6 +275,7 @@
                                ToolTip="{Binding LastSeen}" Text="{Binding LastSeen, StringFormat=Last seen: {0}}"/>
                 </StackPanel>
             </Border>
+            </Grid>
         </Grid>
 
 
