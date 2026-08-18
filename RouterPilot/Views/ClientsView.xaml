@@ -122,8 +122,40 @@
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="3"
-                   Margin="0,16,0,16"
+        <StackPanel Grid.Row="3">
+        <Border Margin="0,16,0,0"
+                Padding="14"
+                Background="{DynamicResource Brush.WarningSubtle}"
+                BorderBrush="{DynamicResource Brush.Warning}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Visibility="{Binding HasNewDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="New devices"/>
+                    <TextBlock Grid.Column="1" Style="{DynamicResource Text.Secondary}" Text="{Binding NewDevices.Count, StringFormat={}{0} awaiting review}"/>
+                </Grid>
+                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding NewDevices}">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="250" Margin="0,0,10,8" Padding="10" Background="{DynamicResource Brush.Surface}" CornerRadius="8" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}"/>
+                                    <TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding IpAddress}"/>
+                                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextTrimming="CharacterEllipsis" Text="{Binding ConnectionSummary}"/>
+                                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding FirstSeenDisplay, StringFormat=First observed: {0}}"/>
+                                    <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Tag="{Binding}" Click="ReviewNewDevice_Click" Content="Review"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Margin="0,16,0,16"
                    Foreground="{DynamicResource Brush.Warning}"
                    TextWrapping="Wrap"
                    Text="{Binding DnsActivityAvailabilityMessage}">
@@ -137,8 +169,9 @@
                 </Style>
             </TextBlock.Style>
         </TextBlock>
+        </StackPanel>
 
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="4" Height="236" VerticalAlignment="Top">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*"/>
                 <ColumnDefinition Width="12"/>
@@ -146,37 +179,51 @@
             </Grid.ColumnDefinitions>
 
             <Border Style="{DynamicResource Card.Compact}">
-                <UniformGrid Columns="3" Rows="2">
-                    <StackPanel Margin="0,0,16,12">
+                <Grid VerticalAlignment="Top">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="14"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Grid.ColumnSpan="5">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="SELECTED CLIENT"/>
                         <TextBlock Margin="0,4,0,0" FontSize="17" FontWeight="Bold"
                                    TextWrapping="Wrap" MaxHeight="52"
                                    ToolTip="{Binding SelectedClient.Name}"
                                    Text="{Binding SelectedClient.Name, TargetNullValue=No client selected}"/>
                     </StackPanel>
-                    <StackPanel Margin="0,0,16,12">
+                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="IP ADDRESS"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.IpAddress, TargetNullValue=—}"/>
                     </StackPanel>
-                    <StackPanel Margin="0,0,0,12">
+                    <StackPanel Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="MAC ADDRESS"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    Text="{Binding SelectedClient.MacAddress, TargetNullValue=—}"/>
                     </StackPanel>
-                    <StackPanel Margin="0,0,16,0">
+                    <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,16,0">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="CONNECTION"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.ConnectionType, TargetNullValue=—}"/>
                     </StackPanel>
-                    <StackPanel Margin="0,0,16,0">
+                    <StackPanel Grid.Row="4" Grid.Column="2" Margin="0,0,16,0">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="FIRST SEEN"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.FirstSeenDisplay, TargetNullValue=—}"/>
                     </StackPanel>
-                    <StackPanel>
+                    <StackPanel Grid.Row="4" Grid.Column="4">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="DNS ACTIVITY"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold"
                                    Text="{Binding SelectedClient.TotalQueriesDisplay, TargetNullValue=—}"/>
                     </StackPanel>
-                </UniformGrid>
+                </Grid>
             </Border>
 
             <Border Grid.Column="2" Style="{DynamicResource Card.Compact}">
@@ -191,12 +238,36 @@
                         <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}"
                                    Text="DNS changes and actions from this session"/>
                     </StackPanel>
-                    <ListBox Grid.Row="2" ItemsSource="{Binding SelectedClientActivity}"
+                    <TextBlock Grid.Row="2" VerticalAlignment="Top" Foreground="{DynamicResource Brush.TextSecondary}"
+                               Text="No activity yet this session">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedClientActivity}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ListBox x:Name="RecentActivityList" Grid.Row="2" ItemsSource="{Binding SelectedClientActivity}"
                              BorderThickness="0" Background="Transparent"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedClientActivity}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,0,0,8">
+                                <Grid Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="52"/>
                                         <ColumnDefinition Width="*"/>

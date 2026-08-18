@@ -18,7 +18,6 @@ namespace RouterPilot.Views
         private readonly IDhcpReservationService _dhcpReservationService;
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private readonly IPortForwardService _portForwardService;
-        private readonly ILanClientService _lanClientService;
         private readonly IPublicIpService _publicIpService;
         private readonly VpnView _vpnView;
         private bool _maintenanceInProgress;
@@ -33,7 +32,6 @@ namespace RouterPilot.Views
             _dhcpReservationValidator = ((App)Application.Current).Services
                 .GetRequiredService<DhcpReservationValidator>();
             _portForwardService = ((App)Application.Current).Services.GetRequiredService<IPortForwardService>();
-            _lanClientService = ((App)Application.Current).Services.GetRequiredService<ILanClientService>();
             _publicIpService = ((App)Application.Current).Services.GetRequiredService<IPublicIpService>();
             _vpnView = new VpnView(embedded: true);
             VpnContent.Content = _vpnView;
@@ -157,25 +155,22 @@ namespace RouterPilot.Views
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
             if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
-                OverviewDetailsContent is null || WifiContent is null || LanContent is null || DhcpContent is null || PortForwardContent is null || VpnContent is null)
+                OverviewDetailsContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || VpnContent is null)
             {
                 return;
             }
 
             bool showWifi = NetworkTabs.SelectedIndex == 1;
-            bool showLan = NetworkTabs.SelectedIndex == 2;
-            bool showDhcp = NetworkTabs.SelectedIndex == 3;
-            bool showPortForward = NetworkTabs.SelectedIndex == 4;
-            bool showVpn = NetworkTabs.SelectedIndex == 5;
-            OverviewSummaryContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
-            OverviewMaintenanceContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
-            OverviewDetailsContent.Visibility = showWifi || showLan || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
+            bool showDhcp = NetworkTabs.SelectedIndex == 2;
+            bool showPortForward = NetworkTabs.SelectedIndex == 3;
+            bool showVpn = NetworkTabs.SelectedIndex == 4;
+            OverviewSummaryContent.Visibility = showWifi || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
+            OverviewMaintenanceContent.Visibility = showWifi || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
+            OverviewDetailsContent.Visibility = showWifi || showDhcp || showPortForward || showVpn ? Visibility.Collapsed : Visibility.Visible;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
-            LanContent.Visibility = showLan ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
             PortForwardContent.Visibility = showPortForward ? Visibility.Visible : Visibility.Collapsed;
             VpnContent.Visibility = showVpn ? Visibility.Visible : Visibility.Collapsed;
-            if (showLan) _ = RefreshLanAsync();
             if (showPortForward) _ = RefreshPortForwardAsync();
             if (showVpn) _ = _vpnView.RefreshForHostAsync();
         }
@@ -188,15 +183,6 @@ namespace RouterPilot.Views
             finally { viewModel.PortForwardIsLoading = false; }
         }
         private async void RefreshPortForward_Click(object sender, RoutedEventArgs e) => await RefreshPortForwardAsync();
-        private async Task RefreshLanAsync()
-        {
-            if (DataContext is not DashboardViewModel viewModel || viewModel.LanIsLoading) return;
-            viewModel.LanIsLoading = true;
-            try { var clients = await _lanClientService.GetWiredClientsAsync(CancellationToken.None); viewModel.LanClients.Clear(); foreach (var client in clients) viewModel.LanClients.Add(client); viewModel.LanConnectedCount = clients.Count(client => client.IsOnline); viewModel.LanStatus = string.Empty; }
-            catch { viewModel.LanStatus = "Wired LAN devices are unavailable for this router session."; }
-            finally { viewModel.LanIsLoading = false; }
-        }
-        private async void RefreshLan_Click(object sender, RoutedEventArgs e) => await RefreshLanAsync();
         private void AddPortForward_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true }) return;

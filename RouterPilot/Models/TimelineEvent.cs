@@ -44,6 +44,8 @@ public enum TimelineEventType
     InternetConnectionLost,
     InternetConnectionRestored,
     PublicIpChanged
+    ,
+    NewDeviceDetected
 }
 
 /// <summary>Safe, user-facing cross-application activity record.</summary>

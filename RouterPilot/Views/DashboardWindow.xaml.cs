@@ -23,6 +23,8 @@ namespace RouterPilot.Views
         private const string TrafficRefreshTask = "TrafficRefresh";
         private const string PublicIpRefreshTask = "PublicIpRefresh";
         private const string AdGuardScheduleTask = "AdGuardServiceSchedules";
+        private static readonly TimeSpan InternetInstabilityWindow = TimeSpan.FromHours(1);
+        private const int InternetInstabilityThreshold = 3;
 
         private readonly DashboardViewModel _viewModel;
         private readonly SettingsService _settingsService;
@@ -116,6 +118,7 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged += PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged += PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged += NetworkHealthService_SnapshotChanged;
+            _metricHistoryService.AvailabilityHistoryChanged += MetricHistoryService_AvailabilityHistoryChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
             ApplyPublicIpResult(_publicIpService.Current);
             _viewModel.NetworkHealth = _networkHealthService.Current;
@@ -312,6 +315,12 @@ namespace RouterPilot.Views
 
                 _viewModel.MemoryUsage =
                     info.MemoryUsage;
+
+                _viewModel.MemoryUsed =
+                    info.MemoryUsed;
+
+                _viewModel.MemoryCache =
+                    info.MemoryCache;
 
                 _viewModel.UpdateStorageUsage(
                     info.StorageUsage);
@@ -935,6 +944,12 @@ namespace RouterPilot.Views
             _viewModel.MemoryUsage =
                 "-";
 
+            _viewModel.MemoryUsed =
+                "-";
+
+            _viewModel.MemoryCache =
+                "-";
+
             _viewModel.UpdateStorageUsage(
                 null);
 
@@ -1273,6 +1288,7 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged -= PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged -= PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged -= NetworkHealthService_SnapshotChanged;
+            _metricHistoryService.AvailabilityHistoryChanged -= MetricHistoryService_AvailabilityHistoryChanged;
 
             _routerManagerUsageGate.Dispose();
 
@@ -1402,9 +1418,23 @@ namespace RouterPilot.Views
             }
         }
 
-        private void EvaluateNetworkHealth() => _networkHealthService.Evaluate(new NetworkHealthInput(
-            _healthSourcesReady, _viewModel.RouterConnected, _viewModel.InternetConnected,
-            _viewModel.AdGuardMaintenanceState, _viewModel.CpuHistory.ToList(), _viewModel.MemoryHistory.ToList()));
+        private void EvaluateNetworkHealth()
+        {
+            InternetInstabilitySummary instability = _metricHistoryService.GetInternetInstability(
+                InternetInstabilityWindow,
+                DateTimeOffset.UtcNow,
+                InternetInstabilityThreshold);
+            _networkHealthService.Evaluate(new NetworkHealthInput(
+                _healthSourcesReady, _viewModel.RouterConnected, _viewModel.InternetConnected,
+                _viewModel.AdGuardMaintenanceState, _viewModel.CpuHistory.ToList(), _viewModel.MemoryHistory.ToList(),
+                instability.OutageCount, instability.ObservedDuration, instability.ThresholdReachedAt));
+        }
+
+        private void MetricHistoryService_AvailabilityHistoryChanged(object? sender, EventArgs e)
+        {
+            if (!_healthSourcesReady || Dispatcher.HasShutdownStarted) return;
+            _ = Dispatcher.InvokeAsync(EvaluateNetworkHealth);
+        }
 
         private void NetworkHealthService_SnapshotChanged(NetworkHealthSnapshot snapshot)
         {

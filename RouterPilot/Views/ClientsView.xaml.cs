@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using System.Collections.Specialized;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -20,6 +21,7 @@ namespace RouterPilot.Views
         private readonly IDhcpReservationService _dhcpReservationService;
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private bool _isRefreshNotifierSubscribed;
+        private bool _isActivityFeedSubscribed;
 
         public ClientsView()
         {
@@ -49,6 +51,7 @@ namespace RouterPilot.Views
             RoutedEventArgs e)
         {
             SubscribeToRefreshNotifier();
+            SubscribeToActivityFeed();
 
             await RefreshClientsAsync();
 
@@ -77,6 +80,7 @@ namespace RouterPilot.Views
         {
             _refreshTimer.Stop();
             UnsubscribeFromRefreshNotifier();
+            UnsubscribeFromActivityFeed();
         }
 
         private void SubscribeToRefreshNotifier()
@@ -103,6 +107,30 @@ namespace RouterPilot.Views
             _isRefreshNotifierSubscribed = false;
         }
 
+        private void SubscribeToActivityFeed()
+        {
+            if (_isActivityFeedSubscribed) return;
+            _viewModel.SelectedClientActivity.CollectionChanged += SelectedClientActivity_CollectionChanged;
+            _isActivityFeedSubscribed = true;
+        }
+
+        private void UnsubscribeFromActivityFeed()
+        {
+            if (!_isActivityFeedSubscribed) return;
+            _viewModel.SelectedClientActivity.CollectionChanged -= SelectedClientActivity_CollectionChanged;
+            _isActivityFeedSubscribed = false;
+        }
+
+        private void SelectedClientActivity_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (AutoScrollToTopCheckBox.IsChecked != true || _viewModel.SelectedClientActivity.Count == 0) return;
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (AutoScrollToTopCheckBox.IsChecked == true && _viewModel.SelectedClientActivity.Count > 0)
+                    RecentActivityList.ScrollIntoView(_viewModel.SelectedClientActivity[0]);
+            }), DispatcherPriority.ContextIdle);
+        }
+
         private async void ClientRefreshNotifier_RefreshRequested(
             object? sender,
             EventArgs e)
@@ -120,6 +148,7 @@ namespace RouterPilot.Views
 
         private async System.Threading.Tasks.Task RefreshClientsAsync()
         {
+            double outerScrollOffset = ClientsPageScrollViewer.VerticalOffset;
             try
             {
                 await _viewModel.LoadClientsAsync();
@@ -129,6 +158,15 @@ namespace RouterPilot.Views
                 _viewModel.StatusMessage =
                     "Unable to load clients: " +
                     ex.Message;
+            }
+            finally
+            {
+                // Rebuilding the selected ListBox item can cause WPF to
+                // request that it be brought into view. Refreshing client
+                // data must not take ownership of the user's page position.
+                _ = Dispatcher.BeginInvoke(new Action(() =>
+                    ClientsPageScrollViewer.ScrollToVerticalOffset(outerScrollOffset)),
+                    DispatcherPriority.ContextIdle);
             }
         }
 
@@ -167,6 +205,14 @@ namespace RouterPilot.Views
             RoutedEventArgs e)
         {
             OpenSelectedClient();
+        }
+
+        private void ReviewNewDevice_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: ClientInfo client })
+            {
+                OpenClientDetails(client);
+            }
         }
 
         private void ClientsGrid_MouseDoubleClick(
@@ -348,56 +394,19 @@ namespace RouterPilot.Views
 
         private void ActivateClient(ClientInfo client)
         {
-            string selectedKey = GetClientSelectionKey(client);
-
             // Use the item from the activated card rather than whichever
             // container happens to hold selection during virtualised layout.
             _viewModel.SelectedClient = client;
             ClientsGrid.SelectedItem = client;
-
-            if (AutoScrollToTopCheckBox.IsChecked != true)
-            {
-                return;
-            }
-
-            Dispatcher.BeginInvoke(
-                new Action(() =>
-                {
-                    if (_viewModel.SelectedClient is not null &&
-                        string.Equals(
-                            GetClientSelectionKey(_viewModel.SelectedClient),
-                            selectedKey,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        ClientsPageScrollViewer.ScrollToTop();
-                    }
-                }),
-                DispatcherPriority.ContextIdle);
         }
 
         private void ClientsGrid_RequestBringIntoView(
             object sender,
             RequestBringIntoViewEventArgs e)
         {
-            // Reapplying SelectedItem after a refresh must not pull the outer
-            // page back down to the selected card.
-            if (ItemsControl.ContainerFromElement(
-                    ClientsGrid,
-                    e.OriginalSource as DependencyObject) is ListBoxItem)
-            {
-                e.Handled = true;
-            }
-        }
-
-        private static string GetClientSelectionKey(ClientInfo client)
-        {
-            string macAddress = string.Concat(
-                (client.MacAddress ?? string.Empty)
-                .Where(char.IsLetterOrDigit));
-
-            return !string.IsNullOrEmpty(macAddress)
-                ? macAddress.ToUpperInvariant()
-                : client.IpAddress ?? string.Empty;
+            // The outer page owns page scrolling. Selection restoration and
+            // keyboard/listbox focus must never implicitly reposition it.
+            e.Handled = true;
         }
 
         private void OpenSelectedClient()

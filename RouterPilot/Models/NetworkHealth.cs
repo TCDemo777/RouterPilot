@@ -7,7 +7,7 @@ namespace RouterPilot.Models;
 public enum NetworkHealthState { Healthy, Attention, Critical, Unavailable }
 public enum NetworkHealthSeverity { Info, Warning, Critical }
 
-public sealed record NetworkHealthIssue(string Id, NetworkHealthSeverity Severity, string Subsystem, string Title, string Description, string NavigationTarget, DateTimeOffset FirstDetectedAt, DateTimeOffset LastObservedAt)
+public sealed record NetworkHealthIssue(string Id, NetworkHealthSeverity Severity, string Subsystem, string Title, string Description, string NavigationTarget, DateTimeOffset FirstDetectedAt, DateTimeOffset LastObservedAt, string? TimelineEpisodeKey = null)
 {
     public string Domain => Subsystem.Equals("Router", StringComparison.OrdinalIgnoreCase) ? "Router" : Subsystem.Equals("System", StringComparison.OrdinalIgnoreCase) ? "System" : "Network";
 }
@@ -31,4 +31,4 @@ public sealed record NetworkHealthSnapshot(NetworkHealthState OverallState, IRea
     };
 }
 
-public sealed record NetworkHealthInput(bool SourcesReady, bool RouterConnected, bool InternetConnected, AdGuardMaintenanceState AdGuardMaintenanceState, IReadOnlyList<double> CpuHistory, IReadOnlyList<double> MemoryHistory);
+public sealed record NetworkHealthInput(bool SourcesReady, bool RouterConnected, bool InternetConnected, AdGuardMaintenanceState AdGuardMaintenanceState, IReadOnlyList<double> CpuHistory, IReadOnlyList<double> MemoryHistory, int RecentInternetOutageCount, TimeSpan RecentInternetObservedDuration, DateTimeOffset? InternetInstabilityThresholdReachedAt);

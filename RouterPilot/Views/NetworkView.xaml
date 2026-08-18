@@ -76,7 +76,6 @@
                     SelectionChanged="NetworkTabs_SelectionChanged">
             <TabItem Header="Overview"/>
             <TabItem Header="Wi-Fi"/>
-            <TabItem Header="LAN"/>
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
             <TabItem Header="VPN"/>
@@ -183,7 +182,332 @@
                 <!-- Wi-Fi -->
                 <StackPanel x:Name="WifiContent" Margin="0,0,0,16" Visibility="Collapsed">
 
-                    <Border Style="{DynamicResource Card}">
+                    <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Wi-Fi"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}"
+                                               Text="Configured wireless networks and currently associated clients."/>
+                                </StackPanel>
+                                <Button Grid.Column="1" VerticalAlignment="Top" Padding="12,6"
+                                        Style="{DynamicResource Button.Secondary}" Click="RestartWifi_Click" Content="Restart Wi-Fi"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Wi-Fi networks"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiNetworks.Count}"/></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="Connected Wi-Fi clients"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiUniqueClientTotal}"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Bands"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="2.4 GHz • 5 GHz • 6 GHz"/></StackPanel>
+                            </Grid>
+
+                            <ItemsControl ItemsSource="{Binding WifiNetworks}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,10" Background="{DynamicResource Brush.SurfaceMuted}"
+                                                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                            <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Padding="14">
+                                                <Expander.Header>
+                                                    <Grid MinHeight="42">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Ssid}" Text="{Binding Ssid}"/>
+                                                                <Border Margin="10,0,0,0" Padding="7,2" Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="8">
+                                                                    <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsVerifiedGuestNetwork}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                                                                    <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Primary}" Text="Guest"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding CollapsedSummary}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding StatusColour}" Text="{Binding StatusDisplay}"/>
+                                                    </Grid>
+                                                </Expander.Header>
+                                                <StackPanel Margin="0,14,0,0">
+                                                    <Border Height="1" Background="{DynamicResource Brush.Border}"/>
+                                                    <TextBlock Margin="0,14,0,8" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="NETWORK DETAILS"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                        <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Band"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding Band}"/></StackPanel>
+                                                        <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="Channel"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding Channel}"/></StackPanel>
+                                                        <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Channel width"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding ChannelWidth}"/></StackPanel>
+                                                    </Grid>
+                                                    <Grid Margin="0,12,0,0">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                        <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Security"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding Security}"/></StackPanel>
+                                                        <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="Interface"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding Interface}"/></StackPanel>
+                                                        <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Status"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding StatusDisplay}"/></StackPanel>
+                                                    </Grid>
+                                                    <TextBlock Margin="0,16,0,8" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="CONNECTED CLIENTS"/>
+                                                    <TextBlock Margin="0,0,0,8" Text="No clients currently associated with this network.">
+                                                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ClientCount}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                                    </TextBlock>
+                                                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                                        <ItemsControl ItemsSource="{Binding Clients}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Grid Margin="0,4">
+                                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}"/>
+                                                                        <TextBlock Grid.Column="1" Margin="16,0,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding DisplayIpAddress}"/>
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                </StackPanel>
+                                            </Expander>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="No Wi-Fi networks configured.">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasWifiNetworks}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,0,0,16" Style="{DynamicResource Card}" Visibility="Collapsed">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Wi-Fi Overview"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}"
+                                               Text="Current radio status, connected clients and signal quality."/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding WifiNetworks}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="330" Margin="0,0,12,12" Padding="16"
+                                                    Background="{DynamicResource Brush.SurfaceMuted}"
+                                                    BorderBrush="{DynamicResource Brush.Border}"
+                                                    BorderThickness="1" CornerRadius="10">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="8"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="12"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock FontSize="17" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                   Text="{Binding Band}"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                            <Border Margin="0,0,8,0" Padding="7,3" Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="9">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsVerifiedGuestNetwork}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Primary}" Text="Guest"/>
+                                                            </Border>
+                                                            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
+                                                                       Foreground="{Binding StatusColour}" Text="{Binding StatusDisplay}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="2" FontSize="15" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Ssid}"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Ssid}"/>
+                                                    <StackPanel Grid.Row="4">
+                                                        <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding ChannelSummary}"/>
+                                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding Security}"/>
+                                                        <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding ClientCountDisplay}"/>
+                                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
+                                                                   Text="{Binding AverageSignalDisplay}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasAverageSignal}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel IsHitTestVisible="False">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasWifiNetworks}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Style="{DynamicResource Text.EmptyStateTitle}" Text="No Wi-Fi networks configured"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.EmptyStateMessage}"
+                                               Text="Configured wireless networks will appear after the next refresh."/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Margin="0,4,0,12" Padding="16"
+                                    Background="{DynamicResource Brush.SurfaceMuted}"
+                                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                <StackPanel>
+                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Client Distribution"/>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Wi-Fi clients"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiUniqueClientTotal}"/></StackPanel>
+                                        <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="2.4 GHz"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Wifi24ClientTotal}"/></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="5 GHz"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Wifi5ClientTotal}"/></StackPanel>
+                                        <StackPanel Grid.Column="3"><TextBlock Style="{DynamicResource Text.Muted}" Text="6 GHz"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Wifi6ClientTotal}"/></StackPanel>
+                                        <StackPanel Grid.Column="4"><TextBlock Style="{DynamicResource Text.Muted}" Text="Guest"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiGuestClientTotal}"/></StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <WrapPanel Margin="0,4,0,0">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasWifiSignalData}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+                                <Border Width="420" Margin="0,0,12,12" Padding="16"
+                                        Background="{DynamicResource Brush.SurfaceMuted}"
+                                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                    <StackPanel>
+                                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Signal Quality"/>
+                                        <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}"
+                                                   Text="{Binding WifiSignalAvailabilityDisplay}"/>
+                                        <Grid>
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasWifiSignalData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ItemsControl ItemsSource="{Binding WifiSignalQuality}" Grid.ColumnSpan="4">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel>
+                                                            <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Quality}"/>
+                                                            <TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Count}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Quality}" Value="Fair"><Setter Property="Foreground" Value="{DynamicResource Brush.Warning}"/></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Quality}" Value="Poor"><Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                        <TextBlock Text="{Binding WifiSignalEmptyMessage}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasWifiSignalData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Width="420" Margin="0,0,12,12" Padding="16"
+                                        Background="{DynamicResource Brush.SurfaceMuted}"
+                                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                    <StackPanel>
+                                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Needs attention"/>
+                                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding WeakWifiClients}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,10">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}"/>
+                                                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis">
+                                                                <Run Text="{Binding Band}"/><Run Text=" • "/><Run Text="{Binding Ssid}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.Warning}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SignalQuality}" Value="Poor"><Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                            <Run Text="{Binding SignalQuality}"/><Run Text=" • "/><Run Text="{Binding Signal}"/>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Margin="0,10,0,0" Text="{Binding WifiSignalEmptyMessage}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasWeakWifiClients}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{DynamicResource Card}" Visibility="Collapsed">
                         <StackPanel>
                             <Grid Margin="0,0,0,14">
                                 <Grid.ColumnDefinitions>
@@ -330,20 +654,6 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- DHCP -->
-                <StackPanel x:Name="LanContent" Margin="0,0,0,16" Visibility="Collapsed">
-                    <Border Style="{DynamicResource Card}">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Wired LAN"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Devices positively identified by the router as Ethernet clients."/></StackPanel><Border Grid.Column="1" Margin="0,0,10,0" Style="{StaticResource Network.HealthBadge}"><TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" Text="{Binding LanConnectedCount, StringFormat={}{0} connected}"/></Border><Button Grid.Column="2" Content="Refresh" Click="RefreshLan_Click"/></Grid>
-                            <TextBlock Text="{Binding LanStatus}" Foreground="{DynamicResource Brush.TextMuted}"/>
-                            <TextBlock Margin="0,8,0,0" Text="Loading wired devices…" Visibility="{Binding LanIsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            <Grid MaxWidth="680" Margin="0,10,0,3" HorizontalAlignment="Left"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{StaticResource Network.Label}" Text="DEVICE"/><TextBlock Grid.Column="1" Margin="18,0,0,0" Style="{StaticResource Network.Label}" Text="IP ADDRESS"/><TextBlock Grid.Column="2" Margin="18,0,0,0" Style="{StaticResource Network.Label}" Text="MAC ADDRESS"/><TextBlock Grid.Column="3" Margin="18,0,0,0" Style="{StaticResource Network.Label}" Text="STATUS"/></Grid>
-                            <ItemsControl ItemsSource="{Binding LanClients}"><ItemsControl.ItemTemplate><DataTemplate><Grid MaxWidth="680" Margin="0,3" HorizontalAlignment="Left"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextPrimary}"/><TextBlock Text="Reserved" Visibility="{Binding IsStaticReservation, Converter={StaticResource BooleanToVisibilityConverter}}" Foreground="{DynamicResource Brush.Success}" Style="{DynamicResource Text.Muted}"/></StackPanel><TextBlock Grid.Column="1" Margin="18,0,0,0" Text="{Binding IpAddress}" Foreground="{DynamicResource Brush.TextSecondary}"/><TextBlock Grid.Column="2" Margin="18,0,0,0" Text="{Binding MacAddress}" Foreground="{DynamicResource Brush.TextMuted}"/><TextBlock Grid.Column="3" Margin="18,0,0,0" Text="{Binding ConnectionType}" Foreground="{DynamicResource Brush.Success}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-                            <TextBlock Margin="0,12,0,0" Text="No wired LAN devices are currently detected."><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding LanClients.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                         </StackPanel>
                     </Border>
                 </StackPanel>

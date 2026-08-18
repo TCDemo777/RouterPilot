@@ -30,3 +30,14 @@ public sealed class InternetReliabilitySummary
     public DateTimeOffset? CurrentStateSince { get; init; }
     public double AvailabilityPercent => ObservedDuration <= TimeSpan.Zero ? 0 : OnlineDuration.TotalSeconds / ObservedDuration.TotalSeconds * 100;
 }
+
+/// <summary>
+/// A rolling view of distinct authoritative Internet outages. This is derived
+/// from availability transitions; it is not an additional persisted store.
+/// </summary>
+public sealed class InternetInstabilitySummary
+{
+    public int OutageCount { get; init; }
+    public TimeSpan ObservedDuration { get; init; }
+    public DateTimeOffset? ThresholdReachedAt { get; init; }
+}

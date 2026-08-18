@@ -55,6 +55,34 @@ namespace RouterPilot.Models
         public bool HasUsefulClientIpAddress => Clients.Any(client => WifiClientInfo.Useful(client.IpAddress));
         public bool HasUsefulClientMacAddress => Clients.Any(client => WifiClientInfo.Useful(client.MacAddress));
         public bool HasUsefulClientSignal => Clients.Any(client => WifiClientInfo.Useful(client.Signal));
+        public string ClientCountDisplay => ClientCount == 1 ? "1 client" : $"{ClientCount} clients";
+        public bool IsExpanded { get; set; }
+        public string ChannelDisplay => Channel.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            ? "Channel Auto"
+            : WifiClientInfo.Useful(Channel)
+                ? $"Channel {Channel}"
+                : string.Empty;
+        public string ChannelSummary => string.Join(" • ", new[] { ChannelDisplay, ChannelWidth }
+            .Where(WifiClientInfo.Useful));
+        public string CollapsedSummary => string.Join(" • ", new[]
+            { Band, ChannelSummary, Security, ClientCountDisplay }.Where(WifiClientInfo.Useful));
+        public bool HasAverageSignal => TryGetAverageSignal(out _);
+        public string AverageSignalDisplay => TryGetAverageSignal(out int average)
+            ? $"{average} dBm • {new WifiClientInfo { Signal = average.ToString() }.SignalQuality}"
+            : string.Empty;
         public ObservableCollection<WifiClientInfo> Clients { get; } = new();
+
+        private bool TryGetAverageSignal(out int average)
+        {
+            List<int> samples = Clients
+                .Select(client => client.Signal.Replace("dBm", string.Empty, StringComparison.OrdinalIgnoreCase).Trim())
+                .Select(value => int.TryParse(value, out int signal) ? (int?)signal : null)
+                .Where(value => value is not null)
+                .Select(value => value!.Value)
+                .ToList();
+
+            average = samples.Count == 0 ? 0 : (int)Math.Round(samples.Average());
+            return samples.Count > 0;
+        }
     }
 }

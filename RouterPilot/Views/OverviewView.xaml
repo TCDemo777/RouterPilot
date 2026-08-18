@@ -19,6 +19,13 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
+        <Style x:Key="Overview.ResourceHeading" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
         <Style x:Key="Overview.DetailRow" TargetType="Grid">
             <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
@@ -332,69 +339,91 @@
 
                             <Separator />
 
-                            <StackPanel Margin="0,2,0,14">
-                                <Grid>
+                            <StackPanel Margin="0,4,0,12" VerticalAlignment="Top">
+                                <Grid HorizontalAlignment="Stretch">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="CPU usage" />
-                                    <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding CpuUsageDisplay}" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource Overview.ResourceHeading}" Text="CPU" />
+                                    <TextBlock Grid.Column="1" Margin="24,0,0,0" FontSize="16" FontWeight="SemiBold" Style="{StaticResource Overview.DetailValue}" Text="{Binding CpuUsageDisplay}" />
                                 </Grid>
+                                <TextBlock Margin="0,6,0,0" Style="{StaticResource Overview.DetailLabel}" Text="Current usage" />
                                 <ProgressBar
+                                    Margin="0,3,0,0"
                                     Style="{StaticResource Overview.ProgressBar}"
                                     Value="{Binding CpuPercentage}" />
-                                <TextBlock Margin="0,7,0,0"
+                                <TextBlock Margin="0,8,0,2"
                                            Style="{StaticResource Overview.DetailLabel}"
-                                           Text="CPU history" />
-                                <lvc:CartesianChart Height="42"
-                                                    Margin="0,3,0,0"
-                                                    Background="Transparent"
-                                                    AnimationsSpeed="0:0:0.2"
-                                                    Series="{Binding CpuSparklineSeries}"
-                                                    XAxes="{Binding SparklineXAxes}"
-                                                    YAxes="{Binding SparklineYAxes}" />
+                                           Text="Recent trend" />
+                                <lvc:CartesianChart Height="44"
+                                                     VerticalAlignment="Top"
+                                                     Background="Transparent"
+                                                     AnimationsSpeed="0:0:0.2"
+                                                     Series="{Binding CpuSparklineSeries}"
+                                                     Visibility="{Binding HasCpuTrend, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                     XAxes="{Binding SparklineXAxes}"
+                                                     YAxes="{Binding CpuSparklineYAxes}" />
+                                <TextBlock Margin="0,0,0,2"
+                                           Style="{StaticResource Text.Muted}"
+                                           Text="Collecting trend…"
+                                           Visibility="{Binding IsCpuTrendCollecting, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </StackPanel>
 
-                            <StackPanel>
-                                <Grid>
+                            <Separator Margin="0,2,0,12" />
+
+                            <StackPanel VerticalAlignment="Top">
+                                <Grid HorizontalAlignment="Stretch">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Memory usage" />
-                                    <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding MemoryUsage}" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource Overview.ResourceHeading}" Text="Memory" />
+                                    <TextBlock Grid.Column="1" Margin="24,0,0,0" FontSize="16" FontWeight="SemiBold" Style="{StaticResource Overview.DetailValue}" Text="{Binding MemoryUsage}" />
                                 </Grid>
+                                <TextBlock Margin="0,6,0,0" Style="{StaticResource Overview.DetailLabel}" Text="Current usage" />
                                 <ProgressBar
+                                    Margin="0,3,0,0"
                                     Style="{StaticResource Overview.ProgressBar}"
                                     Value="{Binding MemoryPercentage}" />
-                                <TextBlock Margin="0,7,0,0"
+                                <TextBlock Margin="0,8,0,2"
                                            Style="{StaticResource Overview.DetailLabel}"
-                                           Text="Memory history" />
-                                <lvc:CartesianChart Height="42"
-                                                    Margin="0,3,0,0"
-                                                    Background="Transparent"
-                                                    AnimationsSpeed="0:0:0.2"
-                                                    Series="{Binding MemorySparklineSeries}"
-                                                    XAxes="{Binding SparklineXAxes}"
-                                                    YAxes="{Binding SparklineYAxes}" />
+                                           Text="Recent trend" />
+                                <lvc:CartesianChart Height="44"
+                                                     VerticalAlignment="Top"
+                                                     Background="Transparent"
+                                                     AnimationsSpeed="0:0:0.2"
+                                                     Series="{Binding MemorySparklineSeries}"
+                                                     Visibility="{Binding HasMemoryTrend, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                     XAxes="{Binding SparklineXAxes}"
+                                                     YAxes="{Binding MemorySparklineYAxes}" />
+                                <TextBlock Margin="0,0,0,2"
+                                           Style="{StaticResource Text.Muted}"
+                                           Text="Collecting trend…"
+                                           Visibility="{Binding IsMemoryTrendCollecting, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                                <Grid Margin="0,9,0,0">
+                                <Grid Margin="0,8,0,0"
+                                      Visibility="{Binding HasMemoryDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource Text.Muted}" Text="Used" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        Margin="8,0,18,0"
-                                        Style="{StaticResource Overview.DetailValue}"
-                                        Text="{Binding MemoryUsed}" />
-                                    <TextBlock
-                                        Grid.Column="2"
-                                        Style="{StaticResource Text.Muted}"
-                                        Text="{Binding MemoryCache, StringFormat=Cache: {0}}" />
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Used" />
+                                        <TextBlock Margin="0,2,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   TextAlignment="Left"
+                                                   Style="{StaticResource Overview.DetailValue}"
+                                                   Text="{Binding MemoryUsed}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Cache" />
+                                        <TextBlock Margin="0,2,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   TextAlignment="Left"
+                                                   Style="{StaticResource Overview.DetailValue}"
+                                                   Text="{Binding MemoryCache}" />
+                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </StackPanel>

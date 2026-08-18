@@ -64,6 +64,7 @@ namespace RouterPilot.Models
         public string HealthText { get; set; } = "Unknown";
         public string HealthColour { get; set; } = "#687386";
         public bool IsFavorite { get; set; }
+        public bool NeedsReview { get; set; }
 
         // Live connection metadata from the GL.iNet client inventory.
         public string ConnectionType { get; set; } = "Unknown";

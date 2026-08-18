@@ -37,6 +37,7 @@ public sealed class AppSettings
     public NotificationPreferences NotificationPreferences { get; set; } = new();
     public List<DashboardCardPreference> DashboardCards { get; set; } = new();
     public bool VpnDiagnosticsExpanded { get; set; }
+    public bool NewDeviceDetectionInitialized { get; set; }
 
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(RouterHost);

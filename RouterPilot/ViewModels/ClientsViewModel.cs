@@ -12,11 +12,15 @@ namespace RouterPilot.ViewModels
 {
     public partial class ClientsViewModel : ObservableObject
     {
+        private const int RecentActivityCapacity = 50;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly ClientProfileService _clientProfileService;
-        private readonly NewDeviceNotificationTracker _newDeviceNotificationTracker;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
+        private readonly SettingsService _settingsService;
+        private readonly TimelineService _timelineService;
+        private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
+        private readonly bool _clientProfileStoreReliable;
         private DateTime _lastProfileSaveUtc = DateTime.MinValue;
         private readonly List<ClientInfo> _allClients = new();
         private readonly Dictionary<string, WifiClientInfo> _liveClientLookup =
@@ -25,9 +29,13 @@ namespace RouterPilot.ViewModels
             new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, (int Total, int Blocked)> _lastActivityTotals =
             new(StringComparer.OrdinalIgnoreCase);
+        private string _activityClientKey = string.Empty;
 
         public ObservableCollection<ClientInfo> Clients { get; } = new();
+        public ObservableCollection<ClientInfo> NewDevices { get; } = new();
         public ObservableCollection<ClientActivityItem> SelectedClientActivity { get; } = new();
+        public bool HasNewDevices => NewDevices.Count > 0;
+        public bool HasSelectedClientActivity => SelectedClientActivity.Count > 0;
 
         public IReadOnlyList<string> SortOptions { get; } =
             new[]
@@ -92,14 +100,20 @@ namespace RouterPilot.ViewModels
 
         public ClientsViewModel(
             IRouterManagerProvider routerManagerProvider,
-            NewDeviceNotificationTracker newDeviceNotificationTracker,
-            AdGuardAvailabilityService adGuardAvailabilityService)
+            AdGuardAvailabilityService adGuardAvailabilityService,
+            SettingsService settingsService,
+            TimelineService timelineService)
         {
             _routerManagerProvider = routerManagerProvider;
-            _newDeviceNotificationTracker = newDeviceNotificationTracker;
             _adGuardAvailabilityService = adGuardAvailabilityService;
+            _settingsService = settingsService;
+            _timelineService = timelineService;
+            _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
+            _clientProfileStoreReliable = _clientProfileService.LastLoadSucceeded;
+            SelectedClientActivity.CollectionChanged += (_, _) =>
+                OnPropertyChanged(nameof(HasSelectedClientActivity));
 
         }
 
@@ -190,6 +204,8 @@ namespace RouterPilot.ViewModels
                 List<ClientInfo> clients = BuildRouterClients(liveClients);
                 ApplyAdGuardEnrichment(clients, adGuardResult.Value ?? [], AdGuardDataAvailability);
 
+                await InitializeOrDetectNewDevicesAsync(clients);
+
                 foreach (ClientInfo client in clients)
                 {
                     ApplyLiveConnectionDetails(client, liveClients);
@@ -200,8 +216,7 @@ namespace RouterPilot.ViewModels
                     }
                 }
 
-                await _newDeviceNotificationTracker.ProcessAsync(
-                    BuildConnectedClientList(clients, liveClients));
+                RebuildNewDevices(clients);
 
                 _allClients.Clear();
                 _allClients.AddRange(clients);
@@ -323,6 +338,150 @@ namespace RouterPilot.ViewModels
                 routerClient.QueryLogAvailable = enrichment.QueryLogAvailable;
             }
         }
+
+        private async Task InitializeOrDetectNewDevicesAsync(IEnumerable<ClientInfo> clients)
+        {
+            if (!_clientProfileStoreReliable)
+            {
+                // An unreadable profile store must never be interpreted as a new
+                // installation: preserve live client presentation, but do not detect
+                // or overwrite persistent device identity until the store is repaired.
+                return;
+            }
+
+            List<ClientInfo> macClients = clients
+                .Where(client => NormaliseMac(client.MacAddress).Length == 12)
+                .GroupBy(client => NormaliseMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            if (!_settings.NewDeviceDetectionInitialized)
+            {
+                // First feature-enabled run is a baseline: persisted profiles and the
+                // current router inventory are established as known, never alerted.
+                foreach (ClientProfile existing in _clientProfiles.Values)
+                {
+                    existing.IsKnown = true;
+                    existing.NeedsReview = false;
+                }
+
+                foreach (ClientInfo client in macClients)
+                {
+                    string key = NormaliseMac(client.MacAddress);
+                    if (!_clientProfiles.TryGetValue(key, out ClientProfile? profile))
+                    {
+                        profile = new ClientProfile { Key = key };
+                        _clientProfiles[key] = profile;
+                    }
+
+                    profile.IsKnown = true;
+                    profile.NeedsReview = false;
+                    profile.FirstSeenUtc = profile.FirstSeenUtc == default ? DateTime.UtcNow : profile.FirstSeenUtc;
+                    profile.LastSeenUtc = DateTime.UtcNow;
+                    UpdateProfileObservation(profile, client);
+                }
+
+                SaveProfiles(force: true);
+                _settings.NewDeviceDetectionInitialized = true;
+                _settingsService.Save(_settings);
+                return;
+            }
+
+            List<ClientInfo> newlyDetected = [];
+            foreach (ClientInfo client in macClients)
+            {
+                string key = NormaliseMac(client.MacAddress);
+                if (_clientProfiles.ContainsKey(key))
+                {
+                    continue;
+                }
+
+                _clientProfiles[key] = new ClientProfile
+                {
+                    Key = key,
+                    IsKnown = false,
+                    NeedsReview = true,
+                    FirstSeenUtc = DateTime.UtcNow,
+                    LastSeenUtc = DateTime.UtcNow,
+                    LastKnownName = UsefulClientName(client),
+                    LastKnownIpAddress = client.IpAddress,
+                    LastKnownConnectionSummary = client.ConnectionSummary
+                };
+                newlyDetected.Add(client);
+            }
+
+            if (newlyDetected.Count == 0) return;
+
+            // Persist before emitting the Timeline event, so restart cannot retrigger it.
+            SaveProfiles(force: true);
+            foreach (ClientInfo client in newlyDetected)
+            {
+                string key = NormaliseMac(client.MacAddress);
+                await _timelineService.AddAsync(new TimelineEvent
+                {
+                    Category = TimelineCategory.Clients,
+                    EventType = TimelineEventType.NewDeviceDetected,
+                    Title = "New device detected",
+                    Message = NewDeviceTimelineMessage(client),
+                    Severity = TimelineSeverity.Information,
+                    RelatedEntityId = key,
+                    DeduplicationKey = "new-device:" + key
+                });
+            }
+        }
+
+        private void RebuildNewDevices(IEnumerable<ClientInfo> currentClients)
+        {
+            Dictionary<string, ClientInfo> currentByMac = currentClients
+                .Where(client => NormaliseMac(client.MacAddress).Length == 12)
+                .GroupBy(client => NormaliseMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            NewDevices.Clear();
+            foreach (ClientProfile profile in _clientProfiles.Values
+                         .Where(profile => profile.NeedsReview)
+                         .OrderByDescending(profile => profile.FirstSeenUtc))
+            {
+                if (currentByMac.TryGetValue(profile.Key, out ClientInfo? current))
+                {
+                    NewDevices.Add(current);
+                    continue;
+                }
+
+                NewDevices.Add(new ClientInfo
+                {
+                    Name = string.IsNullOrWhiteSpace(profile.Nickname) ?
+                        (string.IsNullOrWhiteSpace(profile.LastKnownName) ? FormatMac(profile.Key) : profile.LastKnownName) : profile.Nickname,
+                    RouterName = profile.LastKnownName,
+                    MacAddress = FormatMac(profile.Key),
+                    IpAddress = string.IsNullOrWhiteSpace(profile.LastKnownIpAddress) ? "-" : profile.LastKnownIpAddress,
+                    ConnectionType = "Unknown",
+                    FirstSeenUtc = profile.FirstSeenUtc,
+                    LastObservedUtc = profile.LastSeenUtc,
+                    NeedsReview = true,
+                    HealthText = "Offline",
+                    HealthColour = "#687386"
+                });
+            }
+
+            OnPropertyChanged(nameof(HasNewDevices));
+        }
+
+        private static string UsefulClientName(ClientInfo client) =>
+            HasUsefulValue(client.Name) ? client.Name :
+            HasUsefulValue(client.RouterName) ? client.RouterName : FormatMac(NormaliseMac(client.MacAddress));
+
+        private static string NewDeviceTimelineMessage(ClientInfo client)
+        {
+            List<string> details = [UsefulClientName(client)];
+            if (HasUsefulValue(client.IpAddress)) details.Add(client.IpAddress);
+            if (!string.IsNullOrWhiteSpace(client.ConnectionSummary)) details.Add(client.ConnectionSummary);
+            return string.Join(" • ", details);
+        }
+
+        private static string FormatMac(string normalizedMac) => normalizedMac.Length == 12
+            ? string.Join(":", Enumerable.Range(0, 6).Select(index => normalizedMac.Substring(index * 2, 2)))
+            : normalizedMac;
 
         public void SelectSortOption(string? option)
         {
@@ -507,7 +666,12 @@ namespace RouterPilot.ViewModels
                 : $"Ready to ping or wake {value.Name} ({value.IpAddress}).";
 
             UpdateSelectedClientConnectionDetails(value);
-            LoadSelectedClientActivity(value);
+            string activityClientKey = value is null ? string.Empty : ClientKey(value);
+            if (!activityClientKey.Equals(_activityClientKey, StringComparison.OrdinalIgnoreCase))
+            {
+                _activityClientKey = activityClientKey;
+                LoadSelectedClientActivity(value);
+            }
             LoadProfileEditor(value);
         }
 
@@ -606,15 +770,19 @@ namespace RouterPilot.ViewModels
                 Detail = detail
             });
 
-            if (history.Count > 20)
+            if (history.Count > RecentActivityCapacity)
             {
-                history.RemoveRange(20, history.Count - 20);
+                history.RemoveRange(RecentActivityCapacity, history.Count - RecentActivityCapacity);
             }
 
             if (SelectedClient is not null &&
                 ClientKey(SelectedClient).Equals(key, StringComparison.OrdinalIgnoreCase))
             {
-                LoadSelectedClientActivity(SelectedClient);
+                SelectedClientActivity.Insert(0, history[0]);
+                while (SelectedClientActivity.Count > RecentActivityCapacity)
+                {
+                    SelectedClientActivity.RemoveAt(SelectedClientActivity.Count - 1);
+                }
             }
         }
 
@@ -633,7 +801,7 @@ namespace RouterPilot.ViewModels
                 return;
             }
 
-            foreach (ClientActivityItem item in history.Take(8))
+            foreach (ClientActivityItem item in history)
             {
                 SelectedClientActivity.Add(item);
             }
@@ -1053,6 +1221,7 @@ namespace RouterPilot.ViewModels
 
             ClientProfile profile = GetOrCreateProfile(client);
             profile.LastSeenUtc = DateTime.UtcNow;
+            UpdateProfileObservation(profile, client);
             ApplyProfile(client, profile);
 
             (client.HealthText, client.HealthColour) =
@@ -1258,6 +1427,7 @@ namespace RouterPilot.ViewModels
             client.Notes = profile.Notes;
             client.CustomCategory = profile.Category;
             client.IsFavorite = profile.IsFavorite;
+            client.NeedsReview = profile.NeedsReview;
 
             if (!string.IsNullOrWhiteSpace(profile.Nickname))
             {
@@ -1268,6 +1438,15 @@ namespace RouterPilot.ViewModels
             {
                 client.DeviceType = profile.Category;
             }
+        }
+
+        private static void UpdateProfileObservation(ClientProfile profile, ClientInfo client)
+        {
+            profile.LastKnownName = UsefulClientName(client);
+            profile.LastKnownIpAddress = HasUsefulValue(client.IpAddress) ? client.IpAddress : profile.LastKnownIpAddress;
+            profile.LastKnownConnectionSummary = !string.IsNullOrWhiteSpace(client.ConnectionSummary)
+                ? client.ConnectionSummary
+                : profile.LastKnownConnectionSummary;
         }
 
         private void LoadProfileEditor(ClientInfo? client)
@@ -1288,6 +1467,11 @@ namespace RouterPilot.ViewModels
 
         private void SaveProfiles(bool force = false)
         {
+            if (!_clientProfileStoreReliable)
+            {
+                return;
+            }
+
             if (!force && DateTime.UtcNow - _lastProfileSaveUtc < TimeSpan.FromMinutes(1))
             {
                 return;

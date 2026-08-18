@@ -59,6 +59,11 @@
 
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button MinWidth="112" Height="36" Margin="0,0,10,0"
+                        Style="{DynamicResource Button.Secondary}"
+                        Command="{Binding MarkKnownCommand}"
+                        Content="Mark as known"
+                        Visibility="{Binding NeedsReview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 <Button MinWidth="100" Height="36" Margin="0,0,10,0"
                         Command="{Binding RefreshCommand}" Content="Refresh"/>
                 <Button MinWidth="100" Height="36"

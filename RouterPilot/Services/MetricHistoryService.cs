@@ -22,6 +22,7 @@ public sealed class MetricHistoryService : IMetricHistoryService
     public MetricHistoryService(ApplicationDataPathProvider paths) => _path = Path.Combine(paths.CurrentPath, "metric-history.json");
     public int RetentionDays => DefaultRetentionDays;
     public long StorageSizeBytes => File.Exists(_path) ? new FileInfo(_path).Length : 0;
+    public event EventHandler? AvailabilityHistoryChanged;
 
     public async Task InitializeAsync()
     {
@@ -69,7 +70,12 @@ public sealed class MetricHistoryService : IMetricHistoryService
             changed = _availability.Count == 0 || _availability[^1].State != state;
             if (changed) { _availability.Add(new InternetAvailabilityEvent { Timestamp = timestamp, State = state }); _dirty = true; }
         }
-        if (changed) { Prune(timestamp); ScheduleFlush(); }
+        if (changed)
+        {
+            Prune(timestamp);
+            ScheduleFlush();
+            AvailabilityHistoryChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     public IReadOnlyList<MetricSample> GetMetrics(MetricKind metric, TimeSpan range, DateTimeOffset now)
@@ -107,7 +113,53 @@ public sealed class MetricHistoryService : IMetricHistoryService
         return new InternetReliabilitySummary { HasSufficientHistory = online + offline >= TimeSpan.FromMinutes(1), IsOnline = state == InternetAvailabilityState.Online, ObservedDuration = online + offline, OnlineDuration = online, OfflineDuration = offline, OutageCount = outages + (state == InternetAvailabilityState.Offline ? 1 : 0), LongestOutage = longest, LastOutageStartedAt = lastStart, LastOutageDuration = lastDuration, CurrentStateSince = stateSince };
     }
 
-    public async Task ClearAsync(CancellationToken cancellationToken = default) { lock (_samples) { _samples.Clear(); _availability.Clear(); _dirty = true; } await FlushAsync(cancellationToken); }
+    public InternetInstabilitySummary GetInternetInstability(TimeSpan range, DateTimeOffset now, int threshold)
+    {
+        DateTimeOffset start = now - range;
+        List<InternetAvailabilityEvent> events;
+        lock (_availability) events = _availability.OrderBy(item => item.Timestamp).ToList();
+        InternetAvailabilityEvent? prior = events.LastOrDefault(item => item.Timestamp <= start);
+        List<InternetAvailabilityEvent> relevant = events.Where(item => item.Timestamp > start && item.Timestamp <= now).ToList();
+        if (prior is null && relevant.Count == 0) return new InternetInstabilitySummary();
+
+        InternetAvailabilityState state = prior?.State ?? relevant[0].State;
+        DateTimeOffset cursor = prior is null ? relevant[0].Timestamp : start;
+        DateTimeOffset? outageStartedAt = state == InternetAvailabilityState.Offline ? prior?.Timestamp ?? cursor : null;
+        List<DateTimeOffset> outages = [];
+
+        foreach (InternetAvailabilityEvent item in relevant)
+        {
+            if (state == InternetAvailabilityState.Online && item.State == InternetAvailabilityState.Offline)
+                outageStartedAt = item.Timestamp;
+            else if (state == InternetAvailabilityState.Offline && item.State == InternetAvailabilityState.Online)
+            {
+                outages.Add(outageStartedAt ?? item.Timestamp);
+                outageStartedAt = null;
+            }
+
+            state = item.State;
+            cursor = item.Timestamp;
+        }
+
+        // A continuous current Offline period is one outage, never one per
+        // refresh sample. Unknown time is absent from this transition store.
+        if (state == InternetAvailabilityState.Offline)
+            outages.Add(outageStartedAt ?? cursor);
+
+        return new InternetInstabilitySummary
+        {
+            OutageCount = outages.Count,
+            ObservedDuration = now - (prior is null ? relevant[0].Timestamp : start),
+            ThresholdReachedAt = outages.Count >= threshold ? outages[threshold - 1] : null
+        };
+    }
+
+    public async Task ClearAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_samples) { _samples.Clear(); _availability.Clear(); _dirty = true; }
+        await FlushAsync(cancellationToken);
+        AvailabilityHistoryChanged?.Invoke(this, EventArgs.Empty);
+    }
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
         if (!_initialized || !_dirty) return;

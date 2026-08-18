@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.Win32;
 using RouterPilot.Models;
 
@@ -19,6 +20,8 @@ public sealed class DiagnosticsExecutionService
     private readonly NotificationService _notificationService;
     private readonly SettingsService _settingsService;
     private readonly TimelineService _timelineService;
+    private readonly IMetricHistoryService _metricHistoryService;
+    private readonly INetworkHealthService _networkHealthService;
 
     public DiagnosticsExecutionService(
         IRouterManagerProvider routerManagerProvider,
@@ -26,7 +29,9 @@ public sealed class DiagnosticsExecutionService
         MaintenanceHistoryService maintenanceHistoryService,
         NotificationService notificationService,
         SettingsService settingsService,
-        TimelineService timelineService)
+        TimelineService timelineService,
+        IMetricHistoryService metricHistoryService,
+        INetworkHealthService networkHealthService)
     {
         _routerManagerProvider = routerManagerProvider;
         _historyService = historyService;
@@ -34,6 +39,8 @@ public sealed class DiagnosticsExecutionService
         _notificationService = notificationService;
         _settingsService = settingsService;
         _timelineService = timelineService;
+        _metricHistoryService = metricHistoryService;
+        _networkHealthService = networkHealthService;
     }
 
     /// <summary>Shared, safe result used by About when diagnostics originated from Maintenance.</summary>
@@ -213,6 +220,9 @@ public sealed class DiagnosticsExecutionService
     private string BuildSystemInformation()
     {
         AppSettings settings = _settingsService.Load();
+        InternetInstabilitySummary instability = _metricHistoryService.GetInternetInstability(
+            TimeSpan.FromHours(1), DateTimeOffset.UtcNow, 3);
+        bool instabilityActive = _networkHealthService.Current.Issues.Any(issue => issue.Id == "internet.unstable");
         return $"RouterPilot System Information{Environment.NewLine}" +
             $"Generated: {DateTimeOffset.Now:O}{Environment.NewLine}" +
             $".NET: {RuntimeInformation.FrameworkDescription}{Environment.NewLine}" +
@@ -220,6 +230,9 @@ public sealed class DiagnosticsExecutionService
             $"Process architecture: {RuntimeInformation.ProcessArchitecture}{Environment.NewLine}" +
             "Router endpoint: configured" + Environment.NewLine +
             $"Refresh interval: {settings.RefreshIntervalSeconds} seconds{Environment.NewLine}" +
+            $"Recent Internet outages: {instability.OutageCount}{Environment.NewLine}" +
+            "Internet instability threshold: 3 outages in 60 minutes" + Environment.NewLine +
+            $"Internet instability active: {(instabilityActive ? "YES" : "NO")}{Environment.NewLine}" +
             "Password and protected settings: REDACTED";
     }
 

@@ -16,6 +16,8 @@ namespace RouterPilot.Services
             WriteIndented = true
         };
 
+        public bool LastLoadSucceeded { get; private set; } = true;
+
         public ClientProfileService(ApplicationDataPathProvider? applicationDataPaths = null)
         {
             string folder = (applicationDataPaths ?? new ApplicationDataPathProvider()).CurrentPath;
@@ -27,6 +29,7 @@ namespace RouterPilot.Services
 
         public Dictionary<string, ClientProfile> Load()
         {
+            LastLoadSucceeded = true;
             try
             {
                 if (!File.Exists(_filePath))
@@ -64,6 +67,7 @@ namespace RouterPilot.Services
             }
             catch
             {
+                LastLoadSucceeded = false;
                 return new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase);
             }
         }

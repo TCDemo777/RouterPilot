@@ -91,8 +91,22 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string memoryUsage = "-";
 
+        // These are presentation copies of the existing RouterInfo memory snapshot.
+        // They do not initiate router reads or participate in metric sampling.
+        [ObservableProperty]
+        private string memoryUsed = "-";
+
+        [ObservableProperty]
+        private string memoryCache = "-";
+
         [ObservableProperty]
         private double memoryPercentage;
+
+        public bool HasMemoryDetails =>
+            IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryCache);
+
+        private static bool IsKnownMemoryDetail(string? value) =>
+            !string.IsNullOrWhiteSpace(value) && value != "-";
 
         [ObservableProperty]
         private string storageUsage = "-";
@@ -483,7 +497,17 @@ namespace RouterPilot.ViewModels
 
         public Axis[] SparklineXAxes { get; }
 
-        public Axis[] SparklineYAxes { get; }
+        public Axis[] CpuSparklineYAxes { get; }
+
+        public Axis[] MemorySparklineYAxes { get; }
+
+        public bool HasCpuTrend => CpuHistory.Count >= 2;
+
+        public bool HasMemoryTrend => MemoryHistory.Count >= 2;
+
+        public bool IsCpuTrendCollecting => !HasCpuTrend;
+
+        public bool IsMemoryTrendCollecting => !HasMemoryTrend;
 
         public ISeries[] NetworkTrafficSeries { get; }
 
@@ -580,10 +604,8 @@ namespace RouterPilot.ViewModels
                 new Axis { IsVisible = false, ShowSeparatorLines = false }
             };
 
-            SparklineYAxes = new Axis[]
-            {
-                new Axis { IsVisible = false, ShowSeparatorLines = false, MinLimit = 0, MaxLimit = 100 }
-            };
+            CpuSparklineYAxes = [CreateSparklineYAxis()];
+            MemorySparklineYAxes = [CreateSparklineYAxis()];
 
             CpuSparklineSeries = new ISeries[]
             {
@@ -777,6 +799,26 @@ namespace RouterPilot.ViewModels
 
 
         public ObservableCollection<WifiRadioInfo> WifiNetworks { get; } = new();
+        public ObservableCollection<WifiSignalQualitySummary> WifiSignalQuality { get; } = new();
+        public ObservableCollection<WifiWeakClientInfo> WeakWifiClients { get; } = new();
+        public int WifiClientsWithSignal { get; private set; }
+        public int WifiClientTotal { get; private set; }
+        public bool HasWifiNetworks => WifiNetworks.Count > 0;
+        public bool HasWeakWifiClients => WeakWifiClients.Count > 0;
+        public bool HasWifiClients => WifiClientTotal > 0;
+        public bool HasWifiSignalData => WifiClientsWithSignal > 0;
+        public int WifiUniqueClientTotal { get; private set; }
+        public int Wifi24ClientTotal { get; private set; }
+        public int Wifi5ClientTotal { get; private set; }
+        public int Wifi6ClientTotal { get; private set; }
+        public int WifiGuestClientTotal { get; private set; }
+        public string WifiSignalAvailabilityDisplay =>
+            $"Signal available for {WifiClientsWithSignal} of {WifiClientTotal} Wi-Fi client{(WifiClientTotal == 1 ? string.Empty : "s")}";
+        public string WifiSignalEmptyMessage => !HasWifiClients
+            ? "No Wi-Fi clients connected"
+            : !HasWifiSignalData
+                ? "Signal data unavailable for current Wi-Fi clients"
+                : "No weak Wi-Fi clients detected";
 
         public RouterCapabilities RouterCapabilities { get; } = new();
 
@@ -842,6 +884,15 @@ namespace RouterPilot.ViewModels
         public void UpdateWifiRadios(IEnumerable<WifiRadioInfo> radios)
         {
             List<WifiRadioInfo> networkList = radios?.ToList() ?? new List<WifiRadioInfo>();
+            HashSet<string> expandedNetworks = WifiNetworks
+                .Where(network => network.IsExpanded)
+                .Select(WifiNetworkIdentity)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (WifiRadioInfo network in networkList)
+            {
+                network.IsExpanded = expandedNetworks.Contains(WifiNetworkIdentity(network));
+            }
 
             WifiNetworks.Clear();
             foreach (WifiRadioInfo network in networkList
@@ -863,8 +914,10 @@ namespace RouterPilot.ViewModels
                 .Any(client => !string.Equals(client.Signal, "-", StringComparison.Ordinal));
             RouterCapabilities.WiFi.ChannelWidthRead = networkList
                 .Any(network => !string.Equals(network.ChannelWidth, "N/A", StringComparison.Ordinal));
+            UpdateWifiIntelligence(networkList);
             OnPropertyChanged(nameof(GuestWifiNetworks));
             OnPropertyChanged(nameof(HasGuestWifiNetworks));
+            OnPropertyChanged(nameof(HasWifiNetworks));
 
             WifiRadioInfo? radio24 = networkList.FirstOrDefault(r => r.Band.StartsWith("2.4", StringComparison.OrdinalIgnoreCase));
             WifiRadioInfo? radio5 = networkList.FirstOrDefault(r => r.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase));
@@ -878,6 +931,90 @@ namespace RouterPilot.ViewModels
             Wifi5Channel = radio5 == null ? "-" : $"Channel {radio5.Channel}";
             Wifi5Clients = $"{networkList.Where(r => r.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase)).Sum(r => r.ClientCount)} clients";
             Wifi5Status = radio5?.StatusDisplay ?? RouterPilotStatusPresentation.NotAvailable;
+        }
+
+        private void UpdateWifiIntelligence(IEnumerable<WifiRadioInfo> networks)
+        {
+            List<(WifiRadioInfo Network, WifiClientInfo Client, int Signal)> clients = networks
+                .SelectMany(network => network.Clients.Select(client => (Network: network, Client: client, Signal: ParseWifiSignal(client.Signal))))
+                .ToList();
+
+            WifiClientTotal = clients.Count;
+            List<(WifiRadioInfo Network, WifiClientInfo Client, int Signal)> uniqueClients = clients
+                .GroupBy(item => WifiClientIdentity(item.Network, item.Client), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+            WifiUniqueClientTotal = uniqueClients.Count;
+            Wifi24ClientTotal = uniqueClients.Count(item => item.Network.Band.StartsWith("2.4", StringComparison.OrdinalIgnoreCase));
+            Wifi5ClientTotal = uniqueClients.Count(item => item.Network.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase));
+            Wifi6ClientTotal = uniqueClients.Count(item => item.Network.Band.StartsWith("6", StringComparison.OrdinalIgnoreCase));
+            WifiGuestClientTotal = uniqueClients.Count(item => item.Network.IsVerifiedGuestNetwork);
+            List<(WifiRadioInfo Network, WifiClientInfo Client, int Signal)> samples = clients
+                .Where(item => item.Signal != int.MinValue)
+                .ToList();
+            WifiClientsWithSignal = samples.Count;
+
+            string[] qualities = ["Excellent", "Good", "Fair", "Poor"];
+            WifiSignalQuality.Clear();
+            foreach (string quality in qualities)
+            {
+                WifiSignalQuality.Add(new WifiSignalQualitySummary
+                {
+                    Quality = quality,
+                    Count = samples.Count(item => item.Client.SignalQuality == quality)
+                });
+            }
+
+            WeakWifiClients.Clear();
+            foreach ((WifiRadioInfo network, WifiClientInfo client, int signal) in samples
+                         .Where(item => item.Client.SignalQuality is "Fair" or "Poor")
+                         .OrderBy(item => item.Signal))
+            {
+                WeakWifiClients.Add(new WifiWeakClientInfo
+                {
+                    Name = client.Name,
+                    Band = network.Band,
+                    Ssid = network.Ssid,
+                    Signal = client.Signal,
+                    SignalQuality = client.SignalQuality,
+                    SignalDbm = signal
+                });
+            }
+
+            OnPropertyChanged(nameof(WifiClientsWithSignal));
+            OnPropertyChanged(nameof(WifiClientTotal));
+            OnPropertyChanged(nameof(WifiSignalAvailabilityDisplay));
+            OnPropertyChanged(nameof(HasWeakWifiClients));
+            OnPropertyChanged(nameof(HasWifiClients));
+            OnPropertyChanged(nameof(HasWifiSignalData));
+            OnPropertyChanged(nameof(WifiSignalEmptyMessage));
+            OnPropertyChanged(nameof(WifiUniqueClientTotal));
+            OnPropertyChanged(nameof(Wifi24ClientTotal));
+            OnPropertyChanged(nameof(Wifi5ClientTotal));
+            OnPropertyChanged(nameof(Wifi6ClientTotal));
+            OnPropertyChanged(nameof(WifiGuestClientTotal));
+        }
+
+        private static string WifiClientIdentity(WifiRadioInfo network, WifiClientInfo client)
+        {
+            string mac = new string((client.MacAddress ?? string.Empty)
+                .Where(Uri.IsHexDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+            return mac.Length == 12
+                ? "mac:" + mac
+                : $"network:{network.Interface}|{client.IpAddress}|{client.Name}";
+        }
+
+        private static string WifiNetworkIdentity(WifiRadioInfo network) =>
+            $"{network.Radio}|{network.Interface}|{network.Ssid}|{network.NetworkAssociation}";
+
+        private static int ParseWifiSignal(string? value)
+        {
+            string numeric = (value ?? string.Empty)
+                .Replace("dBm", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            return int.TryParse(numeric, out int signal) ? signal : int.MinValue;
         }
 
         public void UpdateDhcpSnapshot(
@@ -1562,6 +1699,12 @@ namespace RouterPilot.ViewModels
             }
         }
 
+        partial void OnMemoryUsedChanged(string value) =>
+            OnPropertyChanged(nameof(HasMemoryDetails));
+
+        partial void OnMemoryCacheChanged(string value) =>
+            OnPropertyChanged(nameof(HasMemoryDetails));
+
 
         //
         // Status property updates
@@ -1783,6 +1926,9 @@ namespace RouterPilot.ViewModels
             if (!CpuUtilisationPending && CpuUsage != "-" && double.IsFinite(value))
             {
                 AddHistoryPoint(CpuHistory, value);
+                UpdateSparklineAxis(CpuHistory, CpuSparklineYAxes[0]);
+                OnPropertyChanged(nameof(HasCpuTrend));
+                OnPropertyChanged(nameof(IsCpuTrendCollecting));
             }
 
             NotifyResourceHealthChanged();
@@ -1800,6 +1946,9 @@ namespace RouterPilot.ViewModels
             if (MemoryUsage != "-" && double.IsFinite(value))
             {
                 AddHistoryPoint(MemoryHistory, value);
+                UpdateSparklineAxis(MemoryHistory, MemorySparklineYAxes[0]);
+                OnPropertyChanged(nameof(HasMemoryTrend));
+                OnPropertyChanged(nameof(IsMemoryTrendCollecting));
             }
 
             NotifyResourceHealthChanged();
@@ -1833,6 +1982,39 @@ namespace RouterPilot.ViewModels
             while (collection.Count > HealthHistoryCapacity)
             {
                 collection.RemoveAt(0);
+            }
+        }
+
+        private static Axis CreateSparklineYAxis() => new()
+        {
+            IsVisible = false,
+            ShowSeparatorLines = false,
+            MinLimit = 0,
+            MaxLimit = 100
+        };
+
+        // Overview sparklines intentionally use the visible samples' local range.
+        // This affects only their shape, never the sampled values or Analytics axes.
+        private static void UpdateSparklineAxis(
+            IEnumerable<double> samples,
+            Axis axis)
+        {
+            double[] values = samples.Where(double.IsFinite).ToArray();
+            if (values.Length < 2) return;
+
+            double minimum = values.Min();
+            double maximum = values.Max();
+            double range = maximum - minimum;
+            double padding = Math.Max(1d, range * 0.2d);
+
+            axis.MinLimit = Math.Max(0d, minimum - padding);
+            axis.MaxLimit = Math.Min(100d, maximum + padding);
+
+            // A flat, truthful series still needs a drawable local range.
+            if (axis.MaxLimit - axis.MinLimit < 1d)
+            {
+                axis.MinLimit = Math.Max(0d, minimum - 0.5d);
+                axis.MaxLimit = Math.Min(100d, maximum + 0.5d);
             }
         }
 

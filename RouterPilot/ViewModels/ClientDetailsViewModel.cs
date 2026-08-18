@@ -58,6 +58,7 @@ namespace RouterPilot.ViewModels
         public string HealthColour => _client.HealthColour;
         public string FirstObserved => FormatObserved(_client.FirstSeenUtc);
         public string LastObserved => FormatObserved(_client.LastObservedUtc);
+        public bool NeedsReview => _client.NeedsReview;
 
         public bool HasDhcpDetails => _dhcpLease is not null || _dhcpReservation is not null;
         public string DhcpIpAddress => _dhcpReservation?.IpAddress ?? _dhcpLease?.IpAddress ?? _client.IpAddress;
@@ -259,6 +260,26 @@ namespace RouterPilot.ViewModels
             StatusMessage = "Custom client profile cleared.";
         }
 
+        [RelayCommand]
+        private void MarkKnown()
+        {
+            string key = ClientKey(_client);
+            if (key.Length != 12 || !_clientProfiles.TryGetValue(key, out ClientProfile? profile))
+            {
+                StatusMessage = "This device does not have a persistent MAC profile to review.";
+                return;
+            }
+
+            profile.IsKnown = true;
+            profile.NeedsReview = false;
+            profile.LastSeenUtc = DateTime.UtcNow;
+            _client.NeedsReview = false;
+            _clientProfileService.Save(_clientProfiles.Values);
+            OnPropertyChanged(nameof(NeedsReview));
+            ClientRefreshNotifier.RequestRefresh();
+            StatusMessage = $"{ClientName} marked as known.";
+        }
+
         private void LoadProfile()
         {
             string key = ClientKey(_client);
@@ -270,6 +291,8 @@ namespace RouterPilot.ViewModels
             ProfileNickname = profile.Nickname;
             ProfileCategory = profile.Category;
             ProfileNotes = profile.Notes;
+            _client.NeedsReview = profile.NeedsReview;
+            OnPropertyChanged(nameof(NeedsReview));
         }
 
         private static string ClientKey(ClientInfo client)
