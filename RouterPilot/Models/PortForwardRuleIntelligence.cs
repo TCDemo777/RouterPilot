@@ -59,6 +59,24 @@ public static class PortForwardRuleIntelligence
         }
     }
 
+    /// <summary>Evaluates an unsaved editor draft with the same correlation and conflict rules as saved rules.</summary>
+    public static void EvaluateDraft(
+        PortForwardRuleInfo draft,
+        IEnumerable<PortForwardRuleInfo> existingRules,
+        IEnumerable<DhcpLeaseInfo> leases,
+        IEnumerable<DhcpReservationInfo> reservations,
+        IEnumerable<WifiRadioInfo> wifiNetworks,
+        bool dhcpLoaded,
+        string? excludeRuleId)
+    {
+        List<PortForwardRuleInfo> rules = existingRules
+            .Where(rule => string.IsNullOrWhiteSpace(excludeRuleId) || !string.Equals(rule.Id, excludeRuleId, StringComparison.OrdinalIgnoreCase))
+            .Select(CopyForEvaluation)
+            .ToList();
+        rules.Add(draft);
+        Evaluate(rules, leases, reservations, wifiNetworks, dhcpLoaded);
+    }
+
     private static HashSet<string> FindConflictingRuleIds(IReadOnlyList<PortForwardRuleInfo> rules)
     {
         HashSet<string> conflicts = new(StringComparer.OrdinalIgnoreCase);
@@ -87,4 +105,10 @@ public static class PortForwardRuleIntelligence
     private static bool SameIp(string? left, string? right) => string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
     private static bool IsUsableIp(string value) => !string.IsNullOrWhiteSpace(value) && value != "-" && value != "—";
     private static string DisplayName(params string?[] names) => names.FirstOrDefault(name => !string.IsNullOrWhiteSpace(name) && name != "-" && !string.Equals(name, "Unknown device", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+    private static PortForwardRuleInfo CopyForEvaluation(PortForwardRuleInfo rule) => new()
+    {
+        Id = rule.Id, Name = rule.Name, Protocol = rule.Protocol, SourceZone = rule.SourceZone,
+        ExternalPort = rule.ExternalPort, DestinationZone = rule.DestinationZone, DestinationIp = rule.DestinationIp,
+        InternalPort = rule.InternalPort, Enabled = rule.Enabled
+    };
 }

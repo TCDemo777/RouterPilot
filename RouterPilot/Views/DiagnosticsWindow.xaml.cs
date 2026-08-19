@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Linq;
 using System.Windows;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -12,6 +13,7 @@ namespace RouterPilot.Views
         private readonly SettingsService _settingsService;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly IRouterCertificateTrustService _certificateTrustService;
+        private readonly IDataFreshnessService _dataFreshnessService;
 
         public DiagnosticsWindow()
         {
@@ -23,6 +25,15 @@ namespace RouterPilot.Views
                 .GetRequiredService<IRouterManagerProvider>();
             _certificateTrustService = ((App)Application.Current).Services
                 .GetRequiredService<IRouterCertificateTrustService>();
+            _dataFreshnessService = ((App)Application.Current).Services
+                .GetRequiredService<IDataFreshnessService>();
+        }
+
+        private void FreshnessButton_Click(object sender, RoutedEventArgs e)
+        {
+            _dataFreshnessService.Refresh();
+            OutputBox.Text = "Data freshness (RouterPilot observations)\n\n" + string.Join("\n", _dataFreshnessService.GetAll().Select(info =>
+                $"{info.Source}: {info.State} • last success {(info.LastSuccessUtc is null ? "never" : info.LastSuccessUtc.Value.LocalDateTime.ToString("g"))} • expected {info.ExpectedRefreshInterval.TotalSeconds:0}s"));
         }
                 private async Task<RouterManager> CreateRouterManagerAsync()
         {

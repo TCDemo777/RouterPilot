@@ -205,7 +205,7 @@ namespace RouterPilot.Views
         private void ShowPortForwardDialog(PortForwardRuleInfo? existing)
         {
             if (DataContext is not DashboardViewModel viewModel) return;
-            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel.DhcpLeases.ToList(), request => ExecutePortForwardAsync(existing, request));
+            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel, request => ExecutePortForwardAsync(existing, request));
         }
 
         private async Task<string?> ExecutePortForwardAsync(PortForwardRuleInfo? existing, PortForwardRuleRequest request)

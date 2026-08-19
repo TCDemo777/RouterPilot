@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,6 +14,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RouterPilot.Models;
+using RouterPilot.ViewModels;
 
 namespace RouterPilot.Views;
 
@@ -17,7 +22,7 @@ internal static partial class PortForwardEditorDialog
 {
     private const double CompactInputHeight = 30;
 
-    public static void Show(Window? owner, string title, PortForwardRuleInfo? existing, IEnumerable<DhcpLeaseInfo> leases, Func<PortForwardRuleRequest, Task<string?>> saveAsync)
+    public static void Show(Window? owner, string title, PortForwardRuleInfo? existing, DashboardViewModel dashboard, Func<PortForwardRuleRequest, Task<string?>> saveAsync)
     {
         var draft = new PortForwardDraft { InternalIp = existing?.DestinationIp ?? string.Empty };
         var name = Input(new TextBox { Text = existing?.Name ?? string.Empty, MinWidth = 300 });
@@ -36,7 +41,7 @@ internal static partial class PortForwardEditorDialog
         // Materialise a dialog-local snapshot. Dashboard DHCP refreshes replace
         // their lease objects, but an in-progress port-forward draft must keep
         // its device identity and target address stable.
-        var choices = leases.Where(item => !string.IsNullOrWhiteSpace(item.IpAddress) && item.IpAddress != "-")
+        var choices = dashboard.DhcpLeases.Where(item => !string.IsNullOrWhiteSpace(item.IpAddress) && item.IpAddress != "-")
             .Select(item => new DeviceChoice(
                 DisplayName(item),
                 item.IpAddress,
@@ -87,6 +92,14 @@ internal static partial class PortForwardEditorDialog
         var internalPort = Input(new TextBox { Text = existing?.InternalPort ?? string.Empty, MinWidth = 180 });
         var enabled = new CheckBox { Content = "Enabled", IsChecked = existing?.Enabled ?? true };
         var error = new TextBlock { Foreground = owner?.TryFindResource("Brush.Warning") as Brush ?? Brushes.OrangeRed, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+        var intelligence = new Border { Visibility = Visibility.Collapsed, Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 6), CornerRadius = new CornerRadius(4) };
+        intelligence.SetResourceReference(Border.BackgroundProperty, "Brush.SurfaceMuted");
+        intelligence.SetResourceReference(Border.BorderBrushProperty, "Brush.BorderStrong");
+        intelligence.BorderThickness = new Thickness(1);
+        var intelligenceTitle = new TextBlock { FontWeight = FontWeights.SemiBold };
+        var intelligenceDetail = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        intelligenceDetail.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary");
+        var intelligenceContent = new StackPanel(); intelligenceContent.Children.Add(intelligenceTitle); intelligenceContent.Children.Add(intelligenceDetail); intelligence.Child = intelligenceContent;
         bool applyingPreset = false;
         void UpdatePresetFromFields()
         {
@@ -108,6 +121,46 @@ internal static partial class PortForwardEditorDialog
         externalPort.TextChanged += (_, _) => UpdatePresetFromFields();
         internalPort.TextChanged += (_, _) => UpdatePresetFromFields();
         preset.SelectedItem = PortForwardPresetCatalog.Match(protocol.SelectedValue as string, externalPort.Text.Trim(), internalPort.Text.Trim());
+
+        void RefreshIntelligence()
+        {
+            if (!IsValidIpv4(draft.InternalIp)) { intelligence.Visibility = Visibility.Collapsed; return; }
+            var temporaryRule = new PortForwardRuleInfo
+            {
+                Id = "__editor_draft__",
+                Protocol = protocol.SelectedValue as string ?? string.Empty,
+                ExternalPort = externalPort.Text.Trim(),
+                DestinationIp = draft.InternalIp.Trim(),
+                InternalPort = internalPort.Text.Trim(),
+                Enabled = enabled.IsChecked == true
+            };
+            PortForwardRuleIntelligence.EvaluateDraft(
+                temporaryRule,
+                dashboard.PortForwardRules,
+                dashboard.DhcpLeases,
+                dashboard.DhcpReservations,
+                dashboard.WifiNetworks,
+                dashboard.DhcpLoaded,
+                existing?.Id);
+            if (temporaryRule.TargetStatusTitle is "Reserved IP" or "Checking target…")
+            {
+                intelligence.Visibility = temporaryRule.TargetStatusTitle == "Reserved IP" ? Visibility.Visible : Visibility.Collapsed;
+                intelligenceTitle.Text = temporaryRule.TargetStatusTitle;
+                intelligenceDetail.Text = temporaryRule.TargetStatusDetail;
+                intelligenceTitle.SetResourceReference(TextBlock.ForegroundProperty, temporaryRule.TargetStatusSeverity == "Success" ? "Brush.Success" : "Brush.TextSecondary");
+                return;
+            }
+            intelligence.Visibility = temporaryRule.HasTargetStatus ? Visibility.Visible : Visibility.Collapsed;
+            intelligenceTitle.Text = temporaryRule.TargetStatusTitle;
+            intelligenceDetail.Text = temporaryRule.TargetStatusDetail;
+            intelligenceTitle.SetResourceReference(TextBlock.ForegroundProperty, temporaryRule.TargetStatusSeverity == "Critical" ? "Brush.Danger" : "Brush.Warning");
+        }
+        draft.PropertyChanged += (_, _) => RefreshIntelligence();
+        protocol.SelectionChanged += (_, _) => RefreshIntelligence();
+        externalPort.TextChanged += (_, _) => RefreshIntelligence();
+        internalPort.TextChanged += (_, _) => RefreshIntelligence();
+        enabled.Checked += (_, _) => RefreshIntelligence();
+        enabled.Unchecked += (_, _) => RefreshIntelligence();
         var presetHost = new Grid();
         presetHost.Children.Add(preset);
         var selectedPresetName = new TextBlock
@@ -123,13 +176,15 @@ internal static partial class PortForwardEditorDialog
         presetHost.Children.Add(selectedPresetName);
 
         var form = new Grid { Margin = new Thickness(20) };
-        for (int row = 0; row < 10; row++) form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int row = 0; row < 11; row++) form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         AddRow(form, 0, "Name", name); AddRow(form, 1, "Service / Preset", presetHost); AddRow(form, 2, "Protocol", protocol); AddRow(form, 3, "External Port", externalPort); AddRow(form, 4, "Internal Device", deviceHost); AddRow(form, 5, "Internal IP", internalIp); AddRow(form, 6, "Internal Port", internalPort); AddRow(form, 7, string.Empty, enabled);
+        Grid.SetRow(intelligence, 8); Grid.SetColumn(intelligence, 1); form.Children.Add(intelligence);
         var note = new TextBlock { Text = "Only forward ports for services you intend to expose to the Internet. Ports must be single values from 1 to 65535.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
-        note.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary"); Grid.SetRow(note, 8); Grid.SetColumn(note, 1); form.Children.Add(note);
-        Grid.SetRow(error, 9); Grid.SetColumn(error, 1); form.Children.Add(error);
+        note.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary"); Grid.SetRow(note, 9); Grid.SetColumn(note, 1); form.Children.Add(note);
+        Grid.SetRow(error, 10); Grid.SetColumn(error, 1); form.Children.Add(error);
+        RefreshIntelligence();
 
         var save = Button(owner, "Save", "Button.Primary"); var cancel = Button(owner, "Cancel", "Button.Secondary"); cancel.Margin = new Thickness(8, 0, 0, 0);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(20, 0, 20, 20) }; buttons.Children.Add(save); buttons.Children.Add(cancel);
@@ -137,6 +192,24 @@ internal static partial class PortForwardEditorDialog
         var dialog = new Window { Title = title, Content = panel, Width = 540, SizeToContent = SizeToContent.Height, MinWidth = 470, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize };
         dialog.SetResourceReference(Window.BackgroundProperty, "Brush.Surface");
         dialog.SetResourceReference(Window.ForegroundProperty, "Brush.TextPrimary");
+        NotifyCollectionChangedEventHandler sourceChanged = (_, _) => RefreshIntelligence();
+        PropertyChangedEventHandler dashboardChanged = (_, args) =>
+        {
+            if (args.PropertyName == nameof(DashboardViewModel.DhcpLoaded)) RefreshIntelligence();
+        };
+        dashboard.DhcpLeases.CollectionChanged += sourceChanged;
+        dashboard.DhcpReservations.CollectionChanged += sourceChanged;
+        dashboard.WifiNetworks.CollectionChanged += sourceChanged;
+        dashboard.PortForwardRules.CollectionChanged += sourceChanged;
+        dashboard.PropertyChanged += dashboardChanged;
+        dialog.Closed += (_, _) =>
+        {
+            dashboard.DhcpLeases.CollectionChanged -= sourceChanged;
+            dashboard.DhcpReservations.CollectionChanged -= sourceChanged;
+            dashboard.WifiNetworks.CollectionChanged -= sourceChanged;
+            dashboard.PortForwardRules.CollectionChanged -= sourceChanged;
+            dashboard.PropertyChanged -= dashboardChanged;
+        };
         cancel.Click += (_, _) => dialog.Close();
         save.Click += async (_, _) =>
         {
@@ -184,6 +257,8 @@ internal static partial class PortForwardEditorDialog
             .ToArray());
         return normalizedMac.Length == 12 ? "mac:" + normalizedMac : "ip:" + ipAddress.Trim();
     }
+    private static bool IsValidIpv4(string? value) =>
+        IPAddress.TryParse(value?.Trim(), out IPAddress? address) && address.AddressFamily == AddressFamily.InterNetwork;
 
     // ClientName already contains the RouterPilot profile/friendly-name overlay
     // applied by the existing DHCP snapshot path. The remaining fallbacks mirror

@@ -19,6 +19,8 @@ namespace RouterPilot.ViewModels
         private readonly SettingsService _settingsService;
         private readonly TimelineService _timelineService;
         private readonly FavouriteDeviceMonitoringService _favouriteDeviceMonitoring;
+        private readonly IClientPresenceHistoryService _presenceHistory;
+        private readonly IDataFreshnessService _dataFreshnessService;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -104,13 +106,17 @@ namespace RouterPilot.ViewModels
             AdGuardAvailabilityService adGuardAvailabilityService,
             SettingsService settingsService,
             TimelineService timelineService,
-            FavouriteDeviceMonitoringService favouriteDeviceMonitoring)
+            FavouriteDeviceMonitoringService favouriteDeviceMonitoring,
+            IClientPresenceHistoryService presenceHistory,
+            IDataFreshnessService dataFreshnessService)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _settingsService = settingsService;
             _timelineService = timelineService;
             _favouriteDeviceMonitoring = favouriteDeviceMonitoring;
+            _presenceHistory = presenceHistory;
+            _dataFreshnessService = dataFreshnessService;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -130,6 +136,8 @@ namespace RouterPilot.ViewModels
 
             IsLoading = true;
             StatusMessage = "Loading clients...";
+            _dataFreshnessService.Configure("Clients", TimeSpan.FromSeconds(10));
+            _dataFreshnessService.MarkAttempt("Clients");
 
             try
             {
@@ -226,7 +234,9 @@ namespace RouterPilot.ViewModels
 
                 ApplyFilterAndSort(selectedKey);
                 SaveProfiles();
+                _presenceHistory.Observe(clients);
                 _favouriteDeviceMonitoring.Observe(clients);
+                _dataFreshnessService.MarkSuccess("Clients");
 
                 StatusMessage = AdGuardDataAvailability != AdGuardAvailabilityState.Available
                     ? $"{_allClients.Count:N0} router-connected client(s) loaded. AdGuard enrichment is unavailable."
@@ -239,6 +249,7 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
+                _dataFreshnessService.MarkUnavailable("Clients");
                 StatusMessage = "Unable to load clients: " + ex.Message;
             }
             finally

@@ -91,6 +91,9 @@
             <Button x:Name="RefreshButton"
                     Width="140" Height="36" Margin="0,0,10,10"
                     Content="Test Login" Click="RefreshButton_Click"/>
+            <Button x:Name="FreshnessButton"
+                    Width="140" Height="36" Margin="0,0,10,10"
+                    Content="Data Freshness" Click="FreshnessButton_Click"/>
         </WrapPanel>
 
         <Border Grid.Row="3"

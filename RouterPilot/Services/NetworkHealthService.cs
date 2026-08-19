@@ -12,6 +12,7 @@ public sealed class NetworkHealthService : INetworkHealthService
     private readonly TimelineService _timeline;
     private readonly Dictionary<string, NetworkHealthIssue> _active = new(StringComparer.Ordinal);
     private IReadOnlyList<NetworkHealthIssue> _monitoredDeviceIssues = [];
+    private IReadOnlyList<NetworkHealthIssue> _dataFreshnessIssues = [];
     private readonly object _sync = new();
     private NetworkHealthSnapshot _current = NetworkHealthSnapshot.Loading;
     public NetworkHealthService(TimelineService timeline) => _timeline = timeline;
@@ -21,6 +22,11 @@ public sealed class NetworkHealthService : INetworkHealthService
     public void SetMonitoredDeviceIssues(IReadOnlyList<NetworkHealthIssue> issues)
     {
         lock (_sync) _monitoredDeviceIssues = issues;
+    }
+
+    public void SetDataFreshnessIssues(IReadOnlyList<NetworkHealthIssue> issues)
+    {
+        lock (_sync) _dataFreshnessIssues = issues;
     }
 
     public NetworkHealthSnapshot Evaluate(NetworkHealthInput input)
@@ -45,6 +51,7 @@ public sealed class NetworkHealthService : INetworkHealthService
                 }
                 if (SustainedHigh(input.CpuHistory)) rules.Add(new("router.cpu_high", NetworkHealthSeverity.Warning, "Router", "High router CPU usage", "Router CPU usage has remained at or above 90% across recent samples.", "analytics"));
                 if (SustainedHigh(input.MemoryHistory)) rules.Add(new("router.memory_high", NetworkHealthSeverity.Warning, "Router", "High router memory usage", "Router memory usage has remained at or above 90% across recent samples.", "analytics"));
+                rules.AddRange(_dataFreshnessIssues.Select(issue => new Definition(issue.Id, issue.Severity, issue.Subsystem, issue.Title, issue.Description, issue.NavigationTarget, issue.TimelineEpisodeKey)));
                 rules.AddRange(_monitoredDeviceIssues.Select(issue => new Definition(issue.Id, issue.Severity, issue.Subsystem, issue.Title, issue.Description, issue.NavigationTarget, issue.TimelineEpisodeKey)));
             }
             var next = new Dictionary<string, NetworkHealthIssue>(StringComparer.Ordinal);

@@ -648,6 +648,12 @@ namespace RouterPilot.ViewModels
         private string lastRefresh = "-";
 
         [ObservableProperty]
+        private string dataFreshnessFooter = "Loading";
+
+        [ObservableProperty]
+        private string dataFreshnessColour = RouterPilotStatusPresentation.Colour(RouterPilotStatus.Pending);
+
+        [ObservableProperty]
         private VpnSummaryState vpnSummary = new();
 
 

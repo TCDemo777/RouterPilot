@@ -81,6 +81,8 @@ namespace RouterPilot
                     Dispatcher,
                     sp.GetRequiredService<ApplicationDataPathProvider>()));
             serviceCollection.AddSingleton<IMetricHistoryService, MetricHistoryService>();
+            serviceCollection.AddSingleton<IDataFreshnessService, DataFreshnessService>();
+            serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
@@ -137,6 +139,7 @@ namespace RouterPilot
                 .InitializeAsync();
             _ = Services.GetRequiredService<TimelineService>().InitializeAsync();
             await Services.GetRequiredService<IMetricHistoryService>().InitializeAsync();
+            _ = Services.GetRequiredService<IClientPresenceHistoryService>();
             _ = Services.GetRequiredService<IInternetSpeedTestService>().InitializeAsync();
             await Services.GetRequiredService<AdGuardServiceScheduleService>()
                 .InitializeAsync();
@@ -389,6 +392,10 @@ namespace RouterPilot
 
         protected override void OnExit(ExitEventArgs e)
         {
+            if (_services is not null)
+            {
+                try { Services.GetRequiredService<IClientPresenceHistoryService>().CloseSession(); } catch { }
+            }
             _trayManager?.Dispose();
             _singleInstance?.Dispose();
             _singleInstance = null;

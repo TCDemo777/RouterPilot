@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly ClientProfileService _clientProfileService;
+        private readonly IClientPresenceHistoryService _presenceHistory;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
@@ -32,6 +33,7 @@ namespace RouterPilot.ViewModels
 
         public ObservableCollection<DomainStat> TopBlockedDomains { get; } =
             new();
+        public ObservableCollection<PresenceTimelineItem> RecentPresence { get; } = new();
 
         public string ClientName =>
             string.IsNullOrWhiteSpace(ProfileNickname)
@@ -59,6 +61,27 @@ namespace RouterPilot.ViewModels
         public string FirstObserved => FormatObserved(_client.FirstSeenUtc);
         public string LastObserved => FormatObserved(_client.LastObservedUtc);
         public bool NeedsReview => _client.NeedsReview;
+        public string CurrentPresenceStatus => _presenceHistory.GetCurrentPeriod(_client.MacAddress)?.State.ToString() ?? "Unknown";
+        public string CurrentPresenceStatusColour => RouterPilotStatusPresentation.Colour(CurrentPresenceStatus switch
+        {
+            "Online" => RouterPilotStatus.Active,
+            "Offline" => RouterPilotStatus.Error,
+            _ => RouterPilotStatus.Pending
+        });
+        public string ObservedOnlineToday => FormatDuration(_presenceHistory.GetObservedOnlineToday(_client.MacAddress, DateTimeOffset.UtcNow));
+        public string CurrentObservedOnline => _presenceHistory.GetCurrentPeriod(_client.MacAddress) is { State: ClientPresenceState.Online } period
+            ? $"At least {FormatDuration(DateTimeOffset.UtcNow - period.StartedAt)}" : "—";
+        public string LastOfflinePeriod
+        {
+            get
+            {
+                ClientPresencePeriod? last = _presenceHistory.GetRecent(_client.MacAddress, DateTimeOffset.UtcNow.AddDays(-30), DateTimeOffset.UtcNow)
+                    .Where(period => period.State == ClientPresenceState.Offline && period.EndedAt is not null)
+                    .OrderByDescending(period => period.EndedAt).FirstOrDefault();
+                return last is null ? "No offline period observed" : $"{last.StartedAt.LocalDateTime:t} – {last.EndedAt!.Value.LocalDateTime:t} • {FormatDuration(last.EndedAt.Value - last.StartedAt)}";
+            }
+        }
+        public string RecentAvailability => "Online and Offline periods are RouterPilot observations. Unmonitored time is Unknown.";
 
         public bool HasDhcpDetails => _dhcpLease is not null || _dhcpReservation is not null;
         public string DhcpIpAddress => _dhcpReservation?.IpAddress ?? _dhcpLease?.IpAddress ?? _client.IpAddress;
@@ -97,6 +120,9 @@ namespace RouterPilot.ViewModels
         private string profileNotes = string.Empty;
 
         [ObservableProperty]
+        private bool isFavorite;
+
+        [ObservableProperty]
         private bool monitorAvailability;
         private bool loadingProfile;
 
@@ -111,12 +137,14 @@ namespace RouterPilot.ViewModels
             ClientInfo client,
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailabilityService,
+            IClientPresenceHistoryService presenceHistory,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
             IEnumerable<DhcpReservationInfo>? dhcpReservations = null)
         {
             _client = client;
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
+            _presenceHistory = presenceHistory;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
 
@@ -128,6 +156,8 @@ namespace RouterPilot.ViewModels
                 ?? availableReservations.FirstOrDefault(reservation => SameText(reservation.IpAddress, client.IpAddress));
 
             LoadProfile();
+            IsFavorite = _client.IsFavorite;
+            RefreshPresencePresentation();
 
             _refreshTimer =
                 new DispatcherTimer
@@ -218,7 +248,7 @@ namespace RouterPilot.ViewModels
             profile.Nickname = ProfileNickname.Trim();
             profile.Category = ProfileCategory.Trim();
             profile.Notes = ProfileNotes.Trim();
-            profile.IsFavorite = _client.IsFavorite;
+            profile.IsFavorite = IsFavorite;
             profile.MonitorAvailability = MonitorAvailability;
             profile.LastSeenUtc = DateTime.UtcNow;
 
@@ -231,6 +261,7 @@ namespace RouterPilot.ViewModels
 
             _client.CustomCategory = profile.Category;
             _client.Notes = profile.Notes;
+            _client.IsFavorite = IsFavorite;
             _client.MonitorAvailability = MonitorAvailability;
 
             OnPropertyChanged(nameof(ClientName));
@@ -262,6 +293,7 @@ namespace RouterPilot.ViewModels
             ProfileNickname = string.Empty;
             ProfileCategory = string.Empty;
             ProfileNotes = string.Empty;
+            IsFavorite = wasFavorite;
             _client.CustomCategory = string.Empty;
             _client.Notes = string.Empty;
 
@@ -269,6 +301,36 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(ClientName));
             ClientRefreshNotifier.RequestRefresh();
             StatusMessage = "Custom client profile cleared.";
+        }
+
+        [RelayCommand]
+        private void ClearPresenceHistory()
+        {
+            if (MessageBox.Show("Clear presence history for this device? This does not affect its profile, monitoring, DNS activity, or Timeline.", "Clear presence history", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            _presenceHistory.Clear(_client.MacAddress);
+            RefreshPresencePresentation();
+        }
+
+        private void RefreshPresencePresentation()
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow, start = now.AddHours(-24);
+            List<ClientPresencePeriod> periods = _presenceHistory.GetRecent(_client.MacAddress, start, now).OrderBy(period => period.StartedAt).ToList();
+            RecentPresence.Clear();
+            DateTimeOffset cursor = start;
+            foreach (ClientPresencePeriod period in periods)
+            {
+                DateTimeOffset periodStart = period.StartedAt < start ? start : period.StartedAt;
+                DateTimeOffset periodEnd = (period.EndedAt ?? now) > now ? now : period.EndedAt ?? now;
+                if (periodStart > cursor) RecentPresence.Add(new PresenceTimelineItem("Unknown", cursor, periodStart));
+                if (periodEnd > periodStart) RecentPresence.Add(new PresenceTimelineItem(period.State.ToString(), periodStart, periodEnd));
+                if (periodEnd > cursor) cursor = periodEnd;
+            }
+            if (cursor < now) RecentPresence.Add(new PresenceTimelineItem("Unknown", cursor, now));
+            OnPropertyChanged(nameof(CurrentPresenceStatus));
+            OnPropertyChanged(nameof(CurrentPresenceStatusColour));
+            OnPropertyChanged(nameof(ObservedOnlineToday));
+            OnPropertyChanged(nameof(CurrentObservedOnline));
+            OnPropertyChanged(nameof(LastOfflinePeriod));
         }
 
         [RelayCommand]
@@ -487,6 +549,14 @@ namespace RouterPilot.ViewModels
                 first.Trim(),
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string FormatDuration(TimeSpan duration) => duration < TimeSpan.FromMinutes(1) ? "< 1 min" : duration < TimeSpan.FromHours(1) ? $"{(int)duration.TotalMinutes} min" : $"{(int)duration.TotalHours}h {duration.Minutes}m";
+
+        public sealed record PresenceTimelineItem(string State, DateTimeOffset StartedAt, DateTimeOffset EndedAt)
+        {
+            public double Width => Math.Max(4, (EndedAt - StartedAt).TotalHours / 24 * 360);
+            public string ToolTip => $"{State}\n{StartedAt.LocalDateTime:t}–{EndedAt.LocalDateTime:t}\n{FormatDuration(EndedAt - StartedAt)}";
         }
 
         partial void OnMonitorAvailabilityChanged(bool value)

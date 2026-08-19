@@ -1,0 +1,114 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using RouterPilot.Models;
+
+namespace RouterPilot.Services;
+
+/// <summary>Bounded, local transition history from existing authoritative client snapshots.</summary>
+public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
+{
+    private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
+    private static readonly TimeSpan Grace = TimeSpan.FromMinutes(5);
+    private readonly object _sync = new();
+    private readonly string _path;
+    private readonly Dictionary<string, DateTimeOffset> _absentSince = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<ClientPresencePeriod> _periods;
+    private bool _snapshotObserved;
+    private DateTimeOffset _lastSave;
+
+    public ClientPresenceHistoryService(ApplicationDataPathProvider paths)
+    {
+        _path = Path.Combine(paths.CurrentPath, "client-presence-history.json");
+        _periods = Load();
+        // A period left open by a previous process is capped at its last recorded
+        // observation; the interval until this process observes a snapshot is Unknown.
+        foreach (ClientPresencePeriod period in _periods.Where(period => period.EndedAt is null))
+            period.EndedAt = period.LastObservedAt > period.StartedAt ? period.LastObservedAt : period.StartedAt;
+        Save();
+    }
+
+    public void Observe(IEnumerable<ClientInfo> clients)
+    {
+        lock (_sync)
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            HashSet<string> online = clients.Select(client => Normalize(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string key in online)
+            {
+                _absentSince.Remove(key);
+                ClientPresencePeriod? active = Active(key);
+                if (active is null || active.State != ClientPresenceState.Online)
+                {
+                    if (active is not null) active.EndedAt = now;
+                    _periods.Add(new ClientPresencePeriod { NormalizedMac = key, StartedAt = now, LastObservedAt = now, State = ClientPresenceState.Online });
+                }
+                else active.LastObservedAt = now;
+            }
+            if (_snapshotObserved)
+            {
+                foreach (string key in _periods.Select(period => period.NormalizedMac).Distinct(StringComparer.OrdinalIgnoreCase).Where(key => !online.Contains(key)).ToList())
+                {
+                    if (!_absentSince.TryGetValue(key, out DateTimeOffset absent)) { _absentSince[key] = now; continue; }
+                    if (now - absent < Grace) continue;
+                    ClientPresencePeriod? active = Active(key);
+                    if (active is not null && active.State == ClientPresenceState.Online)
+                    {
+                        active.EndedAt = active.LastObservedAt;
+                        _periods.Add(new ClientPresencePeriod { NormalizedMac = key, StartedAt = now, LastObservedAt = now, State = ClientPresenceState.Offline });
+                    }
+                }
+            }
+            _snapshotObserved = true;
+            Trim(now);
+            if (now - _lastSave >= TimeSpan.FromMinutes(1)) Save();
+        }
+    }
+
+    public IReadOnlyList<ClientPresencePeriod> GetRecent(string normalizedMac, DateTimeOffset from, DateTimeOffset to)
+    {
+        lock (_sync) return _periods.Where(period => period.NormalizedMac.Equals(Normalize(normalizedMac), StringComparison.OrdinalIgnoreCase) && period.StartedAt < to && (period.EndedAt ?? period.LastObservedAt) > from).Select(Clone).ToList();
+    }
+    public TimeSpan GetObservedOnlineToday(string normalizedMac, DateTimeOffset now)
+    {
+        DateTimeOffset start = StartOfLocalDay(now);
+        return GetRecent(normalizedMac, start, now).Where(period => period.State == ClientPresenceState.Online).Aggregate(TimeSpan.Zero, (total, period) => total + (Min(period.EndedAt ?? period.LastObservedAt, now) - Max(period.StartedAt, start)));
+    }
+    public ClientPresencePeriod? GetCurrentPeriod(string normalizedMac)
+    {
+        lock (_sync)
+        {
+            ClientPresencePeriod? period = Active(Normalize(normalizedMac));
+            return period is null ? null : Clone(period);
+        }
+    }
+    public void Clear(string normalizedMac)
+    {
+        lock (_sync)
+        {
+            string key = Normalize(normalizedMac);
+            _periods.RemoveAll(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase));
+            _absentSince.Remove(key);
+            Save();
+        }
+    }
+    public void CloseSession() { lock (_sync) { foreach (ClientPresencePeriod period in _periods.Where(period => period.EndedAt is null)) period.EndedAt = period.LastObservedAt; Save(); } }
+    private ClientPresencePeriod? Active(string key) => _periods.LastOrDefault(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase) && period.EndedAt is null);
+    private List<ClientPresencePeriod> Load() { try { return File.Exists(_path) ? JsonSerializer.Deserialize<List<ClientPresencePeriod>>(File.ReadAllText(_path)) ?? [] : []; } catch { return []; } }
+    private void Save() { try { Directory.CreateDirectory(Path.GetDirectoryName(_path)!); File.WriteAllText(_path, JsonSerializer.Serialize(_periods)); _lastSave = DateTimeOffset.UtcNow; } catch { } }
+    private void Trim(DateTimeOffset now) => _periods.RemoveAll(period => (period.EndedAt ?? period.LastObservedAt) < now - Retention);
+    private static DateTimeOffset StartOfLocalDay(DateTimeOffset now)
+    {
+        TimeZoneInfo zone = TimeZoneInfo.Local;
+        DateTime local = DateTime.SpecifyKind(now.LocalDateTime.Date, DateTimeKind.Unspecified);
+        while (zone.IsInvalidTime(local)) local = local.AddMinutes(1);
+        TimeSpan offset = zone.IsAmbiguousTime(local) ? zone.GetAmbiguousTimeOffsets(local).Max() : zone.GetUtcOffset(local);
+        return new DateTimeOffset(local, offset);
+    }
+    private static string Normalize(string? value) => new string((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;
+    private static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
+    private static ClientPresencePeriod Clone(ClientPresencePeriod period) => new() { NormalizedMac = period.NormalizedMac, StartedAt = period.StartedAt, EndedAt = period.EndedAt, LastObservedAt = period.LastObservedAt, State = period.State };
+}

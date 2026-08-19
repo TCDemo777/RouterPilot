@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -24,6 +25,13 @@ namespace RouterPilot.Views
         private const string PublicIpRefreshTask = "PublicIpRefresh";
         private const string AdGuardScheduleTask = "AdGuardServiceSchedules";
         private const string VpnScheduleTask = "VpnSchedules";
+        private const string RouterFreshnessSource = "Router status";
+        private const string InternetFreshnessSource = "Internet / WAN";
+        private const string WifiFreshnessSource = "Wi-Fi";
+        private const string DhcpFreshnessSource = "DHCP";
+        private const string AdGuardFreshnessSource = "AdGuard";
+        private const string VpnFreshnessSource = "VPN";
+        private const string TrafficFreshnessSource = "Network traffic";
         private static readonly TimeSpan InternetInstabilityWindow = TimeSpan.FromHours(1);
         private const int InternetInstabilityThreshold = 3;
 
@@ -42,6 +50,7 @@ namespace RouterPilot.Views
         private readonly IVpnSummaryService _vpnSummaryService;
         private readonly IPublicIpService _publicIpService;
         private readonly INetworkHealthService _networkHealthService;
+        private readonly IDataFreshnessService _dataFreshnessService;
         private readonly IMetricHistoryService _metricHistoryService;
         private readonly TimelineService _timelineService;
         private readonly ClientProfileService _clientProfileService = new();
@@ -114,6 +123,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<IPublicIpService>();
             _networkHealthService = ((App)Application.Current).Services
                 .GetRequiredService<INetworkHealthService>();
+            _dataFreshnessService = ((App)Application.Current).Services
+                .GetRequiredService<IDataFreshnessService>();
             _metricHistoryService = ((App)Application.Current).Services
                 .GetRequiredService<IMetricHistoryService>();
             _timelineService = ((App)Application.Current).Services
@@ -122,7 +133,9 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged += PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged += PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged += NetworkHealthService_SnapshotChanged;
+            _dataFreshnessService.Changed += DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged += MetricHistoryService_AvailabilityHistoryChanged;
+            SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
             ApplyPublicIpResult(_publicIpService.Current);
             _viewModel.NetworkHealth = _networkHealthService.Current;
@@ -259,6 +272,12 @@ namespace RouterPilot.Views
                     DashboardRefreshTask,
                     TimeSpan.FromSeconds(
                         refreshSeconds));
+                TimeSpan dashboardInterval = TimeSpan.FromSeconds(refreshSeconds);
+                foreach (string source in new[] { RouterFreshnessSource, InternetFreshnessSource, WifiFreshnessSource, DhcpFreshnessSource, AdGuardFreshnessSource, VpnFreshnessSource })
+                {
+                    _dataFreshnessService.Configure(source, dashboardInterval);
+                    _dataFreshnessService.MarkAttempt(source);
+                }
 
                 if (string.IsNullOrWhiteSpace(
                         settings.RouterHost) ||
@@ -281,6 +300,7 @@ namespace RouterPilot.Views
 
                 cancellationToken.ThrowIfCancellationRequested();
                 routerCommunicationConfirmed = true;
+                _dataFreshnessService.MarkSuccess(RouterFreshnessSource);
 
                 _viewModel.RouterConnected =
                     true;
@@ -382,8 +402,10 @@ namespace RouterPilot.Views
 
                 _viewModel.Latency =
                     network.Latency;
+                _dataFreshnessService.MarkSuccess(InternetFreshnessSource);
 
                 await _vpnSummaryService.RefreshAsync(cancellationToken);
+                _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
 
                 _viewModel.StatusMessage = _viewModel.AdGuardAvailability ==
                     AdGuardAvailabilityState.Available
@@ -465,6 +487,7 @@ namespace RouterPilot.Views
             {
                 AdGuardStatus serviceStatus = await router.GetAdGuardStatusAsync();
                 cancellationToken.ThrowIfCancellationRequested();
+                _dataFreshnessService.MarkSuccess(AdGuardFreshnessSource);
 
                 _viewModel.AdGuardRunning = serviceStatus.IsRunning;
                 _viewModel.AdGuardVersion = serviceStatus.Version;
@@ -545,6 +568,7 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
+                _dataFreshnessService.MarkUnavailable(AdGuardFreshnessSource);
                 MarkAdGuardUnavailable(ClassifyAdGuardFailure(ex));
             }
         }
@@ -616,6 +640,7 @@ namespace RouterPilot.Views
 
                 Debug.Assert(wifiRadios.Count > 0);
                 _viewModel.UpdateWifiRadios(wifiRadios);
+                _dataFreshnessService.MarkSuccess(WifiFreshnessSource);
                 _viewModel.WifiRefreshError = string.Empty;
                 Debug.WriteLine(
                     $"[WiFiRefresh] completed records={wifiRadios.Count} " +
@@ -628,6 +653,7 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
+                _dataFreshnessService.MarkUnavailable(WifiFreshnessSource);
                 // Preserve the last successful snapshot during transient
                 // firmware, interface or SSH failures.
                 string category = ex switch
@@ -657,6 +683,8 @@ namespace RouterPilot.Views
 
             _trafficRefreshInProgress = true;
             bool routerManagerGateEntered = false;
+            _dataFreshnessService.Configure(TrafficFreshnessSource, TimeSpan.FromSeconds(2));
+            _dataFreshnessService.MarkAttempt(TrafficFreshnessSource);
 
             try
             {
@@ -685,6 +713,7 @@ namespace RouterPilot.Views
                 }
 
                 UpdateNetworkTraffic(snapshot);
+                _dataFreshnessService.MarkSuccess(TrafficFreshnessSource);
             }
             catch (OperationCanceledException)
                 when (cancellationToken.IsCancellationRequested)
@@ -692,6 +721,7 @@ namespace RouterPilot.Views
             }
             catch
             {
+                _dataFreshnessService.MarkUnavailable(TrafficFreshnessSource);
                 // The main refresh reports connection errors. A missed live
                 // traffic sample should not clear the rest of the dashboard.
             }
@@ -864,6 +894,7 @@ namespace RouterPilot.Views
                 DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync();
                 cancellationToken.ThrowIfCancellationRequested();
                 _viewModel.UpdateDhcpSnapshot(snapshot, _clientProfileService.Load());
+                _dataFreshnessService.MarkSuccess(DhcpFreshnessSource);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -871,6 +902,7 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
+                _dataFreshnessService.MarkUnavailable(DhcpFreshnessSource);
                 Debug.WriteLine($"[DhcpRefresh] failed category={ex.GetType().Name}");
             }
         }
@@ -914,6 +946,16 @@ namespace RouterPilot.Views
             string message,
             bool notifyConnectivityChange = true)
         {
+            foreach (string source in new[] { RouterFreshnessSource, InternetFreshnessSource, WifiFreshnessSource, DhcpFreshnessSource, AdGuardFreshnessSource, VpnFreshnessSource })
+                _dataFreshnessService.MarkUnavailable(source);
+            bool hasPreviousRouterSample = _dataFreshnessService.Get(RouterFreshnessSource).LastSuccessUtc is not null;
+            if (hasPreviousRouterSample)
+            {
+                _viewModel.StatusMessage = $"Refresh failed: {message} Showing the last successful data.";
+                _dataFreshnessService.Refresh();
+                EvaluateNetworkHealth();
+                return;
+            }
             if (notifyConnectivityChange)
                 await UpdateRouterConnectivityAsync(isOnline: false);
 
@@ -1299,15 +1341,26 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged -= PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged -= PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged -= NetworkHealthService_SnapshotChanged;
+            _dataFreshnessService.Changed -= DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged -= MetricHistoryService_AvailabilityHistoryChanged;
+            SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
 
             _routerManagerUsageGate.Dispose();
 
             base.OnClosed(e);
         }
 
+        private void SystemEvents_PowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+        {
+            if (e.Mode != PowerModes.Resume) return;
+            _dataFreshnessService.BeginReestablishmentWindow(TimeSpan.FromMinutes(2));
+        }
+
         private void VpnSummaryService_SummaryChanged(VpnSummaryState summary)
         {
+            // A live VPN summary is an authoritative update even when it did
+            // not originate from the dashboard refresh request.
+            _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
             void Apply()
             {
                 string previousState = _viewModel.VpnSummary.State;
@@ -1431,6 +1484,23 @@ namespace RouterPilot.Views
 
         private void EvaluateNetworkHealth()
         {
+            IReadOnlyList<DataFreshnessInfo> stale = _dataFreshnessService.GetAll()
+                .Where(info => info.State == DataFreshnessState.Stale && info.Source != TrafficFreshnessSource)
+                .ToList();
+            DataFreshnessInfo? oldestStale = stale.MinBy(info => info.LastSuccessUtc);
+            DateTimeOffset freshnessDetectedAt = oldestStale?.LastSuccessUtc ?? DateTimeOffset.UtcNow;
+            _networkHealthService.SetDataFreshnessIssues(stale.Count == 0
+                ? []
+                : [new NetworkHealthIssue(
+                    "data.refresh_delayed",
+                    NetworkHealthSeverity.Warning,
+                    "System",
+                    "Data refresh delayed",
+                    $"{string.Join(", ", stale.Select(info => info.Source))} has not updated for {FormatFreshnessAge(oldestStale?.LastSuccessUtc)}.",
+                    "overview",
+                    freshnessDetectedAt,
+                    DateTimeOffset.UtcNow,
+                    freshnessDetectedAt.UtcTicks.ToString())]);
             InternetInstabilitySummary instability = _metricHistoryService.GetInternetInstability(
                 InternetInstabilityWindow,
                 DateTimeOffset.UtcNow,
@@ -1439,6 +1509,37 @@ namespace RouterPilot.Views
                 _healthSourcesReady, _viewModel.RouterConnected, _viewModel.InternetConnected,
                 _viewModel.AdGuardMaintenanceState, _viewModel.CpuHistory.ToList(), _viewModel.MemoryHistory.ToList(),
                 instability.OutageCount, instability.ObservedDuration, instability.ThresholdReachedAt));
+        }
+
+        private void DataFreshnessService_Changed()
+        {
+            void Apply()
+            {
+                DataFreshnessInfo router = _dataFreshnessService.Get(RouterFreshnessSource);
+                _viewModel.DataFreshnessFooter = router.State switch
+                {
+                    DataFreshnessState.Fresh => "Updated " + FormatFreshnessAge(router.LastSuccessUtc) + " ago",
+                    DataFreshnessState.Stale => "Stale • " + FormatFreshnessAge(router.LastSuccessUtc),
+                    DataFreshnessState.Unavailable => "Data unavailable",
+                    _ => "Loading data"
+                };
+                _viewModel.DataFreshnessColour = RouterPilotStatusPresentation.Colour(router.State switch
+                {
+                    DataFreshnessState.Fresh => RouterPilotStatus.Active,
+                    DataFreshnessState.Stale => RouterPilotStatus.Pending,
+                    DataFreshnessState.Unavailable => RouterPilotStatus.Error,
+                    _ => RouterPilotStatus.Pending
+                });
+                if (_healthSourcesReady) EvaluateNetworkHealth();
+            }
+            if (Dispatcher.CheckAccess()) Apply(); else _ = Dispatcher.InvokeAsync(Apply);
+        }
+
+        private static string FormatFreshnessAge(DateTimeOffset? timestamp)
+        {
+            if (timestamp is null) return "unknown";
+            TimeSpan age = DateTimeOffset.UtcNow - timestamp.Value;
+            return age < TimeSpan.FromSeconds(5) ? "just now" : age < TimeSpan.FromMinutes(1) ? $"{Math.Max(1, (int)age.TotalSeconds)} sec" : $"{Math.Max(1, (int)age.TotalMinutes)} min";
         }
 
         private void MetricHistoryService_AvailabilityHistoryChanged(object? sender, EventArgs e)

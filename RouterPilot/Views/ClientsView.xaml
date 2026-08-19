@@ -1,8 +1,10 @@
 <UserControl x:Class="RouterPilot.Views.ClientsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:RouterPilot.Converters"
              xmlns:models="clr-namespace:RouterPilot.Models">
     <UserControl.Resources>
+        <local:WidthBelowConverter x:Key="WidthBelowConverter"/>
         <Style x:Key="ClientDnsValueText"
                TargetType="TextBlock"
                BasedOn="{StaticResource Text.NotAvailable}">
@@ -93,13 +95,6 @@
                             FontWeight="SemiBold"
                             IsChecked="{Binding ShowFavoritesOnly}"
                             Content="Favourites only"/>
-                        <CheckBox
-                            x:Name="AutoScrollToTopCheckBox"
-                            Margin="0,4,0,0"
-                            VerticalAlignment="Center"
-                            FontWeight="SemiBold"
-                            IsChecked="True"
-                            Content="Auto-scroll to top"/>
                     </StackPanel>
 
                     <Button MinWidth="100" Height="36" Margin="0,0,10,8"
@@ -171,20 +166,37 @@
         </TextBlock>
         </StackPanel>
 
-        <Grid Grid.Row="4" Height="236" VerticalAlignment="Top">
+        <Grid Grid.Row="4" Margin="0,12,0,0" VerticalAlignment="Top">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="5*"/>
-                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="4*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="5.5*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Style="{DynamicResource Card.Compact}">
+            <Border Height="208" Padding="12">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Card.Compact}">
+                        <Setter Property="Grid.Row" Value="0"/>
+                        <Setter Property="Grid.Column" Value="0"/>
+                        <Setter Property="Grid.ColumnSpan" Value="1"/>
+                        <Style.Triggers>
+                            <DataTrigger Value="True" Binding="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource WidthBelowConverter}, ConverterParameter=640}">
+                                <Setter Property="Grid.ColumnSpan" Value="3"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid VerticalAlignment="Top">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="8"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="14"/>
+                        <RowDefinition Height="8"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
@@ -195,8 +207,8 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Grid.ColumnSpan="5">
-                        <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="SELECTED CLIENT"/>
-                        <TextBlock Margin="0,4,0,0" FontSize="17" FontWeight="Bold"
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="SELECTED CLIENT"/>
+                        <TextBlock Margin="0,3,0,0" FontSize="16" FontWeight="Bold"
                                    TextWrapping="Wrap" MaxHeight="52"
                                    ToolTip="{Binding SelectedClient.Name}"
                                    Text="{Binding SelectedClient.Name, TargetNullValue=No client selected}"/>
@@ -205,14 +217,14 @@
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="IP ADDRESS"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.IpAddress, TargetNullValue=—}"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3">
+                    <StackPanel Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3" Visibility="Collapsed">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="MAC ADDRESS"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    Text="{Binding SelectedClient.MacAddress, TargetNullValue=—}"/>
                     </StackPanel>
                     <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,16,0">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="CONNECTION"/>
-                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.ConnectionType, TargetNullValue=—}"/>
+                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding SelectedClient.ConnectionSummary, TargetNullValue=—}"/>
                     </StackPanel>
                     <StackPanel Grid.Row="4" Grid.Column="2" Margin="0,0,16,0">
                         <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}" Text="FIRST SEEN"/>
@@ -226,18 +238,41 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Column="2" Style="{DynamicResource Card.Compact}">
+            <Border Height="208" Padding="12">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Card.Compact}">
+                        <Setter Property="Grid.Row" Value="0"/>
+                        <Setter Property="Grid.Column" Value="2"/>
+                        <Setter Property="Grid.ColumnSpan" Value="1"/>
+                        <Style.Triggers>
+                            <DataTrigger Value="True" Binding="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource WidthBelowConverter}, ConverterParameter=640}">
+                                <Setter Property="Grid.Row" Value="2"/>
+                                <Setter Property="Grid.Column" Value="0"/>
+                                <Setter Property="Grid.ColumnSpan" Value="3"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="6"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel>
-                        <TextBlock FontSize="15" FontWeight="Bold" Text="Recent Activity"/>
-                        <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}"
-                                   Text="DNS changes and actions from this session"/>
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="13" FontWeight="Bold" Text="RECENT ACTIVITY"/>
+                            <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
+                                       Text="DNS activity from this session"/>
+                        </StackPanel>
+                        <CheckBox x:Name="AutoScrollToTopCheckBox" Grid.Column="1" Margin="12,0,0,0"
+                                  VerticalAlignment="Center" FontSize="11"
+                                  IsChecked="True" Content="Auto-scroll to top"/>
+                    </Grid>
                     <TextBlock Grid.Row="2" VerticalAlignment="Top" Foreground="{DynamicResource Brush.TextSecondary}"
                                Text="No activity yet this session">
                         <TextBlock.Style>
@@ -267,16 +302,16 @@
                         </ListBox.Style>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,0,0,6">
+                                <Grid Margin="0,0,0,4">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="52"/>
+                                        <ColumnDefinition Width="48"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
                                                Text="{Binding TimeDisplay}"/>
                                     <StackPanel Grid.Column="1">
                                         <TextBlock FontWeight="SemiBold" Text="{Binding Summary}"/>
-                                        <TextBlock Margin="0,2,0,0" FontSize="11"
+                                        <TextBlock Margin="0,1,0,0" FontSize="11"
                                                    Foreground="{DynamicResource Brush.TextSecondary}"
                                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"
                                                    Text="{Binding Detail}"/>

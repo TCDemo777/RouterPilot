@@ -9,4 +9,5 @@ public interface INetworkHealthService
     event Action<NetworkHealthSnapshot>? SnapshotChanged;
     NetworkHealthSnapshot Evaluate(NetworkHealthInput input);
     void SetMonitoredDeviceIssues(IReadOnlyList<NetworkHealthIssue> issues);
+    void SetDataFreshnessIssues(IReadOnlyList<NetworkHealthIssue> issues);
 }

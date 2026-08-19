@@ -11,14 +11,14 @@ public sealed class FavouriteDeviceMonitoringService
     public static readonly TimeSpan OfflineGracePeriod = TimeSpan.FromMinutes(5);
     private readonly ClientProfileService _profiles = new();
     private readonly INetworkHealthService _networkHealth;
-    private readonly Dictionary<string, DateTimeOffset> _absentSince = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IClientPresenceHistoryService _presenceHistory;
 
-    public FavouriteDeviceMonitoringService(INetworkHealthService networkHealth) => _networkHealth = networkHealth;
+    public FavouriteDeviceMonitoringService(INetworkHealthService networkHealth, IClientPresenceHistoryService presenceHistory) { _networkHealth = networkHealth; _presenceHistory = presenceHistory; }
 
     public void Observe(IEnumerable<ClientInfo> currentClients)
     {
         Dictionary<string, ClientProfile> profiles = _profiles.Load();
-        if (!_profiles.LastLoadSucceeded) { _absentSince.Clear(); _networkHealth.SetMonitoredDeviceIssues([]); return; }
+        if (!_profiles.LastLoadSucceeded) { _networkHealth.SetMonitoredDeviceIssues([]); return; }
 
         HashSet<string> online = currentClients.Select(client => NormalizeMac(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -26,9 +26,10 @@ public sealed class FavouriteDeviceMonitoringService
         foreach (ClientProfile profile in profiles.Values.Where(profile => profile.MonitorAvailability && NormalizeMac(profile.Key).Length == 12))
         {
             string key = NormalizeMac(profile.Key);
-            if (online.Contains(key)) { _absentSince.Remove(key); continue; }
-            if (!_absentSince.TryGetValue(key, out DateTimeOffset since)) { _absentSince[key] = now; continue; }
-            if (now - since < OfflineGracePeriod) continue;
+            if (online.Contains(key)) continue;
+            ClientPresencePeriod? period = _presenceHistory.GetCurrentPeriod(key);
+            if (period?.State != ClientPresenceState.Offline) continue;
+            DateTimeOffset since = period.StartedAt;
             string name = !string.IsNullOrWhiteSpace(profile.Nickname) ? profile.Nickname : !string.IsNullOrWhiteSpace(profile.LastKnownName) ? profile.LastKnownName : profile.LastKnownIpAddress;
             string observed = FormatDuration(now - since);
             issues.Add(new NetworkHealthIssue($"client.monitor.{key}", NetworkHealthSeverity.Warning, "Network", name + " offline", $"{name} has not been observed for {observed}.", "clients", since, now, since.UtcTicks.ToString()));
