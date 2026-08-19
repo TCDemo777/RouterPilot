@@ -316,6 +316,16 @@
                         <ComboBoxItem Content="Printer"/>
                         <ComboBoxItem Content="Smart home / IoT"/>
                     </ComboBox>
+
+                    <CheckBox Margin="0,14,0,0"
+                              IsChecked="{Binding MonitorAvailability, Mode=TwoWay}"
+                              Content="Monitor availability"/>
+                    <TextBlock Margin="0,3,0,0" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Brush.TextSecondary}"
+                               Text="Monitoring is based on RouterPilot observations while the app is running."/>
+                    <TextBlock Margin="0,3,0,0" FontSize="12"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               Text="{Binding AvailabilityMonitoringStatus}"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">

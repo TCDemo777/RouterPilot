@@ -9,6 +9,7 @@ namespace RouterPilot.Models
         public string Notes { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
+        public bool MonitorAvailability { get; set; }
         public bool IsKnown { get; set; } = true;
         public bool NeedsReview { get; set; }
         public DateTime FirstSeenUtc { get; set; } = DateTime.UtcNow;

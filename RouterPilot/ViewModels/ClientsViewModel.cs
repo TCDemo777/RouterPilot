@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly SettingsService _settingsService;
         private readonly TimelineService _timelineService;
+        private readonly FavouriteDeviceMonitoringService _favouriteDeviceMonitoring;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -102,12 +103,14 @@ namespace RouterPilot.ViewModels
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailabilityService,
             SettingsService settingsService,
-            TimelineService timelineService)
+            TimelineService timelineService,
+            FavouriteDeviceMonitoringService favouriteDeviceMonitoring)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _settingsService = settingsService;
             _timelineService = timelineService;
+            _favouriteDeviceMonitoring = favouriteDeviceMonitoring;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -223,6 +226,7 @@ namespace RouterPilot.ViewModels
 
                 ApplyFilterAndSort(selectedKey);
                 SaveProfiles();
+                _favouriteDeviceMonitoring.Observe(clients);
 
                 StatusMessage = AdGuardDataAvailability != AdGuardAvailabilityState.Available
                     ? $"{_allClients.Count:N0} router-connected client(s) loaded. AdGuard enrichment is unavailable."
@@ -1427,6 +1431,7 @@ namespace RouterPilot.ViewModels
             client.Notes = profile.Notes;
             client.CustomCategory = profile.Category;
             client.IsFavorite = profile.IsFavorite;
+            client.MonitorAvailability = profile.MonitorAvailability;
             client.NeedsReview = profile.NeedsReview;
 
             if (!string.IsNullOrWhiteSpace(profile.Nickname))

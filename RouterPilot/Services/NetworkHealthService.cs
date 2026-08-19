@@ -11,11 +11,17 @@ public sealed class NetworkHealthService : INetworkHealthService
     private const int InternetInstabilityThreshold = 3;
     private readonly TimelineService _timeline;
     private readonly Dictionary<string, NetworkHealthIssue> _active = new(StringComparer.Ordinal);
+    private IReadOnlyList<NetworkHealthIssue> _monitoredDeviceIssues = [];
     private readonly object _sync = new();
     private NetworkHealthSnapshot _current = NetworkHealthSnapshot.Loading;
     public NetworkHealthService(TimelineService timeline) => _timeline = timeline;
     public NetworkHealthSnapshot Current { get { lock (_sync) return _current; } }
     public event Action<NetworkHealthSnapshot>? SnapshotChanged;
+
+    public void SetMonitoredDeviceIssues(IReadOnlyList<NetworkHealthIssue> issues)
+    {
+        lock (_sync) _monitoredDeviceIssues = issues;
+    }
 
     public NetworkHealthSnapshot Evaluate(NetworkHealthInput input)
     {
@@ -39,6 +45,7 @@ public sealed class NetworkHealthService : INetworkHealthService
                 }
                 if (SustainedHigh(input.CpuHistory)) rules.Add(new("router.cpu_high", NetworkHealthSeverity.Warning, "Router", "High router CPU usage", "Router CPU usage has remained at or above 90% across recent samples.", "analytics"));
                 if (SustainedHigh(input.MemoryHistory)) rules.Add(new("router.memory_high", NetworkHealthSeverity.Warning, "Router", "High router memory usage", "Router memory usage has remained at or above 90% across recent samples.", "analytics"));
+                rules.AddRange(_monitoredDeviceIssues.Select(issue => new Definition(issue.Id, issue.Severity, issue.Subsystem, issue.Title, issue.Description, issue.NavigationTarget, issue.TimelineEpisodeKey)));
             }
             var next = new Dictionary<string, NetworkHealthIssue>(StringComparer.Ordinal);
             foreach (Definition rule in rules)
@@ -58,15 +65,20 @@ public sealed class NetworkHealthService : INetworkHealthService
     private void Record(NetworkHealthIssue issue, bool detected)
     {
         bool instability = issue.Id == "internet.unstable";
+        bool monitoredDevice = issue.Id.StartsWith("client.monitor.", StringComparison.Ordinal);
         string episode = issue.TimelineEpisodeKey ?? issue.FirstDetectedAt.UtcTicks.ToString();
         _ = _timeline.AddAsync(new TimelineEvent
         {
             Category = TimelineCategory.Router,
             EventType = detected ? TimelineEventType.NetworkIssueDetected : TimelineEventType.NetworkIssueResolved,
-            Title = instability
+            Title = monitoredDevice
+                ? detected ? "Monitored device offline" : "Monitored device restored"
+                : instability
                 ? detected ? "Internet connection unstable" : "Internet connection stability restored"
                 : detected ? "Network issue detected" : "Network issue resolved",
-            Message = instability
+            Message = monitoredDevice
+                ? detected ? issue.Description : $"{issue.Title} restored after {FormatDuration(DateTimeOffset.UtcNow - issue.FirstDetectedAt)} of observed offline monitoring."
+                : instability
                 ? detected ? issue.Description : "Recent Internet outage frequency has returned to normal."
                 : detected ? issue.Title : issue.Title + " restored",
             Severity = detected ? issue.Severity == NetworkHealthSeverity.Critical ? TimelineSeverity.Error : TimelineSeverity.Warning : TimelineSeverity.Success,
@@ -77,6 +89,7 @@ public sealed class NetworkHealthService : INetworkHealthService
         });
     }
     private static bool SustainedHigh(IReadOnlyList<double> values) => values.Count >= 3 && values.TakeLast(3).All(value => value >= 90);
+    private static string FormatDuration(TimeSpan duration) => duration < TimeSpan.FromMinutes(1) ? "less than a minute" : duration < TimeSpan.FromHours(1) ? $"{(int)duration.TotalMinutes} minutes" : $"{(int)duration.TotalHours}h {duration.Minutes}m";
     private static string FormatObservedPeriod(TimeSpan duration)
     {
         if (duration >= TimeSpan.FromMinutes(55)) return "in the last hour";

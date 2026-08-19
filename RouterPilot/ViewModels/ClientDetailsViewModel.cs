@@ -96,6 +96,14 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string profileNotes = string.Empty;
 
+        [ObservableProperty]
+        private bool monitorAvailability;
+        private bool loadingProfile;
+
+        public string AvailabilityMonitoringStatus => MonitorAvailability
+            ? "On — based on RouterPilot observations while the app is running."
+            : "Off";
+
         public string PauseButtonText =>
             IsPaused ? "Resume" : "Pause";
 
@@ -211,6 +219,7 @@ namespace RouterPilot.ViewModels
             profile.Category = ProfileCategory.Trim();
             profile.Notes = ProfileNotes.Trim();
             profile.IsFavorite = _client.IsFavorite;
+            profile.MonitorAvailability = MonitorAvailability;
             profile.LastSeenUtc = DateTime.UtcNow;
 
             _clientProfileService.Save(_clientProfiles.Values);
@@ -222,8 +231,10 @@ namespace RouterPilot.ViewModels
 
             _client.CustomCategory = profile.Category;
             _client.Notes = profile.Notes;
+            _client.MonitorAvailability = MonitorAvailability;
 
             OnPropertyChanged(nameof(ClientName));
+            OnPropertyChanged(nameof(AvailabilityMonitoringStatus));
             ClientRefreshNotifier.RequestRefresh();
             StatusMessage = $"Profile saved for {ClientName}.";
         }
@@ -288,9 +299,12 @@ namespace RouterPilot.ViewModels
                 return;
             }
 
+            loadingProfile = true;
             ProfileNickname = profile.Nickname;
             ProfileCategory = profile.Category;
             ProfileNotes = profile.Notes;
+            MonitorAvailability = profile.MonitorAvailability;
+            loadingProfile = false;
             _client.NeedsReview = profile.NeedsReview;
             OnPropertyChanged(nameof(NeedsReview));
         }
@@ -473,6 +487,24 @@ namespace RouterPilot.ViewModels
                 first.Trim(),
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        partial void OnMonitorAvailabilityChanged(bool value)
+        {
+            OnPropertyChanged(nameof(AvailabilityMonitoringStatus));
+            if (loadingProfile) return;
+            string key = ClientKey(_client);
+            if (key.Length != 12) return;
+            if (!_clientProfiles.TryGetValue(key, out ClientProfile? profile))
+            {
+                profile = new ClientProfile { Key = key, FirstSeenUtc = _client.FirstSeenUtc == default ? DateTime.UtcNow : _client.FirstSeenUtc };
+                _clientProfiles[key] = profile;
+            }
+            profile.MonitorAvailability = value;
+            profile.LastSeenUtc = DateTime.UtcNow;
+            _client.MonitorAvailability = value;
+            _clientProfileService.Save(_clientProfiles.Values);
+            ClientRefreshNotifier.RequestRefresh();
         }
 
         private static bool SameMac(string? first, string? second)

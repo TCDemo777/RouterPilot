@@ -82,6 +82,7 @@ namespace RouterPilot
                     sp.GetRequiredService<ApplicationDataPathProvider>()));
             serviceCollection.AddSingleton<IMetricHistoryService, MetricHistoryService>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
+            serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();
