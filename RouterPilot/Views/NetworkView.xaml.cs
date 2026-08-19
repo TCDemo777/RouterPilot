@@ -178,7 +178,7 @@ namespace RouterPilot.Views
         {
             if (DataContext is not DashboardViewModel viewModel || viewModel.PortForwardIsLoading) return;
             viewModel.PortForwardIsLoading = true;
-            try { var rules = await _portForwardService.GetRulesAsync(CancellationToken.None); viewModel.PortForwardRules.Clear(); foreach (var rule in rules) viewModel.PortForwardRules.Add(rule); viewModel.SetPortForwardingCapabilities(true, true); viewModel.PortForwardStatus = string.Empty; }
+            try { var rules = await _portForwardService.GetRulesAsync(CancellationToken.None); viewModel.PortForwardRules.Clear(); foreach (var rule in rules) viewModel.PortForwardRules.Add(rule); viewModel.ReevaluatePortForwardIntelligence(); viewModel.SetPortForwardingCapabilities(true, true); viewModel.PortForwardStatus = string.Empty; }
             catch { viewModel.SetPortForwardingCapabilities(false, false); viewModel.PortForwardStatus = "Port forwarding is unavailable for this router session."; }
             finally { viewModel.PortForwardIsLoading = false; }
         }
@@ -205,7 +205,7 @@ namespace RouterPilot.Views
         private void ShowPortForwardDialog(PortForwardRuleInfo? existing)
         {
             if (DataContext is not DashboardViewModel viewModel) return;
-            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel.DhcpLeases, request => ExecutePortForwardAsync(existing, request));
+            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel.DhcpLeases.ToList(), request => ExecutePortForwardAsync(existing, request));
         }
 
         private async Task<string?> ExecutePortForwardAsync(PortForwardRuleInfo? existing, PortForwardRuleRequest request)

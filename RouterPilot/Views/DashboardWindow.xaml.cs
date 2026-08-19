@@ -23,6 +23,7 @@ namespace RouterPilot.Views
         private const string TrafficRefreshTask = "TrafficRefresh";
         private const string PublicIpRefreshTask = "PublicIpRefresh";
         private const string AdGuardScheduleTask = "AdGuardServiceSchedules";
+        private const string VpnScheduleTask = "VpnSchedules";
         private static readonly TimeSpan InternetInstabilityWindow = TimeSpan.FromHours(1);
         private const int InternetInstabilityThreshold = 3;
 
@@ -34,6 +35,7 @@ namespace RouterPilot.Views
         private readonly AdGuardProtectionNotificationTracker _protectionNotificationTracker;
         private readonly RefreshCoordinator _refreshCoordinator;
         private readonly AdGuardServiceScheduleService _scheduleService;
+        private readonly VpnScheduleService _vpnScheduleService;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
@@ -98,6 +100,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<IRouterManagerProvider>();
             _scheduleService = ((App)Application.Current).Services
                 .GetRequiredService<AdGuardServiceScheduleService>();
+            _vpnScheduleService = ((App)Application.Current).Services
+                .GetRequiredService<VpnScheduleService>();
             _adGuardAvailabilityService = ((App)Application.Current).Services
                 .GetRequiredService<AdGuardAvailabilityService>();
             _adGuardMaintenanceStateService = ((App)Application.Current).Services
@@ -183,6 +187,11 @@ namespace RouterPilot.Views
                 TimeSpan.FromMinutes(1),
                 cancellationToken => _scheduleService.EvaluateDueAsync(cancellationToken),
                 enabled: false);
+            _refreshCoordinator.Register(
+                VpnScheduleTask,
+                TimeSpan.FromMinutes(1),
+                cancellationToken => _vpnScheduleService.EvaluateDueAsync(cancellationToken),
+                enabled: false);
 
             ProtectionStateNotifier.StateChanged +=
                 ProtectionStateNotifier_StateChanged;
@@ -207,6 +216,8 @@ namespace RouterPilot.Views
 
             await _refreshCoordinator.RunNowAsync(AdGuardScheduleTask);
             await _refreshCoordinator.SetEnabledAsync(AdGuardScheduleTask, true);
+            await _refreshCoordinator.RunNowAsync(VpnScheduleTask);
+            await _refreshCoordinator.SetEnabledAsync(VpnScheduleTask, true);
 
             if (IsVisible)
             {

@@ -30,6 +30,8 @@ public sealed class VpnSummaryService : IVpnSummaryService
 
     public event Action<VpnSummaryState>? SummaryChanged;
     public VpnSummaryState Current { get { lock (_sync) return _current; } }
+    public IReadOnlyList<VpnTunnelInfo> Tunnels { get { lock (_sync) return _tunnels.ToList(); } }
+    public IReadOnlyList<VpnClientProfileInfo> Profiles { get { lock (_sync) return _profiles.ToList(); } }
 
     public async Task RefreshAsync(CancellationToken cancellationToken)
     {

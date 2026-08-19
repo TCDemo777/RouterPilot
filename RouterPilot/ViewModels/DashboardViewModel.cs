@@ -915,6 +915,7 @@ namespace RouterPilot.ViewModels
             RouterCapabilities.WiFi.ChannelWidthRead = networkList
                 .Any(network => !string.Equals(network.ChannelWidth, "N/A", StringComparison.Ordinal));
             UpdateWifiIntelligence(networkList);
+            ReevaluatePortForwardIntelligence();
             OnPropertyChanged(nameof(GuestWifiNetworks));
             OnPropertyChanged(nameof(HasGuestWifiNetworks));
             OnPropertyChanged(nameof(HasWifiNetworks));
@@ -1045,7 +1046,16 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(DhcpStatusColour));
             OnPropertyChanged(nameof(HasDhcpLeases));
             OnPropertyChanged(nameof(HasDhcpReservations));
+            ReevaluatePortForwardIntelligence();
         }
+
+        public void ReevaluatePortForwardIntelligence() =>
+            PortForwardRuleIntelligence.Evaluate(
+                PortForwardRules,
+                DhcpLeases,
+                DhcpReservations,
+                WifiNetworks,
+                DhcpLoaded);
 
         private static void ApplyDhcpProfileCorrelation(
             IEnumerable<DhcpLeaseInfo> leases,

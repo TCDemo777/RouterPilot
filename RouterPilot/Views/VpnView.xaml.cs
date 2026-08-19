@@ -22,6 +22,7 @@ public partial class VpnView : UserControl
     private readonly VpnViewModel _viewModel;
     private readonly IVpnLiveStatusService _liveStatus;
     private readonly SettingsService _settingsService;
+    private readonly VpnScheduleService _vpnScheduleService;
     public VpnView(bool embedded = false)
     {
         InitializeComponent();
@@ -29,11 +30,16 @@ public partial class VpnView : UserControl
         _viewModel = ((App)Application.Current).Services.GetRequiredService<VpnViewModel>();
         _liveStatus = ((App)Application.Current).Services.GetRequiredService<IVpnLiveStatusService>();
         _settingsService = ((App)Application.Current).Services.GetRequiredService<SettingsService>();
+        _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
         DataContext = _viewModel;
+        VpnSchedulePanel.DataContext = _vpnScheduleService;
+        _vpnScheduleService.SchedulesChanged += VpnSchedules_Changed;
+        UpdateVpnScheduleEmptyState();
         _liveStatus.StatusChanged += LiveStatusChanged;
         DiagnosticsExpander.IsExpanded = _settingsService.Load().VpnDiagnosticsExpanded;
         if (embedded) PageHeader.Visibility = Visibility.Collapsed;
         Loaded += async (_, _) => await RefreshAsync();
+        Unloaded += (_, _) => _vpnScheduleService.SchedulesChanged -= VpnSchedules_Changed;
     }
 
     private async Task RefreshAsync()
@@ -99,6 +105,30 @@ public partial class VpnView : UserControl
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
+
+    private void VpnSchedules_Changed(object? sender, EventArgs e) =>
+        _ = Dispatcher.InvokeAsync(UpdateVpnScheduleEmptyState);
+
+    private void UpdateVpnScheduleEmptyState() =>
+        VpnScheduleEmptyText.Visibility = _vpnScheduleService.Schedules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void AddVpnSchedule_Click(object sender, RoutedEventArgs e) =>
+        VpnScheduleEditorDialog.Show(Window.GetWindow(this), null, SaveVpnScheduleAsync);
+
+    private void EditVpnSchedule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: VpnSchedule schedule })
+            VpnScheduleEditorDialog.Show(Window.GetWindow(this), schedule, SaveVpnScheduleAsync);
+    }
+
+    private async Task<string?> SaveVpnScheduleAsync(VpnSchedule schedule) => await _vpnScheduleService.SaveAsync(schedule);
+
+    private async void DeleteVpnSchedule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: VpnSchedule schedule }) return;
+        if (MessageBox.Show($"Delete VPN schedule '{schedule.Name}'?", "VPN Schedule", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await _vpnScheduleService.DeleteAsync(schedule.Id);
+    }
     private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         string report = BuildDiagnosticReport();

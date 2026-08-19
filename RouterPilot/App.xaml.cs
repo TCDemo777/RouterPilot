@@ -95,6 +95,13 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IVpnService, VpnService>();
             serviceCollection.AddSingleton<IVpnLiveStatusService, VpnLiveStatusService>();
             serviceCollection.AddSingleton<IVpnSummaryService, VpnSummaryService>();
+            serviceCollection.AddSingleton(sp => new VpnScheduleService(
+                Dispatcher,
+                sp.GetRequiredService<IVpnService>(),
+                sp.GetRequiredService<IVpnSummaryService>(),
+                sp.GetRequiredService<TimelineService>(),
+                sp.GetRequiredService<IClock>(),
+                sp.GetRequiredService<ApplicationDataPathProvider>()));
             serviceCollection.AddSingleton<VpnViewModel>();
             serviceCollection.AddSingleton<MaintenanceViewModel>();
             serviceCollection.AddSingleton<UpdateService>();
@@ -132,6 +139,7 @@ namespace RouterPilot
             _ = Services.GetRequiredService<IInternetSpeedTestService>().InitializeAsync();
             await Services.GetRequiredService<AdGuardServiceScheduleService>()
                 .InitializeAsync();
+            await Services.GetRequiredService<VpnScheduleService>().InitializeAsync();
 
             AppSettings savedSettings = Services
                 .GetRequiredService<SettingsService>()
@@ -311,6 +319,16 @@ namespace RouterPilot
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Unable to flush Timeline history during shutdown ({ex.GetType().Name}).");
+                }
+
+                try
+                {
+                    await _services.GetRequiredService<VpnScheduleService>().FlushAsync();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unable to flush VPN schedules during shutdown ({ex.GetType().Name}).");
                 }
 
                 try

@@ -796,19 +796,37 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Margin="0,10,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="8">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                <StackPanel><TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Primary}"/><TextBlock Text="{Binding Enabled, StringFormat=Enabled: {0}}" Style="{DynamicResource Text.Secondary}"/></StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding Protocol, Mode=OneWay}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding ExternalPort, Mode=OneWay}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding DestinationIp, Mode=OneWay}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="4" Text="{Binding InternalPort, Mode=OneWay}" VerticalAlignment="Center"/>
-                                                <StackPanel Grid.Column="5" Orientation="Horizontal">
-                                                    <Button Content="Edit" Tag="{Binding}" Click="EditPortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                                    <Button Content="Enable / Disable" Tag="{Binding}" Margin="6,0,0,0" Click="TogglePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                                    <Button Content="Delete" Tag="{Binding}" Margin="6,0,0,0" Click="DeletePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}"/><TextBlock Text="{Binding Enabled, StringFormat=Enabled: {0}}" Style="{DynamicResource Text.Secondary}"/></StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Protocol, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding ExternalPort, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding DestinationIp, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                                    <TextBlock Grid.Column="4" Text="{Binding InternalPort, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                                    <StackPanel Grid.Column="5" Orientation="Horizontal">
+                                                        <Button Content="Edit" Tag="{Binding}" Click="EditPortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                        <Button Content="Enable / Disable" Tag="{Binding}" Margin="6,0,0,0" Click="TogglePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                        <Button Content="Delete" Tag="{Binding}" Margin="6,0,0,0" Click="DeletePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock Margin="0,8,0,0" Text="{Binding TargetClientName}" Foreground="{DynamicResource Brush.TextSecondary}" Visibility="{Binding HasTargetClientName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <StackPanel Margin="0,5,0,0" Visibility="{Binding HasTargetStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="{Binding TargetStatusTitle}" FontSize="12" FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding TargetStatusSeverity}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding TargetStatusSeverity}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource Brush.Warning}"/></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding TargetStatusSeverity}" Value="Critical"><Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Margin="0,2,0,0" Text="{Binding TargetStatusDetail}" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Visibility="{Binding HasTargetStatusDetail, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                 </StackPanel>
-                                            </Grid>
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
