@@ -349,7 +349,7 @@ namespace RouterPilot.ViewModels
             _client.NeedsReview = false;
             _clientProfileService.Save(_clientProfiles.Values);
             OnPropertyChanged(nameof(NeedsReview));
-            ClientRefreshNotifier.RequestRefresh();
+            ClientRefreshNotifier.NotifyProfileStateChanged();
             StatusMessage = $"{ClientName} marked as known.";
         }
 

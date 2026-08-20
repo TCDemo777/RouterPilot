@@ -40,6 +40,23 @@ namespace RouterPilot.ViewModels
         public bool HasNewDevices => NewDevices.Count > 0;
         public bool HasSelectedClientActivity => SelectedClientActivity.Count > 0;
 
+        public void ReloadProfileState()
+        {
+            Dictionary<string, ClientProfile> persistedProfiles = _clientProfileService.Load();
+            if (!_clientProfileService.LastLoadSucceeded)
+            {
+                return;
+            }
+
+            _clientProfiles.Clear();
+            foreach ((string key, ClientProfile profile) in persistedProfiles)
+            {
+                _clientProfiles[key] = profile;
+            }
+
+            RebuildNewDevices(_allClients);
+        }
+
         public IReadOnlyList<string> SortOptions { get; } =
             new[]
             {

@@ -92,6 +92,8 @@ namespace RouterPilot.Views
 
             ClientRefreshNotifier.RefreshRequested +=
                 ClientRefreshNotifier_RefreshRequested;
+            ClientRefreshNotifier.ProfileStateChanged +=
+                ClientRefreshNotifier_ProfileStateChanged;
             _isRefreshNotifierSubscribed = true;
         }
 
@@ -104,6 +106,8 @@ namespace RouterPilot.Views
 
             ClientRefreshNotifier.RefreshRequested -=
                 ClientRefreshNotifier_RefreshRequested;
+            ClientRefreshNotifier.ProfileStateChanged -=
+                ClientRefreshNotifier_ProfileStateChanged;
             _isRefreshNotifierSubscribed = false;
         }
 
@@ -144,6 +148,19 @@ namespace RouterPilot.Views
             }
 
             await RefreshClientsAsync();
+        }
+
+        private void ClientRefreshNotifier_ProfileStateChanged(
+            object? sender,
+            EventArgs e)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                _ = Dispatcher.BeginInvoke(new Action(_viewModel.ReloadProfileState));
+                return;
+            }
+
+            _viewModel.ReloadProfileState();
         }
 
         private async System.Threading.Tasks.Task RefreshClientsAsync()
