@@ -14,6 +14,8 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private int vpnOperationTunnelId;
     private int? _connectionAttemptTunnelId;
+    private int? _connectionAttemptGroupId;
+    private string _connectionAttemptLocation = string.Empty;
     private bool _connectionAttemptObservedEnabled;
     private int? _failedConnectionTunnelId;
     private int? _failedConnectionGroupId;
@@ -31,6 +33,8 @@ public sealed partial class VpnViewModel : ObservableObject
     public void BeginConnectionAttempt(VpnTunnelInfo tunnel)
     {
         _connectionAttemptTunnelId = tunnel.TunnelId;
+        _connectionAttemptGroupId = tunnel.SelectedProfileGroupId;
+        _connectionAttemptLocation = tunnel.ConfiguredLocation;
         _connectionAttemptObservedEnabled = false;
         ClearFailedAttempt(tunnel.TunnelId);
     }
@@ -95,6 +99,9 @@ public sealed partial class VpnViewModel : ObservableObject
             return false;
         }
 
+        if (_connectionAttemptTunnelId == tunnelId && (_connectionAttemptGroupId != groupId || !string.Equals(_connectionAttemptLocation, location, StringComparison.Ordinal)))
+            ClearConnectionAttempt();
+
         if (_failedConnectionTunnelId == tunnelId && (_failedConnectionGroupId != groupId || !string.Equals(_failedConnectionLocation, location, StringComparison.Ordinal)))
             ClearFailedAttempt(tunnelId);
 
@@ -111,7 +118,7 @@ public sealed partial class VpnViewModel : ObservableObject
             {
                 _connectionAttemptObservedEnabled = true;
             }
-            else if (_connectionAttemptObservedEnabled && status is not null)
+            else if (configurationHealth == VpnConfigurationHealth.Healthy && _connectionAttemptObservedEnabled && status is not null)
             {
                 _failedConnectionTunnelId = tunnelId;
                 _failedConnectionGroupId = groupId;
@@ -126,6 +133,8 @@ public sealed partial class VpnViewModel : ObservableObject
     private void ClearConnectionAttempt()
     {
         _connectionAttemptTunnelId = null;
+        _connectionAttemptGroupId = null;
+        _connectionAttemptLocation = string.Empty;
         _connectionAttemptObservedEnabled = false;
     }
 
