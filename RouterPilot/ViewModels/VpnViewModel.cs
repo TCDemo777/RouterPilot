@@ -13,6 +13,11 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private string vpnStatus = string.Empty;
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private int vpnOperationTunnelId;
+    private int? _connectionAttemptTunnelId;
+    private bool _connectionAttemptObservedEnabled;
+    private int? _failedConnectionTunnelId;
+    private int? _failedConnectionGroupId;
+    private string _failedConnectionLocation = string.Empty;
     public bool HasVpnTunnels => VpnTunnels.Count > 0;
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
     public bool IsTunnelBusy(VpnTunnelInfo tunnel) => VpnOperationTunnelId == tunnel.TunnelId;
@@ -23,7 +28,20 @@ public sealed partial class VpnViewModel : ObservableObject
         OnPropertyChanged(nameof(HasVpnTunnels)); OnPropertyChanged(nameof(HasVpnProfiles));
     }
 
-    public void ApplyLiveStatuses(IReadOnlyList<VpnLiveStatusInfo> statuses, bool vpnInventoryAuthoritative)
+    public void BeginConnectionAttempt(VpnTunnelInfo tunnel)
+    {
+        _connectionAttemptTunnelId = tunnel.TunnelId;
+        _connectionAttemptObservedEnabled = false;
+        ClearFailedAttempt(tunnel.TunnelId);
+    }
+
+    public void MarkExplicitDisconnect(int tunnelId)
+    {
+        if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+        ClearFailedAttempt(tunnelId);
+    }
+
+    public void ApplyLiveStatuses(IReadOnlyList<VpnLiveStatusInfo> statuses, bool vpnInventoryAuthoritative, bool fromLiveStatusEvent = false)
     {
         var statusMap = statuses.ToDictionary(status => status.TunnelId);
         var profilesByGroup = VpnProfiles.ToDictionary(profile => profile.GroupId);
@@ -47,6 +65,7 @@ public sealed partial class VpnViewModel : ObservableObject
                 : tunnel.ProfileGroupIds.Contains(selectedGroupId!.Value)
                     ? VpnConfigurationHealth.Healthy
                     : VpnConfigurationHealth.Unlinked;
+            bool hasConnectionFailure = UpdateConnectionAttemptState(tunnel.TunnelId, selectedGroupId, configuredProfile?.CurrentLocation ?? string.Empty, configurationHealth, selectedStatus, fromLiveStatusEvent);
             return new VpnTunnelInfo
             {
                 Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
@@ -56,6 +75,7 @@ public sealed partial class VpnViewModel : ObservableObject
                 ConfiguredProfileName=configuredProfile?.Name ?? string.Empty, ConfiguredLocation=configuredProfile?.CurrentLocation ?? string.Empty,
                 ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy,
                 ServerConfigCount=tunnel.ServerConfigCount,
+                HasConnectionAttemptFailure=hasConnectionFailure,
                 // A disconnected status can still carry the authoritative group
                 // association needed to recognise an unlinked profile. It is not
                 // presented as a live connection unless Status == Connected.
@@ -64,5 +84,56 @@ public sealed partial class VpnViewModel : ObservableObject
         }).ToList();
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
         VpnLiveStatusDiagnostics.Record("VpnTunnel live properties updated: YES");
+    }
+
+    private bool UpdateConnectionAttemptState(int tunnelId, int? groupId, string location, VpnConfigurationHealth configurationHealth, VpnLiveStatusInfo? status, bool fromLiveStatusEvent)
+    {
+        if (configurationHealth == VpnConfigurationHealth.Unlinked)
+        {
+            if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+            ClearFailedAttempt(tunnelId);
+            return false;
+        }
+
+        if (_failedConnectionTunnelId == tunnelId && (_failedConnectionGroupId != groupId || !string.Equals(_failedConnectionLocation, location, StringComparison.Ordinal)))
+            ClearFailedAttempt(tunnelId);
+
+        if (status?.IsConnected == true)
+        {
+            if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+            ClearFailedAttempt(tunnelId);
+            return false;
+        }
+
+        if (fromLiveStatusEvent && _connectionAttemptTunnelId == tunnelId)
+        {
+            if (status?.Enabled == true)
+            {
+                _connectionAttemptObservedEnabled = true;
+            }
+            else if (_connectionAttemptObservedEnabled && status is not null)
+            {
+                _failedConnectionTunnelId = tunnelId;
+                _failedConnectionGroupId = groupId;
+                _failedConnectionLocation = location;
+                ClearConnectionAttempt();
+            }
+        }
+
+        return _failedConnectionTunnelId == tunnelId;
+    }
+
+    private void ClearConnectionAttempt()
+    {
+        _connectionAttemptTunnelId = null;
+        _connectionAttemptObservedEnabled = false;
+    }
+
+    private void ClearFailedAttempt(int tunnelId)
+    {
+        if (_failedConnectionTunnelId != tunnelId) return;
+        _failedConnectionTunnelId = null;
+        _failedConnectionGroupId = null;
+        _failedConnectionLocation = string.Empty;
     }
 }

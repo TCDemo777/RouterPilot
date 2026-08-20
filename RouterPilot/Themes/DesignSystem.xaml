@@ -403,25 +403,7 @@
     </Style>
 
     <DataTemplate x:Key="DiagnosticsExpanderHeaderTemplate">
-        <Grid MinHeight="28">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding}" />
-            <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Text" Value="Expand" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}}" Value="True">
-                                <Setter Property="Text" Value="Collapse" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </Grid>
+        <TextBlock MinHeight="28" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding}" />
     </DataTemplate>
 
     <Style x:Key="DiagnosticsExpander" TargetType="Expander">

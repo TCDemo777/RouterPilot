@@ -755,6 +755,14 @@ namespace RouterPilot.ViewModels
 
         public string VpnStatusText => VpnSummary.State;
 
+        public string VpnCompactFooterStatusText => VpnSummary.State switch
+        {
+            "Connected" when !string.IsNullOrWhiteSpace(VpnSummary.Location) => $"VPN: {VpnSummary.Location}",
+            "Connected" => "VPN: On",
+            "Connecting" => "VPN: Connecting",
+            _ => "VPN: Off"
+        };
+
         public string VpnFooterStatusText => VpnSummary.State == "Connected" && !string.IsNullOrWhiteSpace(VpnSummary.Location)
             ? $"Connected • {VpnSummary.Location}"
             : VpnSummary.State;
@@ -1656,6 +1664,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(InternetStatusText));
             OnPropertyChanged(nameof(InternetStatusColour));
             OnPropertyChanged(nameof(VpnStatusText));
+            OnPropertyChanged(nameof(VpnCompactFooterStatusText));
             OnPropertyChanged(nameof(VpnFooterStatusText));
             OnPropertyChanged(nameof(VpnStatusColour));
             OnPropertyChanged(nameof(VpnStatusDetail));

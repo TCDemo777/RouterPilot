@@ -260,11 +260,10 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource StatusPill}">
+                        <Border Style="{StaticResource StatusPill}" MaxWidth="220">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="7" Height="7" Margin="0,0,6,0" Fill="{Binding VpnStatusColour}"/>
-                                <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="VPN "/>
-                                <TextBlock FontWeight="SemiBold" Foreground="{Binding VpnStatusColour}" Text="{Binding VpnFooterStatusText}"/>
+                                <TextBlock MaxWidth="190" FontWeight="SemiBold" Foreground="{Binding VpnStatusColour}" Text="{Binding VpnCompactFooterStatusText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding VpnCompactFooterStatusText}"/>
                             </StackPanel>
                         </Border>
 

@@ -41,9 +41,12 @@ public sealed class VpnTunnelInfo
     public VpnLiveStatusInfo? LiveStatus { get; init; }
     public VpnConfigurationHealth ConfigurationHealth { get; init; } = VpnConfigurationHealth.Unknown;
     public bool HasConfigurationAttention => ConfigurationHealth == VpnConfigurationHealth.Unlinked;
+    public bool HasConnectionAttemptFailure { get; init; }
     public string ConfigurationAttentionTitle => "VPN profile is not linked to the Primary Tunnel.";
     public string ConfigurationAttentionDetail => "The VPN provider profile is available, but the router's Primary Tunnel is not currently associated with it.";
-    public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
+    public string ConnectionFailureTitle => "VPN connection did not complete";
+    public string ConnectionFailureDetail => "The selected VPN server or location may be unavailable. You can retry or choose another location.";
+    public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : HasConnectionAttemptFailure ? "Connection did not complete" : LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
     public bool HasLiveConnection => LiveStatus?.IsConnected == true;
     public string LiveLocation => LiveStatus?.LocationDisplay ?? string.Empty;
     public string LiveServerName => LiveStatus?.ServerName ?? string.Empty;

@@ -110,7 +110,7 @@ public partial class VpnView : UserControl
         _ = Dispatcher.InvokeAsync(() =>
         {
             bool authoritative = _dataFreshnessService.Get(VpnFreshnessSource).State == DataFreshnessState.Fresh;
-            _viewModel.ApplyLiveStatuses(statuses, authoritative);
+            _viewModel.ApplyLiveStatuses(statuses, authoritative, fromLiveStatusEvent: true);
             VpnLiveStatusDiagnostics.Record("VPN UI dispatch completed: YES");
 #if DEBUG
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
@@ -374,6 +374,7 @@ public partial class VpnView : UserControl
             return;
         }
         if (!target && MessageBox.Show($"Disconnect {tunnel.Name}? Network traffic using this tunnel may be interrupted.", "Disconnect VPN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (!target) _viewModel.MarkExplicitDisconnect(tunnel.TunnelId);
         Button? button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _viewModel.VpnIsLoading = true; _viewModel.VpnOperationTunnelId = tunnel.TunnelId;
@@ -381,6 +382,7 @@ public partial class VpnView : UserControl
         {
             VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, CancellationToken.None);
             if (!result.Success) { MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            if (target) _viewModel.BeginConnectionAttempt(tunnel);
             _viewModel.VpnIsLoading = false;
             await RefreshAsync();
         }

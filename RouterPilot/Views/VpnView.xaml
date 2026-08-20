@@ -22,7 +22,9 @@
                                     <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="VPN DASHBOARD"/><TextBlock Margin="0,6,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="Existing client tunnels"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding VpnStatus}"/></StackPanel>
                                 </Grid>
                             </Border>
-                            <Expander x:Name="DiagnosticsExpander" Header="Client Tunnels Details" Style="{StaticResource DiagnosticsExpander}" Expanded="DiagnosticsExpander_Expanded" Collapsed="DiagnosticsExpander_Collapsed">
+                        </StackPanel>
+                    </Expander>
+                    <Expander x:Name="DiagnosticsExpander" Margin="0,12,0,0" Header="Client Tunnels Details" Style="{StaticResource DiagnosticsExpander}" Expanded="DiagnosticsExpander_Expanded" Collapsed="DiagnosticsExpander_Collapsed">
                                 <Border Margin="0,8,0,0" Style="{DynamicResource Card.Compact}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Text.CardCaption}" Text="CLIENT TUNNELS DETAILS"/>
@@ -31,8 +33,6 @@
                                     </StackPanel>
                                 </Border>
                             </Expander>
-                        </StackPanel>
-                    </Expander>
                     <Expander x:Name="VpnSchedulePanel" Margin="0,12,0,0" Header="VPN Schedule — Runs while RouterPilot is active" Style="{StaticResource DiagnosticsExpander}">
                         <Border Margin="0,8,0,0" Style="{DynamicResource Card.Compact}">
                             <StackPanel>
@@ -74,6 +74,7 @@
                                 <TextBlock Margin="16,7,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding LinkedProfilesDisplay}"/>
                                 <TextBlock Margin="16,5,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConfiguredLocation}" Visibility="{Binding HasConfiguredLocation, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasConfigurationAttention, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConfigurationAttentionTitle}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ConfigurationAttentionDetail}"/></StackPanel></Border>
+                                <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasConnectionAttemptFailure, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConnectionFailureTitle}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ConnectionFailureDetail}"/></StackPanel></Border>
                                 <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasServerSelectionLimitation, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ServerSelectionLimitationText}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ServerSelectionLimitationDetail}"/></StackPanel></Border>
                                 <TextBlock Margin="16,5,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveLocation}" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/><TextBlock Margin="16,2,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding LiveServerName}" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 <Grid Margin="16,12,0,0" Visibility="{Binding HasLiveConnection, Converter={StaticResource BooleanToVisibilityConverter}}"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="VIRTUAL IP"/><TextBlock Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveVirtualIp}"/><TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.CardCaption}" Text="VPN SERVER"/><TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding LiveEndpoint}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TRAFFIC"/><TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveDownload, StringFormat=↓ Download  {0}}"/><TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding LiveUpload, StringFormat=↑ Upload  {0}}"/></StackPanel></Grid>
