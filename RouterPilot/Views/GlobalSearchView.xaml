@@ -21,7 +21,7 @@
                        Text="Global Search"/>
             <TextBlock Margin="0,8,0,0"
                        Style="{StaticResource Text.Secondary}"
-                       Text="Search clients and recent DNS activity from one place"/>
+                       Text="Search current RouterPilot clients, network configuration, and pages."/>
         </StackPanel>
 
         <Border Grid.Row="2"
@@ -36,15 +36,13 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="130"/>
                 </Grid.ColumnDefinitions>
-                <TextBox Height="38"
+                <TextBox x:Name="SearchBox" Height="38"
                          VerticalContentAlignment="Center"
                          Text="{Binding SearchText,
                                         UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="Search by client, IP, MAC address or domain"/>
-                <Button Grid.Column="2"
-                        Height="38"
-                        Command="{Binding RefreshIndexCommand}"
-                        Content="Refresh index"/>
+                         KeyDown="SearchBox_KeyDown"
+                         ToolTip="Search clients, IP, MAC address, ports, reservations, Wi-Fi, or pages"/>
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="Local results"/>
             </Grid>
         </Border>
 
@@ -54,9 +52,11 @@
                 CornerRadius="10"
                 BorderBrush="{DynamicResource Brush.Border}"
                 BorderThickness="1">
-            <ListBox ItemsSource="{Binding Results}"
+            <ListBox x:Name="ResultsList" ItemsSource="{Binding Results}"
                      BorderThickness="0"
                      Background="Transparent"
+                     MouseLeftButtonUp="ResultsList_MouseLeftButtonUp"
+                     KeyDown="ResultsList_KeyDown"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">

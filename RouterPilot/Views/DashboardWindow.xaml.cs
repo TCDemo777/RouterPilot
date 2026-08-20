@@ -29,6 +29,7 @@ namespace RouterPilot.Views
         private const string InternetFreshnessSource = "Internet / WAN";
         private const string WifiFreshnessSource = "Wi-Fi";
         private const string DhcpFreshnessSource = "DHCP";
+        private static readonly TimeSpan PortForwardDhcpFreshnessWindow = TimeSpan.FromSeconds(8);
         private const string AdGuardFreshnessSource = "AdGuard";
         private const string VpnFreshnessSource = "VPN";
         private const string TrafficFreshnessSource = "Network traffic";
@@ -63,6 +64,7 @@ namespace RouterPilot.Views
         private int _vpnNetworkContextRefreshQueued;
         private bool _healthSourcesReady;
         private bool? _observedInternetState;
+        private bool _vpnStateObserved;
 
         private NetworkTrafficSnapshot? _previousTrafficSnapshot;
         private bool _trafficBaselineRequired = true;
@@ -405,7 +407,10 @@ namespace RouterPilot.Views
                 _dataFreshnessService.MarkSuccess(InternetFreshnessSource);
 
                 await _vpnSummaryService.RefreshAsync(cancellationToken);
-                _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
+                if (_vpnSummaryService.Current.IsAvailable)
+                    _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
+                else
+                    _dataFreshnessService.MarkUnavailable(VpnFreshnessSource);
 
                 _viewModel.StatusMessage = _viewModel.AdGuardAvailability ==
                     AdGuardAvailabilityState.Available
@@ -885,16 +890,29 @@ namespace RouterPilot.Views
             }
         }
 
-        private async Task RefreshDhcpAsync(
+        /// <summary>Performs one user-requested DHCP refresh without scheduling work.</summary>
+        public async Task<bool> RefreshDhcpStateAsync(bool forceConfigurationRefresh, CancellationToken cancellationToken = default)
+        {
+            DataFreshnessInfo freshness = _dataFreshnessService.Get(DhcpFreshnessSource);
+            if (!forceConfigurationRefresh && freshness.LastSuccessUtc is { } lastSuccess && DateTimeOffset.UtcNow - lastSuccess <= PortForwardDhcpFreshnessWindow)
+                return true;
+
+            RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            return await RefreshDhcpAsync(router, cancellationToken, forceConfigurationRefresh: true);
+        }
+
+        private async Task<bool> RefreshDhcpAsync(
             RouterManager router,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool forceConfigurationRefresh = false)
         {
             try
             {
-                DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync();
+                DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync(forceConfigurationRefresh);
                 cancellationToken.ThrowIfCancellationRequested();
                 _viewModel.UpdateDhcpSnapshot(snapshot, _clientProfileService.Load());
                 _dataFreshnessService.MarkSuccess(DhcpFreshnessSource);
+                return true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -904,6 +922,7 @@ namespace RouterPilot.Views
             {
                 _dataFreshnessService.MarkUnavailable(DhcpFreshnessSource);
                 Debug.WriteLine($"[DhcpRefresh] failed category={ex.GetType().Name}");
+                return false;
             }
         }
 
@@ -1137,6 +1156,26 @@ namespace RouterPilot.Views
             SelectNavigationButton(LogsButton);
         }
 
+        public void NavigateToGlobalSearchResult(GlobalSearchResult result)
+        {
+            switch (result.NavigationTarget)
+            {
+                case "overview": Overview_Click(this, new RoutedEventArgs()); break;
+                case "clients": Clients_Click(this, new RoutedEventArgs()); break;
+                case "protection": Protection_Click(this, new RoutedEventArgs()); break;
+                case "analytics": Analytics_Click(this, new RoutedEventArgs()); break;
+                case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
+                case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
+                case "health": NavigateToHealthTarget("network"); break;
+                case "wifi": case "dhcp": case "port-forward": case "vpn":
+                    var network = new NetworkView();
+                    PageContent.Content = network;
+                    SelectNavigationButton(NetworkButton);
+                    network.NavigateToSection(result.NavigationTarget);
+                    break;
+            }
+        }
+
         private void Protection_Click(
             object sender,
             RoutedEventArgs e)
@@ -1360,11 +1399,29 @@ namespace RouterPilot.Views
         {
             // A live VPN summary is an authoritative update even when it did
             // not originate from the dashboard refresh request.
-            _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
+            if (summary.IsAvailable)
+                _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
+            else
+                _dataFreshnessService.MarkUnavailable(VpnFreshnessSource);
             void Apply()
             {
                 string previousState = _viewModel.VpnSummary.State;
                 _viewModel.VpnSummary = summary;
+
+                if (_vpnStateObserved && IsVpnNetworkContextTransition(previousState, summary.State))
+                {
+                    bool connected = string.Equals(summary.State, "Connected", StringComparison.Ordinal);
+                    _ = _timelineService.AddAsync(new TimelineEvent
+                    {
+                        Category = TimelineCategory.Router,
+                        EventType = connected ? TimelineEventType.VpnConnected : TimelineEventType.VpnDisconnected,
+                        Title = connected ? "VPN connected" : "VPN disconnected",
+                        Message = summary.ProfileName ?? "VPN tunnel",
+                        Severity = connected ? TimelineSeverity.Success : TimelineSeverity.Warning,
+                        Source = "VPN"
+                    });
+                }
+                _vpnStateObserved = true;
 
                 if (IsVpnNetworkContextTransition(previousState, summary.State))
                 {

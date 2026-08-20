@@ -18,11 +18,13 @@ using RouterPilot.ViewModels;
 
 namespace RouterPilot.Views;
 
+internal sealed record PortForwardReservationTarget(string DeviceName, string MacAddress, string IpAddress);
+
 internal static partial class PortForwardEditorDialog
 {
     private const double CompactInputHeight = 30;
 
-    public static void Show(Window? owner, string title, PortForwardRuleInfo? existing, DashboardViewModel dashboard, Func<PortForwardRuleRequest, Task<string?>> saveAsync)
+    public static void Show(Window? owner, string title, PortForwardRuleInfo? existing, DashboardViewModel dashboard, Func<PortForwardRuleRequest, Task<string?>> saveAsync, Func<PortForwardReservationTarget, Task<string?>> createReservationAsync, Func<bool, Task<bool>> refreshDhcpStateAsync)
     {
         var draft = new PortForwardDraft { InternalIp = existing?.DestinationIp ?? string.Empty };
         var name = Input(new TextBox { Text = existing?.Name ?? string.Empty, MinWidth = 300 });
@@ -45,7 +47,8 @@ internal static partial class PortForwardEditorDialog
             .Select(item => new DeviceChoice(
                 DisplayName(item),
                 item.IpAddress,
-                DeviceIdentity(item.MacAddress, item.IpAddress)))
+                DeviceIdentity(item.MacAddress, item.IpAddress),
+                item.MacAddress))
             .DistinctBy(item => item.Identity).OrderBy(item => item.Name).ThenBy(item => item.IpAddress).ToList();
         var device = Input(new ComboBox
         {
@@ -99,7 +102,20 @@ internal static partial class PortForwardEditorDialog
         var intelligenceTitle = new TextBlock { FontWeight = FontWeights.SemiBold };
         var intelligenceDetail = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
         intelligenceDetail.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary");
-        var intelligenceContent = new StackPanel(); intelligenceContent.Children.Add(intelligenceTitle); intelligenceContent.Children.Add(intelligenceDetail); intelligence.Child = intelligenceContent;
+        var createReservation = Button(owner, "Create reservation", "Button.Secondary");
+        createReservation.Visibility = Visibility.Collapsed;
+        createReservation.HorizontalAlignment = HorizontalAlignment.Left;
+        createReservation.Margin = new Thickness(0, 7, 0, 0);
+        var intelligenceContent = new StackPanel(); intelligenceContent.Children.Add(intelligenceTitle); intelligenceContent.Children.Add(intelligenceDetail); intelligenceContent.Children.Add(createReservation); intelligence.Child = intelligenceContent;
+        bool reservationInProgress = false;
+        bool targetRefreshInProgress = false;
+        bool editorWasActivated = false;
+        string lastRefreshRequestedIp = string.Empty;
+        DateTimeOffset lastActivationRefreshUtc = DateTimeOffset.MinValue;
+        DeviceChoice? ReservationCandidate() => choices.FirstOrDefault(item =>
+            string.Equals(item.Identity, draft.SelectedInternalDeviceId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.IpAddress, draft.InternalIp.Trim(), StringComparison.OrdinalIgnoreCase) &&
+            item.Identity.StartsWith("mac:", StringComparison.OrdinalIgnoreCase));
         bool applyingPreset = false;
         void UpdatePresetFromFields()
         {
@@ -124,7 +140,16 @@ internal static partial class PortForwardEditorDialog
 
         void RefreshIntelligence()
         {
+            createReservation.Visibility = Visibility.Collapsed;
             if (!IsValidIpv4(draft.InternalIp)) { intelligence.Visibility = Visibility.Collapsed; return; }
+            if (targetRefreshInProgress)
+            {
+                intelligence.Visibility = Visibility.Visible;
+                intelligenceTitle.Text = "Checking target…";
+                intelligenceDetail.Text = string.Empty;
+                intelligenceTitle.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary");
+                return;
+            }
             var temporaryRule = new PortForwardRuleInfo
             {
                 Id = "__editor_draft__",
@@ -154,8 +179,32 @@ internal static partial class PortForwardEditorDialog
             intelligenceTitle.Text = temporaryRule.TargetStatusTitle;
             intelligenceDetail.Text = temporaryRule.TargetStatusDetail;
             intelligenceTitle.SetResourceReference(TextBlock.ForegroundProperty, temporaryRule.TargetStatusSeverity == "Critical" ? "Brush.Danger" : "Brush.Warning");
+            if (temporaryRule.TargetStatusTitle == "Dynamic IP" && ReservationCandidate() is not null && dashboard.CanManageDhcpReservations)
+                createReservation.Visibility = Visibility.Visible;
         }
-        draft.PropertyChanged += (_, _) => RefreshIntelligence();
+        async Task RefreshDhcpReferenceAsync(bool forceConfigurationRefresh)
+        {
+            if (targetRefreshInProgress) return;
+            targetRefreshInProgress = true;
+            RefreshIntelligence();
+            try
+            {
+                if (await refreshDhcpStateAsync(forceConfigurationRefresh))
+                    lastRefreshRequestedIp = draft.InternalIp.Trim();
+            }
+            finally
+            {
+                targetRefreshInProgress = false;
+                RefreshIntelligence();
+            }
+        }
+        draft.PropertyChanged += (_, args) =>
+        {
+            RefreshIntelligence();
+            if (args.PropertyName == nameof(PortForwardDraft.InternalIp) && IsValidIpv4(draft.InternalIp) &&
+                !string.Equals(lastRefreshRequestedIp, draft.InternalIp.Trim(), StringComparison.OrdinalIgnoreCase))
+                _ = RefreshDhcpReferenceAsync(forceConfigurationRefresh: false);
+        };
         protocol.SelectionChanged += (_, _) => RefreshIntelligence();
         externalPort.TextChanged += (_, _) => RefreshIntelligence();
         internalPort.TextChanged += (_, _) => RefreshIntelligence();
@@ -192,10 +241,19 @@ internal static partial class PortForwardEditorDialog
         var dialog = new Window { Title = title, Content = panel, Width = 540, SizeToContent = SizeToContent.Height, MinWidth = 470, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize };
         dialog.SetResourceReference(Window.BackgroundProperty, "Brush.Surface");
         dialog.SetResourceReference(Window.ForegroundProperty, "Brush.TextPrimary");
+        dialog.ContentRendered += async (_, _) => await RefreshDhcpReferenceAsync(forceConfigurationRefresh: true);
+        dialog.Activated += (_, _) =>
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (!editorWasActivated) { editorWasActivated = true; return; }
+            if (now - lastActivationRefreshUtc < TimeSpan.FromSeconds(8)) return;
+            lastActivationRefreshUtc = now;
+            _ = RefreshDhcpReferenceAsync(forceConfigurationRefresh: false);
+        };
         NotifyCollectionChangedEventHandler sourceChanged = (_, _) => RefreshIntelligence();
         PropertyChangedEventHandler dashboardChanged = (_, args) =>
         {
-            if (args.PropertyName == nameof(DashboardViewModel.DhcpLoaded)) RefreshIntelligence();
+            if (args.PropertyName is nameof(DashboardViewModel.DhcpLoaded) or nameof(DashboardViewModel.CanManageDhcpReservations)) RefreshIntelligence();
         };
         dashboard.DhcpLeases.CollectionChanged += sourceChanged;
         dashboard.DhcpReservations.CollectionChanged += sourceChanged;
@@ -211,6 +269,28 @@ internal static partial class PortForwardEditorDialog
             dashboard.PropertyChanged -= dashboardChanged;
         };
         cancel.Click += (_, _) => dialog.Close();
+        createReservation.Click += async (_, _) =>
+        {
+            if (reservationInProgress || ReservationCandidate() is not DeviceChoice choice) return;
+            if (MessageBox.Show($"Create DHCP reservation?\n\nDevice: {choice.Name}\nIP address: {draft.InternalIp.Trim()}\nMAC: {choice.MacAddress}\n\nRouterPilot will reserve this IP address for this device.", "Create DHCP Reservation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+            reservationInProgress = true;
+            createReservation.IsEnabled = false;
+            createReservation.Content = "Creatingâ€¦";
+            error.Text = string.Empty;
+            try
+            {
+                string? failure = await createReservationAsync(new PortForwardReservationTarget(choice.Name, choice.MacAddress, draft.InternalIp.Trim()));
+                if (failure is not null) error.Text = failure;
+            }
+            finally
+            {
+                reservationInProgress = false;
+                createReservation.IsEnabled = true;
+                createReservation.Content = "Create reservation";
+                RefreshIntelligence();
+            }
+        };
         save.Click += async (_, _) =>
         {
             error.Text = string.Empty; save.IsEnabled = false; cancel.IsEnabled = false;
@@ -298,7 +378,7 @@ internal static partial class PortForwardEditorDialog
         </DataTemplate>
         """);
 
-    private sealed record DeviceChoice(string Name, string IpAddress, string Identity)
+    private sealed record DeviceChoice(string Name, string IpAddress, string Identity, string MacAddress)
     {
         public string Display => $"{Name} — {IpAddress}";
     }

@@ -38,6 +38,19 @@ namespace RouterPilot.Views
             UpdateNetworkTabVisibility();
         }
 
+        public void NavigateToSection(string section)
+        {
+            NetworkTabs.SelectedIndex = section switch
+            {
+                "wifi" => 1,
+                "dhcp" => 2,
+                "port-forward" => 3,
+                "vpn" => 4,
+                _ => 0
+            };
+            UpdateNetworkTabVisibility();
+        }
+
         private void AddDhcpReservation_Click(object sender, RoutedEventArgs e)
         {
             if (!CanManageDhcpReservations()) return;
@@ -205,8 +218,95 @@ namespace RouterPilot.Views
         private void ShowPortForwardDialog(PortForwardRuleInfo? existing)
         {
             if (DataContext is not DashboardViewModel viewModel) return;
-            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel, request => ExecutePortForwardAsync(existing, request));
+            PortForwardEditorDialog.Show(Window.GetWindow(this), existing is null ? "Add Port Forward" : "Edit Port Forward", existing, viewModel, request => ExecutePortForwardAsync(existing, request), CreatePortForwardReservationAsync, RefreshPortForwardDhcpStateAsync);
         }
+
+        private async Task<bool> RefreshPortForwardDhcpStateAsync(bool forceConfigurationRefresh)
+        {
+            if (Application.Current.MainWindow is not DashboardWindow dashboard) return false;
+            return await dashboard.RefreshDhcpStateAsync(forceConfigurationRefresh);
+        }
+
+        // This is deliberately a narrow adapter over the established DHCP reservation
+        // workflow. It confirms that the editor's selected device still owns the
+        // draft IP before handing the write to IDhcpReservationService.
+        private async Task<string?> CreatePortForwardReservationAsync(PortForwardReservationTarget target)
+        {
+            if (!CanManageDhcpReservations()) return "DHCP reservation changes are unavailable while the router connection is not ready.";
+            if (DataContext is not DashboardViewModel viewModel) return "RouterPilot could not access the DHCP view.";
+            bool reservationMutationStarted = false;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync();
+                DhcpReservationValidationResult validation = _dhcpReservationValidator.Validate(target.MacAddress, target.IpAddress, snapshot.Scopes, snapshot.Reservations, snapshot.Leases);
+                if (string.IsNullOrWhiteSpace(validation.NormalizedMac)) return ReservationFailureMessage(validation.Code.ToString());
+
+                var deviceLeases = snapshot.Leases.Where(lease => SameMac(lease.MacAddress, validation.NormalizedMac)).ToList();
+                if (deviceLeases.Count == 0) return "Cannot create reservation\n\nThe selected device is no longer correlated to this target IP.";
+                if (!deviceLeases.Any(lease => string.Equals(lease.IpAddress, validation.IpAddress, StringComparison.OrdinalIgnoreCase)))
+                    return $"Target IP changed\n\nRule: {target.IpAddress} â€¢ Current device IP: {deviceLeases[0].IpAddress}";
+
+                bool exactReservation = snapshot.Reservations.Any(reservation => SameMac(reservation.MacAddress, validation.NormalizedMac) && string.Equals(reservation.IpAddress, validation.IpAddress, StringComparison.OrdinalIgnoreCase));
+                if (exactReservation)
+                {
+                    await RefreshDashboardAsync();
+                    ClientRefreshNotifier.RequestRefresh();
+                    return null;
+                }
+                if (snapshot.Reservations.Any(reservation => SameMac(reservation.MacAddress, validation.NormalizedMac)))
+                {
+                    await RefreshDashboardAsync();
+                    ClientRefreshNotifier.RequestRefresh();
+                    return "This device already has a reservation for a different IP address.";
+                }
+                if (!validation.IsValid) return PortForwardReservationFailureMessage(validation, target.IpAddress);
+
+                viewModel.DhcpReservationMutationInProgress = true;
+                reservationMutationStarted = true;
+                DhcpReservationOperationResult result = await _dhcpReservationService.AddReservationAsync(new DhcpReservationRequest
+                {
+                    Hostname = target.DeviceName,
+                    MacAddress = validation.NormalizedMac,
+                    IpAddress = validation.IpAddress!
+                }, CancellationToken.None);
+                if (!result.Success)
+                {
+                    if (result.FailureCategory == nameof(DhcpReservationValidationCode.DuplicateExactReservation))
+                    {
+                        await RefreshDashboardAsync();
+                        ClientRefreshNotifier.RequestRefresh();
+                        return null;
+                    }
+                    return PortForwardReservationFailureMessage(result.FailureCategory, target.IpAddress);
+                }
+                await RefreshDashboardAsync();
+                ClientRefreshNotifier.RequestRefresh();
+                return null;
+            }
+            catch
+            {
+                return "RouterPilot could not apply the DHCP reservation.";
+            }
+            finally
+            {
+                if (reservationMutationStarted) viewModel.DhcpReservationMutationInProgress = false;
+            }
+        }
+
+        private static bool SameMac(string first, string second) =>
+            string.Concat((first ?? string.Empty).Where(char.IsLetterOrDigit))
+                .Equals(string.Concat((second ?? string.Empty).Where(char.IsLetterOrDigit)), StringComparison.OrdinalIgnoreCase);
+
+        private static string PortForwardReservationFailureMessage(DhcpReservationValidationResult validation, string requestedIp) =>
+            PortForwardReservationFailureMessage(validation.Code.ToString(), requestedIp);
+
+        private static string PortForwardReservationFailureMessage(string category, string requestedIp) => category switch
+        {
+            nameof(DhcpReservationValidationCode.ConflictingReservedIp) => $"Cannot create reservation\n\n{requestedIp} is already reserved for another device.",
+            nameof(DhcpReservationValidationCode.DuplicateExactReservation) => "That reservation already exists.",
+            _ => ReservationFailureMessage(category)
+        };
 
         private async Task<string?> ExecutePortForwardAsync(PortForwardRuleInfo? existing, PortForwardRuleRequest request)
         {

@@ -26,13 +26,13 @@ public sealed class DataFreshnessService : IDataFreshnessService
     {
         if (expectedRefreshInterval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(expectedRefreshInterval));
         lock (_sync) { Entry entry = GetOrCreate(source); entry.Interval = expectedRefreshInterval; RefreshEntry(entry, DateTimeOffset.UtcNow); }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void MarkAttempt(string source)
     {
         lock (_sync) { Entry entry = GetOrCreate(source); entry.LastAttemptUtc = DateTimeOffset.UtcNow; RefreshEntry(entry, entry.LastAttemptUtc.Value); }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void MarkSuccess(string source)
@@ -42,7 +42,7 @@ public sealed class DataFreshnessService : IDataFreshnessService
             Entry entry = GetOrCreate(source); DateTimeOffset now = DateTimeOffset.UtcNow;
             entry.LastAttemptUtc = now; entry.LastSuccessUtc = now; entry.State = DataFreshnessState.Fresh;
         }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void MarkUnavailable(string source)
@@ -53,13 +53,13 @@ public sealed class DataFreshnessService : IDataFreshnessService
             if (entry.LastSuccessUtc is null) entry.State = DataFreshnessState.Unavailable;
             else RefreshEntry(entry, entry.LastAttemptUtc.Value);
         }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void Refresh()
     {
         lock (_sync) { DateTimeOffset now = DateTimeOffset.UtcNow; foreach (Entry entry in _entries.Values) RefreshEntry(entry, now); }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public DataFreshnessInfo Get(string source)
@@ -92,4 +92,16 @@ public sealed class DataFreshnessService : IDataFreshnessService
     }
 
     private static DataFreshnessInfo Snapshot(Entry entry) => new(entry.Source, entry.LastSuccessUtc, entry.LastAttemptUtc, entry.State, entry.Interval);
+
+    private void NotifyChanged()
+    {
+        Action? subscribers = Changed;
+        if (subscribers is null) return;
+
+        foreach (Action subscriber in subscribers.GetInvocationList())
+        {
+            try { subscriber(); }
+            catch { /* Freshness presentation must never interrupt a live refresh. */ }
+        }
+    }
 }

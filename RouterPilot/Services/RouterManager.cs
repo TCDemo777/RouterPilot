@@ -527,8 +527,16 @@ namespace RouterPilot.Services
         /// show command. DHCP configuration is cached for this RouterManager
         /// session; active leases remain part of the normal refresh lifecycle.
         /// </summary>
-        public async Task<DhcpSnapshot> GetDhcpSnapshotAsync()
+        public async Task<DhcpSnapshot> GetDhcpSnapshotAsync(bool forceConfigurationRefresh = false)
         {
+            // DHCP host configuration may have changed outside RouterPilot. A
+            // bounded user-requested refresh can discard only this read cache;
+            // it still uses the established UCI and lease read path.
+            if (forceConfigurationRefresh)
+            {
+                _dhcpConfigurationCache = null;
+                _dhcpReservationCache = null;
+            }
             if (_dhcpConfigurationCache is null || _dhcpReservationCache is null)
             {
                 string configurationOutput = await _ssh.RunCommandAsync("uci show dhcp 2>/dev/null || true");

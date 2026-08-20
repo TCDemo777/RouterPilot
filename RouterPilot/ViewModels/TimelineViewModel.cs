@@ -17,17 +17,23 @@ namespace RouterPilot.ViewModels;
 
 public partial class TimelineViewModel : ObservableObject
 {
+    private static readonly TimeSpan PostRestorationWindow = TimeSpan.FromSeconds(60);
+    // The normal dashboard cadence is 30 seconds. Five minutes gives several
+    // observed samples while declining to imply continuity across app closure.
+    private static readonly TimeSpan MaximumObservedInterruption = TimeSpan.FromMinutes(5);
     private readonly TimelineService _timelineService;
     private readonly CollectionViewSource _viewSource;
+    private readonly ObservableCollection<TimelinePresentationItem> _presentation = new();
 
     public TimelineViewModel(TimelineService timelineService)
     {
         _timelineService = timelineService;
         Events = timelineService.Events;
-        _viewSource = new CollectionViewSource { Source = Events };
+        _viewSource = new CollectionViewSource { Source = _presentation };
         EventsView = _viewSource.View;
         EventsView.Filter = Matches;
         _timelineService.Changed += TimelineChanged;
+        RebuildPresentation();
     }
 
     public ReadOnlyObservableCollection<TimelineEvent> Events { get; }
@@ -62,7 +68,7 @@ public partial class TimelineViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv|JSON (*.json)|*.json|Text (*.txt)|*.txt", FileName = "RouterPilot_Timeline_" + DateTime.Now.ToString("yyyy-MM-dd_HHmm") };
         if (dialog.ShowDialog() != true) return;
-        var items = EventsView.Cast<TimelineEvent>().Select(item => new SafeTimelineExport(item.Timestamp, item.Category.ToString(), item.EventType.ToString(), item.Severity.ToString(), item.Title, item.Message, item.Source ?? string.Empty)).ToList();
+        var items = EventsView.Cast<TimelinePresentationItem>().SelectMany(item => item.SourceEvents).DistinctBy(item => item.Id).Select(item => new SafeTimelineExport(item.Timestamp, item.Category.ToString(), item.EventType.ToString(), item.Severity.ToString(), item.Title, item.Message, item.Source ?? string.Empty)).ToList();
         if (items.Count == 0) { MessageBox.Show("There are no currently filtered events to export.", "Export Timeline", MessageBoxButton.OK, MessageBoxImage.Information); return; }
         string extension = Path.GetExtension(dialog.FileName).ToLowerInvariant();
         string output = extension == ".json" ? JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true }) : extension == ".txt" ? string.Join(Environment.NewLine + Environment.NewLine, items.Select(x => $"{x.Timestamp.LocalDateTime:yyyy-MM-dd HH:mm}\n[{x.Category}] {x.Title}\n{x.Severity} — {x.Message}")) : BuildCsv(items);
@@ -86,13 +92,17 @@ public partial class TimelineViewModel : ObservableObject
         OnPropertyChanged(nameof(EmptyStateText));
     }
 
-    private void TimelineChanged(object? sender, EventArgs e) => Refresh();
+    private void TimelineChanged(object? sender, EventArgs e)
+    {
+        RebuildPresentation();
+        Refresh();
+    }
 
     private bool Matches(object item)
     {
-        if (item is not TimelineEvent entry)
+        if (item is not TimelinePresentationItem entry)
             return false;
-        if (SelectedCategory != "All" && !string.Equals(entry.Category.ToString(), SelectedCategory, StringComparison.OrdinalIgnoreCase))
+        if (SelectedCategory != "All" && !entry.SourceEvents.Any(source => string.Equals(source.Category.ToString(), SelectedCategory, StringComparison.OrdinalIgnoreCase)))
             return false;
         if (SelectedSeverity != "All" && !string.Equals(entry.Severity.ToString(), SelectedSeverity, StringComparison.OrdinalIgnoreCase))
             return false;
@@ -101,8 +111,52 @@ public partial class TimelineViewModel : ObservableObject
         if (SelectedDateRange == "Last 24 Hours" && entry.Timestamp < now.AddHours(-24)) return false;
         if (SelectedDateRange == "Last 7 Days" && entry.Timestamp < now.AddDays(-7)) return false;
         string query = SearchText.Trim();
-        return query.Length == 0 || string.Join(' ', entry.Title, entry.Message, entry.Category, entry.EventType, entry.Source ?? string.Empty)
-            .Contains(query, StringComparison.OrdinalIgnoreCase);
+        return query.Length == 0 || entry.SearchText.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void RebuildPresentation()
+    {
+        Dictionary<string, bool> expansion = _presentation.OfType<NetworkIncident>()
+            .ToDictionary(item => item.Id, item => item.IsExpanded, StringComparer.Ordinal);
+        List<TimelineEvent> source = Events.OrderBy(item => item.Timestamp).ToList();
+        HashSet<Guid> grouped = [];
+        List<TimelinePresentationItem> next = [];
+
+        for (int index = 0; index < source.Count; index++)
+        {
+            TimelineEvent loss = source[index];
+            if (loss.EventType != TimelineEventType.InternetConnectionLost || grouped.Contains(loss.Id)) continue;
+            TimelineEvent? nextLoss = source.Skip(index + 1).FirstOrDefault(item => item.EventType == TimelineEventType.InternetConnectionLost);
+            TimelineEvent? restored = source.Skip(index + 1).FirstOrDefault(item =>
+                item.EventType == TimelineEventType.InternetConnectionRestored &&
+                (nextLoss is null || item.Timestamp < nextLoss.Timestamp));
+
+            if (restored is not null && restored.Timestamp - loss.Timestamp <= MaximumObservedInterruption)
+            {
+                List<TimelineEvent> related = source.Where(item =>
+                    item.Id == loss.Id || item.Id == restored.Id ||
+                    (item.EventType == TimelineEventType.VpnDisconnected && item.Timestamp >= loss.Timestamp && item.Timestamp <= restored.Timestamp) ||
+                    ((item.EventType is TimelineEventType.VpnConnected or TimelineEventType.PublicIpChanged) && item.Timestamp >= restored.Timestamp && item.Timestamp <= restored.Timestamp + PostRestorationWindow))
+                    .OrderBy(item => item.Timestamp).ToList();
+                grouped.UnionWith(related.Select(item => item.Id));
+                string id = "network-interruption:" + loss.Id;
+                next.Add(new NetworkIncident { Id = id, StartedUtc = loss.Timestamp, EndedUtc = restored.Timestamp, Events = related, IsExpanded = expansion.GetValueOrDefault(id) });
+            }
+            else if (restored is null)
+            {
+                List<TimelineEvent> related = source.Where(item =>
+                    item.Id == loss.Id ||
+                    (item.EventType == TimelineEventType.VpnDisconnected && item.Timestamp >= loss.Timestamp && (nextLoss is null || item.Timestamp < nextLoss.Timestamp)))
+                    .OrderBy(item => item.Timestamp).ToList();
+                grouped.UnionWith(related.Select(item => item.Id));
+                string id = "network-interruption:" + loss.Id;
+                next.Add(new NetworkIncident { Id = id, StartedUtc = loss.Timestamp, Events = related, IsExpanded = expansion.GetValueOrDefault(id) });
+            }
+        }
+
+        next.AddRange(source.Where(item => !grouped.Contains(item.Id)).Select(item => new TimelineEventItem(item)));
+        _presentation.Clear();
+        foreach (TimelinePresentationItem item in next.OrderByDescending(item => item.Timestamp)) _presentation.Add(item);
     }
 
     private sealed record SafeTimelineExport(DateTimeOffset Timestamp, string Category, string EventType, string Severity, string Title, string Message, string Source);

@@ -43,7 +43,9 @@ public enum TimelineEventType
     NetworkIssueResolved,
     InternetConnectionLost,
     InternetConnectionRestored,
-    PublicIpChanged
+    PublicIpChanged,
+    VpnConnected,
+    VpnDisconnected
     ,
     NewDeviceDetected
 }
