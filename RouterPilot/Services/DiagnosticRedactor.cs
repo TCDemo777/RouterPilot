@@ -15,7 +15,9 @@ public static partial class DiagnosticRedactor
             return string.Empty;
 
         string redacted = value;
+        redacted = PrivateKeyBlockRegex().Replace(redacted, "***REDACTED-PRIVATE-KEY***");
         redacted = SensitiveJsonOrSettingRegex().Replace(redacted, "$1***REDACTED***");
+        redacted = BearerTokenRegex().Replace(redacted, "Bearer ***REDACTED***");
         redacted = AuthorizationHeaderRegex().Replace(redacted, "$1: ***REDACTED***");
         redacted = CookieHeaderRegex().Replace(redacted, "$1 ***REDACTED***");
         redacted = UrlUserInfoRegex().Replace(redacted, "$1***REDACTED***@");
@@ -35,8 +37,14 @@ public static partial class DiagnosticRedactor
         _ => "operation-failed"
     };
 
-    [GeneratedRegex("(?im)(\\\"?(?:password|encryptedpassword|token|authorization|cookie|secret|credential|apikey|api_key|session)\\\"?\\s*[=:]\\s*)[^,\\r\\n}]+")]
+    [GeneratedRegex("(?im)(\\\"?(?:sid|password|passwd|encryptedpassword|token|access_token|refresh_token|authorization|cookie|secret|credential|apikey|api_key|session|private[_ -]?key|preshared[_ -]?key)\\\"?\\s*[=:]\\s*)[^,\\r\\n}]+")]
     private static partial Regex SensitiveJsonOrSettingRegex();
+
+    [GeneratedRegex("(?is)-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----.*?-----END(?: [A-Z0-9]+)? PRIVATE KEY-----")]
+    private static partial Regex PrivateKeyBlockRegex();
+
+    [GeneratedRegex("(?im)\\bBearer\\s+[A-Za-z0-9._~+/-]+")]
+    private static partial Regex BearerTokenRegex();
 
     [GeneratedRegex("(?im)^((?:Authorization|Proxy-Authorization))\\s*:\\s*.*$")]
     private static partial Regex AuthorizationHeaderRegex();

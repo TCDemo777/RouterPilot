@@ -187,9 +187,21 @@ public sealed class DiagnosticsExecutionService
                 return $"Monitored {alias} offline ({issue.Severity})";
             }
 
-            // Titles are the application's typed issue labels. Never emit descriptions,
-            // which may contain a device name or other user-supplied detail.
-            return $"{SafeValue(issue.Title)} ({issue.Severity})";
+            // Never emit descriptions: those may contain user-supplied device names.
+            // Keep this list deliberately typed so an unforeseen title cannot become
+            // an export-time privacy leak.
+            string title = issue.Id switch
+            {
+                "router.unreachable" => "Router unavailable",
+                "internet.unavailable" => "Internet unavailable",
+                "adguard.service_failed" => "AdGuard service unavailable",
+                "internet.unstable" => "Internet connection unstable",
+                "router.cpu_high" => "High router CPU usage",
+                "router.memory_high" => "High router memory usage",
+                "data.refresh_delayed" => "Data refresh delayed",
+                _ => $"{SafeValue(issue.Subsystem, "Network")} issue"
+            };
+            return $"{title} ({issue.Severity})";
         }
 
         string freshnessState = freshness.Any(item => item.State == DataFreshnessState.Stale) ? "Stale"
@@ -199,6 +211,19 @@ public sealed class DiagnosticsExecutionService
             .Select(item => item!.Value).OrderByDescending(item => item).Cast<DateTimeOffset?>().FirstOrDefault();
         int observedClients = dashboard.LanClients.Count;
         int knownDevices = profiles.Length;
+        int wifiClients = dashboard.WifiClientTotal;
+        string FreshnessFor(string source)
+        {
+            DataFreshnessInfo? item = freshness.FirstOrDefault(info =>
+                string.Equals(info.Source, source, StringComparison.OrdinalIgnoreCase));
+            return item?.State switch
+            {
+                DataFreshnessState.Fresh => "Fresh",
+                DataFreshnessState.Stale => "Stale",
+                DataFreshnessState.Unavailable => "Unavailable",
+                _ => "Unknown"
+            };
+        }
 
         var builder = new StringBuilder();
         builder.AppendLine("# RouterPilot Network Snapshot");
@@ -215,20 +240,24 @@ public sealed class DiagnosticsExecutionService
         builder.AppendLine($"- CPU: {SafeValue(dashboard.CpuUsageDisplay)}");
         builder.AppendLine($"- Memory: {SafeValue(dashboard.MemoryUsage)}");
         builder.AppendLine($"- Temperature: {SafeValue(dashboard.Temperature)}");
-        builder.AppendLine($"- Data freshness: {freshnessState}");
+        builder.AppendLine($"- Data freshness: {FreshnessFor("Router status")}");
         if (lastSuccess is { } at) builder.AppendLine($"- Last successful update: {at.ToLocalTime():dddd, dd MMMM yyyy HH:mm zzz}");
         if (freshnessState == "Stale") builder.AppendLine("- Note: values below may represent last-known state.");
         builder.AppendLine();
         builder.AppendLine("## Internet");
         builder.AppendLine($"- Status: {(dashboard.InternetConnected ? "Online" : "Offline")}");
+        builder.AppendLine($"- WAN state: {SafeValue(dashboard.NetworkHealthWanSummary)}");
         builder.AppendLine($"- Reliability: {SafeValue(dashboard.InternetReliabilityAvailability)}");
         builder.AppendLine($"- Recent outages: {SafeValue(dashboard.InternetReliabilityOutages)}");
         builder.AppendLine("- Public IP: <redacted>");
+        builder.AppendLine($"- Data freshness: {FreshnessFor("Internet / WAN")}");
         builder.AppendLine();
         builder.AppendLine("## VPN");
         builder.AppendLine($"- State: {SafeValue(dashboard.VpnSummary.State)}");
         builder.AppendLine($"- Protocol: {SafeValue(dashboard.VpnSummary.Protocol)}");
-        builder.AppendLine($"- Profile: {(dashboard.VpnSummary.IsConfigured ? "Configured" : "Not configured")}");
+        builder.AppendLine($"- Tunnel/profile: {(dashboard.VpnSummary.IsConfigured ? "Configured" : "Not configured")}");
+        builder.AppendLine($"- Location: {SafeValue(dashboard.VpnSummary.Location)}");
+        builder.AppendLine($"- Data freshness: {FreshnessFor("VPN")}");
         builder.AppendLine();
         builder.AppendLine("## Wi-Fi");
         if (wifi.Length == 0) builder.AppendLine("- Unavailable");
@@ -242,6 +271,7 @@ public sealed class DiagnosticsExecutionService
         builder.AppendLine($"- Needs review: {profiles.Count(profile => profile.NeedsReview)}");
         builder.AppendLine($"- Monitored: {profiles.Count(profile => profile.MonitorAvailability)}");
         builder.AppendLine($"- Favourites: {profiles.Count(profile => profile.IsFavorite)}");
+        builder.AppendLine($"- Wi-Fi clients: {wifiClients}");
         builder.AppendLine();
         builder.AppendLine("## DHCP");
         builder.AppendLine($"- Active leases: {leases.Length}");
@@ -259,14 +289,16 @@ public sealed class DiagnosticsExecutionService
         builder.AppendLine("## AdGuard");
         builder.AppendLine($"- Service: {SafeValue(dashboard.AdGuardServiceDisplay)}");
         builder.AppendLine($"- Protection: {SafeValue(dashboard.AdGuardProtectionStatusText)}");
+        builder.AppendLine("- Query logging: Unknown");
         builder.AppendLine($"- Requests: {SafeValue(dashboard.AdGuardQueriesDisplay)}");
         builder.AppendLine($"- Blocked: {SafeValue(dashboard.AdGuardBlockedDisplay)}");
         builder.AppendLine($"- Block rate: {SafeValue(dashboard.AdGuardBlockRateDisplay)}");
-        builder.AppendLine($"- Data freshness: {freshnessState}");
+        builder.AppendLine($"- Data freshness: {FreshnessFor("AdGuard")}");
         builder.AppendLine();
         builder.AppendLine("## Health");
         builder.AppendLine($"- Active issues: {health.ActiveIssueCount}");
-        foreach (NetworkHealthIssue issue in health.Issues)
+        if (health.Issues.Count == 0) builder.AppendLine("- No active issues");
+        else foreach (NetworkHealthIssue issue in health.Issues)
             builder.AppendLine($"- {SanitisedHealthSummary(issue)}");
         return builder.ToString();
     }
