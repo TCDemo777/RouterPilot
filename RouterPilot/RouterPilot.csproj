@@ -9,6 +9,8 @@
     <AssemblyName>RouterPilot</AssemblyName>
     <AssemblyTitle>RouterPilot</AssemblyTitle>
     <Product>RouterPilot</Product>
+    <Company>Tristan</Company>
+    <Copyright>Copyright © Tristan</Copyright>
     <Description>Companion for GL.iNet Routers &amp; AdGuard Home</Description>
 
     <Deterministic>true</Deterministic>

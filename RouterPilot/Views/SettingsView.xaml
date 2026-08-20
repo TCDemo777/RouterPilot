@@ -309,6 +309,7 @@
                                 <CheckBox Content="Enable notifications" IsChecked="{Binding NotificationsEnabled}"/>
                                 <CheckBox Margin="0,8,0,0" Content="Notification Centre entries" IsChecked="{Binding NotificationCentreEnabled}"/>
                                 <CheckBox Margin="0,8,0,0" Content="Windows toast notifications" IsChecked="{Binding WindowsToastsEnabled}"/>
+                                <CheckBox Margin="0,8,0,0" Content="Monitored device availability" IsChecked="{Binding MonitoredDeviceAvailabilityEnabled}" ToolTip="Notify when monitored devices remain offline beyond the existing grace period and when they return."/>
                                 <CheckBox Margin="0,8,0,0" Content="Enable quiet hours" IsChecked="{Binding QuietHoursEnabled}"/>
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="12"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>

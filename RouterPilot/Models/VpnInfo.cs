@@ -2,6 +2,13 @@ using System.Collections.Generic;
 
 namespace RouterPilot.Models;
 
+public enum VpnConfigurationHealth
+{
+    Unknown,
+    Healthy,
+    Unlinked
+}
+
 public sealed class VpnTunnelInfo
 {
     public string Id { get; init; } = string.Empty;
@@ -14,8 +21,16 @@ public sealed class VpnTunnelInfo
     public string Protocol { get; init; } = "Unknown";
     public string InterfaceName { get; init; } = string.Empty;
     public IReadOnlyList<int> ProfileGroupIds { get; init; } = [];
+    // The currently reported profile group for this tunnel, when the live
+    // router status still identifies one. Group identity, not peer ID, is the
+    // stable configuration correlation key.
+    public int? SelectedProfileGroupId { get; init; }
+    public bool SelectedProfileGroupExists { get; init; }
     public string ActiveProfileName { get; init; } = string.Empty;
     public string LinkedProfilesDisplay { get; init; } = string.Empty;
+    public string ConfiguredProfileName { get; init; } = string.Empty;
+    public string ConfiguredLocation { get; init; } = string.Empty;
+    public bool HasConfiguredLocation => !string.IsNullOrWhiteSpace(ConfiguredLocation);
     public string? FromType { get; init; }
     public string? ToType { get; init; }
     public bool? Masquerade { get; init; }
@@ -24,7 +39,11 @@ public sealed class VpnTunnelInfo
     // -1 means the router did not associate a profile group with this tunnel.
     public int ServerConfigCount { get; init; } = -1;
     public VpnLiveStatusInfo? LiveStatus { get; init; }
-    public string ConnectionState => LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
+    public VpnConfigurationHealth ConfigurationHealth { get; init; } = VpnConfigurationHealth.Unknown;
+    public bool HasConfigurationAttention => ConfigurationHealth == VpnConfigurationHealth.Unlinked;
+    public string ConfigurationAttentionTitle => "VPN profile is not linked to the Primary Tunnel.";
+    public string ConfigurationAttentionDetail => "The VPN provider profile is available, but the router's Primary Tunnel is not currently associated with it.";
+    public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
     public bool HasLiveConnection => LiveStatus?.IsConnected == true;
     public string LiveLocation => LiveStatus?.LocationDisplay ?? string.Empty;
     public string LiveServerName => LiveStatus?.ServerName ?? string.Empty;
@@ -33,7 +52,7 @@ public sealed class VpnTunnelInfo
     public string LiveDownload => LiveStatus?.DownloadDisplay ?? string.Empty;
     public string LiveUpload => LiveStatus?.UploadDisplay ?? string.Empty;
     public bool HasServerSelectionLimitation => !Enabled && (ServerConfigCount == 0 || ServerConfigCount > 1);
-    public bool CanConnect => Enabled || !HasServerSelectionLimitation;
+    public bool CanConnect => !HasConfigurationAttention && (Enabled || !HasServerSelectionLimitation);
     public string ServerSelectionLimitationText => ServerConfigCount == 0
         ? "No VPN server is configured for this profile."
         : "Multiple VPN servers configured";
@@ -93,6 +112,9 @@ public sealed class VpnClientProfileInfo
     public IReadOnlyList<int> TunnelIds { get; init; } = [];
     public string UsedByDisplay { get; init; } = string.Empty;
     public int ServerConfigCount { get; init; }
+    // Current router configuration metadata, not a durable peer selection.
+    public int? CurrentPeerId { get; init; }
+    public string CurrentLocation { get; init; } = string.Empty;
 }
 
 public sealed class VpnOperationResult

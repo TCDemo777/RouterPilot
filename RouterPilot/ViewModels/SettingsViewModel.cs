@@ -36,6 +36,7 @@ namespace RouterPilot.ViewModels
         private bool _notificationsEnabled = true;
         private bool _notificationCentreEnabled = true;
         private bool _windowsToastsEnabled = true;
+        private bool _monitoredDeviceAvailabilityEnabled;
         private bool _quietHoursEnabled;
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
@@ -157,6 +158,7 @@ namespace RouterPilot.ViewModels
         public bool NotificationsEnabled { get => _notificationsEnabled; set { if (SetProperty(ref _notificationsEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public bool NotificationCentreEnabled { get => _notificationCentreEnabled; set { if (SetProperty(ref _notificationCentreEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public bool WindowsToastsEnabled { get => _windowsToastsEnabled; set { if (SetProperty(ref _windowsToastsEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
+        public bool MonitoredDeviceAvailabilityEnabled { get => _monitoredDeviceAvailabilityEnabled; set { if (SetProperty(ref _monitoredDeviceAvailabilityEnabled, value)) MarkChanged(); } }
         public bool QuietHoursEnabled { get => _quietHoursEnabled; set { if (SetProperty(ref _quietHoursEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursStart { get => _quietHoursStart; set { if (SetProperty(ref _quietHoursStart, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursEnd { get => _quietHoursEnd; set { if (SetProperty(ref _quietHoursEnd, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
@@ -315,6 +317,7 @@ namespace RouterPilot.ViewModels
                 NotificationsEnabled = preferences.Enabled;
                 NotificationCentreEnabled = preferences.NotificationCentreEnabled;
                 WindowsToastsEnabled = preferences.WindowsToastsEnabled;
+                MonitoredDeviceAvailabilityEnabled = preferences.MonitoredDeviceAvailabilityEnabled;
                 QuietHoursEnabled = preferences.QuietHoursEnabled;
                 QuietHoursStart = preferences.QuietHoursStart.ToString("HH:mm");
                 QuietHoursEnd = preferences.QuietHoursEnd.ToString("HH:mm");
@@ -402,6 +405,7 @@ namespace RouterPilot.ViewModels
                             Enabled = NotificationsEnabled,
                             NotificationCentreEnabled = NotificationCentreEnabled,
                             WindowsToastsEnabled = WindowsToastsEnabled,
+                            MonitoredDeviceAvailabilityEnabled = MonitoredDeviceAvailabilityEnabled,
                             QuietHoursEnabled = QuietHoursEnabled,
                             QuietHoursStart = TimeOnly.TryParse(QuietHoursStart, out TimeOnly start) ? start : new TimeOnly(22, 0),
                             QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)

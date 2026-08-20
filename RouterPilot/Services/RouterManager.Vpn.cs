@@ -45,9 +45,12 @@ public partial class RouterManager
                 int groupId = ReadInt(group, "group_id");
                 if (groupId <= 0) continue;
                 List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(groupId)).ToList();
-                int serverConfigCount = group.TryGetProperty("peers", out JsonElement peers) && peers.ValueKind == JsonValueKind.Array
-                    ? peers.EnumerateArray().Count(peer => ReadInt(peer, "peer_id") > 0 || ReadInt(peer, "client_id") > 0) : 0;
-                profiles.Add(new VpnClientProfileInfo { GroupId = groupId, Name = ReadString(group, "group_name", "Unnamed profile"), Protocol = protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = serverConfigCount });
+                List<JsonElement> peers = group.TryGetProperty("peers", out JsonElement peerValues) && peerValues.ValueKind == JsonValueKind.Array
+                    ? peerValues.EnumerateArray().Where(peer => ReadInt(peer, "peer_id") > 0 || ReadInt(peer, "client_id") > 0).ToList() : [];
+                JsonElement currentPeer = peers.Count == 1 ? peers[0] : default;
+                int currentPeerId = currentPeer.ValueKind == JsonValueKind.Object ? ReadInt(currentPeer, "peer_id") : 0;
+                if (currentPeerId <= 0 && currentPeer.ValueKind == JsonValueKind.Object) currentPeerId = ReadInt(currentPeer, "client_id");
+                profiles.Add(new VpnClientProfileInfo { GroupId = groupId, Name = ReadString(group, "group_name", "Unnamed profile"), Protocol = protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = peers.Count, CurrentPeerId = currentPeerId > 0 ? currentPeerId : null, CurrentLocation = currentPeer.ValueKind == JsonValueKind.Object ? ReadString(currentPeer, "location") : string.Empty });
             }
         }
         return profiles;
@@ -77,6 +80,50 @@ public partial class RouterManager
         }
         return result;
     }
+
+#if DEBUG
+    // One-shot DEBUG diagnostic read. Only IDs and display metadata already
+    // consumed by RouterPilot are projected; raw VPN configuration is excluded.
+    internal async Task<VpnStateCaptureSnapshot> GetVpnStateCaptureAsync(CancellationToken token)
+    {
+        IReadOnlyList<VpnTunnelInfo> tunnels = await GetVpnTunnelsAsync(token);
+        string sid = await _sessionService.GetAdminTokenAsync(token);
+        using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.GetProfiles, cancellationToken: token);
+        if (!TryGet(document.RootElement, out JsonElement configs, "result", "configs") || configs.ValueKind != JsonValueKind.Object)
+            return new VpnStateCaptureSnapshot { Tunnels = tunnels };
+
+        var groups = new List<VpnProfileGroupCapture>();
+        foreach ((string protocolKey, string protocol) in new[] { ("wireguard", "WireGuard"), ("openvpn", "OpenVPN") })
+        {
+            if (!configs.TryGetProperty(protocolKey, out JsonElement groupValues) || groupValues.ValueKind != JsonValueKind.Array) continue;
+            foreach (JsonElement group in groupValues.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.Object))
+            {
+                int groupId = ReadInt(group, "group_id");
+                if (groupId <= 0) continue;
+                bool provider = ReadBool(group, "isProvider") || ReadBool(group, "is_provider");
+                var peers = new List<VpnPeerCapture>();
+                if (group.TryGetProperty("peers", out JsonElement peerValues) && peerValues.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (JsonElement peer in peerValues.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.Object))
+                    {
+                        int peerId = ReadInt(peer, "peer_id");
+                        if (peerId <= 0) peerId = ReadInt(peer, "client_id");
+                        if (peerId <= 0) continue;
+                        peers.Add(new VpnPeerCapture
+                        {
+                            PeerId = peerId,
+                            Name = ReadString(peer, "name"),
+                            Location = ReadString(peer, "location"),
+                            IsProvider = provider || ReadBool(peer, "isProvider") || ReadBool(peer, "is_provider")
+                        });
+                    }
+                }
+                groups.Add(new VpnProfileGroupCapture { Protocol = protocol, GroupId = groupId, GroupName = ReadString(group, "group_name"), IsProvider = provider, Peers = peers });
+            }
+        }
+        return new VpnStateCaptureSnapshot { ProfileGroups = groups, Tunnels = tunnels };
+    }
+#endif
 
     internal async Task<bool> SetVpnTunnelEnabledAsync(int tunnelId, bool enabled, CancellationToken token)
     {

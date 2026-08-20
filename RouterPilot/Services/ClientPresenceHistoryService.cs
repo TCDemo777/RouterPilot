@@ -76,6 +76,31 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
         DateTimeOffset start = StartOfLocalDay(now);
         return GetRecent(normalizedMac, start, now).Where(period => period.State == ClientPresenceState.Online).Aggregate(TimeSpan.Zero, (total, period) => total + (Min(period.EndedAt ?? period.LastObservedAt, now) - Max(period.StartedAt, start)));
     }
+    public IReadOnlyList<ClientDailyAvailability> GetDailyAvailability(string normalizedMac, int days, DateTimeOffset now)
+    {
+        days = Math.Clamp(days, 1, 30);
+        DateTimeOffset today = StartOfLocalDay(now);
+        List<DateTimeOffset> starts = Enumerable.Range(0, days).Select(index => StartOfLocalDay(today.AddDays(-index))).OrderByDescending(value => value).ToList();
+        DateTimeOffset from = starts.Last();
+        List<ClientPresencePeriod> periods = GetRecent(normalizedMac, from, now).ToList();
+        var results = new List<ClientDailyAvailability>();
+        foreach (DateTimeOffset start in starts)
+        {
+            DateTimeOffset end = start == today ? now : StartOfLocalDay(start.AddDays(1));
+            TimeSpan online = TimeSpan.Zero, offline = TimeSpan.Zero;
+            foreach (ClientPresencePeriod period in periods)
+            {
+                DateTimeOffset periodStart = Max(period.StartedAt, start);
+                DateTimeOffset periodEnd = Min(period.EndedAt ?? now, end);
+                if (periodEnd <= periodStart) continue;
+                if (period.State == ClientPresenceState.Online) online += periodEnd - periodStart;
+                else offline += periodEnd - periodStart;
+            }
+            TimeSpan span = end - start;
+            results.Add(new ClientDailyAvailability(start, online, offline, span > online + offline ? span - online - offline : TimeSpan.Zero));
+        }
+        return results;
+    }
     public ClientPresencePeriod? GetCurrentPeriod(string normalizedMac)
     {
         lock (_sync)

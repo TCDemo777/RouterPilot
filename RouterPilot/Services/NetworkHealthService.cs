@@ -10,12 +10,13 @@ public sealed class NetworkHealthService : INetworkHealthService
 {
     private const int InternetInstabilityThreshold = 3;
     private readonly TimelineService _timeline;
+    private readonly NotificationService _notifications;
     private readonly Dictionary<string, NetworkHealthIssue> _active = new(StringComparer.Ordinal);
     private IReadOnlyList<NetworkHealthIssue> _monitoredDeviceIssues = [];
     private IReadOnlyList<NetworkHealthIssue> _dataFreshnessIssues = [];
     private readonly object _sync = new();
     private NetworkHealthSnapshot _current = NetworkHealthSnapshot.Loading;
-    public NetworkHealthService(TimelineService timeline) => _timeline = timeline;
+    public NetworkHealthService(TimelineService timeline, NotificationService notifications) { _timeline = timeline; _notifications = notifications; }
     public NetworkHealthSnapshot Current { get { lock (_sync) return _current; } }
     public event Action<NetworkHealthSnapshot>? SnapshotChanged;
 
@@ -94,6 +95,20 @@ public sealed class NetworkHealthService : INetworkHealthService
                 ? $"network-health:{issue.Id}:{(detected ? "detected" : "resolved")}:{episode}"
                 : $"network-health:{issue.Id}:{(detected ? "detected" : "resolved")}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
         });
+        if (monitoredDevice)
+        {
+            string name = issue.Title.EndsWith(" offline", StringComparison.Ordinal) ? issue.Title[..^8] : issue.Title.Replace(" restored", string.Empty, StringComparison.Ordinal);
+            _ = _notifications.AddAsync(new AppNotification
+            {
+                Title = detected ? "Monitored device offline" : "Monitored device restored",
+                Message = detected ? issue.Description : $"{name} is online again after {FormatDuration(DateTimeOffset.UtcNow - issue.FirstDetectedAt)}.",
+                Severity = detected ? NotificationSeverity.Warning : NotificationSeverity.Success,
+                Category = NotificationCategory.Device,
+                EventType = detected ? NotificationEventType.MonitoredDeviceOffline : NotificationEventType.MonitoredDeviceRestored,
+                ActionTarget = issue.Id["client.monitor.".Length..],
+                DeduplicationKey = $"monitor:{issue.Id}:{episode}:{(detected ? "offline" : "restored")}" 
+            });
+        }
     }
     private static bool SustainedHigh(IReadOnlyList<double> values) => values.Count >= 3 && values.TakeLast(3).All(value => value >= 90);
     private static string FormatDuration(TimeSpan duration) => duration < TimeSpan.FromMinutes(1) ? "less than a minute" : duration < TimeSpan.FromHours(1) ? $"{(int)duration.TotalMinutes} minutes" : $"{(int)duration.TotalHours}h {duration.Minutes}m";

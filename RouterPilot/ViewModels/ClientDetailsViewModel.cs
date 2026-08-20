@@ -34,6 +34,10 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<DomainStat> TopBlockedDomains { get; } =
             new();
         public ObservableCollection<PresenceTimelineItem> RecentPresence { get; } = new();
+        public ObservableCollection<DailyAvailabilityItem> DailyAvailability { get; } = new();
+        [ObservableProperty] private AvailabilityRange selectedAvailabilityRange = AvailabilityRange.Hours24;
+        public bool Is24HourRange => SelectedAvailabilityRange == AvailabilityRange.Hours24;
+        public bool Is7DayRange => SelectedAvailabilityRange == AvailabilityRange.Days7;
 
         public string ClientName =>
             string.IsNullOrWhiteSpace(ProfileNickname)
@@ -328,12 +332,23 @@ namespace RouterPilot.ViewModels
                 if (periodEnd > cursor) cursor = periodEnd;
             }
             if (cursor < now) RecentPresence.Add(new PresenceTimelineItem("Unknown", cursor, now));
+            DailyAvailability.Clear();
+            foreach (ClientDailyAvailability day in _presenceHistory.GetDailyAvailability(_client.MacAddress, 7, now)) DailyAvailability.Add(new DailyAvailabilityItem(day));
             OnPropertyChanged(nameof(CurrentPresenceStatus));
             OnPropertyChanged(nameof(CurrentPresenceStatusColour));
             OnPropertyChanged(nameof(ObservedOnlineToday));
             OnPropertyChanged(nameof(CurrentObservedOnline));
             OnPropertyChanged(nameof(LastOfflinePeriod));
         }
+
+        partial void OnSelectedAvailabilityRangeChanged(AvailabilityRange value)
+        {
+            OnPropertyChanged(nameof(Is24HourRange));
+            OnPropertyChanged(nameof(Is7DayRange));
+        }
+
+        [RelayCommand] private void Select24HourRange() => SelectedAvailabilityRange = AvailabilityRange.Hours24;
+        [RelayCommand] private void Select7DayRange() => SelectedAvailabilityRange = AvailabilityRange.Days7;
 
         [RelayCommand]
         private void MarkKnown()
@@ -560,6 +575,14 @@ namespace RouterPilot.ViewModels
             public double Width => Math.Max(4, (EndedAt - StartedAt).TotalHours / 24 * 360);
             public string ToolTip => $"{State}\n{StartedAt.LocalDateTime:t}–{EndedAt.LocalDateTime:t}\n{FormatDuration(EndedAt - StartedAt)}";
         }
+        public sealed record DailyAvailabilityItem(ClientDailyAvailability Value)
+        {
+            public string Day => Value.DayStart.LocalDateTime.ToString("ddd dd MMM").ToUpperInvariant();
+            public string Summary => Value.Observed == TimeSpan.Zero ? "No observation" : $"Online {FormatDuration(Value.Online)} • Offline {FormatDuration(Value.Offline)} • Unobserved {FormatDuration(Value.Unobserved)}";
+            public string Percentage => Value.ObservedAvailabilityPercent is null ? "No observation" : $"{Value.ObservedAvailabilityPercent.Value:0}%";
+            public string ToolTip => Value.ObservedAvailabilityPercent is null ? $"{Value.DayStart.LocalDateTime:D}\nNo observation" : $"{Value.DayStart.LocalDateTime:D}\nObserved online: {FormatDuration(Value.Online)}\nObserved offline: {FormatDuration(Value.Offline)}\nUnobserved: {FormatDuration(Value.Unobserved)}\nObserved availability: {Value.ObservedAvailabilityPercent.Value:0.0}%";
+        }
+        public enum AvailabilityRange { Hours24, Days7 }
 
         partial void OnMonitorAvailabilityChanged(bool value)
         {

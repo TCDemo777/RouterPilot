@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.Win32;
 using RouterPilot.Models;
+using RouterPilot.ViewModels;
 
 namespace RouterPilot.Services;
 
@@ -22,6 +23,8 @@ public sealed class DiagnosticsExecutionService
     private readonly TimelineService _timelineService;
     private readonly IMetricHistoryService _metricHistoryService;
     private readonly INetworkHealthService _networkHealthService;
+    private readonly IDataFreshnessService _dataFreshnessService;
+    private readonly ClientProfileService _clientProfileService;
 
     public DiagnosticsExecutionService(
         IRouterManagerProvider routerManagerProvider,
@@ -31,7 +34,9 @@ public sealed class DiagnosticsExecutionService
         SettingsService settingsService,
         TimelineService timelineService,
         IMetricHistoryService metricHistoryService,
-        INetworkHealthService networkHealthService)
+        INetworkHealthService networkHealthService,
+        IDataFreshnessService dataFreshnessService,
+        ClientProfileService clientProfileService)
     {
         _routerManagerProvider = routerManagerProvider;
         _historyService = historyService;
@@ -41,6 +46,8 @@ public sealed class DiagnosticsExecutionService
         _timelineService = timelineService;
         _metricHistoryService = metricHistoryService;
         _networkHealthService = networkHealthService;
+        _dataFreshnessService = dataFreshnessService;
+        _clientProfileService = clientProfileService;
     }
 
     /// <summary>Shared, safe result used by About when diagnostics originated from Maintenance.</summary>
@@ -93,6 +100,33 @@ public sealed class DiagnosticsExecutionService
         }
     }
 
+    /// <summary>Exports only the state RouterPilot already holds; it never contacts the router.</summary>
+    public async Task<NetworkSnapshotExportResult> ExportNetworkSnapshotAsync(
+        DashboardViewModel dashboard,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string? outputPath = SelectNetworkSnapshotOutputPath();
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return new NetworkSnapshotExportResult(false, true, "Network snapshot export cancelled.", null);
+
+            string markdown = BuildNetworkSnapshot(dashboard);
+            await File.WriteAllTextAsync(outputPath, DiagnosticRedactor.RedactForExport(markdown),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+            return new NetworkSnapshotExportResult(true, false, "Network snapshot exported successfully.", outputPath);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new NetworkSnapshotExportResult(false, true, "Network snapshot export cancelled.", null);
+        }
+        catch (Exception)
+        {
+            // The export is an isolated, non-critical sink.
+            return new NetworkSnapshotExportResult(false, false, "Network snapshot could not be exported.", null);
+        }
+    }
+
     private static string? SelectOutputPath()
     {
         var dialog = new SaveFileDialog
@@ -104,6 +138,141 @@ public sealed class DiagnosticsExecutionService
 
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
+
+    private static string? SelectNetworkSnapshotOutputPath()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Markdown document (*.md)|*.md",
+            DefaultExt = ".md",
+            AddExtension = true,
+            FileName = "RouterPilot-Network-Snapshot-" + DateTime.Now.ToString("yyyy-MM-dd-HHmm") + ".md"
+        };
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    private string BuildNetworkSnapshot(DashboardViewModel dashboard)
+    {
+        // Take local copies once: this must not trigger a router read or race mutable UI collections.
+        WifiRadioInfo[] wifi = dashboard.WifiNetworks.ToArray();
+        DhcpLeaseInfo[] leases = dashboard.DhcpLeases.ToArray();
+        DhcpReservationInfo[] reservations = dashboard.DhcpReservations.ToArray();
+        PortForwardRuleInfo[] forwards = dashboard.PortForwardRules.ToArray();
+        ClientProfile[] profiles = _clientProfileService.Load().Values.ToArray();
+        NetworkHealthSnapshot health = _networkHealthService.Current;
+        DataFreshnessInfo[] freshness = _dataFreshnessService.GetAll().ToArray();
+        var ssids = new Dictionary<string, string>(StringComparer.Ordinal);
+        var healthClientAliases = new Dictionary<string, string>(StringComparer.Ordinal);
+        string SsidAlias(string? ssid)
+        {
+            if (string.IsNullOrWhiteSpace(ssid) || ssid == "-") return "Unavailable";
+            if (!ssids.TryGetValue(ssid, out string? alias))
+            {
+                alias = $"SSID-{ssids.Count + 1}";
+                ssids.Add(ssid, alias);
+            }
+            return alias;
+        }
+        string SanitisedHealthSummary(NetworkHealthIssue issue)
+        {
+            const string monitoredPrefix = "client.monitor.";
+            if (issue.Id.StartsWith(monitoredPrefix, StringComparison.Ordinal))
+            {
+                string key = issue.Id[monitoredPrefix.Length..];
+                if (!healthClientAliases.TryGetValue(key, out string? alias))
+                {
+                    alias = $"Client-{healthClientAliases.Count + 1:00}";
+                    healthClientAliases.Add(key, alias);
+                }
+                return $"Monitored {alias} offline ({issue.Severity})";
+            }
+
+            // Titles are the application's typed issue labels. Never emit descriptions,
+            // which may contain a device name or other user-supplied detail.
+            return $"{SafeValue(issue.Title)} ({issue.Severity})";
+        }
+
+        string freshnessState = freshness.Any(item => item.State == DataFreshnessState.Stale) ? "Stale"
+            : freshness.Any(item => item.State == DataFreshnessState.Unavailable) ? "Unavailable"
+            : freshness.Any(item => item.State == DataFreshnessState.Fresh) ? "Fresh" : "Unknown";
+        DateTimeOffset? lastSuccess = freshness.Select(item => item.LastSuccessUtc).Where(item => item.HasValue)
+            .Select(item => item!.Value).OrderByDescending(item => item).Cast<DateTimeOffset?>().FirstOrDefault();
+        int observedClients = dashboard.LanClients.Count;
+        int knownDevices = profiles.Length;
+
+        var builder = new StringBuilder();
+        builder.AppendLine("# RouterPilot Network Snapshot");
+        builder.AppendLine();
+        builder.AppendLine("## Application");
+        builder.AppendLine($"- RouterPilot version: {Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0)}");
+        builder.AppendLine($"- Generated: {DateTimeOffset.Now:dddd, dd MMMM yyyy HH:mm zzz}");
+        builder.AppendLine();
+        builder.AppendLine("## Router");
+        builder.AppendLine($"- Model: {SafeValue(dashboard.RouterModel)}");
+        builder.AppendLine($"- Firmware: {SafeValue(dashboard.RouterFirmwareVersion)}");
+        builder.AppendLine($"- Availability: {(dashboard.RouterConnected ? "Online" : "Unavailable")}");
+        builder.AppendLine($"- Uptime: {SafeValue(dashboard.Uptime)}");
+        builder.AppendLine($"- CPU: {SafeValue(dashboard.CpuUsageDisplay)}");
+        builder.AppendLine($"- Memory: {SafeValue(dashboard.MemoryUsage)}");
+        builder.AppendLine($"- Temperature: {SafeValue(dashboard.Temperature)}");
+        builder.AppendLine($"- Data freshness: {freshnessState}");
+        if (lastSuccess is { } at) builder.AppendLine($"- Last successful update: {at.ToLocalTime():dddd, dd MMMM yyyy HH:mm zzz}");
+        if (freshnessState == "Stale") builder.AppendLine("- Note: values below may represent last-known state.");
+        builder.AppendLine();
+        builder.AppendLine("## Internet");
+        builder.AppendLine($"- Status: {(dashboard.InternetConnected ? "Online" : "Offline")}");
+        builder.AppendLine($"- Reliability: {SafeValue(dashboard.InternetReliabilityAvailability)}");
+        builder.AppendLine($"- Recent outages: {SafeValue(dashboard.InternetReliabilityOutages)}");
+        builder.AppendLine("- Public IP: <redacted>");
+        builder.AppendLine();
+        builder.AppendLine("## VPN");
+        builder.AppendLine($"- State: {SafeValue(dashboard.VpnSummary.State)}");
+        builder.AppendLine($"- Protocol: {SafeValue(dashboard.VpnSummary.Protocol)}");
+        builder.AppendLine($"- Profile: {(dashboard.VpnSummary.IsConfigured ? "Configured" : "Not configured")}");
+        builder.AppendLine();
+        builder.AppendLine("## Wi-Fi");
+        if (wifi.Length == 0) builder.AppendLine("- Unavailable");
+        foreach (WifiRadioInfo network in wifi)
+            builder.AppendLine($"- {SsidAlias(network.Ssid)} — {SafeValue(network.Band)}; {SafeValue(network.StatusDisplay)}; channel {SafeValue(network.Channel)}; width {SafeValue(network.ChannelWidth)}; security {SafeValue(network.Security)}; clients {network.ClientCount}; {SafeValue(network.GuestClassificationDisplay, "Main or unclassified")}");
+        builder.AppendLine();
+        builder.AppendLine("## Clients");
+        builder.AppendLine($"- Known devices: {knownDevices}");
+        builder.AppendLine($"- Currently observed: {observedClients}");
+        builder.AppendLine($"- Not currently observed: {Math.Max(0, knownDevices - observedClients)}");
+        builder.AppendLine($"- Needs review: {profiles.Count(profile => profile.NeedsReview)}");
+        builder.AppendLine($"- Monitored: {profiles.Count(profile => profile.MonitorAvailability)}");
+        builder.AppendLine($"- Favourites: {profiles.Count(profile => profile.IsFavorite)}");
+        builder.AppendLine();
+        builder.AppendLine("## DHCP");
+        builder.AppendLine($"- Active leases: {leases.Length}");
+        builder.AppendLine($"- Reservations: {reservations.Length}");
+        builder.AppendLine();
+        builder.AppendLine("## Port Forwarding");
+        builder.AppendLine($"- Rules: {forwards.Length}");
+        builder.AppendLine($"- Enabled: {forwards.Count(rule => rule.Enabled)}");
+        builder.AppendLine($"- Dynamic target IP warnings: {forwards.Count(rule => rule.TargetStatusTitle == "Dynamic IP")}");
+        builder.AppendLine($"- Target IP changed warnings: {forwards.Count(rule => rule.TargetStatusTitle == "Target IP changed")}");
+        builder.AppendLine($"- Conflicts: {forwards.Count(rule => rule.TargetStatusTitle == "External port conflict")}");
+        builder.AppendLine($"- Device not found warnings: {forwards.Count(rule => rule.TargetStatusTitle == "Device not found")}");
+        builder.AppendLine($"- Offline target warnings: {forwards.Count(rule => rule.TargetStatusTitle == "Device offline")}");
+        builder.AppendLine();
+        builder.AppendLine("## AdGuard");
+        builder.AppendLine($"- Service: {SafeValue(dashboard.AdGuardServiceDisplay)}");
+        builder.AppendLine($"- Protection: {SafeValue(dashboard.AdGuardProtectionStatusText)}");
+        builder.AppendLine($"- Requests: {SafeValue(dashboard.AdGuardQueriesDisplay)}");
+        builder.AppendLine($"- Blocked: {SafeValue(dashboard.AdGuardBlockedDisplay)}");
+        builder.AppendLine($"- Block rate: {SafeValue(dashboard.AdGuardBlockRateDisplay)}");
+        builder.AppendLine($"- Data freshness: {freshnessState}");
+        builder.AppendLine();
+        builder.AppendLine("## Health");
+        builder.AppendLine($"- Active issues: {health.ActiveIssueCount}");
+        foreach (NetworkHealthIssue issue in health.Issues)
+            builder.AppendLine($"- {SanitisedHealthSummary(issue)}");
+        return builder.ToString();
+    }
+
+    private static string SafeValue(string? value, string fallback = "Unknown") =>
+        string.IsNullOrWhiteSpace(value) || value == "-" ? fallback : value;
 
     private async Task CreateBundleAsync(
         string outputPath,
@@ -251,3 +420,5 @@ public sealed record DiagnosticsExecutionResult(
     string? Report,
     string Message,
     string? OutputPath);
+
+public sealed record NetworkSnapshotExportResult(bool Success, bool Cancelled, string Message, string? OutputPath);

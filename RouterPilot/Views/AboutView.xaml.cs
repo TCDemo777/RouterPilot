@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Navigation;
 using RouterPilot.Models;
 using RouterPilot.Services;
+using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 
@@ -358,6 +359,31 @@ namespace RouterPilot.Views
             RoutedEventArgs e)
         {
             await BackupDiagnosticsAsync();
+        }
+
+        private async void ExportNetworkSnapshot_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            try
+            {
+                if (Application.Current.MainWindow?.DataContext is not DashboardViewModel dashboard)
+                {
+                    DiagnosticsTextBox.Text = "Network snapshot could not be exported.";
+                    return;
+                }
+
+                NetworkSnapshotExportResult result = await _diagnosticsExecutionService
+                    .ExportNetworkSnapshotAsync(dashboard);
+                if (!result.Cancelled)
+                    DiagnosticsTextBox.Text = result.Message;
+                AppendLog(result.Message);
+            }
+            catch
+            {
+                // Export must not interrupt Diagnostics or dashboard refresh.
+                DiagnosticsTextBox.Text = "Network snapshot could not be exported.";
+            }
         }
 
         private async Task BackupDiagnosticsAsync()

@@ -330,9 +330,13 @@
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="RECENT AVAILABILITY"/>
-                        <TextBlock Grid.Column="1" Margin="16,0,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Last 24 hours"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Padding="10,3" Style="{DynamicResource Button.Secondary}" Command="{Binding Select24HourRangeCommand}" Content="24H"/>
+                            <Button Margin="6,0,0,0" Padding="10,3" Style="{DynamicResource Button.Secondary}" Command="{Binding Select7DayRangeCommand}" Content="7D"/>
+                        </StackPanel>
                     </Grid>
                     <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding RecentPresence}">
+                        <ItemsControl.Style><Style TargetType="ItemsControl"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Is24HourRange}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -346,6 +350,10 @@
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding DailyAvailability}">
+                        <ItemsControl.Style><Style TargetType="ItemsControl"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Is7DayRange}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
+                        <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,3,0,3" ToolTip="{Binding ToolTip}"><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock FontWeight="SemiBold" Text="{Binding Day}"/><TextBlock Grid.Column="1" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding Summary}"/><TextBlock Grid.Column="2" Margin="12,0,0,0" FontWeight="SemiBold" Text="{Binding Percentage}"/></Grid></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding RecentAvailability}" TextWrapping="Wrap"/>
                     <Button Margin="0,9,0,0" HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Command="{Binding ClearPresenceHistoryCommand}" Content="Clear presence history"/>

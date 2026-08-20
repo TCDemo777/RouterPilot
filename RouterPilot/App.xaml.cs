@@ -83,6 +83,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IMetricHistoryService, MetricHistoryService>();
             serviceCollection.AddSingleton<IDataFreshnessService, DataFreshnessService>();
             serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
+            serviceCollection.AddSingleton<ClientProfileService>();
             serviceCollection.AddSingleton<ClientInventoryState>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();

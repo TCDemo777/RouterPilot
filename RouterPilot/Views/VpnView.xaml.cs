@@ -23,6 +23,12 @@ public partial class VpnView : UserControl
     private readonly IVpnLiveStatusService _liveStatus;
     private readonly SettingsService _settingsService;
     private readonly VpnScheduleService _vpnScheduleService;
+    private readonly IDataFreshnessService _dataFreshnessService;
+    private const string VpnFreshnessSource = "VPN";
+#if DEBUG
+    private int _vpnStateCaptureNumber;
+    private VpnStateCaptureSnapshot? _previousVpnStateCapture;
+#endif
     public VpnView(bool embedded = false)
     {
         InitializeComponent();
@@ -31,12 +37,16 @@ public partial class VpnView : UserControl
         _liveStatus = ((App)Application.Current).Services.GetRequiredService<IVpnLiveStatusService>();
         _settingsService = ((App)Application.Current).Services.GetRequiredService<SettingsService>();
         _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
+        _dataFreshnessService = ((App)Application.Current).Services.GetRequiredService<IDataFreshnessService>();
         DataContext = _viewModel;
         VpnSchedulePanel.DataContext = _vpnScheduleService;
         _vpnScheduleService.SchedulesChanged += VpnSchedules_Changed;
         UpdateVpnScheduleEmptyState();
         _liveStatus.StatusChanged += LiveStatusChanged;
         DiagnosticsExpander.IsExpanded = _settingsService.Load().VpnDiagnosticsExpanded;
+#if DEBUG
+        CaptureVpnStateButton.Visibility = Visibility.Visible;
+#endif
         if (embedded) PageHeader.Visibility = Visibility.Collapsed;
         Loaded += async (_, _) => await RefreshAsync();
         Unloaded += (_, _) => _vpnScheduleService.SchedulesChanged -= VpnSchedules_Changed;
@@ -70,7 +80,8 @@ public partial class VpnView : UserControl
                 // Live-status delivery is an optional enrichment of that state.
                 VpnLiveStatusDiagnostics.SetSocketStartupException(exception, "Awaiting VPN socket startup");
             }
-            _viewModel.ApplyLiveStatuses(_liveStatus.Current);
+            _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
+            _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: true);
             _viewModel.VpnSupported = true;
             SetVpnCapability(true);
             _viewModel.VpnStatus = $"{linkedTunnels.Count} tunnel(s), {linkedTunnels.Count(tunnel => tunnel.Enabled)} enabled";
@@ -80,6 +91,8 @@ public partial class VpnView : UserControl
         }
         catch
         {
+            _dataFreshnessService.MarkUnavailable(VpnFreshnessSource);
+            _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: false);
             _viewModel.VpnSupported = false;
             SetVpnCapability(false);
             _viewModel.VpnStatus = "VPN client backend is unavailable for this router session.";
@@ -96,7 +109,8 @@ public partial class VpnView : UserControl
     {
         _ = Dispatcher.InvokeAsync(() =>
         {
-            _viewModel.ApplyLiveStatuses(statuses);
+            bool authoritative = _dataFreshnessService.Get(VpnFreshnessSource).State == DataFreshnessState.Fresh;
+            _viewModel.ApplyLiveStatuses(statuses, authoritative);
             VpnLiveStatusDiagnostics.Record("VPN UI dispatch completed: YES");
 #if DEBUG
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
@@ -154,6 +168,29 @@ public partial class VpnView : UserControl
     {
         Clipboard.SetText(BuildVpnDetailsReport());
         _viewModel.VpnStatus = "✓ VPN details copied";
+    }
+
+    private async void CaptureVpnState_Click(object sender, RoutedEventArgs e)
+    {
+#if DEBUG
+        CaptureVpnStateButton.IsEnabled = false;
+        try
+        {
+            VpnStateCaptureSnapshot capture = await _service.GetDebugStateCaptureAsync(CancellationToken.None);
+            int number = ++_vpnStateCaptureNumber;
+            DiagnosticsTextBox.Text = DiagnosticRedactor.RedactForExport(BuildVpnStateCaptureReport(number, capture, _liveStatus.Current, _previousVpnStateCapture));
+            _previousVpnStateCapture = capture;
+            DiagnosticsNotice.Text = $"Capture {number} recorded";
+        }
+        catch
+        {
+            DiagnosticsNotice.Text = "VPN state capture could not be completed.";
+        }
+        finally
+        {
+            CaptureVpnStateButton.IsEnabled = true;
+        }
+#endif
     }
 
     private void DiagnosticsExpander_Expanded(object sender, RoutedEventArgs e)
@@ -233,6 +270,86 @@ public partial class VpnView : UserControl
         report.AppendLine("----------------------------------------");
         return report.ToString();
     }
+
+ #if DEBUG
+    private static string BuildVpnStateCaptureReport(int number, VpnStateCaptureSnapshot capture, IReadOnlyList<VpnLiveStatusInfo> liveStatuses, VpnStateCaptureSnapshot? previous)
+    {
+        var report = new StringBuilder();
+        report.AppendLine($"VPN STATE CAPTURE {number}");
+        report.AppendLine($"Timestamp: {DateTimeOffset.Now:O}");
+        report.AppendLine("Source reads: vpn-client/get_all_config_list and existing tunnel/live-status state");
+        report.AppendLine();
+        report.AppendLine("Profiles:");
+        if (capture.ProfileGroups.Count == 0) report.AppendLine("  None returned.");
+        foreach (VpnProfileGroupCapture group in capture.ProfileGroups.OrderBy(group => group.Protocol).ThenBy(group => group.GroupId))
+        {
+            report.AppendLine($"  Protocol: {SafeCaptureValue(group.Protocol)} | GroupId: {group.GroupId} | Provider: {group.IsProvider} | Name: {SafeCaptureValue(group.GroupName)} | PeerCount: {group.Peers.Count}");
+            foreach (VpnPeerCapture peer in group.Peers.OrderBy(peer => peer.PeerId))
+                report.AppendLine($"    PeerId/ClientId: {peer.PeerId} | Provider: {peer.IsProvider} | Name: {SafeCaptureValue(peer.Name)} | Location: {SafeCaptureValue(peer.Location)}");
+        }
+        report.AppendLine();
+        report.AppendLine("Tunnels:");
+        if (capture.Tunnels.Count == 0) report.AppendLine("  None returned.");
+        foreach (VpnTunnelInfo tunnel in capture.Tunnels.OrderBy(tunnel => tunnel.TunnelId))
+        {
+            VpnLiveStatusInfo? live = liveStatuses.SingleOrDefault(status => status.TunnelId == tunnel.TunnelId);
+            report.AppendLine($"  TunnelId: {tunnel.TunnelId} | Enabled: {tunnel.Enabled} | Protocol: {SafeCaptureValue(tunnel.Protocol)} | GroupIds: [{string.Join(", ", tunnel.ProfileGroupIds)}]");
+            report.AppendLine($"    State: {SafeCaptureValue(live?.ConnectionState)} | LiveGroupId: {live?.GroupId?.ToString() ?? "Unavailable"} | LivePeerId/ClientId: {live?.PeerId?.ToString() ?? "Unavailable"}");
+            report.AppendLine($"    Endpoint: {SafeCaptureValue(live?.EndpointDisplay)}");
+        }
+        if (previous is not null) AppendCaptureChanges(report, previous, capture);
+        return report.ToString();
+    }
+
+    private static void AppendCaptureChanges(StringBuilder report, VpnStateCaptureSnapshot previous, VpnStateCaptureSnapshot current)
+    {
+        var changes = new List<string>();
+        var previousGroups = previous.ProfileGroups.ToDictionary(group => $"{group.Protocol}:{group.GroupId}");
+        var currentGroups = current.ProfileGroups.ToDictionary(group => $"{group.Protocol}:{group.GroupId}");
+        foreach (string key in previousGroups.Keys.Union(currentGroups.Keys).OrderBy(key => key))
+        {
+            bool hadPrevious = previousGroups.TryGetValue(key, out VpnProfileGroupCapture? before);
+            bool hasCurrent = currentGroups.TryGetValue(key, out VpnProfileGroupCapture? after);
+            if (!hadPrevious || !hasCurrent) { changes.Add($"  Profile {key}: {(hasCurrent ? "added" : "removed")}"); continue; }
+            VpnProfileGroupCapture beforeGroup = before!;
+            VpnProfileGroupCapture afterGroup = after!;
+            if (beforeGroup.IsProvider != afterGroup.IsProvider) changes.Add($"  Profile {key} provider flag: {beforeGroup.IsProvider} -> {afterGroup.IsProvider}");
+            if (beforeGroup.Peers.Count != afterGroup.Peers.Count) changes.Add($"  Profile {key} peer count: {beforeGroup.Peers.Count} -> {afterGroup.Peers.Count}");
+            var beforePeers = beforeGroup.Peers.ToDictionary(peer => peer.PeerId);
+            var afterPeers = afterGroup.Peers.ToDictionary(peer => peer.PeerId);
+            foreach (int peerId in beforePeers.Keys.Union(afterPeers.Keys).OrderBy(id => id))
+            {
+                bool hadOldPeer = beforePeers.TryGetValue(peerId, out VpnPeerCapture? oldPeer);
+                bool hasNewPeer = afterPeers.TryGetValue(peerId, out VpnPeerCapture? newPeer);
+                if (!hadOldPeer || !hasNewPeer) { changes.Add($"  Profile {key} peer {peerId}: {(hasNewPeer ? "added" : "removed")}"); continue; }
+                VpnPeerCapture oldValue = oldPeer!;
+                VpnPeerCapture newValue = newPeer!;
+                if (!string.Equals(oldValue.Location, newValue.Location, StringComparison.Ordinal)) changes.Add($"  Profile {key} peer {peerId} location: {SafeCaptureValue(oldValue.Location)} -> {SafeCaptureValue(newValue.Location)}");
+                if (oldValue.IsProvider != newValue.IsProvider) changes.Add($"  Profile {key} peer {peerId} provider flag: {oldValue.IsProvider} -> {newValue.IsProvider}");
+            }
+        }
+        var beforeTunnels = previous.Tunnels.ToDictionary(tunnel => tunnel.TunnelId);
+        var afterTunnels = current.Tunnels.ToDictionary(tunnel => tunnel.TunnelId);
+        foreach (int tunnelId in beforeTunnels.Keys.Union(afterTunnels.Keys).OrderBy(id => id))
+        {
+            bool hadBeforeTunnel = beforeTunnels.TryGetValue(tunnelId, out VpnTunnelInfo? before);
+            bool hasAfterTunnel = afterTunnels.TryGetValue(tunnelId, out VpnTunnelInfo? after);
+            if (!hadBeforeTunnel || !hasAfterTunnel) { changes.Add($"  Tunnel {tunnelId}: {(hasAfterTunnel ? "added" : "removed")}"); continue; }
+            VpnTunnelInfo beforeTunnel = before!;
+            VpnTunnelInfo afterTunnel = after!;
+            if (beforeTunnel.Enabled != afterTunnel.Enabled) changes.Add($"  Tunnel {tunnelId} enabled: {beforeTunnel.Enabled} -> {afterTunnel.Enabled}");
+            string oldGroups = string.Join(",", beforeTunnel.ProfileGroupIds.OrderBy(id => id));
+            string newGroups = string.Join(",", afterTunnel.ProfileGroupIds.OrderBy(id => id));
+            if (!string.Equals(oldGroups, newGroups, StringComparison.Ordinal)) changes.Add($"  Tunnel {tunnelId} group IDs: [{oldGroups}] -> [{newGroups}]");
+        }
+        report.AppendLine();
+        report.AppendLine("Changes from previous capture:");
+        if (changes.Count == 0) report.AppendLine("  No safe profile/group/tunnel mapping changes observed.");
+        else foreach (string change in changes) report.AppendLine(change);
+    }
+
+    private static string SafeCaptureValue(string? value) => string.IsNullOrWhiteSpace(value) ? "Unavailable" : value;
+#endif
 
     private static void Append(StringBuilder report, string label, string? value)
     {

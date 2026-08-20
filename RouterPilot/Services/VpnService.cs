@@ -23,6 +23,11 @@ public sealed class VpnService : IVpnService
         return Correlate(tunnels, profiles);
     }
 
+#if DEBUG
+    public async Task<VpnStateCaptureSnapshot> GetDebugStateCaptureAsync(CancellationToken token) =>
+        await (await _provider.GetRouterManagerAsync(token)).GetVpnStateCaptureAsync(token);
+#endif
+
     public async Task<VpnOperationResult> SetTunnelEnabledAsync(int tunnelId, bool enabled, CancellationToken token)
     {
         await _gate.WaitAsync(token);
@@ -71,7 +76,7 @@ public sealed class VpnService : IVpnService
     internal static IReadOnlyList<VpnClientProfileInfo> Correlate(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) => profiles.Select(profile =>
     {
         List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
-        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = profile.ServerConfigCount };
+        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = profile.ServerConfigCount, CurrentPeerId = profile.CurrentPeerId, CurrentLocation = profile.CurrentLocation };
     }).ToList();
     private static VpnOperationResult Failure(int tunnelId, string category) => new() { TunnelId = tunnelId, FailureCategory = category, Message = "RouterPilot could not update the VPN tunnel." };
 }
