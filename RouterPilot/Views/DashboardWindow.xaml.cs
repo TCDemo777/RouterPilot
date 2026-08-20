@@ -1162,6 +1162,15 @@ namespace RouterPilot.Views
             {
                 case "overview": Overview_Click(this, new RoutedEventArgs()); break;
                 case "clients": Clients_Click(this, new RoutedEventArgs()); break;
+                case "known-device":
+                    var profile = new ClientProfileService().Load().GetValueOrDefault(result.EntityId);
+                    if (profile is not null)
+                    {
+                        var known = new KnownDeviceInfo { Profile = profile };
+                        new ClientDetailsWindow(known.ToClientInfo(), allowLiveRefresh: false) { Owner = this }.ShowDialog();
+                    }
+                    else ShowKnownDevices();
+                    break;
                 case "protection": Protection_Click(this, new RoutedEventArgs()); break;
                 case "analytics": Analytics_Click(this, new RoutedEventArgs()); break;
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
@@ -1228,11 +1237,19 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
-            PageContent.Content =
-                new ClientsView();
+            ShowClients();
+        }
 
-            SelectNavigationButton(
-                ClientsButton);
+        public void ShowClients()
+        {
+            PageContent.Content = new ClientsView();
+            SelectNavigationButton(ClientsButton);
+        }
+
+        public void ShowKnownDevices()
+        {
+            PageContent.Content = new KnownDevicesView();
+            SelectNavigationButton(ClientsButton);
         }
 
         private void Logs_Click(

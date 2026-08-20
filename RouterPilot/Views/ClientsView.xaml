@@ -110,9 +110,13 @@
                             Command="{Binding WakeSelectedClientCommand}"
                             Content="Wake Client"/>
                     <Button MinWidth="115" Height="36" Margin="0,0,0,8"
-                            Style="{DynamicResource Button.Primary}"
-                            Click="ViewDetailsButton_Click"
-                            Content="Open / Personalise"/>
+                             Style="{DynamicResource Button.Primary}"
+                             Click="ViewDetailsButton_Click"
+                             Content="Open / Personalise"/>
+                    <Button MinWidth="120" Height="36" Margin="10,0,0,8"
+                             Style="{DynamicResource Button.Secondary}"
+                             Click="KnownDevices_Click"
+                             Content="Known Devices"/>
                 </WrapPanel>
             </Grid>
         </Border>

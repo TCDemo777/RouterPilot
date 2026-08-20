@@ -267,6 +267,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(ClientName));
             OnPropertyChanged(nameof(AvailabilityMonitoringStatus));
             ClientRefreshNotifier.RequestRefresh();
+            ClientRefreshNotifier.NotifyProfileStateChanged();
             StatusMessage = $"Profile saved for {ClientName}.";
         }
 
@@ -300,6 +301,7 @@ namespace RouterPilot.ViewModels
             _clientProfileService.Save(_clientProfiles.Values);
             OnPropertyChanged(nameof(ClientName));
             ClientRefreshNotifier.RequestRefresh();
+            ClientRefreshNotifier.NotifyProfileStateChanged();
             StatusMessage = "Custom client profile cleared.";
         }
 

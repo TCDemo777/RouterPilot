@@ -13,7 +13,8 @@ namespace RouterPilot.Views
         private readonly ClientDetailsViewModel _viewModel;
 
         public ClientDetailsWindow(
-            ClientInfo client)
+            ClientInfo client,
+            bool allowLiveRefresh = true)
         {
             InitializeComponent();
 
@@ -33,15 +34,19 @@ namespace RouterPilot.Views
 
             DataContext = _viewModel;
 
+            AllowLiveRefresh = allowLiveRefresh;
+
             Loaded += ClientDetailsWindow_Loaded;
             Closed += ClientDetailsWindow_Closed;
         }
+
+        private bool AllowLiveRefresh { get; }
 
         private async void ClientDetailsWindow_Loaded(
             object sender,
             RoutedEventArgs e)
         {
-            await _viewModel.StartAsync();
+            if (AllowLiveRefresh) await _viewModel.StartAsync();
         }
 
         private void ClientDetailsWindow_Closed(

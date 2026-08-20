@@ -467,5 +467,8 @@ namespace RouterPilot.Views
                 }
             }
         }
+
+        private void KnownDevices_Click(object sender, RoutedEventArgs e) =>
+            (Application.Current.MainWindow as DashboardWindow)?.ShowKnownDevices();
     }
 }

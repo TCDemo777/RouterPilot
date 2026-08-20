@@ -16,6 +16,7 @@ namespace RouterPilot.ViewModels
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly List<ClientInfo> _clients = new();
         private readonly List<QueryLogEntry> _logs = new();
+        private readonly ClientProfileService _clientProfiles = new();
         private DashboardViewModel? _dashboard;
 
         public ObservableCollection<GlobalSearchResult> Results { get; } = new();
@@ -107,6 +108,18 @@ namespace RouterPilot.ViewModels
             string mac = LanClientClassifier.NormalizeMac(search);
             var candidates = new List<GlobalSearchResult>();
             candidates.AddRange(_dashboard.DhcpLeases.Select(item => Result("Client", Name(item.ClientName, item.Hostname), $"Client • {item.IpAddress}", $"{item.ClientName} {item.Hostname} {item.IpAddress} {LanClientClassifier.NormalizeMac(item.MacAddress)} {item.DeviceType}", "clients", LanClientClassifier.NormalizeMac(item.MacAddress), "#3367D6")));
+            HashSet<string> currentClientMacs = _dashboard.DhcpLeases.Select(item => LanClientClassifier.NormalizeMac(item.MacAddress)).Where(value => value.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, ClientProfile> profiles = _clientProfiles.Load();
+            if (_clientProfiles.LastLoadSucceeded)
+            {
+                candidates.AddRange(profiles.Values.Where(profile => LanClientClassifier.NormalizeMac(profile.Key).Length == 12 && !currentClientMacs.Contains(LanClientClassifier.NormalizeMac(profile.Key))).Select(profile =>
+                {
+                    string macKey = LanClientClassifier.NormalizeMac(profile.Key);
+                    string title = !string.IsNullOrWhiteSpace(profile.Nickname) ? profile.Nickname : !string.IsNullOrWhiteSpace(profile.LastKnownName) ? profile.LastKnownName : macKey;
+                    string subtitle = profile.LastSeenUtc == default ? "Known Device" : $"Known Device • Last observed {profile.LastSeenUtc.ToLocalTime():d}";
+                    return Result("Known Device", title, subtitle, $"{profile.Nickname} {profile.LastKnownName} {profile.LastKnownIpAddress} {macKey} {profile.Category}", "known-device", macKey, "#3367D6");
+                }));
+            }
             foreach (PortForwardRuleInfo rule in _dashboard.PortForwardRules)
             {
                 string terms = PortForwardTerms(rule);

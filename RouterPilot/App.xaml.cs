@@ -83,6 +83,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IMetricHistoryService, MetricHistoryService>();
             serviceCollection.AddSingleton<IDataFreshnessService, DataFreshnessService>();
             serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
+            serviceCollection.AddSingleton<ClientInventoryState>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
@@ -127,6 +128,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<NotificationCentreViewModel>();
             serviceCollection.AddSingleton<TimelineViewModel>();
             serviceCollection.AddTransient<ClientsViewModel>();
+            serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
             serviceCollection.AddSingleton<ProtectionViewModel>();
             serviceCollection.AddTransient<GlobalSearchViewModel>();

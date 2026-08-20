@@ -21,6 +21,7 @@ namespace RouterPilot.ViewModels
         private readonly FavouriteDeviceMonitoringService _favouriteDeviceMonitoring;
         private readonly IClientPresenceHistoryService _presenceHistory;
         private readonly IDataFreshnessService _dataFreshnessService;
+        private readonly ClientInventoryState _clientInventoryState;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -125,7 +126,8 @@ namespace RouterPilot.ViewModels
             TimelineService timelineService,
             FavouriteDeviceMonitoringService favouriteDeviceMonitoring,
             IClientPresenceHistoryService presenceHistory,
-            IDataFreshnessService dataFreshnessService)
+            IDataFreshnessService dataFreshnessService,
+            ClientInventoryState clientInventoryState)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
@@ -134,6 +136,7 @@ namespace RouterPilot.ViewModels
             _favouriteDeviceMonitoring = favouriteDeviceMonitoring;
             _presenceHistory = presenceHistory;
             _dataFreshnessService = dataFreshnessService;
+            _clientInventoryState = clientInventoryState;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -248,6 +251,7 @@ namespace RouterPilot.ViewModels
 
                 _allClients.Clear();
                 _allClients.AddRange(clients);
+                _clientInventoryState.Update(_allClients);
 
                 ApplyFilterAndSort(selectedKey);
                 SaveProfiles();
