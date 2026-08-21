@@ -109,20 +109,36 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
             return period is null ? null : Clone(period);
         }
     }
-    public void Clear(string normalizedMac)
+    public bool Clear(string normalizedMac)
     {
         lock (_sync)
         {
             string key = Normalize(normalizedMac);
+            List<ClientPresencePeriod> removed = _periods.Where(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase)).Select(Clone).ToList();
+            bool hadAbsentSince = _absentSince.TryGetValue(key, out DateTimeOffset absentSince);
             _periods.RemoveAll(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase));
             _absentSince.Remove(key);
-            Save();
+            if (Save()) return true;
+
+            _periods.AddRange(removed);
+            if (hadAbsentSince) _absentSince[key] = absentSince;
+            return false;
         }
     }
     public void CloseSession() { lock (_sync) { foreach (ClientPresencePeriod period in _periods.Where(period => period.EndedAt is null)) period.EndedAt = period.LastObservedAt; Save(); } }
     private ClientPresencePeriod? Active(string key) => _periods.LastOrDefault(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase) && period.EndedAt is null);
     private List<ClientPresencePeriod> Load() { try { return File.Exists(_path) ? JsonSerializer.Deserialize<List<ClientPresencePeriod>>(File.ReadAllText(_path)) ?? [] : []; } catch { return []; } }
-    private void Save() { try { Directory.CreateDirectory(Path.GetDirectoryName(_path)!); File.WriteAllText(_path, JsonSerializer.Serialize(_periods)); _lastSave = DateTimeOffset.UtcNow; } catch { } }
+    private bool Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, JsonSerializer.Serialize(_periods));
+            _lastSave = DateTimeOffset.UtcNow;
+            return true;
+        }
+        catch { return false; }
+    }
     private void Trim(DateTimeOffset now) => _periods.RemoveAll(period => (period.EndedAt ?? period.LastObservedAt) < now - Retention);
     private static DateTimeOffset StartOfLocalDay(DateTimeOffset now)
     {

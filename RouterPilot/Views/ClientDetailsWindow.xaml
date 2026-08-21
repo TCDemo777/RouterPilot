@@ -459,6 +459,21 @@
                                    Text="{Binding AvailabilityMonitoringStatus}"/>
                     </StackPanel>
                 </Grid>
+
+                <Border Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Danger}" Text="FORGET DEVICE"/>
+                            <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextSecondary}" Text="Remove this device's saved RouterPilot history and preferences. Router configuration is not changed."/>
+                            <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextMuted}" Text="This device is currently on the network. Disconnect it before forgetting its saved history." Visibility="{Binding IsCurrentlyObserved, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Button.Secondary}" Foreground="{DynamicResource Brush.Danger}" Command="{Binding ForgetDeviceCommand}" Content="Forget Device"/>
+                    </Grid>
+                </Border>
             </StackPanel>
         </Border>
 

@@ -19,11 +19,14 @@ namespace RouterPilot.ViewModels
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly ClientProfileService _clientProfileService;
         private readonly IClientPresenceHistoryService _presenceHistory;
+        private readonly KnownDeviceForgetService _knownDeviceForgetService;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
         private readonly DhcpLeaseInfo? _dhcpLease;
         private readonly DhcpReservationInfo? _dhcpReservation;
+
+        public event EventHandler? DeviceForgotten;
 
         public ObservableCollection<QueryLogEntry> RecentQueries { get; } =
             new();
@@ -128,11 +131,16 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private bool monitorAvailability;
+        [ObservableProperty]
+        private bool isForgettingDevice;
         private bool loadingProfile;
 
         public string AvailabilityMonitoringStatus => MonitorAvailability
             ? "On — based on RouterPilot observations while the app is running."
             : "Off";
+
+        public bool IsCurrentlyObserved => _knownDeviceForgetService.IsCurrentlyObserved(ClientKey(_client));
+        public bool CanForgetDevice => !IsForgettingDevice && !IsCurrentlyObserved && _clientProfiles.ContainsKey(ClientKey(_client));
 
         public string PauseButtonText =>
             IsPaused ? "Resume" : "Pause";
@@ -142,6 +150,7 @@ namespace RouterPilot.ViewModels
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailabilityService,
             IClientPresenceHistoryService presenceHistory,
+            KnownDeviceForgetService knownDeviceForgetService,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
             IEnumerable<DhcpReservationInfo>? dhcpReservations = null)
         {
@@ -149,6 +158,7 @@ namespace RouterPilot.ViewModels
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _presenceHistory = presenceHistory;
+            _knownDeviceForgetService = knownDeviceForgetService;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
 
@@ -313,8 +323,40 @@ namespace RouterPilot.ViewModels
         private void ClearPresenceHistory()
         {
             if (MessageBox.Show("Clear presence history for this device? This does not affect its profile, monitoring, DNS activity, or Timeline.", "Clear presence history", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            _presenceHistory.Clear(_client.MacAddress);
+            if (!_presenceHistory.Clear(_client.MacAddress))
+            {
+                StatusMessage = "RouterPilot could not clear this device's presence history.";
+                return;
+            }
             RefreshPresencePresentation();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanForgetDevice))]
+        private async Task ForgetDeviceAsync()
+        {
+            if (!CanForgetDevice)
+            {
+                StatusMessage = IsCurrentlyObserved
+                    ? "This device is currently on the network. Disconnect it before forgetting its saved history."
+                    : "This device is no longer available to forget.";
+                return;
+            }
+
+            string message = $"Forget {ClientName}?\n\nRouterPilot will remove its saved device history and local preferences from this PC.\n\nThis will not remove or change DHCP reservations, Port Forward rules, router client records, Wi-Fi, AdGuard, or VPN configuration.\n\nIf the device appears again, RouterPilot will detect it as a new device.";
+            if (MessageBox.Show(message, "Forget Device", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            IsForgettingDevice = true;
+            try
+            {
+                KnownDeviceForgetResult result = await _knownDeviceForgetService.ForgetAsync(ClientKey(_client));
+                StatusMessage = result.Message;
+                if (result.Success) DeviceForgotten?.Invoke(this, EventArgs.Empty);
+            }
+            finally
+            {
+                IsForgettingDevice = false;
+            }
         }
 
         private void RefreshPresencePresentation()
@@ -600,6 +642,12 @@ namespace RouterPilot.ViewModels
             _client.MonitorAvailability = value;
             _clientProfileService.Save(_clientProfiles.Values);
             ClientRefreshNotifier.RequestRefresh();
+        }
+
+        partial void OnIsForgettingDeviceChanged(bool value)
+        {
+            OnPropertyChanged(nameof(CanForgetDevice));
+            ForgetDeviceCommand.NotifyCanExecuteChanged();
         }
 
         private static bool SameMac(string? first, string? second)

@@ -22,12 +22,25 @@
    </Grid></Border>
    <StackPanel Grid.Row="5" Margin="0,16,0,0">
     <TextBlock HorizontalAlignment="Center" Margin="0,36" Text="No known devices yet&#x0a;RouterPilot will build this list as devices are observed." TextAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasDevices}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-    <ListBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" BorderThickness="0" Background="Transparent" MouseDoubleClick="Devices_MouseDoubleClick"><ListBox.Style><Style TargetType="ListBox"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding HasDevices}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ListBox.Style>
-     <ListBox.ItemTemplate><DataTemplate><Border Margin="0,0,0,8" Padding="14" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/><ColumnDefinition Width="150"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
-      <StackPanel><StackPanel Orientation="Horizontal"><TextBlock FontWeight="SemiBold" Text="{Binding Name}"/><TextBlock Margin="8,0,0,0" Foreground="{DynamicResource Brush.Warning}" Text="Needs Review" Visibility="{Binding NeedsReview, Converter={StaticResource BooleanToVisibilityConverter}}"/><TextBlock Margin="8,0,0,0" Text="★" Visibility="{Binding IsFavourite, Converter={StaticResource BooleanToVisibilityConverter}}"/></StackPanel><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Secondary}"/></StackPanel>
-      <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding Status}"/><TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding Category}"/><StackPanel Grid.Column="3"><TextBlock Text="{Binding LastObserved}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="Monitored" Visibility="{Binding IsMonitored, Converter={StaticResource BooleanToVisibilityConverter}}"/></StackPanel>
-     </Grid></Border></DataTemplate></ListBox.ItemTemplate>
-    </ListBox>
+     <Border MinHeight="360" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="10" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"><ListBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" MouseDoubleClick="Devices_MouseDoubleClick"><ListBox.Style><Style TargetType="ListBox"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding HasDevices}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ListBox.Style>
+     <ListBox.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+     <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource ClientDeviceCardItem}"/></ListBox.ItemContainerStyle>
+     <ListBox.ItemTemplate><DataTemplate><Border Style="{StaticResource ClientDeviceCard}">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="9"/><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <Border Width="38" Height="38" Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="19"><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe UI Emoji" FontSize="18" Text="{Binding DeviceIcon}"/></Border>
+        <StackPanel Grid.Column="1"><TextBlock FontSize="16" FontWeight="Bold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Text="{Binding Name}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Secondary}" Text="{Binding Secondary}"/></StackPanel>
+        <Button Grid.Column="2" Width="34" Height="32" Padding="0" FontSize="19" Foreground="{DynamicResource Brush.Warning}" IsHitTestVisible="False" Focusable="False" Content="{Binding FavoriteGlyph}"/>
+       </Grid>
+       <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Category}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="Last observed: {Binding LastObserved}"/></StackPanel>
+        <Border Grid.Column="1" Margin="8,0,0,0" Padding="9,4" VerticalAlignment="Top" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="10"><TextBlock FontWeight="SemiBold" Foreground="{Binding HealthColour}" Text="{Binding HealthText}"/></Border>
+       </Grid>
+       <StackPanel Grid.Row="4"><TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding Status}"/><TextBlock Margin="0,4,0,0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Primary}" Text="Monitoring" Visibility="{Binding IsMonitored, Converter={StaticResource BooleanToVisibilityConverter}}"/></StackPanel>
+       <WrapPanel Grid.Row="6"><TextBlock Margin="0,0,10,0" Foreground="{DynamicResource Brush.Warning}" Text="Needs Review" Visibility="{Binding NeedsReview, Converter={StaticResource BooleanToVisibilityConverter}}"/><TextBlock Foreground="{DynamicResource Brush.Warning}" Text="Favourite" Visibility="{Binding IsFavourite, Converter={StaticResource BooleanToVisibilityConverter}}"/></WrapPanel>
+      </Grid>
+     </Border></DataTemplate></ListBox.ItemTemplate>
+     </ListBox></Border>
    </StackPanel>
   </Grid>
  </ScrollViewer>

@@ -85,6 +85,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
             serviceCollection.AddSingleton<ClientProfileService>();
             serviceCollection.AddSingleton<ClientInventoryState>();
+            serviceCollection.AddSingleton<KnownDeviceForgetService>();
             serviceCollection.AddSingleton<INetworkHealthService, NetworkHealthService>();
             serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));

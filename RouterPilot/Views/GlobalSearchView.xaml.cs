@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using RouterPilot.ViewModels;
 using RouterPilot.Models;
+using RouterPilot.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace RouterPilot.Views
@@ -22,6 +23,7 @@ namespace RouterPilot.Views
                 _viewModel;
 
             Loaded += GlobalSearchView_Loaded;
+            Unloaded += GlobalSearchView_Unloaded;
         }
 
         private void GlobalSearchView_Loaded(
@@ -30,7 +32,17 @@ namespace RouterPilot.Views
         {
             Loaded -= GlobalSearchView_Loaded;
             if (Application.Current.MainWindow?.DataContext is DashboardViewModel dashboard) _viewModel.Attach(dashboard);
+            ClientRefreshNotifier.ProfileStateChanged += ClientRefreshNotifier_ProfileStateChanged;
             SearchBox.Focus();
+        }
+
+        private void GlobalSearchView_Unloaded(object sender, RoutedEventArgs e) =>
+            ClientRefreshNotifier.ProfileStateChanged -= ClientRefreshNotifier_ProfileStateChanged;
+
+        private void ClientRefreshNotifier_ProfileStateChanged(object? sender, EventArgs e)
+        {
+            if (Dispatcher.CheckAccess()) _viewModel.RebuildFromCurrentState();
+            else _ = Dispatcher.BeginInvoke(_viewModel.RebuildFromCurrentState);
         }
 
         private void ResultsList_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)

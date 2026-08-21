@@ -11,6 +11,6 @@ public interface IClientPresenceHistoryService
     TimeSpan GetObservedOnlineToday(string normalizedMac, DateTimeOffset now);
     IReadOnlyList<ClientDailyAvailability> GetDailyAvailability(string normalizedMac, int days, DateTimeOffset now);
     ClientPresencePeriod? GetCurrentPeriod(string normalizedMac);
-    void Clear(string normalizedMac);
+    bool Clear(string normalizedMac);
     void CloseSession();
 }

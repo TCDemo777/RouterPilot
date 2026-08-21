@@ -453,6 +453,9 @@ namespace RouterPilot.ViewModels
             foreach (ClientInfo client in newlyDetected)
             {
                 string key = NormaliseMac(client.MacAddress);
+                long lifecycle = _clientProfiles.TryGetValue(key, out ClientProfile? profile) && profile.FirstSeenUtc != default
+                    ? profile.FirstSeenUtc.Ticks
+                    : DateTime.UtcNow.Ticks;
                 await _timelineService.AddAsync(new TimelineEvent
                 {
                     Category = TimelineCategory.Clients,
@@ -461,7 +464,7 @@ namespace RouterPilot.ViewModels
                     Message = NewDeviceTimelineMessage(client),
                     Severity = TimelineSeverity.Information,
                     RelatedEntityId = key,
-                    DeduplicationKey = "new-device:" + key
+                    DeduplicationKey = $"new-device:{key}:{lifecycle}"
                 });
             }
         }

@@ -349,22 +349,12 @@
                 </ListBox.ItemsPanel>
 
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="Margin" Value="6"/>
-                        <Setter Property="Padding" Value="0"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                    </Style>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource ClientDeviceCardItem}"/>
                 </ListBox.ItemContainerStyle>
 
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border MinHeight="205"
-                                Padding="15"
-                                Background="{DynamicResource Brush.Surface}"
-                                CornerRadius="10"
-                                 BorderBrush="{DynamicResource Brush.Border}"
-                                 BorderThickness="1"
+                        <Border Style="{StaticResource ClientDeviceCard}"
                                  PreviewMouseRightButtonDown="ClientCard_PreviewMouseRightButtonDown">
                             <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">

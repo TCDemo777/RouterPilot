@@ -33,6 +33,7 @@ namespace RouterPilot.Views
                     dhcpReservations);
 
             DataContext = _viewModel;
+            _viewModel.DeviceForgotten += ViewModel_DeviceForgotten;
 
             AllowLiveRefresh = allowLiveRefresh;
 
@@ -53,7 +54,10 @@ namespace RouterPilot.Views
             object? sender,
             EventArgs e)
         {
+            _viewModel.DeviceForgotten -= ViewModel_DeviceForgotten;
             _viewModel.Stop();
         }
+
+        private void ViewModel_DeviceForgotten(object? sender, EventArgs e) => Close();
     }
 }

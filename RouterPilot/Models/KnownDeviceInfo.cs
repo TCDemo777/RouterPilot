@@ -12,7 +12,7 @@ public sealed class KnownDeviceInfo
         !string.IsNullOrWhiteSpace(CurrentClient?.Name) ? CurrentClient.Name :
         !string.IsNullOrWhiteSpace(Profile.LastKnownName) ? Profile.LastKnownName : FormatMac(MacKey);
     public string Secondary => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
-        Useful(Profile.LastKnownIpAddress) ? $"Last IP: {Profile.LastKnownIpAddress}" : string.Empty;
+        Useful(Profile.LastKnownIpAddress) ? $"Last known IP: {Profile.LastKnownIpAddress}" : string.Empty;
     public string Status => IsOnline ? "Online" : "Not currently observed";
     public string Category => !string.IsNullOrWhiteSpace(Profile.Category) ? Profile.Category :
         !string.IsNullOrWhiteSpace(CurrentClient?.DeviceType) ? CurrentClient.DeviceType : "Unknown";
@@ -20,6 +20,10 @@ public sealed class KnownDeviceInfo
     public bool IsFavourite => Profile.IsFavorite;
     public bool IsMonitored => Profile.MonitorAvailability;
     public bool NeedsReview => Profile.NeedsReview;
+    public string DeviceIcon => CurrentClient?.DeviceIcon ?? "\u25CF";
+    public string FavoriteGlyph => IsFavourite ? "\u2605" : "\u2606";
+    public string HealthText => NeedsReview ? "Needs Review" : IsOnline ? "Online" : "Offline";
+    public string HealthColour => NeedsReview ? "#D97706" : IsOnline ? "#16A34A" : "#687386";
     public ClientInfo ToClientInfo() => CurrentClient ?? new ClientInfo
     {
         Name = Name, RouterName = Profile.LastKnownName, MacAddress = FormatMac(MacKey),

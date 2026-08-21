@@ -43,6 +43,11 @@ namespace RouterPilot.ViewModels
             ApplyUnifiedSearch();
         }
 
+        public void RebuildFromCurrentState()
+        {
+            if (_dashboard is not null) ApplyUnifiedSearch();
+        }
+
         [RelayCommand]
         public async Task RefreshIndexAsync()
         {

@@ -238,6 +238,31 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
 
     public Task ClearAllAsync() => MutateAsync(_notifications.Clear);
 
+    /// <summary>Removes only local notification history and deduplication state for one device identity.</summary>
+    public Task RemoveDeviceNotificationsAsync(string normalizedMac) =>
+        MutateAsync(() =>
+        {
+            string key = new string((normalizedMac ?? string.Empty)
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+            if (key.Length != 12) return;
+
+            foreach (AppNotification notification in _notifications
+                         .Where(item => string.Equals(item.ActionTarget, key, StringComparison.OrdinalIgnoreCase) ||
+                                        (item.DeduplicationKey?.Contains(key, StringComparison.OrdinalIgnoreCase) ?? false))
+                         .ToList())
+                _notifications.Remove(notification);
+
+            lock (_deduplicationLock)
+            {
+                foreach (string deduplicationKey in _deduplicationTimes.Keys
+                             .Where(item => item.Contains(key, StringComparison.OrdinalIgnoreCase))
+                             .ToList())
+                    _deduplicationTimes.Remove(deduplicationKey);
+            }
+        });
+
     private async Task MutateAsync(Action mutation)
     {
         await _dispatcher.InvokeAsync(() =>
