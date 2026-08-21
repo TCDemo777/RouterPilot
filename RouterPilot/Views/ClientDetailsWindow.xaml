@@ -574,7 +574,7 @@
                                         <Grid Grid.Row="2">
                                             <Border Background="{DynamicResource Brush.Border}" CornerRadius="6"/>
                                             <ProgressBar Height="12" Maximum="100" Value="{Binding Percentage}"
-                                                         Foreground="#3B82F6" Background="Transparent" BorderThickness="0"/>
+                                                         Foreground="{DynamicResource Brush.Primary}" Background="Transparent" BorderThickness="0"/>
                                         </Grid>
                                     </Grid>
                                 </DataTemplate>
@@ -707,10 +707,10 @@
                                             <Border Padding="10,4" HorizontalAlignment="Left" CornerRadius="10">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="#E8F5E9"/>
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.SuccessSubtle}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsBlocked}" Value="True">
-                                                                <Setter Property="Background" Value="#FDECEC"/>
+                                                                <Setter Property="Background" Value="{DynamicResource Brush.DangerSubtle}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -718,10 +718,10 @@
                                                 <TextBlock FontWeight="SemiBold" Text="{Binding Status}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="#16803C"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsBlocked}" Value="True">
-                                                                    <Setter Property="Foreground" Value="#C62828"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
