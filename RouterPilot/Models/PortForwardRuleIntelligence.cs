@@ -25,7 +25,7 @@ public static class PortForwardRuleIntelligence
         List<DhcpLeaseInfo> leaseList = leases.ToList();
         List<DhcpReservationInfo> reservationList = reservations.Where(item => item.Enabled).ToList();
         HashSet<string> onlineMacs = wifiNetworks.SelectMany(network => network.Clients)
-            .Select(client => NormalizeMac(client.MacAddress)).Where(mac => mac.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .Select(client => ClientIdentity.NormalizeMac(client.MacAddress)).Where(mac => mac.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> onlineIps = wifiNetworks.SelectMany(network => network.Clients)
             .Select(client => client.IpAddress?.Trim() ?? string.Empty).Where(IsUsableIp).ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> conflicts = FindConflictingRuleIds(ruleList);
@@ -34,14 +34,14 @@ public static class PortForwardRuleIntelligence
         {
             DhcpLeaseInfo? lease = leaseList.FirstOrDefault(item => SameIp(item.IpAddress, rule.DestinationIp));
             DhcpReservationInfo? reservation = reservationList.FirstOrDefault(item => SameIp(item.IpAddress, rule.DestinationIp));
-            string mac = NormalizeMac(lease?.MacAddress ?? reservation?.MacAddress);
+            string mac = ClientIdentity.NormalizeMac(lease?.MacAddress ?? reservation?.MacAddress);
             if (mac.Length == 12)
-                reservation ??= reservationList.FirstOrDefault(item => NormalizeMac(item.MacAddress) == mac);
+                reservation ??= reservationList.FirstOrDefault(item => ClientIdentity.NormalizeMac(item.MacAddress) == mac);
 
             string clientName = DisplayName(lease?.ClientName, lease?.Hostname, reservation?.Hostname);
             bool currentWifi = (mac.Length == 12 && onlineMacs.Contains(mac)) || onlineIps.Contains(rule.DestinationIp.Trim());
             DhcpLeaseInfo? movedLease = mac.Length == 12
-                ? leaseList.FirstOrDefault(item => NormalizeMac(item.MacAddress) == mac && !SameIp(item.IpAddress, rule.DestinationIp))
+                ? leaseList.FirstOrDefault(item => ClientIdentity.NormalizeMac(item.MacAddress) == mac && !SameIp(item.IpAddress, rule.DestinationIp))
                 : null;
 
             if (conflicts.Contains(rule.Id))
@@ -101,7 +101,6 @@ public static class PortForwardRuleIntelligence
     }
     private static bool ProtocolsOverlap(string? left, string? right) => Protocols(left).Intersect(Protocols(right), StringComparer.OrdinalIgnoreCase).Any();
     private static IEnumerable<string> Protocols(string? value) => (value ?? string.Empty).Split([' ', '+', ',', '/'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Select(item => item.ToLowerInvariant()).Where(item => item is "tcp" or "udp");
-    private static string NormalizeMac(string? value) => new string((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static bool SameIp(string? left, string? right) => string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
     private static bool IsUsableIp(string value) => !string.IsNullOrWhiteSpace(value) && value != "-" && value != "—";
     private static string DisplayName(params string?[] names) => names.FirstOrDefault(name => !string.IsNullOrWhiteSpace(name) && name != "-" && !string.Equals(name, "Unknown device", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;

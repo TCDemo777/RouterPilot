@@ -242,10 +242,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
     public Task RemoveDeviceNotificationsAsync(string normalizedMac) =>
         MutateAsync(() =>
         {
-            string key = new string((normalizedMac ?? string.Empty)
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToUpperInvariant)
-                .ToArray());
+            string key = ClientIdentity.NormalizeMac(normalizedMac);
             if (key.Length != 12) return;
 
             foreach (AppNotification notification in _notifications

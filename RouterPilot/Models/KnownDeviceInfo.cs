@@ -1,12 +1,10 @@
-using RouterPilot.Services;
-
 namespace RouterPilot.Models;
 
 public sealed class KnownDeviceInfo
 {
     public required ClientProfile Profile { get; init; }
     public ClientInfo? CurrentClient { get; init; }
-    public string MacKey => LanClientClassifier.NormalizeMac(Profile.Key);
+    public string MacKey => ClientIdentity.NormalizeHexMac(Profile.Key);
     public bool IsOnline => CurrentClient is not null;
     public string Name => !string.IsNullOrWhiteSpace(Profile.Nickname) ? Profile.Nickname :
         !string.IsNullOrWhiteSpace(CurrentClient?.Name) ? CurrentClient.Name :

@@ -66,7 +66,7 @@ public sealed class DhcpReservationValidator
     private static bool SameMac(string value, string normalized) => TryNormalizeMac(value, out string current, out _) && current == normalized;
     private static bool TryNormalizeMac(string? value, out string normalized, out DhcpReservationValidationCode failure)
     {
-        normalized = new string((value ?? string.Empty).Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+        normalized = ClientIdentity.NormalizeHexMac(value);
         if (normalized.Length != 12) { failure = DhcpReservationValidationCode.InvalidMac; return false; }
         byte first = Convert.ToByte(normalized[..2], 16);
         if (normalized == "FFFFFFFFFFFF") { failure = DhcpReservationValidationCode.BroadcastMac; return false; }

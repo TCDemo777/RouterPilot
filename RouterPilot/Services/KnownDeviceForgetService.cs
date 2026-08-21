@@ -18,11 +18,11 @@ public sealed class KnownDeviceForgetService
         _notifications = notifications;
     }
 
-    public bool IsCurrentlyObserved(string? identity) => _inventory.Snapshot.ContainsKey(Normalize(identity));
+    public bool IsCurrentlyObserved(string? identity) => _inventory.Snapshot.ContainsKey(ClientIdentity.NormalizeMac(identity));
 
     public async Task<KnownDeviceForgetResult> ForgetAsync(string? identity)
     {
-        string key = Normalize(identity);
+        string key = ClientIdentity.NormalizeMac(identity);
         if (key.Length != 12)
             return new(false, "This device does not have a persistent MAC identity.");
         if (IsCurrentlyObserved(key))
@@ -59,7 +59,6 @@ public sealed class KnownDeviceForgetService
         return new(true, "Device forgotten. Router configuration was not changed.");
     }
 
-    private static string Normalize(string? value) => new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
 }
 
 public sealed record KnownDeviceForgetResult(bool Success, string Message);

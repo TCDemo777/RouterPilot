@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RouterPilot.Models;
 
 namespace RouterPilot.Services;
 
@@ -19,5 +20,5 @@ public static class LanClientClassifier
         };
     }
 
-    public static string NormalizeMac(string value) => new string((value ?? string.Empty).Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+    public static string NormalizeMac(string value) => ClientIdentity.NormalizeHexMac(value);
 }

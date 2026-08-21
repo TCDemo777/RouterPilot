@@ -26,7 +26,7 @@ public sealed class NewDeviceNotificationTracker
         ArgumentNullException.ThrowIfNull(connectedClients);
 
         Dictionary<string, ClientInfo> current = connectedClients
-            .Select(client => (Mac: NormaliseMac(client.MacAddress), Client: client))
+            .Select(client => (Mac: ClientIdentity.NormalizeMac(client.MacAddress), Client: client))
             .Where(item => item.Mac.Length == 12)
             .GroupBy(item => item.Mac, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -94,9 +94,4 @@ public sealed class NewDeviceNotificationTracker
         !value.Equals("Unknown device", StringComparison.OrdinalIgnoreCase) &&
         !value.Equals("Unknown network", StringComparison.OrdinalIgnoreCase);
 
-    private static string NormaliseMac(string? value) =>
-        new((value ?? string.Empty)
-            .Where(char.IsLetterOrDigit)
-            .Select(char.ToUpperInvariant)
-            .ToArray());
 }

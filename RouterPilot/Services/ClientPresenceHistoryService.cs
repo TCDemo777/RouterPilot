@@ -39,7 +39,7 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
         lock (_sync)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            HashSet<string> online = clients.Select(client => Normalize(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> online = clients.Select(client => ClientIdentity.NormalizeMac(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (string key in online)
             {
                 _absentSince.Remove(key);
@@ -73,7 +73,7 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
 
     public IReadOnlyList<ClientPresencePeriod> GetRecent(string normalizedMac, DateTimeOffset from, DateTimeOffset to)
     {
-        lock (_sync) return _periods.Where(period => period.NormalizedMac.Equals(Normalize(normalizedMac), StringComparison.OrdinalIgnoreCase) && period.StartedAt < to && (period.EndedAt ?? period.LastObservedAt) > from).Select(Clone).ToList();
+        lock (_sync) return _periods.Where(period => period.NormalizedMac.Equals(ClientIdentity.NormalizeMac(normalizedMac), StringComparison.OrdinalIgnoreCase) && period.StartedAt < to && (period.EndedAt ?? period.LastObservedAt) > from).Select(Clone).ToList();
     }
     public TimeSpan GetObservedOnlineToday(string normalizedMac, DateTimeOffset now)
     {
@@ -109,7 +109,7 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
     {
         lock (_sync)
         {
-            ClientPresencePeriod? period = Active(Normalize(normalizedMac));
+            ClientPresencePeriod? period = Active(ClientIdentity.NormalizeMac(normalizedMac));
             return period is null ? null : Clone(period);
         }
     }
@@ -117,7 +117,7 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
     {
         lock (_sync)
         {
-            string key = Normalize(normalizedMac);
+            string key = ClientIdentity.NormalizeMac(normalizedMac);
             List<ClientPresencePeriod> removed = _periods.Where(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase)).Select(Clone).ToList();
             bool hadAbsentSince = _absentSince.TryGetValue(key, out DateTimeOffset absentSince);
             _periods.RemoveAll(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase));
@@ -161,7 +161,6 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
         TimeSpan offset = zone.IsAmbiguousTime(local) ? zone.GetAmbiguousTimeOffsets(local).Max() : zone.GetUtcOffset(local);
         return new DateTimeOffset(local, offset);
     }
-    private static string Normalize(string? value) => new string((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;
     private static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
     private static ClientPresencePeriod Clone(ClientPresencePeriod period) => new() { NormalizedMac = period.NormalizedMac, StartedAt = period.StartedAt, EndedAt = period.EndedAt, LastObservedAt = period.LastObservedAt, State = period.State };

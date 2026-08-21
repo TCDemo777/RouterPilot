@@ -110,16 +110,16 @@ namespace RouterPilot.ViewModels
             string search = SearchText.Trim();
             if (search.Length < 2) { StatusMessage = "Enter at least two characters to search RouterPilot."; return; }
             if (_dashboard is null) { StatusMessage = "Search is not ready."; return; }
-            string mac = LanClientClassifier.NormalizeMac(search);
+            string mac = ClientIdentity.NormalizeHexMac(search);
             var candidates = new List<GlobalSearchResult>();
-            candidates.AddRange(_dashboard.DhcpLeases.Select(item => Result("Client", Name(item.ClientName, item.Hostname), $"Client • {item.IpAddress}", $"{item.ClientName} {item.Hostname} {item.IpAddress} {LanClientClassifier.NormalizeMac(item.MacAddress)} {item.DeviceType}", "clients", LanClientClassifier.NormalizeMac(item.MacAddress), "#3367D6")));
-            HashSet<string> currentClientMacs = _dashboard.DhcpLeases.Select(item => LanClientClassifier.NormalizeMac(item.MacAddress)).Where(value => value.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            candidates.AddRange(_dashboard.DhcpLeases.Select(item => Result("Client", Name(item.ClientName, item.Hostname), $"Client • {item.IpAddress}", $"{item.ClientName} {item.Hostname} {item.IpAddress} {ClientIdentity.NormalizeHexMac(item.MacAddress)} {item.DeviceType}", "clients", ClientIdentity.NormalizeHexMac(item.MacAddress), "#3367D6")));
+            HashSet<string> currentClientMacs = _dashboard.DhcpLeases.Select(item => ClientIdentity.NormalizeHexMac(item.MacAddress)).Where(value => value.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, ClientProfile> profiles = _clientProfiles.Load();
             if (_clientProfiles.LastLoadSucceeded)
             {
-                candidates.AddRange(profiles.Values.Where(profile => LanClientClassifier.NormalizeMac(profile.Key).Length == 12 && !currentClientMacs.Contains(LanClientClassifier.NormalizeMac(profile.Key))).Select(profile =>
+                candidates.AddRange(profiles.Values.Where(profile => ClientIdentity.NormalizeHexMac(profile.Key).Length == 12 && !currentClientMacs.Contains(ClientIdentity.NormalizeHexMac(profile.Key))).Select(profile =>
                 {
-                    string macKey = LanClientClassifier.NormalizeMac(profile.Key);
+                    string macKey = ClientIdentity.NormalizeHexMac(profile.Key);
                     string title = !string.IsNullOrWhiteSpace(profile.Nickname) ? profile.Nickname : !string.IsNullOrWhiteSpace(profile.LastKnownName) ? profile.LastKnownName : macKey;
                     string subtitle = profile.LastSeenUtc == default ? "Known Device" : $"Known Device • Last observed {profile.LastSeenUtc.ToLocalTime():d}";
                     return Result("Known Device", title, subtitle, $"{profile.Nickname} {profile.LastKnownName} {profile.LastKnownIpAddress} {macKey} {profile.Category}", "known-device", macKey, "#3367D6");
@@ -131,7 +131,7 @@ namespace RouterPilot.ViewModels
                 GlobalSearchResult candidate = Result("Port Forward", string.IsNullOrWhiteSpace(rule.Name) ? "Port forward" : rule.Name, $"Port Forward • {rule.Protocol.ToUpperInvariant()} • {rule.ExternalPort}", terms, "port-forward", rule.Id, "#B26A00");
                 candidates.Add(candidate);
             }
-            candidates.AddRange(_dashboard.DhcpReservations.Select(item => Result("DHCP Reservation", Name(item.Hostname), $"DHCP Reservation • {item.IpAddress}", $"{item.Hostname} {item.IpAddress} {LanClientClassifier.NormalizeMac(item.MacAddress)}", "dhcp", LanClientClassifier.NormalizeMac(item.MacAddress), "#16803C")));
+            candidates.AddRange(_dashboard.DhcpReservations.Select(item => Result("DHCP Reservation", Name(item.Hostname), $"DHCP Reservation • {item.IpAddress}", $"{item.Hostname} {item.IpAddress} {ClientIdentity.NormalizeHexMac(item.MacAddress)}", "dhcp", ClientIdentity.NormalizeHexMac(item.MacAddress), "#16803C")));
             candidates.AddRange(_dashboard.WifiNetworks.Select(item => Result("Wi-Fi Network", item.Ssid, $"Wi-Fi Network • {item.Band}", $"{item.Ssid} {item.Band} {item.Interface} {item.GuestClassificationDisplay}", "wifi", $"{item.Radio}:{item.Interface}:{item.Ssid}", "#6A4FB3")));
             candidates.AddRange(Pages.Select(item => Result("Page", item.Title, item.Subtitle, item.Terms, item.Target, item.Target, "#687386")));
             List<GlobalSearchResult> matches = candidates.Where(item => Match(item.SearchTerms, search, mac)).GroupBy(item => item.Category + ":" + item.EntityId, StringComparer.OrdinalIgnoreCase).Select(item => item.First()).OrderByDescending(item => Rank(item, search, mac)).ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase).ToList();

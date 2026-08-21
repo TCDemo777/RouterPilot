@@ -16,7 +16,7 @@ public sealed class ClientInventoryState
         _clients.Clear();
         foreach (ClientInfo client in clients)
         {
-            string mac = LanClientClassifier.NormalizeMac(client.MacAddress);
+            string mac = ClientIdentity.NormalizeHexMac(client.MacAddress);
             if (mac.Length == 12) _clients[mac] = client;
         }
         Changed?.Invoke(this, EventArgs.Empty);

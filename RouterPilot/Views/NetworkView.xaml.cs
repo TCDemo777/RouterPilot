@@ -294,9 +294,7 @@ namespace RouterPilot.Views
             }
         }
 
-        private static bool SameMac(string first, string second) =>
-            string.Concat((first ?? string.Empty).Where(char.IsLetterOrDigit))
-                .Equals(string.Concat((second ?? string.Empty).Where(char.IsLetterOrDigit)), StringComparison.OrdinalIgnoreCase);
+        private static bool SameMac(string first, string second) => ClientIdentity.MacEquals(first, second);
 
         private static string PortForwardReservationFailureMessage(DhcpReservationValidationResult validation, string requestedIp) =>
             PortForwardReservationFailureMessage(validation.Code.ToString(), requestedIp);

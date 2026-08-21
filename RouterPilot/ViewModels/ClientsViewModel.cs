@@ -319,10 +319,10 @@ namespace RouterPilot.ViewModels
         private static List<ClientInfo> BuildRouterClients(IEnumerable<WifiClientInfo> liveClients)
         {
             return liveClients
-                .Where(client => NormaliseMac(client.MacAddress).Length == 12 || HasUsefulValue(client.IpAddress))
+                .Where(client => ClientIdentity.NormalizeMac(client.MacAddress).Length == 12 || HasUsefulValue(client.IpAddress))
                 .GroupBy(
-                    client => NormaliseMac(client.MacAddress).Length == 12
-                        ? "mac:" + NormaliseMac(client.MacAddress)
+                    client => ClientIdentity.NormalizeMac(client.MacAddress).Length == 12
+                        ? "mac:" + ClientIdentity.NormalizeMac(client.MacAddress)
                         : "ip:" + client.IpAddress.Trim(),
                     StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
@@ -349,11 +349,11 @@ namespace RouterPilot.ViewModels
             foreach (ClientInfo routerClient in routerClients)
             {
                 ClientInfo? enrichment = null;
-                string mac = NormaliseMac(routerClient.MacAddress);
+                string mac = ClientIdentity.NormalizeMac(routerClient.MacAddress);
                 if (mac.Length == 12)
                 {
                     enrichment = adGuardClients.FirstOrDefault(client =>
-                        NormaliseMac(client.MacAddress).Equals(mac, StringComparison.OrdinalIgnoreCase));
+                        ClientIdentity.NormalizeMac(client.MacAddress).Equals(mac, StringComparison.OrdinalIgnoreCase));
                 }
 
                 if (enrichment is null && HasUsefulValue(routerClient.IpAddress))
@@ -386,8 +386,8 @@ namespace RouterPilot.ViewModels
             }
 
             List<ClientInfo> macClients = clients
-                .Where(client => NormaliseMac(client.MacAddress).Length == 12)
-                .GroupBy(client => NormaliseMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
+                .Where(client => ClientIdentity.NormalizeMac(client.MacAddress).Length == 12)
+                .GroupBy(client => ClientIdentity.NormalizeMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
 
@@ -403,7 +403,7 @@ namespace RouterPilot.ViewModels
 
                 foreach (ClientInfo client in macClients)
                 {
-                    string key = NormaliseMac(client.MacAddress);
+                    string key = ClientIdentity.NormalizeMac(client.MacAddress);
                     if (!_clientProfiles.TryGetValue(key, out ClientProfile? profile))
                     {
                         profile = new ClientProfile { Key = key };
@@ -426,7 +426,7 @@ namespace RouterPilot.ViewModels
             List<ClientInfo> newlyDetected = [];
             foreach (ClientInfo client in macClients)
             {
-                string key = NormaliseMac(client.MacAddress);
+                string key = ClientIdentity.NormalizeMac(client.MacAddress);
                 if (_clientProfiles.ContainsKey(key))
                 {
                     continue;
@@ -452,7 +452,7 @@ namespace RouterPilot.ViewModels
             SaveProfiles(force: true);
             foreach (ClientInfo client in newlyDetected)
             {
-                string key = NormaliseMac(client.MacAddress);
+                string key = ClientIdentity.NormalizeMac(client.MacAddress);
                 long lifecycle = _clientProfiles.TryGetValue(key, out ClientProfile? profile) && profile.FirstSeenUtc != default
                     ? profile.FirstSeenUtc.Ticks
                     : DateTime.UtcNow.Ticks;
@@ -472,8 +472,8 @@ namespace RouterPilot.ViewModels
         private void RebuildNewDevices(IEnumerable<ClientInfo> currentClients)
         {
             Dictionary<string, ClientInfo> currentByMac = currentClients
-                .Where(client => NormaliseMac(client.MacAddress).Length == 12)
-                .GroupBy(client => NormaliseMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
+                .Where(client => ClientIdentity.NormalizeMac(client.MacAddress).Length == 12)
+                .GroupBy(client => ClientIdentity.NormalizeMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             NewDevices.Clear();
@@ -508,7 +508,7 @@ namespace RouterPilot.ViewModels
 
         private static string UsefulClientName(ClientInfo client) =>
             HasUsefulValue(client.Name) ? client.Name :
-            HasUsefulValue(client.RouterName) ? client.RouterName : FormatMac(NormaliseMac(client.MacAddress));
+            HasUsefulValue(client.RouterName) ? client.RouterName : FormatMac(ClientIdentity.NormalizeMac(client.MacAddress));
 
         private static string NewDeviceTimelineMessage(ClientInfo client)
         {
@@ -1027,8 +1027,8 @@ namespace RouterPilot.ViewModels
             WifiClientInfo left,
             WifiClientInfo right)
         {
-            string leftMac = NormaliseMac(left.MacAddress);
-            string rightMac = NormaliseMac(right.MacAddress);
+            string leftMac = ClientIdentity.NormalizeMac(left.MacAddress);
+            string rightMac = ClientIdentity.NormalizeMac(right.MacAddress);
 
             if (leftMac.Length == 12 && rightMac.Length == 12)
             {
@@ -1052,7 +1052,7 @@ namespace RouterPilot.ViewModels
                 .OrderByDescending(item => HasUsefulValue(item.Ssid))
                 .ThenByDescending(item => HasUsefulValue(item.Signal)))
             {
-                string macKey = NormaliseMac(live.MacAddress);
+                string macKey = ClientIdentity.NormalizeMac(live.MacAddress);
                 if (macKey.Length == 12 && !_liveClientLookup.ContainsKey("mac:" + macKey))
                 {
                     _liveClientLookup["mac:" + macKey] = live;
@@ -1087,7 +1087,7 @@ namespace RouterPilot.ViewModels
             }
 
             WifiClientInfo? live = null;
-            string macKey = NormaliseMac(client.MacAddress);
+            string macKey = ClientIdentity.NormalizeMac(client.MacAddress);
             if (macKey.Length == 12)
             {
                 _liveClientLookup.TryGetValue("mac:" + macKey, out live);
@@ -1120,12 +1120,12 @@ namespace RouterPilot.ViewModels
             ClientInfo client,
             IEnumerable<WifiClientInfo> liveClients)
         {
-            string clientMac = NormaliseMac(client.MacAddress);
+            string clientMac = ClientIdentity.NormalizeMac(client.MacAddress);
 
             WifiClientInfo? live = liveClients
                 .Where(item =>
                 {
-                    string itemMac = NormaliseMac(item.MacAddress);
+                    string itemMac = ClientIdentity.NormalizeMac(item.MacAddress);
 
                     bool macMatches =
                         clientMac.Length == 12 &&
@@ -1184,12 +1184,12 @@ namespace RouterPilot.ViewModels
 
             foreach (WifiClientInfo live in liveClients)
             {
-                string liveMac = NormaliseMac(live.MacAddress);
+                string liveMac = ClientIdentity.NormalizeMac(live.MacAddress);
                 if (liveMac.Length != 12)
                     continue;
 
                 ClientInfo? client = knownClients.FirstOrDefault(item =>
-                    NormaliseMac(item.MacAddress).Equals(
+                    ClientIdentity.NormalizeMac(item.MacAddress).Equals(
                         liveMac,
                         StringComparison.OrdinalIgnoreCase));
 
@@ -1204,21 +1204,6 @@ namespace RouterPilot.ViewModels
                 };
             }
         }
-
-
-        private static string NormaliseMac(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value) || value == "-")
-            {
-                return string.Empty;
-            }
-
-            return new string(value
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToUpperInvariant)
-                .ToArray());
-        }
-
         private static string NormaliseClientName(string? value)
         {
             if (string.IsNullOrWhiteSpace(value) ||
@@ -1315,7 +1300,7 @@ namespace RouterPilot.ViewModels
             string? macAddress,
             string? name)
         {
-            string prefix = NormalizeMac(macAddress);
+            string prefix = ClientIdentity.NormalizeMac(macAddress);
 
             var oui = new Dictionary<string, string>(
                 StringComparer.OrdinalIgnoreCase)
@@ -1533,21 +1518,11 @@ namespace RouterPilot.ViewModels
             if (!string.IsNullOrWhiteSpace(client.MacAddress) &&
                 client.MacAddress != "-")
             {
-                return NormalizeMac(client.MacAddress);
+                return ClientIdentity.NormalizeMac(client.MacAddress);
             }
 
             return client.IpAddress.Trim();
         }
-
-        private static string NormalizeMac(string? value)
-        {
-            return new string(
-                (value ?? string.Empty)
-                    .Where(char.IsLetterOrDigit)
-                    .ToArray())
-                .ToUpperInvariant();
-        }
-
         private static bool ContainsAny(
             string value,
             params string[] terms)

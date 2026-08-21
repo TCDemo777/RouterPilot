@@ -1077,7 +1077,7 @@ namespace RouterPilot.ViewModels
         {
             foreach (DhcpLeaseInfo lease in leases)
             {
-                if (!profiles.TryGetValue(NormaliseClientMac(lease.MacAddress), out ClientProfile? profile)) continue;
+                if (!profiles.TryGetValue(ClientIdentity.NormalizeMac(lease.MacAddress), out ClientProfile? profile)) continue;
                 lease.ProfileId = profile.Key;
                 lease.IsFavourite = profile.IsFavorite;
                 if (!string.IsNullOrWhiteSpace(profile.Nickname)) lease.ClientName = profile.Nickname;
@@ -1091,16 +1091,13 @@ namespace RouterPilot.ViewModels
         {
             foreach (DhcpReservationInfo reservation in reservations)
             {
-                if (!profiles.TryGetValue(NormaliseClientMac(reservation.MacAddress), out ClientProfile? profile)) continue;
+                if (!profiles.TryGetValue(ClientIdentity.NormalizeMac(reservation.MacAddress), out ClientProfile? profile)) continue;
                 reservation.ProfileId = profile.Key;
                 reservation.IsFavourite = profile.IsFavorite;
                 if (!string.IsNullOrWhiteSpace(profile.Nickname)) reservation.Hostname = profile.Nickname;
                 if (!string.IsNullOrWhiteSpace(profile.Category)) reservation.DeviceType = profile.Category;
             }
         }
-
-        private static string NormaliseClientMac(string value) => new string(
-            (value ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
 
         private static void ReplaceDhcpCollection<T>(ObservableCollection<T> target, IEnumerable<T> values)
         {

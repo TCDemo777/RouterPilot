@@ -165,9 +165,9 @@ namespace RouterPilot.ViewModels
 
             IEnumerable<DhcpLeaseInfo> availableLeases = dhcpLeases ?? Enumerable.Empty<DhcpLeaseInfo>();
             IEnumerable<DhcpReservationInfo> availableReservations = dhcpReservations ?? Enumerable.Empty<DhcpReservationInfo>();
-            _dhcpLease = availableLeases.FirstOrDefault(lease => SameMac(lease.MacAddress, client.MacAddress))
+            _dhcpLease = availableLeases.FirstOrDefault(lease => ClientIdentity.IsMacKey(lease.MacAddress) && ClientIdentity.MacEquals(lease.MacAddress, client.MacAddress))
                 ?? availableLeases.FirstOrDefault(lease => SameText(lease.IpAddress, client.IpAddress));
-            _dhcpReservation = availableReservations.FirstOrDefault(reservation => SameMac(reservation.MacAddress, client.MacAddress))
+            _dhcpReservation = availableReservations.FirstOrDefault(reservation => ClientIdentity.IsMacKey(reservation.MacAddress) && ClientIdentity.MacEquals(reservation.MacAddress, client.MacAddress))
                 ?? availableReservations.FirstOrDefault(reservation => SameText(reservation.IpAddress, client.IpAddress));
 
             LoadProfile();
@@ -450,11 +450,7 @@ namespace RouterPilot.ViewModels
             if (!string.IsNullOrWhiteSpace(client.MacAddress) &&
                 client.MacAddress != "-")
             {
-                return new string(
-                    client.MacAddress
-                        .Where(char.IsLetterOrDigit)
-                        .Select(char.ToUpperInvariant)
-                        .ToArray());
+                return ClientIdentity.NormalizeMac(client.MacAddress);
             }
 
             return client.IpAddress.Trim();
@@ -663,21 +659,6 @@ namespace RouterPilot.ViewModels
         {
             OnPropertyChanged(nameof(CanForgetDevice));
             ForgetDeviceCommand.NotifyCanExecuteChanged();
-        }
-
-        private static bool SameMac(string? first, string? second)
-        {
-            string normalisedFirst = new string((first ?? string.Empty)
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToUpperInvariant)
-                .ToArray());
-            string normalisedSecond = new string((second ?? string.Empty)
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToUpperInvariant)
-                .ToArray());
-
-            return normalisedFirst.Length == 12 &&
-                string.Equals(normalisedFirst, normalisedSecond, StringComparison.Ordinal);
         }
 
         private static string FormatObserved(DateTime observedUtc)

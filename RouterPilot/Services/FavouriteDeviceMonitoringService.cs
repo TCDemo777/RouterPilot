@@ -20,12 +20,12 @@ public sealed class FavouriteDeviceMonitoringService
         Dictionary<string, ClientProfile> profiles = _profiles.Load();
         if (!_profiles.LastLoadSucceeded) { _networkHealth.SetMonitoredDeviceIssues([]); return; }
 
-        HashSet<string> online = currentClients.Select(client => NormalizeMac(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> online = currentClients.Select(client => ClientIdentity.NormalizeMac(client.MacAddress)).Where(key => key.Length == 12).ToHashSet(StringComparer.OrdinalIgnoreCase);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         List<NetworkHealthIssue> issues = [];
-        foreach (ClientProfile profile in profiles.Values.Where(profile => profile.MonitorAvailability && NormalizeMac(profile.Key).Length == 12))
+        foreach (ClientProfile profile in profiles.Values.Where(profile => profile.MonitorAvailability && ClientIdentity.NormalizeMac(profile.Key).Length == 12))
         {
-            string key = NormalizeMac(profile.Key);
+            string key = ClientIdentity.NormalizeMac(profile.Key);
             if (online.Contains(key)) continue;
             ClientPresencePeriod? period = _presenceHistory.GetCurrentPeriod(key);
             if (period?.State != ClientPresenceState.Offline) continue;
@@ -37,6 +37,5 @@ public sealed class FavouriteDeviceMonitoringService
         _networkHealth.SetMonitoredDeviceIssues(issues);
     }
 
-    private static string NormalizeMac(string? value) => new string((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static string FormatDuration(TimeSpan duration) => duration < TimeSpan.FromMinutes(1) ? "less than a minute" : duration < TimeSpan.FromHours(1) ? $"{(int)duration.TotalMinutes} minutes" : $"{(int)duration.TotalHours}h {duration.Minutes}m";
 }

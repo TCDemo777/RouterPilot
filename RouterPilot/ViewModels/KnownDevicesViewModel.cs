@@ -41,8 +41,8 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         Dictionary<string, ClientProfile> loaded = _profiles.Load();
         if (!_profiles.LastLoadSucceeded) return;
-        _profileMap = loaded.Where(pair => LanClientClassifier.NormalizeMac(pair.Key).Length == 12)
-            .ToDictionary(pair => LanClientClassifier.NormalizeMac(pair.Key), pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        _profileMap = loaded.Where(pair => ClientIdentity.NormalizeHexMac(pair.Key).Length == 12)
+            .ToDictionary(pair => ClientIdentity.NormalizeHexMac(pair.Key), pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         Rebuild();
     }
 
@@ -98,7 +98,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
 
     private static bool Matches(KnownDeviceInfo device, string text)
     {
-        string mac = LanClientClassifier.NormalizeMac(text);
+        string mac = ClientIdentity.NormalizeHexMac(text);
         string terms = $"{device.Name} {device.Profile.LastKnownName} {device.Profile.LastKnownIpAddress} {device.MacKey} {device.Category}";
         return terms.Contains(text, StringComparison.OrdinalIgnoreCase) || (mac.Length >= 2 && device.MacKey.Contains(mac, StringComparison.OrdinalIgnoreCase));
     }

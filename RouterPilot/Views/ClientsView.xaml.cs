@@ -380,7 +380,7 @@ namespace RouterPilot.Views
             catch { _viewModel.StatusMessage = "DHCP reservation could not be applied."; return "RouterPilot could not apply the DHCP reservation."; }
         }
 
-        private static bool SameMac(string first, string second) => string.Concat(first.Where(char.IsLetterOrDigit)).Equals(string.Concat(second.Where(char.IsLetterOrDigit)), StringComparison.OrdinalIgnoreCase);
+        private static bool SameMac(string first, string second) => ClientIdentity.MacEquals(first, second);
         private sealed record DhcpClientReservationAction(DhcpReservationInfo? Reservation, bool CanWrite);
 
         private void CopyClientValue(string? value, string confirmation)
