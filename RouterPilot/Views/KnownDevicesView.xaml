@@ -33,7 +33,7 @@
         <Button Grid.Column="2" Width="34" Height="32" Padding="0" FontSize="19" Foreground="{DynamicResource Brush.Warning}" IsHitTestVisible="False" Focusable="False" Content="{Binding FavoriteGlyph}"/>
        </Grid>
        <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel><TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Category}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="Last observed: {Binding LastObserved}"/></StackPanel>
+        <StackPanel><TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Category}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"><Run Text="Last observed: "/><Run Text="{Binding LastObserved, Mode=OneWay}"/></TextBlock></StackPanel>
         <Border Grid.Column="1" Margin="8,0,0,0" Padding="9,4" VerticalAlignment="Top" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="10"><TextBlock FontWeight="SemiBold" Foreground="{Binding HealthColour}" Text="{Binding HealthText}"/></Border>
        </Grid>
        <StackPanel Grid.Row="4"><TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding Status}"/><TextBlock Margin="0,4,0,0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Primary}" Text="Monitoring" Visibility="{Binding IsMonitored, Converter={StaticResource BooleanToVisibilityConverter}}"/></StackPanel>

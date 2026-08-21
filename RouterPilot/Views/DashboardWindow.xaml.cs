@@ -1138,11 +1138,19 @@ namespace RouterPilot.Views
 
         private void OpenGlobalSearchClientDetails(GlobalSearchResult result)
         {
-            string macKey = ClientIdentity.NormalizeHexMac(result.EntityId);
-            if (macKey.Length != 12)
-            {
-                return;
-            }
+            OpenClientDetailsForDeviceIdentity(result.EntityId);
+        }
+
+        /// <summary>
+        /// Resolves a durable client identity against current application state
+        /// and opens the existing live or historical Client Details flow. It
+        /// deliberately performs no router refresh.
+        /// </summary>
+        public bool OpenClientDetailsForDeviceIdentity(string? deviceIdentity)
+        {
+            string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
+            if (!ClientIdentity.IsMacKey(macKey))
+                return false;
 
             ClientInventoryState inventory =
                 ((App)Application.Current).Services.GetRequiredService<ClientInventoryState>();
@@ -1150,7 +1158,7 @@ namespace RouterPilot.Views
             if (inventory.Snapshot.TryGetValue(macKey, out ClientInfo? liveClient))
             {
                 OpenClientDetailsFromGlobalSearch(liveClient);
-                return;
+                return true;
             }
 
             // Resolve again when activated so a device that disappeared since the
@@ -1160,7 +1168,10 @@ namespace RouterPilot.Views
             {
                 var known = new KnownDeviceInfo { Profile = profile };
                 OpenClientDetailsFromGlobalSearch(known.ToClientInfo(), allowLiveRefresh: false);
+                return true;
             }
+
+            return false;
         }
 
         private void OpenClientDetailsFromGlobalSearch(ClientInfo client, bool allowLiveRefresh = true)

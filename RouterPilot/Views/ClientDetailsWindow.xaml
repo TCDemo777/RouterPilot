@@ -339,7 +339,7 @@
                         </StackPanel>
                         <StackPanel Grid.Row="2">
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="LAST OBSERVED"/>
-                            <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding LastObserved}"/>
+                            <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding LastObserved, Mode=OneWay}"/>
                         </StackPanel>
                         <StackPanel Grid.Row="2" Grid.Column="2">
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="LAST OFFLINE"/>
@@ -503,15 +503,9 @@
                 <TextBlock Margin="0,12,0,5" FontSize="11" FontWeight="SemiBold"
                            Foreground="{DynamicResource Brush.TextSecondary}" Text="DEVICE CATEGORY"/>
                 <ComboBox Width="280" MaxWidth="360" Height="36" HorizontalAlignment="Left" IsEditable="True"
-                          Text="{Binding ProfileCategory, UpdateSourceTrigger=PropertyChanged}">
-                    <ComboBoxItem Content="Computer"/>
-                    <ComboBoxItem Content="Mobile device"/>
-                    <ComboBoxItem Content="Games console"/>
-                    <ComboBoxItem Content="Media or smart TV"/>
-                    <ComboBoxItem Content="Server or NAS"/>
-                    <ComboBoxItem Content="Printer"/>
-                    <ComboBoxItem Content="Smart home / IoT"/>
-                </ComboBox>
+                          ItemsSource="{Binding CategoryOptions}"
+                          SelectedItem="{Binding ProfileCategory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          Text="{Binding ProfileCategory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <TextBlock Margin="0,14,0,5" FontSize="11" FontWeight="SemiBold"
                            Foreground="{DynamicResource Brush.TextSecondary}" Text="PRIVATE NOTES"/>

@@ -249,6 +249,32 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string profileCategory = string.Empty;
 
+        public IReadOnlyList<string> CategoryOptions { get; } =
+        [
+            "Computer",
+            "Laptop",
+            "Mobile device",
+            "Phone",
+            "Tablet",
+            "Media or smart TV",
+            "Streaming Device",
+            "Games console",
+            "Smart Speaker / Assistant",
+            "Smart home / IoT",
+            "Camera",
+            "Doorbell",
+            "Thermostat",
+            "Lighting",
+            "Appliance",
+            "Server or NAS",
+            "Printer",
+            "Network Equipment",
+            "Access Point",
+            "Wearable",
+            "Vehicle",
+            "Other"
+        ];
+
         [ObservableProperty]
         private string profileNotes = string.Empty;
 

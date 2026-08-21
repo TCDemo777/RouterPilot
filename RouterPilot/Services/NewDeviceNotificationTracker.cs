@@ -79,6 +79,7 @@ public sealed class NewDeviceNotificationTracker
                 Severity = NotificationSeverity.Information,
                 Category = NotificationCategory.Device,
                 EventType = NotificationEventType.NewDeviceDetected,
+                ActionTarget = mac,
                 DeduplicationKey = $"NewDevice:{mac}"
             });
         }

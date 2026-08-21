@@ -63,6 +63,18 @@ public partial class AppNotification : ObservableObject
 
     public string? DeduplicationKey { get; init; }
 
+    /// <summary>
+    /// True only for notification types whose action target is a durable client
+    /// identity. This is presentation-only and is deliberately excluded from
+    /// the persisted notification record.
+    /// </summary>
+    [JsonIgnore]
+    public bool CanViewDevice =>
+        (EventType is NotificationEventType.NewDeviceDetected
+            or NotificationEventType.MonitoredDeviceOffline
+            or NotificationEventType.MonitoredDeviceRestored) &&
+        ClientIdentity.IsMacKey(ActionTarget);
+
     [JsonIgnore]
     public string TimestampDisplay
     {
