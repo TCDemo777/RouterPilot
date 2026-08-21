@@ -128,6 +128,8 @@ No immediate correctness, data-loss, or security finding was established through
 
 3. **Generic exception handling is widespread.** Most broad catches provide user feedback, debug logging, or defensive isolation. A smaller subset silently returns fallback state. Establish a lightweight convention for operation-result reporting so expected router unavailability, persistence failure, and programming errors remain distinguishable without showing raw exceptions to users.
 
+   Status: Substantially addressed after baseline review.
+
 4. **UI operation code is concentrated.** Several large XAML views and code-behind files combine layout, dialogs, command orchestration, and refresh logic. This is understandable for a desktop application but makes visual changes harder to review. Prefer extracting reusable controls or commands only for repeated patterns.
 
 ### P3
@@ -271,9 +273,19 @@ The first three recommended maintenance items have been completed after the base
 
 The existing normalized identity rules were preserved: profile/presence identity remains uppercase separator-free alphanumeric text, while existing LAN/DHCP paths retain their stricter hexadecimal normalization. Device merging, persistence schema, router calls, and polling are unchanged. Existing limited IP fallback in client/detail flows and display-name fallback in Wi-Fi presentation identity remain pre-existing behaviour; neither was introduced by this maintenance work.
 
+### Operation failure handling
+
+`OperationFailurePolicy` now provides a lightweight convention for concise, safe user-operation feedback together with categorised Debug diagnostics. The maintenance work audited 112 broad `catch (Exception)` occurrences and 6 empty catches; 31 catches were updated while 81 defensive broad catches were intentionally retained. Empty catches were reduced to zero.
+
+Cancellation handling now separates expected shutdown or operation cancellation from genuine failure where the existing operation contract supports it. Router-transient, persistence, and user-operation boundaries now distinguish safe fallback or user feedback from unexpected faults more consistently. Unsafe raw exception text in normal UI was found and removed, while diagnostic isolation for VPN State Capture, snapshot export, and other optional diagnostics remains intact.
+
+Two non-event `async void` tray flows now delegate to Task-based internal handlers, and the SSH disposal path no longer performs a synchronous UI-thread wait for an active command. No router behaviour, persistence schema, or polling was changed. Debug and Release builds passed.
+
+This does not eliminate every broad catch. Remaining broad catches are intentionally defensive at defined boundaries and should be reviewed as their surrounding features evolve.
+
 ### Next maintenance priorities
 
-The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary; establish smaller dashboard orchestration seams before further dashboard expansion; and document a consistent broad-exception/operation-result policy. The existing UI/XAML composition finding remains a worthwhile incremental P2 concern.
+The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary; establish smaller dashboard orchestration seams before further dashboard expansion; and incrementally improve UI/XAML composition. The broad-exception/operation-result item is no longer an outstanding priority following the maintenance work above.
 
 ## Review Limitations
 
