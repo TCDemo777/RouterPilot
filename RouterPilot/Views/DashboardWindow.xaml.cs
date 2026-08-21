@@ -1103,7 +1103,16 @@ namespace RouterPilot.Views
             switch (result.NavigationTarget)
             {
                 case "overview": Overview_Click(this, new RoutedEventArgs()); break;
-                case "clients": Clients_Click(this, new RoutedEventArgs()); break;
+                case "clients":
+                    if (string.Equals(result.Category, "Client", StringComparison.OrdinalIgnoreCase))
+                    {
+                        OpenGlobalSearchClientDetails(result);
+                    }
+                    else
+                    {
+                        Clients_Click(this, new RoutedEventArgs());
+                    }
+                    break;
                 case "known-device":
                     var profile = new ClientProfileService().Load().GetValueOrDefault(result.EntityId);
                     if (profile is not null)
@@ -1125,6 +1134,38 @@ namespace RouterPilot.Views
                     network.NavigateToSection(result.NavigationTarget);
                     break;
             }
+        }
+
+        private void OpenGlobalSearchClientDetails(GlobalSearchResult result)
+        {
+            string macKey = ClientIdentity.NormalizeHexMac(result.EntityId);
+            if (macKey.Length != 12)
+            {
+                return;
+            }
+
+            ClientInventoryState inventory =
+                ((App)Application.Current).Services.GetRequiredService<ClientInventoryState>();
+
+            if (inventory.Snapshot.TryGetValue(macKey, out ClientInfo? liveClient))
+            {
+                OpenClientDetailsFromGlobalSearch(liveClient);
+                return;
+            }
+
+            // Resolve again when activated so a device that disappeared since the
+            // search result was built can still open its existing offline details.
+            ClientProfile? profile = _clientProfileService.Load().GetValueOrDefault(macKey);
+            if (profile is not null)
+            {
+                var known = new KnownDeviceInfo { Profile = profile };
+                OpenClientDetailsFromGlobalSearch(known.ToClientInfo(), allowLiveRefresh: false);
+            }
+        }
+
+        private void OpenClientDetailsFromGlobalSearch(ClientInfo client, bool allowLiveRefresh = true)
+        {
+            new ClientDetailsWindow(client, allowLiveRefresh) { Owner = this }.ShowDialog();
         }
 
         private void Protection_Click(
