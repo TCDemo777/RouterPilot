@@ -20,6 +20,7 @@ namespace RouterPilot.ViewModels
         private readonly ClientProfileService _clientProfileService;
         private readonly IClientPresenceHistoryService _presenceHistory;
         private readonly KnownDeviceForgetService _knownDeviceForgetService;
+        private readonly ClientInventoryState _clientInventory;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
@@ -46,25 +47,47 @@ namespace RouterPilot.ViewModels
             string.IsNullOrWhiteSpace(ProfileNickname)
                 ? _client.Name
                 : ProfileNickname;
-        public string IpAddress => _client.IpAddress;
+        private ClientInfo? LiveClient =>
+            ClientIdentity.IsMacKey(_client.MacAddress) &&
+            _clientInventory.Snapshot.TryGetValue(ClientIdentity.NormalizeMac(_client.MacAddress), out ClientInfo? client)
+                ? client
+                : null;
+        private ClientProfile? Profile =>
+            _clientProfiles.GetValueOrDefault(ClientIdentity.NormalizeMac(_client.MacAddress));
+        public bool IsCurrentlyObserved => LiveClient is not null;
+        public string IpAddress => LiveClient?.IpAddress ??
+            (!string.IsNullOrWhiteSpace(Profile?.LastKnownIpAddress)
+                ? Profile.LastKnownIpAddress
+                : "Unavailable");
+        public string IpAddressLabel => IsCurrentlyObserved ? "IP ADDRESS" : "LAST KNOWN IP";
+        public string IpAddressToolTip => IsCurrentlyObserved
+            ? IpAddress
+            : "Last IP address reported before this device went offline.";
         public string MacAddress => _client.MacAddress;
         public string LastSeen => _client.LastSeen;
         public string TotalQueriesDisplay => _client.TotalQueriesDisplay;
         public string BlockedQueriesDisplay => _client.BlockedQueriesDisplay;
         public string BlockRateDisplay => _client.BlockRateDisplay;
-        public bool IsEthernetConnection => _client.IsEthernetConnection;
-        public bool IsWifiConnection => _client.IsWifiConnection;
+        public bool IsEthernetConnection => LiveClient?.IsEthernetConnection == true;
+        public bool IsWifiConnection => LiveClient?.IsWifiConnection == true;
         public string ConnectionType => IsEthernetConnection ? "Ethernet" : "Wi-Fi";
-        public string ConnectionSummary => _client.ConnectionSummary;
-        public string WifiNetwork => _client.WifiNetwork;
-        public string WifiBand => _client.ConnectionType;
-        public string WifiInterface => _client.LiveInterface;
-        public bool HasSignal => _client.HasSignalSummary;
-        public string SignalQuality => _client.SignalQuality;
-        public string SignalStrength => _client.SignalStrength;
-        public string SignalSummary => _client.SignalSummary;
-        public string HealthText => _client.HealthText;
-        public string HealthColour => _client.HealthColour;
+        public string ConnectionLabel => IsCurrentlyObserved ? "CONNECTION" : "LAST CONNECTION";
+        public string ConnectionSummary => LiveClient?.ConnectionSummary ??
+            (!string.IsNullOrWhiteSpace(Profile?.LastKnownConnectionSummary)
+                ? Profile.LastKnownConnectionSummary
+                : "No previous connection details");
+        public string ConnectionToolTip => IsCurrentlyObserved
+            ? ConnectionSummary
+            : "Last connection reported before this device went offline.";
+        public string WifiNetwork => LiveClient?.WifiNetwork ?? "-";
+        public string WifiBand => LiveClient?.ConnectionType ?? "-";
+        public string WifiInterface => LiveClient?.LiveInterface ?? "-";
+        public bool HasSignal => LiveClient?.HasSignalSummary == true;
+        public string SignalQuality => LiveClient?.SignalQuality ?? "—";
+        public string SignalStrength => LiveClient?.SignalStrength ?? "—";
+        public string SignalSummary => LiveClient?.SignalSummary ?? string.Empty;
+        public string HealthText => LiveClient?.HealthText ?? "Offline";
+        public string HealthColour => LiveClient?.HealthColour ?? RouterPilotStatusPresentation.Colour(RouterPilotStatus.NotAvailable);
         public string FirstObserved => FormatObserved(_client.FirstSeenUtc);
         public string LastObserved => FormatObserved(_client.LastObservedUtc);
         public bool NeedsReview => _client.NeedsReview;
@@ -140,7 +163,6 @@ namespace RouterPilot.ViewModels
             ? "On — based on RouterPilot observations while the app is running."
             : "Off";
 
-        public bool IsCurrentlyObserved => _knownDeviceForgetService.IsCurrentlyObserved(ClientKey(_client));
         public bool CanForgetDevice => !IsForgettingDevice && !IsCurrentlyObserved && _clientProfiles.ContainsKey(ClientKey(_client));
 
         public string PauseButtonText =>
@@ -152,6 +174,7 @@ namespace RouterPilot.ViewModels
             AdGuardAvailabilityService adGuardAvailabilityService,
             IClientPresenceHistoryService presenceHistory,
             KnownDeviceForgetService knownDeviceForgetService,
+            ClientInventoryState clientInventory,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
             IEnumerable<DhcpReservationInfo>? dhcpReservations = null)
         {
@@ -160,6 +183,7 @@ namespace RouterPilot.ViewModels
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _presenceHistory = presenceHistory;
             _knownDeviceForgetService = knownDeviceForgetService;
+            _clientInventory = clientInventory;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
 
@@ -181,6 +205,7 @@ namespace RouterPilot.ViewModels
                 };
 
             _refreshTimer.Tick += RefreshTimer_Tick;
+            _clientInventory.Changed += ClientInventoryState_Changed;
         }
 
         public async Task StartAsync()
@@ -205,6 +230,47 @@ namespace RouterPilot.ViewModels
             _disposed = true;
             _refreshTimer.Stop();
             _refreshTimer.Tick -= RefreshTimer_Tick;
+            _clientInventory.Changed -= ClientInventoryState_Changed;
+        }
+
+        private void ClientInventoryState_Changed(object? sender, EventArgs e)
+        {
+            if (_disposed) return;
+
+            if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+            {
+                _ = dispatcher.InvokeAsync(RefreshLiveConnectionPresentation);
+                return;
+            }
+
+            RefreshLiveConnectionPresentation();
+        }
+
+        private void RefreshLiveConnectionPresentation()
+        {
+            if (_disposed) return;
+
+            OnPropertyChanged(nameof(IsCurrentlyObserved));
+            OnPropertyChanged(nameof(IpAddress));
+            OnPropertyChanged(nameof(IpAddressLabel));
+            OnPropertyChanged(nameof(IpAddressToolTip));
+            OnPropertyChanged(nameof(IsEthernetConnection));
+            OnPropertyChanged(nameof(IsWifiConnection));
+            OnPropertyChanged(nameof(ConnectionType));
+            OnPropertyChanged(nameof(ConnectionLabel));
+            OnPropertyChanged(nameof(ConnectionSummary));
+            OnPropertyChanged(nameof(ConnectionToolTip));
+            OnPropertyChanged(nameof(WifiNetwork));
+            OnPropertyChanged(nameof(WifiBand));
+            OnPropertyChanged(nameof(WifiInterface));
+            OnPropertyChanged(nameof(HasSignal));
+            OnPropertyChanged(nameof(SignalQuality));
+            OnPropertyChanged(nameof(SignalStrength));
+            OnPropertyChanged(nameof(SignalSummary));
+            OnPropertyChanged(nameof(HealthText));
+            OnPropertyChanged(nameof(HealthColour));
+            OnPropertyChanged(nameof(CanForgetDevice));
+            ForgetDeviceCommand.NotifyCanExecuteChanged();
         }
 
         [RelayCommand]

@@ -152,7 +152,7 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="IP ADDRESS"/>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding IpAddressLabel}"/>
                             <Grid Margin="0,4,0,0" HorizontalAlignment="Left">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -160,7 +160,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding IpAddress}"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding IpAddressToolTip}"
                                            Text="{Binding IpAddress}"/>
                                 <Button Grid.Column="2" Style="{StaticResource CopyButtonStyle}"
                                         Command="{Binding CopyIpCommand}" Content="Copy"/>
@@ -197,9 +197,9 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel>
-                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="CONNECTION"/>
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding ConnectionLabel}"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding ConnectionSummary}" Text="{Binding ConnectionSummary}"/>
+                                   ToolTip="{Binding ConnectionToolTip}" Text="{Binding ConnectionSummary}"/>
                         <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
                                    Text="{Binding SignalSummary}">
                             <TextBlock.Style>
