@@ -112,13 +112,19 @@ No immediate correctness, data-loss, or security finding was established through
 
 2. **Persistence durability is inconsistent.** Several stores use temporary-file replacement or backups, while `ClientProfileService` and `ClientPresenceHistoryService` contain direct whole-file writes. Client profiles and presence history are valuable local state. A shared atomic JSON write helper with consistent corruption recovery would reduce avoidable data-loss exposure.
 
+   Status: Substantially addressed after baseline review.
+
 3. **Dashboard orchestration spans ViewModel and code-behind.** `DashboardViewModel.cs` and `DashboardWindow.xaml.cs` together exceed 3,600 lines and coordinate refresh, state propagation, navigation, health, and UI lifetime. This makes cross-feature changes costly and raises regression risk. Extracting cohesive orchestration seams should precede major new dashboard complexity.
 
 ### P2
 
 1. **Device identity normalization is duplicated.** `LanClientClassifier` provides a shared normalizer, but similar local methods remain in client reconciliation, dashboard matching, presence, notifications, port-forward intelligence, and router parsing. Divergence in accepted characters or casing could produce inconsistent device matching. Consolidate where semantics are identical; retain intentionally stricter validators.
 
+   Status: Substantially addressed after baseline review.
+
 2. **Transient ViewModel event lifetime should be reviewed.** `KnownDevicesViewModel` subscribes to inventory and profile notification events in its constructor. It is registered as transient. The review did not prove a leak because navigation lifetime determines reachability, but a disposable/unsubscribe pattern would make lifetime ownership explicit.
+
+   Status: Addressed after baseline review.
 
 3. **Generic exception handling is widespread.** Most broad catches provide user feedback, debug logging, or defensive isolation. A smaller subset silently returns fallback state. Establish a lightweight convention for operation-result reporting so expected router unavailability, persistence failure, and programming errors remain distinguishable without showing raw exceptions to users.
 
@@ -247,6 +253,28 @@ High-confidence dead-code candidates were not identified. There are no TODO/FIXM
 2. **Make transient Known Devices event subscriptions disposable.** Add explicit unsubscribe/lifetime coverage and verify no duplicate rebuilds after navigation.
 3. **Extract and test pure client identity reconciliation helpers.** Start with normalized device-key matching and profile/live merge cases; preserve existing ViewModel behaviour.
 
+## Progress Since Review
+
+The first three recommended maintenance items have been completed after the baseline review. The original findings above are retained for historical context.
+
+### Atomic JSON persistence
+
+`AtomicJsonFileStore` now provides same-directory temporary-file writes, flush-before-replacement, atomic overwrite moves, and path-keyed write serialization. `ClientProfileService` and `ClientPresenceHistoryService` use it while retaining their existing JSON schema. Malformed JSON remains failure-isolated. This maintenance work introduced no router behaviour changes or new polling.
+
+### Transient device UI lifetimes
+
+`KnownDevicesViewModel`, `KnownDevicesView`, `ClientDetailsViewModel`, and `ClientDetailsWindow` now have explicit lifetime ownership where needed. Long-lived inventory and static profile-notification subscriptions are removed during idempotent disposal. The owned DispatcherTimer is stopped and detached when Client Details closes, and late asynchronous refresh completion is guarded. Router and persistence behaviour are unchanged.
+
+### Client identity reconciliation
+
+`ClientIdentity` centralises the existing normalized MAC rules used for device reconciliation. Sixteen duplicated identity implementations were identified and eight redundant private helpers were removed. Presence history, Known Devices, Client Details, monitored/favourite lookup, Port Forward matching, Global Search, and notifications now use the shared helper where their prior semantics matched.
+
+The existing normalized identity rules were preserved: profile/presence identity remains uppercase separator-free alphanumeric text, while existing LAN/DHCP paths retain their stricter hexadecimal normalization. Device merging, persistence schema, router calls, and polling are unchanged. Existing limited IP fallback in client/detail flows and display-name fallback in Wi-Fi presentation identity remain pre-existing behaviour; neither was introduced by this maintenance work.
+
+### Next maintenance priorities
+
+The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary; establish smaller dashboard orchestration seams before further dashboard expansion; and document a consistent broad-exception/operation-result policy. The existing UI/XAML composition finding remains a worthwhile incremental P2 concern.
+
 ## Review Limitations
 
 - This was static source inspection, not a penetration test, runtime soak test, performance profile, or independent security assessment.
@@ -261,3 +289,7 @@ Review date: 2026-08-21
 Baseline commit: `6c6564c`
 
 Review type: Internal architecture/code-health review
+
+Maintenance progress updated: 2026-08-21
+
+Current maintenance state: first three recommended maintenance items completed.
