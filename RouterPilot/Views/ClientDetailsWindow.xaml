@@ -422,6 +422,73 @@
 
         <Border Grid.Row="4" Style="{StaticResource CardStyle}">
             <StackPanel>
+                <StackPanel Visibility="{Binding HasRelatedPortForwards, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Brush.TextPrimary}"
+                                   Text="Port forwards"/>
+                        <TextBlock Grid.Column="1" Margin="16,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}"
+                                   Text="{Binding RelatedPortForwardSummary}"/>
+                    </Grid>
+                    <TextBlock Margin="0,4,0,10" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Brush.TextSecondary}"
+                               Text="Rules are related by their current destination address or configured DHCP reservation."/>
+                    <ItemsControl ItemsSource="{Binding RelatedPortForwards}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,7" Padding="10,8" Background="{DynamicResource Brush.SurfaceMuted}"
+                                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}"
+                                                       TextTrimming="CharacterEllipsis" Text="{Binding RuleName}"/>
+                                            <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextSecondary}"
+                                                       Text="{Binding ProtocolAndPort}"/>
+                                            <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="{Binding AddressContext}"/>
+                                            <TextBlock Margin="0,2,0,0" FontSize="11" Text="{Binding Rule.TargetStatusTitle}"
+                                                       Visibility="{Binding Rule.HasTargetStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Rule.TargetStatusSeverity}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Rule.TargetStatusSeverity}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource Brush.Warning}"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Rule.TargetStatusSeverity}" Value="Critical"><Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Rule.TargetStatusSeverity}" Value="Offline"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/></DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Margin="16,1,0,0" VerticalAlignment="Top" FontSize="11" FontWeight="SemiBold"
+                                                   Text="{Binding EnabledDisplay}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Rule.Enabled}" Value="True"><Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Margin="0,1,0,14" FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                               Text="{Binding AdditionalRelatedPortForwardCount, StringFormat={}{0} more related rules in Port Forwarding}"
+                               Visibility="{Binding HasAdditionalRelatedPortForwards, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <Border Height="1" Margin="0,0,0,14" Background="{DynamicResource Brush.Border}"/>
+                </StackPanel>
                 <TextBlock FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Brush.TextPrimary}"
                            Text="Personalise this client"/>
                 <TextBlock Margin="0,4,0,14" FontSize="12" TextWrapping="Wrap"

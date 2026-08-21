@@ -24,13 +24,16 @@ namespace RouterPilot.Views
                 dashboard?.DhcpLeases.ToArray() ?? Array.Empty<DhcpLeaseInfo>();
             IEnumerable<DhcpReservationInfo> dhcpReservations =
                 dashboard?.DhcpReservations.ToArray() ?? Array.Empty<DhcpReservationInfo>();
+            IEnumerable<PortForwardRuleInfo> portForwardRules =
+                dashboard?.PortForwardRules.ToArray() ?? Array.Empty<PortForwardRuleInfo>();
 
             _viewModel =
                 ActivatorUtilities.CreateInstance<ClientDetailsViewModel>(
                     ((App)Application.Current).Services,
                     client,
                     dhcpLeases,
-                    dhcpReservations);
+                    dhcpReservations,
+                    portForwardRules);
 
             DataContext = _viewModel;
             _viewModel.DeviceForgotten += ViewModel_DeviceForgotten;

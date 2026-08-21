@@ -26,6 +26,8 @@ namespace RouterPilot.ViewModels
         private readonly ClientInfo _client;
         private readonly DhcpLeaseInfo? _dhcpLease;
         private readonly DhcpReservationInfo? _dhcpReservation;
+        private readonly IReadOnlyList<PortForwardRuleInfo> _portForwardRules;
+        private int _relatedPortForwardCount;
         private DnsQueryLogReadState _queryLogReadState;
 
         private enum DnsQueryLogReadState
@@ -58,6 +60,7 @@ namespace RouterPilot.ViewModels
             new();
         public ObservableCollection<PresenceTimelineItem> RecentPresence { get; } = new();
         public ObservableCollection<DailyAvailabilityItem> DailyAvailability { get; } = new();
+        public ObservableCollection<ClientPortForwardAssociation> RelatedPortForwards { get; } = new();
         [ObservableProperty] private AvailabilityRange selectedAvailabilityRange = AvailabilityRange.Hours24;
         public bool Is24HourRange => SelectedAvailabilityRange == AvailabilityRange.Hours24;
         public bool Is7DayRange => SelectedAvailabilityRange == AvailabilityRange.Days7;
@@ -159,6 +162,14 @@ namespace RouterPilot.ViewModels
             !string.Equals(DhcpLeaseRemaining, "N/A", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(DhcpLeaseRemaining, "Not reported", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(DhcpLeaseRemaining, "Static", StringComparison.OrdinalIgnoreCase);
+
+        public bool HasRelatedPortForwards => RelatedPortForwards.Count > 0;
+        public int RelatedPortForwardCount => _relatedPortForwardCount;
+        public int AdditionalRelatedPortForwardCount => Math.Max(0, RelatedPortForwardCount - RelatedPortForwards.Count);
+        public bool HasAdditionalRelatedPortForwards => AdditionalRelatedPortForwardCount > 0;
+        public string RelatedPortForwardSummary => RelatedPortForwardCount == 1
+            ? "1 rule targeting this address"
+            : $"{RelatedPortForwardCount} rules targeting this address";
 
         public bool HasRecentQueries => RecentQueries.Count > 0;
         public bool HasTopDomains => TopDomains.Count > 0;
@@ -276,7 +287,8 @@ namespace RouterPilot.ViewModels
             KnownDeviceForgetService knownDeviceForgetService,
             ClientInventoryState clientInventory,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
-            IEnumerable<DhcpReservationInfo>? dhcpReservations = null)
+            IEnumerable<DhcpReservationInfo>? dhcpReservations = null,
+            IEnumerable<PortForwardRuleInfo>? portForwardRules = null)
         {
             _client = client;
             _routerManagerProvider = routerManagerProvider;
@@ -293,10 +305,12 @@ namespace RouterPilot.ViewModels
                 ?? availableLeases.FirstOrDefault(lease => SameText(lease.IpAddress, client.IpAddress));
             _dhcpReservation = availableReservations.FirstOrDefault(reservation => ClientIdentity.IsMacKey(reservation.MacAddress) && ClientIdentity.MacEquals(reservation.MacAddress, client.MacAddress))
                 ?? availableReservations.FirstOrDefault(reservation => SameText(reservation.IpAddress, client.IpAddress));
+            _portForwardRules = (portForwardRules ?? Enumerable.Empty<PortForwardRuleInfo>()).ToArray();
 
             LoadProfile();
             IsFavorite = _client.IsFavorite;
             RefreshPresencePresentation();
+            RefreshRelatedPortForwards();
 
             _refreshTimer =
                 new DispatcherTimer
@@ -380,6 +394,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(HasDhcpAddressPresentation));
             OnPropertyChanged(nameof(DhcpCurrentAddress));
             OnPropertyChanged(nameof(HasDhcpLeaseRemaining));
+            RefreshRelatedPortForwards();
             OnPropertyChanged(nameof(CanForgetDevice));
             ForgetDeviceCommand.NotifyCanExecuteChanged();
         }
@@ -848,6 +863,44 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(RecentQueriesEmptyMessage));
         }
 
+        private void RefreshRelatedPortForwards()
+        {
+            string? currentAddress = IsCurrentlyObserved && HasUsefulAddress(LiveClient?.IpAddress)
+                ? LiveClient!.IpAddress.Trim()
+                : null;
+            string? reservedAddress = _dhcpReservation is { Enabled: true } && HasUsefulAddress(_dhcpReservation.IpAddress)
+                ? _dhcpReservation.IpAddress.Trim()
+                : null;
+
+            var matches = new List<ClientPortForwardAssociation>();
+            foreach (PortForwardRuleInfo rule in _portForwardRules)
+            {
+                bool targetsCurrentAddress = currentAddress is not null && SameText(rule.DestinationIp, currentAddress);
+                bool targetsReservedAddress = reservedAddress is not null && SameText(rule.DestinationIp, reservedAddress);
+                if (!targetsCurrentAddress && !targetsReservedAddress) continue;
+
+                string addressContext = targetsCurrentAddress && targetsReservedAddress
+                    ? "Targets current and reserved address"
+                    : targetsCurrentAddress
+                        ? "Targets current address"
+                        : "Targets reserved address";
+                matches.Add(new ClientPortForwardAssociation(rule, addressContext));
+            }
+
+            _relatedPortForwardCount = matches.Count;
+            RelatedPortForwards.Clear();
+            foreach (ClientPortForwardAssociation match in matches.Take(5))
+            {
+                RelatedPortForwards.Add(match);
+            }
+
+            OnPropertyChanged(nameof(HasRelatedPortForwards));
+            OnPropertyChanged(nameof(RelatedPortForwardCount));
+            OnPropertyChanged(nameof(AdditionalRelatedPortForwardCount));
+            OnPropertyChanged(nameof(HasAdditionalRelatedPortForwards));
+            OnPropertyChanged(nameof(RelatedPortForwardSummary));
+        }
+
         private static bool HasUsefulAddress(string? address) =>
             !string.IsNullOrWhiteSpace(address) &&
             !string.Equals(address, "-", StringComparison.Ordinal);
@@ -865,6 +918,30 @@ namespace RouterPilot.ViewModels
             public string Summary => Value.Observed == TimeSpan.Zero ? "No observation" : $"Online {FormatDuration(Value.Online)} • Offline {FormatDuration(Value.Offline)} • Unobserved {FormatDuration(Value.Unobserved)}";
             public string Percentage => Value.ObservedAvailabilityPercent is null ? "No observation" : $"{Value.ObservedAvailabilityPercent.Value:0}%";
             public string ToolTip => Value.ObservedAvailabilityPercent is null ? $"{Value.DayStart.LocalDateTime:D}\nNo observation" : $"{Value.DayStart.LocalDateTime:D}\nObserved online: {FormatDuration(Value.Online)}\nObserved offline: {FormatDuration(Value.Offline)}\nUnobserved: {FormatDuration(Value.Unobserved)}\nObserved availability: {Value.ObservedAvailabilityPercent.Value:0.0}%";
+        }
+        public sealed class ClientPortForwardAssociation
+        {
+            public ClientPortForwardAssociation(PortForwardRuleInfo rule, string addressContext)
+            {
+                Rule = rule;
+                AddressContext = addressContext;
+            }
+
+            public PortForwardRuleInfo Rule { get; }
+            public string AddressContext { get; }
+            public string RuleName => string.IsNullOrWhiteSpace(Rule.Name) ? "Unnamed rule" : Rule.Name;
+            public string ProtocolAndPort
+            {
+                get
+                {
+                    string protocol = string.IsNullOrWhiteSpace(Rule.Protocol) ? "Protocol not reported" : Rule.Protocol.ToUpperInvariant();
+                    string externalPort = string.IsNullOrWhiteSpace(Rule.ExternalPort) ? "Port not reported" : Rule.ExternalPort;
+                    return string.IsNullOrWhiteSpace(Rule.InternalPort) || SameText(Rule.ExternalPort, Rule.InternalPort)
+                        ? $"{protocol} {externalPort}"
+                        : $"{protocol} {externalPort} → {Rule.InternalPort}";
+                }
+            }
+            public string EnabledDisplay => Rule.Enabled ? "Enabled" : "Disabled";
         }
         public enum AvailabilityRange { Hours24, Days7 }
 
