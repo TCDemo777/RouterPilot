@@ -116,6 +116,8 @@ No immediate correctness, data-loss, or security finding was established through
 
 3. **Dashboard orchestration spans ViewModel and code-behind.** `DashboardViewModel.cs` and `DashboardWindow.xaml.cs` together exceed 3,600 lines and coordinate refresh, state propagation, navigation, health, and UI lifetime. This makes cross-feature changes costly and raises regression risk. Extracting cohesive orchestration seams should precede major new dashboard complexity.
 
+   Status: Partially addressed after baseline review. Deterministic health projection has been extracted from `DashboardViewModel.cs`, and traffic calculation state has been extracted from `DashboardWindow.xaml.cs`. Main refresh sequencing, navigation/lifetime ownership, freshness, health/metric side effects, and the remaining orchestration stay in place.
+
 ### P2
 
 1. **Device identity normalization is duplicated.** `LanClientClassifier` provides a shared normalizer, but similar local methods remain in client reconciliation, dashboard matching, presence, notifications, port-forward intelligence, and router parsing. Divergence in accepted characters or casing could produce inconsistent device matching. Consolidate where semantics are identical; retain intentionally stricter validators.
@@ -151,6 +153,8 @@ No immediate correctness, data-loss, or security finding was established through
 | `RouterPilot/Views/ProtectionView.xaml` | 960 | Protection controls and service scheduling layout | P2 layout hotspot |
 
 File size is not itself a defect. These locations are priorities because they combine multiple changing responsibilities.
+
+The Dashboard hotspot remains, but deterministic health policy and traffic calculation state have now been separated into focused presentation helpers. The baseline sizes above remain historical review data.
 
 ## State and Identity Management
 
@@ -227,6 +231,8 @@ Most `async void` methods are appropriate WPF event handlers. Non-event asynchro
 
 The application has clear feature names and numerous narrow services, but a few central types carry disproportionate responsibility. The most valuable maintenance strategy is incremental: extract cohesive seams only when related work is underway, preserve existing router-write safety, and add targeted tests for pure reconciliation and persistence behaviour.
 
+The recent Dashboard work demonstrates this approach: pure deterministic policy was extracted first, calculation state second, and refresh/orchestration ownership was deliberately left untouched. Further Dashboard decomposition should continue only after a fresh, focused boundary decision.
+
 High-confidence dead-code candidates were not identified. There are no TODO/FIXME markers in the inspected source. VPN State Capture, diagnostics execution, redaction, and network snapshot facilities are active architectural capabilities, not obsolete debug clutter.
 
 ## Quick Wins
@@ -273,6 +279,12 @@ The first three recommended maintenance items have been completed after the base
 
 The existing normalized identity rules were preserved: profile/presence identity remains uppercase separator-free alphanumeric text, while existing LAN/DHCP paths retain their stricter hexadecimal normalization. Device merging, persistence schema, router calls, and polling are unchanged. Existing limited IP fallback in client/detail flows and display-name fallback in Wi-Fi presentation identity remain pre-existing behaviour; neither was introduced by this maintenance work.
 
+### Dashboard decomposition
+
+`RouterPilot/Presentation/DashboardHealthProjection.cs` extracts deterministic router-health and Internet-quality presentation policy from `RouterPilot/ViewModels/DashboardViewModel.cs`. Approximately 94 lines of policy moved, reducing the ViewModel from approximately 2,044 to 1,973 lines at the time of extraction. Router-health score, state/summary, attention reasons, healthy conditions, and Internet-quality classification/presentation moved while public ViewModel properties and PropertyChanged ownership remained unchanged. Health thresholds, precedence, reason wording/order, and Internet-quality thresholds were preserved. The projection has no router/service or WPF/Dispatcher dependency; `DashboardWindow`, XAML, router calls, and polling were unchanged. Debug and Release builds passed.
+
+`RouterPilot/Presentation/NetworkTrafficAccumulator.cs` extracts approximately 78 lines of network-traffic calculation state from `RouterPilot/Views/DashboardWindow.xaml.cs`: previous observation/baseline state, peaks, running totals, and sample count. First-sample, actual elapsed-time, counter-decrease/reset, peak, average, reset, and startup/reconnect spike-protection behaviour were preserved. The accumulator has no router, service, or WPF/Dispatcher dependency. Chart ownership, DashboardWindow traffic scheduling, polling cadence, router reads, metric recording, Timeline behaviour, traffic units, and rounding remain unchanged. `DashboardHealthProjection` and XAML were unchanged. Debug and Release builds passed.
+
 ### Operation failure handling
 
 `OperationFailurePolicy` now provides a lightweight convention for concise, safe user-operation feedback together with categorised Debug diagnostics. The maintenance work audited 112 broad `catch (Exception)` occurrences and 6 empty catches; 31 catches were updated while 81 defensive broad catches were intentionally retained. Empty catches were reduced to zero.
@@ -285,7 +297,7 @@ This does not eliminate every broad catch. Remaining broad catches are intention
 
 ### Next maintenance priorities
 
-The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary; establish smaller dashboard orchestration seams before further dashboard expansion; and incrementally improve UI/XAML composition. The broad-exception/operation-result item is no longer an outstanding priority following the maintenance work above.
+The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary and incrementally improve UI/XAML composition. Dashboard deterministic projection work has begun, but refresh orchestration remains intentionally deferred; a fresh boundary decision should precede further Dashboard decomposition. The broad-exception/operation-result item is no longer an outstanding priority following the maintenance work above.
 
 ## Review Limitations
 
@@ -304,4 +316,4 @@ Review type: Internal architecture/code-health review
 
 Maintenance progress updated: 2026-08-21
 
-Current maintenance state: first three recommended maintenance items completed.
+Current maintenance state: first three recommended maintenance items, operation failure handling maintenance, and the first two Dashboard decomposition seams completed.
