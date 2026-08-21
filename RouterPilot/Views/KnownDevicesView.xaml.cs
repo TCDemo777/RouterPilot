@@ -14,7 +14,15 @@ public partial class KnownDevicesView : UserControl
         InitializeComponent();
         _viewModel = ((App)Application.Current).Services.GetRequiredService<KnownDevicesViewModel>();
         DataContext = _viewModel;
+        Unloaded += KnownDevicesView_Unloaded;
     }
+
+    private void KnownDevicesView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        Unloaded -= KnownDevicesView_Unloaded;
+        _viewModel.Dispose();
+    }
+
     private void CurrentClients_Click(object sender, System.Windows.RoutedEventArgs e) =>
         (Application.Current.MainWindow as DashboardWindow)?.ShowClients();
     private void Devices_MouseDoubleClick(object sender, MouseButtonEventArgs e)

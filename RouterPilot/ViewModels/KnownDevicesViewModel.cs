@@ -5,11 +5,12 @@ using RouterPilot.Services;
 
 namespace RouterPilot.ViewModels;
 
-public partial class KnownDevicesViewModel : ObservableObject
+public partial class KnownDevicesViewModel : ObservableObject, IDisposable
 {
     private readonly ClientProfileService _profiles = new();
     private readonly ClientInventoryState _inventory;
     private Dictionary<string, ClientProfile> _profileMap = new(StringComparer.OrdinalIgnoreCase);
+    private bool _disposed;
 
     public ObservableCollection<KnownDeviceInfo> Devices { get; } = new();
     public IReadOnlyList<string> Filters { get; } = ["All", "Online", "Offline", "Needs Review", "Favourites", "Monitored"];
@@ -30,13 +31,14 @@ public partial class KnownDevicesViewModel : ObservableObject
     public KnownDevicesViewModel(ClientInventoryState inventory)
     {
         _inventory = inventory;
-        _inventory.Changed += (_, _) => Rebuild();
-        ClientRefreshNotifier.ProfileStateChanged += (_, _) => ReloadProfiles();
+        _inventory.Changed += Inventory_Changed;
+        ClientRefreshNotifier.ProfileStateChanged += ProfileStateChanged;
         ReloadProfiles();
     }
 
     public void ReloadProfiles()
     {
+        if (_disposed) return;
         Dictionary<string, ClientProfile> loaded = _profiles.Load();
         if (!_profiles.LastLoadSucceeded) return;
         _profileMap = loaded.Where(pair => LanClientClassifier.NormalizeMac(pair.Key).Length == 12)
@@ -48,8 +50,20 @@ public partial class KnownDevicesViewModel : ObservableObject
     partial void OnSelectedFilterChanged(string value) => Rebuild();
     partial void OnSelectedSortChanged(string value) => Rebuild();
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _inventory.Changed -= Inventory_Changed;
+        ClientRefreshNotifier.ProfileStateChanged -= ProfileStateChanged;
+    }
+
+    private void Inventory_Changed(object? sender, EventArgs e) => Rebuild();
+    private void ProfileStateChanged(object? sender, EventArgs e) => ReloadProfiles();
+
     private void Rebuild()
     {
+        if (_disposed) return;
         string? selectedMac = SelectedDevice?.MacKey;
         IEnumerable<KnownDeviceInfo> query = _profileMap.Select(pair => new KnownDeviceInfo
         {

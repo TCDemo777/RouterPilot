@@ -55,7 +55,7 @@ namespace RouterPilot.Views
             EventArgs e)
         {
             _viewModel.DeviceForgotten -= ViewModel_DeviceForgotten;
-            _viewModel.Stop();
+            _viewModel.Dispose();
         }
 
         private void ViewModel_DeviceForgotten(object? sender, EventArgs e) => Close();

@@ -12,7 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace RouterPilot.ViewModels
 {
-    public partial class ClientDetailsViewModel : ObservableObject
+    public partial class ClientDetailsViewModel : ObservableObject, IDisposable
     {
         private const int RecentDnsHistoryLimit = 50;
         private readonly IRouterManagerProvider _routerManagerProvider;
@@ -134,6 +134,7 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private bool isForgettingDevice;
         private bool loadingProfile;
+        private bool _disposed;
 
         public string AvailabilityMonitoringStatus => MonitorAvailability
             ? "On — based on RouterPilot observations while the app is running."
@@ -184,9 +185,10 @@ namespace RouterPilot.ViewModels
 
         public async Task StartAsync()
         {
+            if (_disposed) return;
             await RefreshAsync();
 
-            if (!_refreshTimer.IsEnabled)
+            if (!_disposed && !_refreshTimer.IsEnabled)
             {
                 _refreshTimer.Start();
             }
@@ -197,10 +199,19 @@ namespace RouterPilot.ViewModels
             _refreshTimer.Stop();
         }
 
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _refreshTimer.Stop();
+            _refreshTimer.Tick -= RefreshTimer_Tick;
+        }
+
         [RelayCommand]
         public async Task RefreshAsync()
         {
-            if (IsLoading ||
+            if (_disposed ||
+                IsLoading ||
                 IsPaused)
             {
                 return;
@@ -225,6 +236,8 @@ namespace RouterPilot.ViewModels
                 List<QueryLogEntry> entries =
                     await routerManager.GetQueryLogAsync();
 
+                if (_disposed) return;
+
                 ApplyEntries(
                     entries
                         .Where(MatchesClient)
@@ -232,13 +245,14 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
+                if (_disposed) return;
                 StatusMessage =
                     "Unable to load client activity: " +
                     ex.Message;
             }
             finally
             {
-                IsLoading = false;
+                if (!_disposed) IsLoading = false;
             }
         }
 
@@ -350,12 +364,13 @@ namespace RouterPilot.ViewModels
             try
             {
                 KnownDeviceForgetResult result = await _knownDeviceForgetService.ForgetAsync(ClientKey(_client));
+                if (_disposed) return;
                 StatusMessage = result.Message;
                 if (result.Success) DeviceForgotten?.Invoke(this, EventArgs.Empty);
             }
             finally
             {
-                IsForgettingDevice = false;
+                if (!_disposed) IsForgettingDevice = false;
             }
         }
 
@@ -693,6 +708,7 @@ namespace RouterPilot.ViewModels
             object? sender,
             EventArgs e)
         {
+            if (_disposed) return;
             await RefreshAsync();
         }
     }
