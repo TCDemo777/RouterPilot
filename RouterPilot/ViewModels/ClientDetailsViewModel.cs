@@ -113,14 +113,29 @@ namespace RouterPilot.ViewModels
         }
         public string RecentAvailability => "Online and Offline periods are RouterPilot observations. Unmonitored time is Unknown.";
 
-        public bool HasDhcpDetails => _dhcpLease is not null || _dhcpReservation is not null;
-        public string DhcpIpAddress => _dhcpReservation?.IpAddress ?? _dhcpLease?.IpAddress ?? _client.IpAddress;
+        // Leases describe current router state, so only present them while the
+        // client is in the existing live inventory. A reservation remains useful
+        // configuration context for an offline known device.
+        public bool HasDhcpReservation => _dhcpReservation is not null;
+        public bool HasDhcpLease => IsCurrentlyObserved && _dhcpLease is not null;
+        public bool HasDhcpDetails => HasDhcpLease || HasDhcpReservation;
+        public string DhcpIpAddress => _dhcpReservation?.IpAddress ?? _dhcpLease?.IpAddress ?? "Not reported";
+        public string DhcpAddressLabel => HasDhcpReservation ? "RESERVED ADDRESS" : "DHCP ADDRESS";
         public string DhcpLeaseType => _dhcpReservation is not null || _dhcpLease?.IsStatic == true ? "Reserved" : "Dynamic";
         public string DhcpLeaseRemaining => _dhcpLease?.RemainingLease ?? "Not reported";
-        public string DhcpReservation => _dhcpReservation is null ? "No" : _dhcpReservation.Enabled ? "Yes" : "Disabled";
+        public string DhcpReservation => _dhcpReservation is null ? "Not configured" : _dhcpReservation.Enabled ? "Enabled" : "Disabled";
         public string DhcpScope => _dhcpLease?.ScopeDisplay ?? _dhcpReservation?.ScopeDisplay ?? "Not reported";
         public string DhcpSummary => $"{DhcpLeaseType} • {DhcpScope}";
+        public bool HasCurrentReservedAddressMismatch =>
+            HasDhcpReservation &&
+            IsCurrentlyObserved &&
+            HasUsefulAddress(LiveClient?.IpAddress) &&
+            !SameText(LiveClient?.IpAddress, _dhcpReservation?.IpAddress);
+        public bool HasDhcpAddressPresentation => HasDhcpDetails && !HasCurrentReservedAddressMismatch;
+        public string DhcpCurrentAddress => LiveClient?.IpAddress ?? "Not reported";
+        public string DhcpReservedAddress => _dhcpReservation?.IpAddress ?? "Not reported";
         public bool HasDhcpLeaseRemaining =>
+            HasDhcpLease &&
             !string.IsNullOrWhiteSpace(DhcpLeaseRemaining) &&
             !string.Equals(DhcpLeaseRemaining, "N/A", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(DhcpLeaseRemaining, "Not reported", StringComparison.OrdinalIgnoreCase) &&
@@ -269,6 +284,17 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(SignalSummary));
             OnPropertyChanged(nameof(HealthText));
             OnPropertyChanged(nameof(HealthColour));
+            OnPropertyChanged(nameof(HasDhcpLease));
+            OnPropertyChanged(nameof(HasDhcpDetails));
+            OnPropertyChanged(nameof(DhcpIpAddress));
+            OnPropertyChanged(nameof(DhcpAddressLabel));
+            OnPropertyChanged(nameof(DhcpLeaseType));
+            OnPropertyChanged(nameof(DhcpLeaseRemaining));
+            OnPropertyChanged(nameof(DhcpSummary));
+            OnPropertyChanged(nameof(HasCurrentReservedAddressMismatch));
+            OnPropertyChanged(nameof(HasDhcpAddressPresentation));
+            OnPropertyChanged(nameof(DhcpCurrentAddress));
+            OnPropertyChanged(nameof(HasDhcpLeaseRemaining));
             OnPropertyChanged(nameof(CanForgetDevice));
             ForgetDeviceCommand.NotifyCanExecuteChanged();
         }
@@ -708,6 +734,10 @@ namespace RouterPilot.ViewModels
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
         }
+
+        private static bool HasUsefulAddress(string? address) =>
+            !string.IsNullOrWhiteSpace(address) &&
+            !string.Equals(address, "-", StringComparison.Ordinal);
 
         private static string FormatDuration(TimeSpan duration) => duration < TimeSpan.FromMinutes(1) ? "< 1 min" : duration < TimeSpan.FromHours(1) ? $"{(int)duration.TotalMinutes} min" : $"{(int)duration.TotalHours}h {duration.Minutes}m";
 

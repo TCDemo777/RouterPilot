@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -9,6 +10,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
 {
     private readonly ClientProfileService _profiles = new();
     private readonly ClientInventoryState _inventory;
+    private readonly DispatcherTimer _relativeTimeTimer;
     private Dictionary<string, ClientProfile> _profileMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
@@ -33,6 +35,9 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         _inventory = inventory;
         _inventory.Changed += Inventory_Changed;
         ClientRefreshNotifier.ProfileStateChanged += ProfileStateChanged;
+        _relativeTimeTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _relativeTimeTimer.Tick += RelativeTimeTimer_Tick;
+        _relativeTimeTimer.Start();
         ReloadProfiles();
     }
 
@@ -54,12 +59,24 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _relativeTimeTimer.Stop();
+        _relativeTimeTimer.Tick -= RelativeTimeTimer_Tick;
         _inventory.Changed -= Inventory_Changed;
         ClientRefreshNotifier.ProfileStateChanged -= ProfileStateChanged;
     }
 
     private void Inventory_Changed(object? sender, EventArgs e) => Rebuild();
     private void ProfileStateChanged(object? sender, EventArgs e) => ReloadProfiles();
+
+    private void RelativeTimeTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+
+        foreach (KnownDeviceInfo device in Devices)
+        {
+            device.RefreshLastObservedPresentation();
+        }
+    }
 
     private void Rebuild()
     {

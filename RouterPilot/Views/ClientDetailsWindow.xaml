@@ -228,6 +228,20 @@
                             </StackPanel.Style>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="DHCP"/>
                             <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding DhcpSummary}"/>
+                            <StackPanel Margin="0,5,0,0" Visibility="{Binding HasDhcpAddressPresentation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DhcpAddressLabel}"/>
+                                <TextBlock Margin="0,2,0,0" TextTrimming="CharacterEllipsis" Text="{Binding DhcpIpAddress}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,5,0,0" Visibility="{Binding HasDhcpReservation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="RESERVATION"/>
+                                <TextBlock Margin="0,2,0,0" Text="{Binding DhcpReservation}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,5,0,0" Visibility="{Binding HasCurrentReservedAddressMismatch, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="CURRENT ADDRESS"/>
+                                <TextBlock Margin="0,2,0,0" TextTrimming="CharacterEllipsis" Text="{Binding DhcpCurrentAddress}"/>
+                                <TextBlock Margin="0,4,0,0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="RESERVED ADDRESS"/>
+                                <TextBlock Margin="0,2,0,0" TextTrimming="CharacterEllipsis" Text="{Binding DhcpReservedAddress}"/>
+                            </StackPanel>
                             <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
                                        Text="{Binding DhcpLeaseRemaining, StringFormat=Lease remaining: {0}}">
                                 <TextBlock.Style>

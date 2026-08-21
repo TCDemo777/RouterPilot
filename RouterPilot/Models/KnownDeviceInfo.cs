@@ -1,6 +1,8 @@
+using System.ComponentModel;
+
 namespace RouterPilot.Models;
 
-public sealed class KnownDeviceInfo
+public sealed class KnownDeviceInfo : INotifyPropertyChanged
 {
     public required ClientProfile Profile { get; init; }
     public ClientInfo? CurrentClient { get; init; }
@@ -31,6 +33,13 @@ public sealed class KnownDeviceInfo
         NeedsReview = Profile.NeedsReview, FirstSeenUtc = Profile.FirstSeenUtc,
         LastObservedUtc = Profile.LastSeenUtc, HealthText = "Offline", HealthColour = "#687386"
     };
+
+    /// <summary>Refreshes only the wall-clock-derived relative observation text.</summary>
+    public void RefreshLastObservedPresentation() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LastObserved)));
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     private static bool Useful(string? value) => !string.IsNullOrWhiteSpace(value) && value != "-";
     private static string FormatMac(string key) => key.Length == 12 ? string.Join(":", Enumerable.Range(0, 6).Select(i => key.Substring(i * 2, 2))) : key;
     private static string FormatObserved(DateTime value)

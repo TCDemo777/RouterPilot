@@ -29,7 +29,7 @@
       <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="9"/><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <Border Width="38" Height="38" Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="19"><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe UI Emoji" FontSize="18" Text="{Binding DeviceIcon}"/></Border>
-        <StackPanel Grid.Column="1"><TextBlock FontSize="16" FontWeight="Bold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Text="{Binding Name}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Secondary}" Text="{Binding Secondary}"/></StackPanel>
+        <StackPanel Grid.Column="1"><TextBlock FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Brush.TextPrimary}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Text="{Binding Name}"/><TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Secondary}" Text="{Binding Secondary}"/></StackPanel>
         <Button Grid.Column="2" Width="34" Height="32" Padding="0" FontSize="19" Foreground="{DynamicResource Brush.Warning}" IsHitTestVisible="False" Focusable="False" Content="{Binding FavoriteGlyph}"/>
        </Grid>
        <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
