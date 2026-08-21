@@ -110,6 +110,8 @@ No immediate correctness, data-loss, or security finding was established through
 
 1. **Concentrated router boundary.** `RouterPilot/Services/RouterManager.cs` and `RouterPilot/Services/RouterManager.AdGuard.cs` together contain more than 5,000 lines across session handling, parsing, state discovery, and feature operations. Partial classes help organisation, but changes can still affect a broad shared object. Preserve the existing feature-specific files and continue moving cohesive operations behind narrow interfaces when work naturally touches them.
 
+   Status: Partially addressed after baseline review. Deterministic AdGuard statistics parsing has been extracted, while the router/session/transport facade and the remaining feature responsibilities remain concentrated.
+
 2. **Persistence durability is inconsistent.** Several stores use temporary-file replacement or backups, while `ClientProfileService` and `ClientPresenceHistoryService` contain direct whole-file writes. Client profiles and presence history are valuable local state. A shared atomic JSON write helper with consistent corruption recovery would reduce avoidable data-loss exposure.
 
    Status: Substantially addressed after baseline review.
@@ -155,6 +157,8 @@ No immediate correctness, data-loss, or security finding was established through
 File size is not itself a defect. These locations are priorities because they combine multiple changing responsibilities.
 
 The Dashboard hotspot remains, but deterministic health policy and traffic calculation state have now been separated into focused presentation helpers. The baseline sizes above remain historical review data.
+
+`RouterManager.AdGuard.cs` remains a hotspot. Post-review maintenance separated its deterministic statistics parsing into `RouterPilot/Services/AdGuardStatisticsParser.cs`; the baseline size above remains historical review data.
 
 ## State and Identity Management
 
@@ -233,6 +237,8 @@ The application has clear feature names and numerous narrow services, but a few 
 
 The recent Dashboard work demonstrates this approach: pure deterministic policy was extracted first, calculation state second, and refresh/orchestration ownership was deliberately left untouched. Further Dashboard decomposition should continue only after a fresh, focused boundary decision.
 
+The same incremental principle now applies to the router boundary: `RouterManager` should remain the stable provider-created facade for shared router/session/transport lifetime, while deterministic parsers and narrowly cohesive internal collaborators are extracted only when supported by a clear, testable boundary.
+
 High-confidence dead-code candidates were not identified. There are no TODO/FIXME markers in the inspected source. VPN State Capture, diagnostics execution, redaction, and network snapshot facilities are active architectural capabilities, not obsolete debug clutter.
 
 ## Quick Wins
@@ -285,6 +291,16 @@ The existing normalized identity rules were preserved: profile/presence identity
 
 `RouterPilot/Presentation/NetworkTrafficAccumulator.cs` extracts approximately 78 lines of network-traffic calculation state from `RouterPilot/Views/DashboardWindow.xaml.cs`: previous observation/baseline state, peaks, running totals, and sample count. First-sample, actual elapsed-time, counter-decrease/reset, peak, average, reset, and startup/reconnect spike-protection behaviour were preserved. The accumulator has no router, service, or WPF/Dispatcher dependency. Chart ownership, DashboardWindow traffic scheduling, polling cadence, router reads, metric recording, Timeline behaviour, traffic units, and rounding remain unchanged. `DashboardHealthProjection` and XAML were unchanged. Debug and Release builds passed.
 
+### RouterManager decomposition
+
+An architecture audit identified deterministic parsing as the safest first RouterManager extraction seam. `RouterPilot/Services/AdGuardStatisticsParser.cs` now owns deterministic AdGuard statistics model construction, ranked-item parsing, history parsing, interval calculation, unavailable-statistics construction, and statistics-specific tolerant parsing previously located in `RouterPilot/Services/RouterManager.AdGuard.cs`.
+
+Approximately 415 lines were extracted, reducing `RouterManager.AdGuard.cs` from roughly 2,959 to 2,565 lines as a post-review maintenance result. These figures do not replace the baseline metrics above. The parser receives an explicit current timestamp and has no RouterManager, HTTP, session/token, or WPF dependency. RouterManager remains the transport/retry facade.
+
+Public RouterManager APIs, HTTP behaviour, authentication/token handling, AdGuard configuration behaviour, router RPCs, polling, dependency injection, and XAML were unchanged. Statistics semantics are intended to remain unchanged. Debug and Release builds passed, and existing AdGuard-facing UI presentation was manually checked successfully.
+
+No compatible automated .NET 9 parser test host/project was available during this extraction. Validation consisted of build verification, static before/after inspection, and manual live AdGuard UI verification; this is not comprehensive automated parser coverage.
+
 ### Operation failure handling
 
 `OperationFailurePolicy` now provides a lightweight convention for concise, safe user-operation feedback together with categorised Debug diagnostics. The maintenance work audited 112 broad `catch (Exception)` occurrences and 6 empty catches; 31 catches were updated while 81 defensive broad catches were intentionally retained. Empty catches were reduced to zero.
@@ -297,7 +313,9 @@ This does not eliminate every broad catch. Remaining broad catches are intention
 
 ### Next maintenance priorities
 
-The next priorities remain the existing review findings: reduce concentrated responsibility at the router boundary and incrementally improve UI/XAML composition. Dashboard deterministic projection work has begun, but refresh orchestration remains intentionally deferred; a fresh boundary decision should precede further Dashboard decomposition. The broad-exception/operation-result item is no longer an outstanding priority following the maintenance work above.
+The existing router-boundary P1 finding is partially addressed, not completed. Further RouterManager decomposition should remain incremental and evidence-driven; the next step does not need to be another router refactor. A possible second candidate is `DhcpSnapshotParser`, but it is higher risk because DHCP mutation code shares parsed UCI/snapshot representations and cache/write semantics. A possible third candidate is an internal VPN RPC reader/mapper, which should wait for strong coverage around `group_id` reconciliation and live socket behaviour.
+
+Dashboard deterministic projection and traffic-calculation work are partially addressed, while refresh orchestration remains intentionally deferred pending a fresh boundary decision. Incremental UI/XAML composition remains an existing priority. The broad-exception/operation-result policy has been substantially addressed, targeted atomic persistence has been addressed, transient event lifetime work has been addressed, and identity reconciliation has been substantially addressed.
 
 ## Review Limitations
 
@@ -316,4 +334,4 @@ Review type: Internal architecture/code-health review
 
 Maintenance progress updated: 2026-08-21
 
-Current maintenance state: first three recommended maintenance items, operation failure handling maintenance, and the first two Dashboard decomposition seams completed.
+Current maintenance state: first three recommended maintenance items, operation failure handling maintenance, the first two Dashboard decomposition seams, and the first RouterManager decomposition seam completed.
