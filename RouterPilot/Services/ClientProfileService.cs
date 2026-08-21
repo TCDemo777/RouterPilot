@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Diagnostics;
 using RouterPilot.Models;
 
 namespace RouterPilot.Services
@@ -11,6 +12,7 @@ namespace RouterPilot.Services
     {
         private readonly string _filePath;
         private readonly string _legacyFavoritesFilePath;
+        private readonly AtomicJsonFileStore _jsonStore;
         private readonly JsonSerializerOptions _jsonOptions = new()
         {
             WriteIndented = true
@@ -18,13 +20,16 @@ namespace RouterPilot.Services
 
         public bool LastLoadSucceeded { get; private set; } = true;
 
-        public ClientProfileService(ApplicationDataPathProvider? applicationDataPaths = null)
+        public ClientProfileService(
+            ApplicationDataPathProvider? applicationDataPaths = null,
+            AtomicJsonFileStore? jsonStore = null)
         {
             string folder = (applicationDataPaths ?? new ApplicationDataPathProvider()).CurrentPath;
 
             Directory.CreateDirectory(folder);
             _filePath = Path.Combine(folder, "client-profiles.json");
             _legacyFavoritesFilePath = Path.Combine(folder, "client-favourites.json");
+            _jsonStore = jsonStore ?? new AtomicJsonFileStore();
         }
 
         public Dictionary<string, ClientProfile> Load()
@@ -54,10 +59,13 @@ namespace RouterPilot.Services
                     return migrated;
                 }
 
-                string json = File.ReadAllText(_filePath);
-                List<ClientProfile> profiles = JsonSerializer.Deserialize<List<ClientProfile>>(json) ?? new();
+                if (!_jsonStore.TryRead<List<ClientProfile>>(_filePath, _jsonOptions, out List<ClientProfile>? profiles))
+                {
+                    LastLoadSucceeded = false;
+                    return new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase);
+                }
 
-                return profiles
+                return (profiles ?? [])
                     .Where(profile => !string.IsNullOrWhiteSpace(profile.Key))
                     .GroupBy(profile => profile.Key, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
@@ -81,7 +89,14 @@ namespace RouterPilot.Services
                 .ThenBy(profile => profile.Key)
                 .ToList();
 
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(ordered, _jsonOptions));
+            try
+            {
+                _jsonStore.Write(_filePath, ordered, _jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unable to save client profiles ({ex.GetType().Name}).");
+            }
         }
     }
 }

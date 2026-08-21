@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
+using System.Diagnostics;
 using RouterPilot.Models;
 
 namespace RouterPilot.Services;
@@ -14,14 +14,18 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
     private static readonly TimeSpan Grace = TimeSpan.FromMinutes(5);
     private readonly object _sync = new();
     private readonly string _path;
+    private readonly AtomicJsonFileStore _jsonStore;
     private readonly Dictionary<string, DateTimeOffset> _absentSince = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ClientPresencePeriod> _periods;
     private bool _snapshotObserved;
     private DateTimeOffset _lastSave;
 
-    public ClientPresenceHistoryService(ApplicationDataPathProvider paths)
+    public ClientPresenceHistoryService(
+        ApplicationDataPathProvider paths,
+        AtomicJsonFileStore? jsonStore = null)
     {
         _path = Path.Combine(paths.CurrentPath, "client-presence-history.json");
+        _jsonStore = jsonStore ?? new AtomicJsonFileStore();
         _periods = Load();
         // A period left open by a previous process is capped at its last recorded
         // observation; the interval until this process observes a snapshot is Unknown.
@@ -127,17 +131,26 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
     }
     public void CloseSession() { lock (_sync) { foreach (ClientPresencePeriod period in _periods.Where(period => period.EndedAt is null)) period.EndedAt = period.LastObservedAt; Save(); } }
     private ClientPresencePeriod? Active(string key) => _periods.LastOrDefault(period => period.NormalizedMac.Equals(key, StringComparison.OrdinalIgnoreCase) && period.EndedAt is null);
-    private List<ClientPresencePeriod> Load() { try { return File.Exists(_path) ? JsonSerializer.Deserialize<List<ClientPresencePeriod>>(File.ReadAllText(_path)) ?? [] : []; } catch { return []; } }
+    private List<ClientPresencePeriod> Load()
+    {
+        if (!File.Exists(_path)) return [];
+        return _jsonStore.TryRead<List<ClientPresencePeriod>>(_path, options: null, out List<ClientPresencePeriod>? periods)
+            ? periods ?? []
+            : [];
+    }
     private bool Save()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_periods));
+            _jsonStore.Write(_path, _periods);
             _lastSave = DateTimeOffset.UtcNow;
             return true;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Unable to save client presence history ({ex.GetType().Name}).");
+            return false;
+        }
     }
     private void Trim(DateTimeOffset now) => _periods.RemoveAll(period => (period.EndedAt ?? period.LastObservedAt) < now - Retention);
     private static DateTimeOffset StartOfLocalDay(DateTimeOffset now)
