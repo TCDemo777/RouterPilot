@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
 using RouterPilot.Models;
+using RouterPilot.Presentation;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,13 +67,7 @@ namespace RouterPilot.Views
         private bool? _observedInternetState;
         private bool _vpnStateObserved;
 
-        private NetworkTrafficSnapshot? _previousTrafficSnapshot;
-        private bool _trafficBaselineRequired = true;
-        private double _peakDownloadMbps;
-        private double _peakUploadMbps;
-        private double _downloadTotalMbps;
-        private double _uploadTotalMbps;
-        private int _trafficSampleCount;
+        private readonly NetworkTrafficAccumulator _trafficAccumulator = new();
 
         private readonly Brush _selectedNavigationBackground =
             new SolidColorBrush(
@@ -758,86 +753,31 @@ namespace RouterPilot.Views
 
         private void ResetTrafficStatistics()
         {
-            _previousTrafficSnapshot = null;
-            _trafficBaselineRequired = true;
-            _peakDownloadMbps = 0;
-            _peakUploadMbps = 0;
-            _downloadTotalMbps = 0;
-            _uploadTotalMbps = 0;
-            _trafficSampleCount = 0;
+            _trafficAccumulator.Reset();
         }
 
         private void UpdateNetworkTraffic(
             NetworkTrafficSnapshot snapshot)
         {
-            if (_trafficBaselineRequired ||
-                _previousTrafficSnapshot == null)
+            NetworkTrafficSample? traffic = _trafficAccumulator.Add(new NetworkTrafficObservation(
+                snapshot.ReceivedBytes,
+                snapshot.TransmittedBytes,
+                snapshot.CapturedAtUtc));
+            if (traffic is null)
             {
-                _previousTrafficSnapshot = snapshot;
-                _trafficBaselineRequired = false;
                 return;
             }
-
-            if (snapshot.ReceivedBytes <
-                    _previousTrafficSnapshot.ReceivedBytes ||
-                snapshot.TransmittedBytes <
-                    _previousTrafficSnapshot.TransmittedBytes)
-            {
-                _previousTrafficSnapshot = snapshot;
-                return;
-            }
-
-            double elapsedSeconds =
-                Math.Max(
-                    0.25,
-                    (snapshot.CapturedAtUtc -
-                     _previousTrafficSnapshot.CapturedAtUtc)
-                    .TotalSeconds);
-
-            long receivedDelta =
-                snapshot.ReceivedBytes -
-                _previousTrafficSnapshot.ReceivedBytes;
-
-            long transmittedDelta =
-                snapshot.TransmittedBytes -
-                _previousTrafficSnapshot.TransmittedBytes;
-
-            double downloadMbps =
-                Math.Max(
-                    0,
-                    receivedDelta * 8d /
-                    elapsedSeconds /
-                    1_000_000d);
-
-            double uploadMbps =
-                Math.Max(
-                    0,
-                    transmittedDelta * 8d /
-                    elapsedSeconds /
-                    1_000_000d);
-
-            _peakDownloadMbps =
-                Math.Max(_peakDownloadMbps, downloadMbps);
-
-            _peakUploadMbps =
-                Math.Max(_peakUploadMbps, uploadMbps);
-
-            _downloadTotalMbps += downloadMbps;
-            _uploadTotalMbps += uploadMbps;
-            _trafficSampleCount++;
 
             _viewModel.UpdateNetworkTraffic(
-                downloadMbps,
-                uploadMbps,
-                _peakDownloadMbps,
-                _peakUploadMbps,
-                _downloadTotalMbps / _trafficSampleCount,
-                _uploadTotalMbps / _trafficSampleCount,
+                traffic.Value.DownloadMbps,
+                traffic.Value.UploadMbps,
+                traffic.Value.PeakDownloadMbps,
+                traffic.Value.PeakUploadMbps,
+                traffic.Value.AverageDownloadMbps,
+                traffic.Value.AverageUploadMbps,
                 snapshot.InterfaceName);
-            _metricHistoryService.RecordMetric(MetricKind.WanDownloadMbps, downloadMbps, snapshot.CapturedAtUtc);
-            _metricHistoryService.RecordMetric(MetricKind.WanUploadMbps, uploadMbps, snapshot.CapturedAtUtc);
-
-            _previousTrafficSnapshot = snapshot;
+            _metricHistoryService.RecordMetric(MetricKind.WanDownloadMbps, traffic.Value.DownloadMbps, snapshot.CapturedAtUtc);
+            _metricHistoryService.RecordMetric(MetricKind.WanUploadMbps, traffic.Value.UploadMbps, snapshot.CapturedAtUtc);
         }
 
         public async Task RefreshNowAsync()
@@ -869,8 +809,7 @@ namespace RouterPilot.Views
             {
                 if (IsVisible)
                 {
-                    _previousTrafficSnapshot = null;
-                    _trafficBaselineRequired = true;
+                    _trafficAccumulator.ResetBaseline();
 
                     if (IsLoaded)
                     {
