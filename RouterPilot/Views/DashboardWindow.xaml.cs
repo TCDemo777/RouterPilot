@@ -449,7 +449,10 @@ namespace RouterPilot.Views
             catch (Exception ex)
             {
                 await ShowConnectionErrorAsync(
-                    ex.Message,
+                    OperationFailurePolicy.UserMessage(
+                        ex,
+                        "Dashboard router refresh",
+                        "Unable to communicate with the router."),
                     notifyConnectivityChange: !routerCommunicationConfirmed);
             }
             finally

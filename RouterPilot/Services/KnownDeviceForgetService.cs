@@ -34,17 +34,14 @@ public sealed class KnownDeviceForgetService
         if (!profiles.Remove(key, out ClientProfile? removed))
             return new(false, "This device is no longer present in RouterPilot's saved inventory.");
 
-        try { _profiles.Save(profiles.Values); }
-        catch { return new(false, "RouterPilot could not remove the saved device record."); }
+        if (!_profiles.Save(profiles.Values))
+            return new(false, "RouterPilot could not remove the saved device record.");
 
         if (!_presenceHistory.Clear(key))
         {
-            try
-            {
-                profiles[key] = removed;
-                _profiles.Save(profiles.Values);
-            }
-            catch { }
+            profiles[key] = removed;
+            if (!_profiles.Save(profiles.Values))
+                System.Diagnostics.Debug.WriteLine("Unable to restore the local device profile after presence-history removal failed.");
             return new(false, "RouterPilot could not remove this device's availability history.");
         }
 

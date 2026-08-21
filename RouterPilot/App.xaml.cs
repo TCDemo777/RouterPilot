@@ -262,16 +262,34 @@ namespace RouterPilot
             _dashboardWindow.Focus();
         }
 
-        private async void RefreshDashboard()
+        private void RefreshDashboard() => _ = RefreshDashboardAsync();
+
+        private async Task RefreshDashboardAsync()
         {
-            ShowDashboard();
-            if (_dashboardWindow is not null)
-                await _dashboardWindow.RefreshNowAsync();
+            try
+            {
+                ShowDashboard();
+                if (_dashboardWindow is not null)
+                    await _dashboardWindow.RefreshNowAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Tray dashboard refresh failed ({DiagnosticRedactor.FailureCategory(ex)}).");
+            }
         }
 
-        private async void ExitApplication()
+        private void ExitApplication() => _ = ExitApplicationSafelyAsync();
+
+        private async Task ExitApplicationSafelyAsync()
         {
-            await ExitApplicationAsync();
+            try
+            {
+                await ExitApplicationAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Tray application exit failed ({DiagnosticRedactor.FailureCategory(ex)}).");
+            }
         }
 
         public Task RestartAsync() => ExitApplicationAsync(Environment.ProcessPath);
@@ -398,7 +416,14 @@ namespace RouterPilot
         {
             if (_services is not null)
             {
-                try { Services.GetRequiredService<IClientPresenceHistoryService>().CloseSession(); } catch { }
+                try
+                {
+                    Services.GetRequiredService<IClientPresenceHistoryService>().CloseSession();
+                }
+                catch
+                {
+                    // Shutdown must continue even if optional local history cannot be flushed.
+                }
             }
             _trayManager?.Dispose();
             _singleInstance?.Dispose();

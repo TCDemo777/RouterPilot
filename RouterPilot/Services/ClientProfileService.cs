@@ -73,14 +73,15 @@ namespace RouterPilot.Services
                         group => group.Last(),
                         StringComparer.OrdinalIgnoreCase);
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
+                Debug.WriteLine($"Unable to load client profiles ({ex.GetType().Name}).");
                 LastLoadSucceeded = false;
                 return new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase);
             }
         }
 
-        public void Save(IEnumerable<ClientProfile> profiles)
+        public bool Save(IEnumerable<ClientProfile> profiles)
         {
             List<ClientProfile> ordered = profiles
                 .Where(profile => !string.IsNullOrWhiteSpace(profile.Key))
@@ -92,10 +93,12 @@ namespace RouterPilot.Services
             try
             {
                 _jsonStore.Write(_filePath, ordered, _jsonOptions);
+                return true;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Debug.WriteLine($"Unable to save client profiles ({ex.GetType().Name}).");
+                return false;
             }
         }
     }

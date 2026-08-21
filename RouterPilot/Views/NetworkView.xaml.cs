@@ -402,7 +402,10 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
-                MaintenanceStatusText.Text = "Operation failed: " + ex.Message;
+                MaintenanceStatusText.Text = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Network maintenance operation",
+                    "Operation could not be completed. Check the router connection and try again.");
                 return false;
             }
             finally

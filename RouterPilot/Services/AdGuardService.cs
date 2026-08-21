@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
@@ -116,7 +117,8 @@ public sealed class AdGuardService : IDisposable
         catch (Exception ex)
             when (ex is HttpRequestException or TaskCanceledException)
         {
-            return ex.Message;
+            Debug.WriteLine($"AdGuard request failed ({DiagnosticRedactor.FailureCategory(ex)}).");
+            return "Request failed.";
         }
     }
 

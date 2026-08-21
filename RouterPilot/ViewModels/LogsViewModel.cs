@@ -143,9 +143,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage =
-                    "Unable to load query log: " +
-                    ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Query-log refresh",
+                    "Unable to load query log. Check the router connection and try again.");
             }
             finally
             {

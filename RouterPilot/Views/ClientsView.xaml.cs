@@ -172,9 +172,10 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
-                _viewModel.StatusMessage =
-                    "Unable to load clients: " +
-                    ex.Message;
+                _viewModel.StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Client view refresh",
+                    "Unable to load clients. Check the router connection and try again.");
             }
             finally
             {

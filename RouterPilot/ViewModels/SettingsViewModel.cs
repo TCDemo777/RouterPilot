@@ -330,9 +330,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage =
-                    "Unable to load settings: " +
-                    ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Settings load",
+                    "Unable to load settings. RouterPilot will use safe defaults where available.");
             }
             finally
             {
@@ -427,9 +428,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage =
-                    "Unable to save settings: " +
-                    ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Settings save",
+                    "Unable to save settings. Try again after checking local file access.");
             }
         }
 

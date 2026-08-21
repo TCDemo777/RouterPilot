@@ -88,9 +88,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage =
-                    "Unable to refresh global search: " +
-                    ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Global search refresh",
+                    "Unable to refresh global search. Check the router connection and try again.");
             }
             finally
             {

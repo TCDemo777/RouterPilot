@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Renci.SshNet;
@@ -178,7 +179,15 @@ namespace RouterPilot.Services
 
             _disposed = true;
 
-            _commandGate.Wait();
+            if (!_commandGate.Wait(0))
+            {
+                // RouterManager is disposed from the UI shutdown path. A command
+                // already running on its worker must finish before its SSH client
+                // can be disposed, but shutdown must not block the UI thread.
+                _ = DisposeAfterActiveCommandAsync();
+                return;
+            }
+
             try
             {
                 ResetClient();
@@ -187,6 +196,27 @@ namespace RouterPilot.Services
             {
                 _commandGate.Release();
                 _commandGate.Dispose();
+            }
+        }
+
+        private async Task DisposeAfterActiveCommandAsync()
+        {
+            try
+            {
+                await _commandGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    ResetClient();
+                }
+                finally
+                {
+                    _commandGate.Release();
+                    _commandGate.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Deferred SSH disposal failed ({DiagnosticRedactor.FailureCategory(ex)}).");
             }
         }
     }

@@ -669,8 +669,10 @@ namespace RouterPilot.Views
                 catch (Exception ex)
                 {
                     ChangelogTextBox.Text =
-                        "The changelog could not be read.\n\n" +
-                        ex.Message;
+                        OperationFailurePolicy.UserMessage(
+                            ex,
+                            "Changelog read",
+                            "The changelog could not be read.");
 
                     return;
                 }

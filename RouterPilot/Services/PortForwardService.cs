@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -156,7 +157,13 @@ public sealed class PortForwardService : IPortForwardService
                 Source = "Port Forwarding"
             }, token);
         }
-        catch { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Unable to record port-forward timeline entry ({DiagnosticRedactor.FailureCategory(ex)}).");
+        }
         return result;
     }
 

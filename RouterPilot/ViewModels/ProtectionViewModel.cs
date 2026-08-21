@@ -400,7 +400,11 @@ namespace RouterPilot.ViewModels
             catch (Exception ex)
             {
                 QueryLogStatus = "Recent DNS activity is unavailable.";
-                if (showMessage) Message = "Unable to refresh DNS activity: " + ex.Message;
+                if (showMessage)
+                    Message = OperationFailurePolicy.UserMessage(
+                        ex,
+                        "DNS activity refresh",
+                        "Unable to refresh DNS activity. Check the router connection and try again.");
             }
         }
 
@@ -513,9 +517,10 @@ namespace RouterPilot.ViewModels
             catch (Exception ex)
             {
                 IsAdGuardAvailable = false;
-                Message =
-                    "Protection command failed: " +
-                    ex.Message;
+                Message = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Protection command",
+                    "Protection command could not be completed. Check the router connection and try again.");
             }
             finally
             {
@@ -533,7 +538,7 @@ namespace RouterPilot.ViewModels
             if (IsBusy) return;
             IsBusy = true; Message = $"Updating {label}...";
             try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); await action(router); Message = $"{label} updated."; _options = await router.GetProtectionOptionsAsync(); DetermineProfile(); }
-            catch (Exception ex) { Message = $"Unable to update {label}: {ex.Message}"; await RefreshOptionsOnlyAsync(); }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, $"Protection option update ({label})", $"Unable to update {label}. Check the router connection and try again."); await RefreshOptionsOnlyAsync(); }
             finally { IsBusy = false; }
         }
 
@@ -567,7 +572,7 @@ namespace RouterPilot.ViewModels
                 await RefreshOptionsOnlyAsync();
                 ProfileName = name; Message = $"{name} profile applied.";
             }
-            catch (Exception ex) { Message = "Unable to apply profile: " + ex.Message; }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "Protection profile update", "Unable to apply profile. Check the router connection and try again."); }
             finally { IsBusy = false; }
         }
 
@@ -622,7 +627,7 @@ namespace RouterPilot.ViewModels
                 ApplyBlockedServices(result.Services, result.Config);
                 Message = "Blocked services updated.";
             }
-            catch (Exception ex) { Message = "Unable to update blocked services: " + ex.Message; }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "Blocked-service update", "Unable to update blocked services. Check the router connection and try again."); }
             finally { IsBusy = false; }
         }
 
@@ -696,7 +701,7 @@ namespace RouterPilot.ViewModels
                 FilteringRules.Clear(); foreach (var rule in await router.GetCustomFilteringRulesAsync()) FilteringRules.Add(rule);
                 Message = success;
             }
-            catch (Exception ex) { Message = "Unable to save filtering rules: " + ex.Message; }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "Filtering-rule save", "Unable to save filtering rules. Check the router connection and try again."); }
             finally { IsBusy = false; }
         }
 
@@ -707,7 +712,7 @@ namespace RouterPilot.ViewModels
             if (IsBusy) return;
             IsBusy = true; Message = "Adding DNS rewrite...";
             try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); await router.AddDnsRewriteAsync(domain, answer); await ReloadRewritesAsync(router); NewRewriteDomain = ""; NewRewriteAnswer = ""; Message = "DNS rewrite added."; }
-            catch (Exception ex) { Message = "Unable to add DNS rewrite: " + ex.Message; }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "DNS rewrite add", "Unable to add DNS rewrite. Check the router connection and try again."); }
             finally { IsBusy = false; }
         }
 
@@ -716,7 +721,7 @@ namespace RouterPilot.ViewModels
             if (SelectedRewrite is null || IsBusy) return;
             IsBusy = true; Message = "Deleting DNS rewrite...";
             try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); await router.DeleteDnsRewriteAsync(SelectedRewrite.Domain, SelectedRewrite.Answer); await ReloadRewritesAsync(router); Message = "DNS rewrite deleted."; }
-            catch (Exception ex) { Message = "Unable to delete DNS rewrite: " + ex.Message; }
+            catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "DNS rewrite delete", "Unable to delete DNS rewrite. Check the router connection and try again."); }
             finally { IsBusy = false; }
         }
         private async Task ReloadRewritesAsync(RouterManager? router = null) { router ??= await _routerManagerProvider.GetRouterManagerAsync(); DnsRewrites.Clear(); foreach (var x in await router.GetDnsRewritesAsync()) DnsRewrites.Add(x); }

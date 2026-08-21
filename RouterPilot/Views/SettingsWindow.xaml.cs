@@ -128,7 +128,10 @@ namespace RouterPilot.Views
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    ex.Message,
+                    OperationFailurePolicy.UserMessage(
+                        ex,
+                        "Settings save",
+                        "RouterPilot could not save the settings. Check the values and local file access, then try again."),
                     "Settings Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

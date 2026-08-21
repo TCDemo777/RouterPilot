@@ -246,9 +246,10 @@ namespace RouterPilot.ViewModels
             catch (Exception ex)
             {
                 if (_disposed) return;
-                StatusMessage =
-                    "Unable to load client activity: " +
-                    ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Client activity refresh",
+                    "Unable to load client activity. Check the router connection and try again.");
             }
             finally
             {
@@ -280,7 +281,7 @@ namespace RouterPilot.ViewModels
             profile.MonitorAvailability = MonitorAvailability;
             profile.LastSeenUtc = DateTime.UtcNow;
 
-            _clientProfileService.Save(_clientProfiles.Values);
+            bool saved = _clientProfileService.Save(_clientProfiles.Values);
 
             if (!string.IsNullOrWhiteSpace(profile.Nickname))
             {
@@ -294,6 +295,11 @@ namespace RouterPilot.ViewModels
 
             OnPropertyChanged(nameof(ClientName));
             OnPropertyChanged(nameof(AvailabilityMonitoringStatus));
+            if (!saved)
+            {
+                StatusMessage = "Profile updated for this session, but it could not be saved.";
+                return;
+            }
             ClientRefreshNotifier.RequestRefresh();
             ClientRefreshNotifier.NotifyProfileStateChanged();
             StatusMessage = $"Profile saved for {ClientName}.";
@@ -326,7 +332,11 @@ namespace RouterPilot.ViewModels
             _client.CustomCategory = string.Empty;
             _client.Notes = string.Empty;
 
-            _clientProfileService.Save(_clientProfiles.Values);
+            if (!_clientProfileService.Save(_clientProfiles.Values))
+            {
+                StatusMessage = "Profile updated for this session, but it could not be saved.";
+                return;
+            }
             OnPropertyChanged(nameof(ClientName));
             ClientRefreshNotifier.RequestRefresh();
             ClientRefreshNotifier.NotifyProfileStateChanged();
@@ -367,6 +377,14 @@ namespace RouterPilot.ViewModels
                 if (_disposed) return;
                 StatusMessage = result.Message;
                 if (result.Success) DeviceForgotten?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                if (_disposed) return;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Forget Device",
+                    "RouterPilot could not forget this device's saved history.");
             }
             finally
             {
@@ -421,7 +439,11 @@ namespace RouterPilot.ViewModels
             profile.NeedsReview = false;
             profile.LastSeenUtc = DateTime.UtcNow;
             _client.NeedsReview = false;
-            _clientProfileService.Save(_clientProfiles.Values);
+            if (!_clientProfileService.Save(_clientProfiles.Values))
+            {
+                StatusMessage = "This device could not be marked as known because its profile could not be saved.";
+                return;
+            }
             OnPropertyChanged(nameof(NeedsReview));
             ClientRefreshNotifier.NotifyProfileStateChanged();
             StatusMessage = $"{ClientName} marked as known.";
@@ -651,8 +673,14 @@ namespace RouterPilot.ViewModels
             profile.MonitorAvailability = value;
             profile.LastSeenUtc = DateTime.UtcNow;
             _client.MonitorAvailability = value;
-            _clientProfileService.Save(_clientProfiles.Values);
-            ClientRefreshNotifier.RequestRefresh();
+            if (_clientProfileService.Save(_clientProfiles.Values))
+            {
+                ClientRefreshNotifier.RequestRefresh();
+            }
+            else
+            {
+                StatusMessage = "Availability monitoring preference changed for this session, but it could not be saved.";
+            }
         }
 
         partial void OnIsForgettingDeviceChanged(bool value)

@@ -29,7 +29,7 @@ public sealed class AtomicJsonFileStore
             value = JsonSerializer.Deserialize<T>(json, options);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             Debug.WriteLine($"Unable to load local JSON state ({ex.GetType().Name}).");
             return false;

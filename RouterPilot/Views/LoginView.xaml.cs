@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using RouterPilot.Services;
 
 namespace RouterPilot.Views
 {
@@ -37,7 +38,10 @@ namespace RouterPilot.Views
             }
             catch (System.Exception ex)
             {
-                ErrorText.Text = ex.Message;
+                ErrorText.Text = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Open AdGuard address",
+                    "The AdGuard address could not be opened.");
             }
         }
 

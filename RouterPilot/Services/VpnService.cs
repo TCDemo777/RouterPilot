@@ -52,6 +52,7 @@ public sealed class VpnService : IVpnService
             }
             return await CompleteAsync(new VpnOperationResult { TunnelId = tunnelId, FailureCategory = "VerificationFailed", Message = "RouterPilot could not verify the VPN tunnel state.", RollbackAttempted = rollbackAttempted, RollbackVerified = rollbackVerified }, original, enabled, token);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch { return await CompleteAsync(Failure(tunnelId, "RemoteApplyFailed"), null, enabled, token); }
         finally { _gate.Release(); }
     }
@@ -69,7 +70,7 @@ public sealed class VpnService : IVpnService
 
     private async Task<VpnOperationResult> CompleteAsync(VpnOperationResult result, VpnTunnelInfo? tunnel, bool enabled, CancellationToken token)
     {
-        try { await _timeline.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = result.Success ? TimelineEventType.MaintenanceCompleted : TimelineEventType.MaintenanceFailed, Title = result.Success ? $"VPN tunnel {(enabled ? "enabled" : "disabled")}" : $"Failed to {(enabled ? "enable" : "disable")} VPN tunnel", Message = tunnel?.Name ?? "VPN tunnel", Severity = result.Success ? TimelineSeverity.Success : TimelineSeverity.Warning, Source = "VPN" }, token); } catch { }
+        try { await _timeline.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = result.Success ? TimelineEventType.MaintenanceCompleted : TimelineEventType.MaintenanceFailed, Title = result.Success ? $"VPN tunnel {(enabled ? "enabled" : "disabled")}" : $"Failed to {(enabled ? "enable" : "disable")} VPN tunnel", Message = tunnel?.Name ?? "VPN tunnel", Severity = result.Success ? TimelineSeverity.Success : TimelineSeverity.Warning, Source = "VPN" }, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Unable to record VPN timeline entry ({DiagnosticRedactor.FailureCategory(ex)})."); }
         return result;
     }
 

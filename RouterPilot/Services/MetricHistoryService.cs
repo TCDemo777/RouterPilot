@@ -176,7 +176,7 @@ public sealed class MetricHistoryService : IMetricHistoryService
         }
         finally { _gate.Release(); }
     }
-    private void ScheduleFlush() { if (_debouncedWrite is { IsCompleted: false }) return; _debouncedWrite = Task.Run(async () => { await Task.Delay(WriteDebounce); try { await FlushAsync(); } catch { } }); }
+    private void ScheduleFlush() { if (_debouncedWrite is { IsCompleted: false }) return; _debouncedWrite = Task.Run(async () => { await Task.Delay(WriteDebounce); try { await FlushAsync(); } catch (Exception ex) { Debug.WriteLine($"Unable to flush metric history ({DiagnosticRedactor.FailureCategory(ex)})."); } }); }
     private void Prune(DateTimeOffset now) { DateTimeOffset cutoff = now.AddDays(-DefaultRetentionDays); _samples.RemoveAll(item => item.Timestamp < cutoff); _availability.RemoveAll(item => item.Timestamp < cutoff); }
     private static TimeSpan Max(TimeSpan a, TimeSpan b) => a >= b ? a : b;
     private sealed class Store { public List<MetricSample> Samples { get; init; } = []; public List<InternetAvailabilityEvent> Availability { get; init; } = []; }

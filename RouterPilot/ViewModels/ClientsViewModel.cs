@@ -271,7 +271,10 @@ namespace RouterPilot.ViewModels
             catch (Exception ex)
             {
                 _dataFreshnessService.MarkUnavailable("Clients");
-                StatusMessage = "Unable to load clients: " + ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Client refresh",
+                    "Unable to load clients. Check the router connection and try again.");
             }
             finally
             {
@@ -642,7 +645,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                PingResult = "Ping failed: " + ex.Message;
+                PingResult = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Client ping",
+                    "Ping could not be completed. Check the router connection and try again.");
             }
             finally
             {
@@ -682,7 +688,10 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
-                PingResult = "Wake-on-LAN failed: " + ex.Message;
+                PingResult = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Wake-on-LAN request",
+                    "Wake-on-LAN could not be completed. Check the router connection and try again.");
             }
             finally
             {
@@ -1504,12 +1513,21 @@ namespace RouterPilot.ViewModels
 
             try
             {
-                _clientProfileService.Save(_clientProfiles.Values);
-                _lastProfileSaveUtc = DateTime.UtcNow;
+                if (_clientProfileService.Save(_clientProfiles.Values))
+                {
+                    _lastProfileSaveUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    StatusMessage = "Client profile changed, but it could not be saved.";
+                }
             }
             catch (Exception ex)
             {
-                StatusMessage = "Client profile changed, but it could not be saved: " + ex.Message;
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex,
+                    "Client profile save",
+                    "Client profile changed, but it could not be saved.");
             }
         }
 

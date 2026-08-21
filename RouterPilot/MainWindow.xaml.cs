@@ -62,7 +62,10 @@ namespace RouterPilot
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"The saved router configuration is invalid.\n\n{ex.Message}",
+                    OperationFailurePolicy.UserMessage(
+                        ex,
+                        "Router configuration validation",
+                        "The saved router configuration is invalid. Open Settings and review the router connection values."),
                     "AdGuard Tray",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -160,7 +163,10 @@ namespace RouterPilot
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Unable to open AdGuard Home.\n\n{ex.Message}",
+                    OperationFailurePolicy.UserMessage(
+                        ex,
+                        "Open AdGuard Home",
+                        "Unable to open AdGuard Home. Check the saved address and try again."),
                     "AdGuard Tray",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -183,7 +189,10 @@ namespace RouterPilot
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Unable to open the router page.\n\n{ex.Message}",
+                    OperationFailurePolicy.UserMessage(
+                        ex,
+                        "Open router page",
+                        "Unable to open the router page. Check the saved address and try again."),
                     "AdGuard Tray",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

@@ -146,7 +146,7 @@ public sealed class ClientPresenceHistoryService : IClientPresenceHistoryService
             _lastSave = DateTimeOffset.UtcNow;
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Debug.WriteLine($"Unable to save client presence history ({ex.GetType().Name}).");
             return false;
