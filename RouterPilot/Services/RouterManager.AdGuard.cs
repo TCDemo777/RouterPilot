@@ -13,6 +13,10 @@ using RouterPilot.Configuration;
 
 namespace RouterPilot.Services
 {
+    internal sealed record AdGuardQueryLogReadResult(
+        bool IsAvailable,
+        List<QueryLogEntry> Entries);
+
     public partial class RouterManager
     {
         // AdGuard Status
@@ -1349,7 +1353,11 @@ namespace RouterPilot.Services
         //
 
         public async Task<List<QueryLogEntry>>
-            GetQueryLogAsync(int limit = 500)
+            GetQueryLogAsync(int limit = 500) =>
+            (await GetQueryLogResultAsync(limit)).Entries;
+
+        internal async Task<AdGuardQueryLogReadResult>
+            GetQueryLogResultAsync(int limit = 500)
         {
             try
             {
@@ -1379,11 +1387,15 @@ namespace RouterPilot.Services
                     LogFailedQueryLogResponse(
                         response);
 
-                    return new List<QueryLogEntry>();
+                    return new AdGuardQueryLogReadResult(
+                        IsAvailable: false,
+                        Entries: []);
                 }
 
-                return ParseAdGuardQueryLog(
-                    response.Content);
+                return new AdGuardQueryLogReadResult(
+                    IsAvailable: true,
+                    Entries: ParseAdGuardQueryLog(
+                        response.Content));
             }
             catch (TaskCanceledException)
             {
@@ -1403,7 +1415,9 @@ namespace RouterPilot.Services
                 LogAdGuardFailure("query-log", ex);
             }
 
-            return new List<QueryLogEntry>();
+            return new AdGuardQueryLogReadResult(
+                IsAvailable: false,
+                Entries: []);
         }
 
         private async Task<AdGuardClientsResponse>

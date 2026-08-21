@@ -75,7 +75,13 @@
                 <TextBlock FontSize="27" FontWeight="Bold" Foreground="{DynamicResource Brush.TextPrimary}"
                            Text="{Binding ClientName}"/>
                 <TextBlock Margin="0,5,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
-                           Text="Live DNS activity and client statistics"/>
+                           ToolTip="{Binding ActivityAvailabilityToolTip}"
+                           Text="{Binding DnsActivityHeaderText}"/>
+                <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                           ToolTip="{Binding ActivityAvailabilityToolTip}"
+                           Text="{Binding DnsActivityAvailabilityMessage}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding DnsActivityContextVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             </StackPanel>
         </DockPanel>
 
@@ -387,8 +393,8 @@
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="TOTAL QUERIES"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Primary}"
-                               Text="{Binding TotalQueriesDisplay}"/>
-                    <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}" Text="Requests from this client"/>
+                               Text="{Binding DnsTotalQueriesDisplay}"/>
+                    <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DnsSummaryCaption}"/>
                 </StackPanel>
             </Border>
 
@@ -396,8 +402,8 @@
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="BLOCKED"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Danger}"
-                               Text="{Binding BlockedQueriesDisplay}"/>
-                    <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}" Text="Protection actions"/>
+                               Text="{Binding DnsBlockedQueriesDisplay}"/>
+                    <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DnsBlockSummaryCaption}"/>
                 </StackPanel>
             </Border>
 
@@ -405,9 +411,9 @@
                 <StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="BLOCK RATE"/>
                     <TextBlock Margin="0,8,0,3" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource Brush.Warning}"
-                               Text="{Binding BlockRateDisplay}"/>
+                               Text="{Binding DnsBlockRateDisplay}"/>
                     <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding LastSeen}" Text="{Binding LastSeen, StringFormat=Last seen: {0}}"/>
+                               ToolTip="{Binding ActivityAvailabilityToolTip}" Text="{Binding DnsLastSeenDisplay}"/>
                 </StackPanel>
             </Border>
             </Grid>
@@ -523,7 +529,7 @@
                     </StackPanel>
 
                     <Grid Grid.Row="2">
-                        <TextBlock VerticalAlignment="Center" Text="No requested domains recorded.">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding RequestedDomainsEmptyMessage}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -538,6 +544,7 @@
 
                         <ListBox Style="{StaticResource RankingList}"
                                  ItemContainerStyle="{StaticResource RankingItem}"
+                                 Visibility="{Binding DnsActivityContentAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
                                  ItemsSource="{Binding TopDomains}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -597,7 +604,7 @@
                     </StackPanel>
 
                     <Grid Grid.Row="2">
-                        <TextBlock VerticalAlignment="Center" Text="No blocked domains recorded.">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding BlockedDomainsEmptyMessage}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -612,6 +619,7 @@
 
                         <ListBox Style="{StaticResource RankingList}"
                                  ItemContainerStyle="{StaticResource RankingItem}"
+                                 Visibility="{Binding DnsActivityContentAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
                                  ItemsSource="{Binding TopBlockedDomains}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -665,7 +673,7 @@
                                    Text="Latest 50 requests"/>
                     </DockPanel>
                     <Grid Grid.Row="2">
-                        <TextBlock VerticalAlignment="Center" Text="No recent DNS requests recorded.">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding RecentQueriesEmptyMessage}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -681,6 +689,7 @@
                         <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                                   CanUserResizeRows="False" IsReadOnly="True" HeadersVisibility="Column"
                                   GridLinesVisibility="None" RowHeight="40" AlternatingRowBackground="{DynamicResource Brush.SurfaceMuted}"
+                                  Visibility="{Binding DnsActivityContentAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   ItemsSource="{Binding RecentQueries}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Width="155" Header="Time" Binding="{Binding Time}"/>

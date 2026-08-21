@@ -26,6 +26,25 @@ namespace RouterPilot.ViewModels
         private readonly ClientInfo _client;
         private readonly DhcpLeaseInfo? _dhcpLease;
         private readonly DhcpReservationInfo? _dhcpReservation;
+        private DnsQueryLogReadState _queryLogReadState;
+
+        private enum DnsQueryLogReadState
+        {
+            Unknown,
+            Available,
+            Unavailable
+        }
+
+        private enum DnsActivityPresentationState
+        {
+            LoadingOrUnknown,
+            Paused,
+            AdGuardUnavailable,
+            QueryLogDisabled,
+            QueryLogUnavailable,
+            AvailableWithData,
+            AvailableNoMatchingActivity
+        }
 
         public event EventHandler? DeviceForgotten;
 
@@ -144,6 +163,64 @@ namespace RouterPilot.ViewModels
         public bool HasRecentQueries => RecentQueries.Count > 0;
         public bool HasTopDomains => TopDomains.Count > 0;
         public bool HasTopBlockedDomains => TopBlockedDomains.Count > 0;
+        private DnsActivityPresentationState DnsActivityState =>
+            IsLoading ? DnsActivityPresentationState.LoadingOrUnknown :
+            IsPaused ? DnsActivityPresentationState.Paused :
+            _adGuardAvailabilityService.State != AdGuardAvailabilityState.Available ? DnsActivityPresentationState.AdGuardUnavailable :
+            !_client.QueryLogAvailable ? DnsActivityPresentationState.QueryLogDisabled :
+            _queryLogReadState == DnsQueryLogReadState.Available ?
+                HasRecentQueries ? DnsActivityPresentationState.AvailableWithData : DnsActivityPresentationState.AvailableNoMatchingActivity :
+            _queryLogReadState == DnsQueryLogReadState.Unavailable ? DnsActivityPresentationState.QueryLogUnavailable :
+            DnsActivityPresentationState.LoadingOrUnknown;
+        public bool DnsActivityContentAvailable =>
+            _queryLogReadState == DnsQueryLogReadState.Available &&
+            _adGuardAvailabilityService.State == AdGuardAvailabilityState.Available &&
+            _client.QueryLogAvailable;
+        public bool DnsActivityContextVisible =>
+            DnsActivityState != DnsActivityPresentationState.AvailableWithData;
+        public bool IsDnsSummaryAvailable =>
+            _adGuardAvailabilityService.State == AdGuardAvailabilityState.Available &&
+            _client.AdGuardDataAvailability == AdGuardAvailabilityState.Available;
+        public string DnsActivityContextHeading => DnsActivityState switch
+        {
+            DnsActivityPresentationState.Paused => "DNS refresh paused",
+            DnsActivityPresentationState.AvailableNoMatchingActivity => "No DNS activity recorded",
+            DnsActivityPresentationState.LoadingOrUnknown => "Loading DNS activity",
+            _ => "DNS activity unavailable"
+        };
+        public string DnsActivityAvailabilityMessage => DnsActivityState switch
+        {
+            DnsActivityPresentationState.LoadingOrUnknown => "DNS activity has not been loaded for this device.",
+            DnsActivityPresentationState.Paused => "Automatic Client Details DNS refresh is paused. Existing activity remains visible.",
+            DnsActivityPresentationState.AdGuardUnavailable => "AdGuard is currently unavailable.",
+            DnsActivityPresentationState.QueryLogDisabled => "AdGuard query logging is disabled.",
+            DnsActivityPresentationState.QueryLogUnavailable => "Query-log data is not currently available.",
+            DnsActivityPresentationState.AvailableNoMatchingActivity => "No DNS activity recorded for this device.",
+            _ => "Live values from the AdGuard Home query log."
+        };
+        public string ActivityAvailabilityToolTip => DnsActivityAvailabilityMessage;
+        public string DnsActivityHeaderText =>
+            DnsActivityState == DnsActivityPresentationState.AvailableWithData
+                ? "Live DNS activity and client statistics"
+                : DnsActivityContextHeading;
+        public string DnsTotalQueriesDisplay =>
+            IsDnsSummaryAvailable ? TotalQueriesDisplay : RouterPilotStatusPresentation.NotAvailable;
+        public string DnsBlockedQueriesDisplay =>
+            IsDnsSummaryAvailable ? BlockedQueriesDisplay : RouterPilotStatusPresentation.NotAvailable;
+        public string DnsBlockRateDisplay =>
+            IsDnsSummaryAvailable ? BlockRateDisplay : RouterPilotStatusPresentation.NotAvailable;
+        public string DnsSummaryCaption =>
+            IsDnsSummaryAvailable ? "Requests from this client" : "DNS data unavailable";
+        public string DnsBlockSummaryCaption =>
+            IsDnsSummaryAvailable ? "Protection actions" : "DNS data unavailable";
+        public string DnsLastSeenDisplay =>
+            IsDnsSummaryAvailable ? $"Last seen: {LastSeen}" : DnsActivityContextHeading;
+        public string RequestedDomainsEmptyMessage =>
+            DnsActivityContentAvailable ? "No requested domains recorded." : DnsActivityAvailabilityMessage;
+        public string BlockedDomainsEmptyMessage =>
+            DnsActivityContentAvailable ? "No blocked domains recorded." : DnsActivityAvailabilityMessage;
+        public string RecentQueriesEmptyMessage =>
+            DnsActivityContentAvailable ? "No recent DNS requests recorded." : DnsActivityAvailabilityMessage;
 
         [ObservableProperty]
         private string statusMessage =
@@ -182,6 +259,14 @@ namespace RouterPilot.ViewModels
 
         public string PauseButtonText =>
             IsPaused ? "Resume" : "Pause";
+
+        partial void OnIsLoadingChanged(bool value) => NotifyDnsActivityPresentation();
+
+        partial void OnIsPausedChanged(bool value)
+        {
+            OnPropertyChanged(nameof(PauseButtonText));
+            NotifyDnsActivityPresentation();
+        }
 
         public ClientDetailsViewModel(
             ClientInfo client,
@@ -317,6 +402,7 @@ namespace RouterPilot.ViewModels
             {
                 if (_adGuardAvailabilityService.State != AdGuardAvailabilityState.Available)
                 {
+                    _queryLogReadState = DnsQueryLogReadState.Unavailable;
                     ApplyEntries(new List<QueryLogEntry>());
                     StatusMessage =
                         "DNS activity is unavailable. Router client information remains available.";
@@ -325,19 +411,25 @@ namespace RouterPilot.ViewModels
 
                 RouterManager routerManager =
                     await _routerManagerProvider.GetRouterManagerAsync();
-                List<QueryLogEntry> entries =
-                    await routerManager.GetQueryLogAsync();
+                AdGuardQueryLogReadResult queryLogResult =
+                    await routerManager.GetQueryLogResultAsync();
 
                 if (_disposed) return;
 
+                _queryLogReadState = queryLogResult.IsAvailable
+                    ? DnsQueryLogReadState.Available
+                    : DnsQueryLogReadState.Unavailable;
+
                 ApplyEntries(
-                    entries
+                    queryLogResult.Entries
                         .Where(MatchesClient)
                         .ToList());
             }
             catch (Exception ex)
             {
                 if (_disposed) return;
+                _queryLogReadState = DnsQueryLogReadState.Unavailable;
+                NotifyDnsActivityPresentation();
                 StatusMessage = OperationFailurePolicy.UserMessage(
                     ex,
                     "Client activity refresh",
@@ -655,6 +747,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(HasRecentQueries));
             OnPropertyChanged(nameof(HasTopDomains));
             OnPropertyChanged(nameof(HasTopBlockedDomains));
+            NotifyDnsActivityPresentation();
 
             StatusMessage =
                 entries.Count switch
@@ -733,6 +826,26 @@ namespace RouterPilot.ViewModels
                 first.Trim(),
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void NotifyDnsActivityPresentation()
+        {
+            OnPropertyChanged(nameof(DnsActivityContentAvailable));
+            OnPropertyChanged(nameof(DnsActivityContextVisible));
+            OnPropertyChanged(nameof(IsDnsSummaryAvailable));
+            OnPropertyChanged(nameof(DnsActivityContextHeading));
+            OnPropertyChanged(nameof(DnsActivityAvailabilityMessage));
+            OnPropertyChanged(nameof(ActivityAvailabilityToolTip));
+            OnPropertyChanged(nameof(DnsActivityHeaderText));
+            OnPropertyChanged(nameof(DnsTotalQueriesDisplay));
+            OnPropertyChanged(nameof(DnsBlockedQueriesDisplay));
+            OnPropertyChanged(nameof(DnsBlockRateDisplay));
+            OnPropertyChanged(nameof(DnsSummaryCaption));
+            OnPropertyChanged(nameof(DnsBlockSummaryCaption));
+            OnPropertyChanged(nameof(DnsLastSeenDisplay));
+            OnPropertyChanged(nameof(RequestedDomainsEmptyMessage));
+            OnPropertyChanged(nameof(BlockedDomainsEmptyMessage));
+            OnPropertyChanged(nameof(RecentQueriesEmptyMessage));
         }
 
         private static bool HasUsefulAddress(string? address) =>
