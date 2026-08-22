@@ -77,11 +77,23 @@
                 <TextBlock Margin="0,5,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
                            ToolTip="{Binding ActivityAvailabilityToolTip}"
                            Text="{Binding DnsActivityHeaderText}"/>
-                <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
-                           ToolTip="{Binding ActivityAvailabilityToolTip}"
-                           Text="{Binding DnsActivityAvailabilityMessage}"
-                           TextWrapping="Wrap"
-                           Visibility="{Binding DnsActivityContextVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                <Grid Margin="0,3,0,0" MinHeight="32">
+                    <TextBlock FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                               ToolTip="{Binding ActivityAvailabilityToolTip}"
+                               Text="{Binding DnsActivityAvailabilityMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Hidden"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DnsActivityContextVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </StackPanel>
         </DockPanel>
 
