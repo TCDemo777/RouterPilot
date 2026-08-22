@@ -1082,14 +1082,33 @@ namespace RouterPilot.Views
             _viewModel,
             RefreshNowAsync);
 
-        public void NavigateToHealthTarget(string target)
+        public void NavigateToHealthTarget(string? target)
         {
-            if (string.Equals(target, "protection", StringComparison.OrdinalIgnoreCase))
-                Protection_Click(this, new RoutedEventArgs());
-            else if (string.Equals(target, "analytics", StringComparison.OrdinalIgnoreCase))
-                Analytics_Click(this, new RoutedEventArgs());
-            else
-                Network_Click(this, new RoutedEventArgs());
+            switch (target?.Trim().ToLowerInvariant())
+            {
+                case "overview":
+                    Overview_Click(this, new RoutedEventArgs());
+                    break;
+
+                case "clients":
+                    ShowClients();
+                    break;
+
+                case "protection":
+                    Protection_Click(this, new RoutedEventArgs());
+                    break;
+
+                case "analytics":
+                    Analytics_Click(this, new RoutedEventArgs());
+                    break;
+
+                case "network":
+                default:
+                    // Preserve the established safe destination for unknown
+                    // legacy targets without misrouting recognised targets.
+                    Network_Click(this, new RoutedEventArgs());
+                    break;
+            }
         }
 
         public void NavigateToDnsActivity()
