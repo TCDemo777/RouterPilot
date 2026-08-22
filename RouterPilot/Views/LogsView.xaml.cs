@@ -41,5 +41,9 @@ namespace RouterPilot.Views
         {
             _viewModel.Stop();
         }
+
+        public void ApplyDomainFilter(
+            string domain) =>
+            _viewModel.ApplyDomainFilter(domain);
     }
 }

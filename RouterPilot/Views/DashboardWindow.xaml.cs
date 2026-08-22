@@ -1098,6 +1098,22 @@ namespace RouterPilot.Views
             SelectNavigationButton(LogsButton);
         }
 
+        public void NavigateToDnsActivityForDomain(
+            string? domain)
+        {
+            LogsView logsView =
+                PageContent.Content as LogsView ??
+                new LogsView();
+
+            if (!string.IsNullOrWhiteSpace(domain))
+            {
+                logsView.ApplyDomainFilter(domain);
+            }
+
+            PageContent.Content = logsView;
+            SelectNavigationButton(LogsButton);
+        }
+
         public void NavigateToGlobalSearchResult(GlobalSearchResult result)
         {
             switch (result.NavigationTarget)

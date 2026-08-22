@@ -339,6 +339,13 @@
                                        Text="{Binding TopBlockedDomain}"/>
                             <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}"
                                        Text="Most frequently blocked domain"/>
+                            <Button Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{DynamicResource Button.Secondary}"
+                                    Content="View activity"
+                                    ToolTip="View matching DNS activity"
+                                    Visibility="{Binding HasTopBlockedDomain, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Click="ViewTopBlockedDomainActivity_Click"/>
                         </StackPanel>
                     </Border>
                 </Grid>

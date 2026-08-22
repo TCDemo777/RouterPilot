@@ -241,6 +241,15 @@ namespace RouterPilot.Views
             Unloaded -= AnalyticsView_Unloaded;
         }
 
+        private void ViewDomainActivity_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string domain } &&
+                Window.GetWindow(this) is DashboardWindow dashboard)
+            {
+                dashboard.NavigateToDnsActivityForDomain(domain);
+            }
+        }
+
         private void RefreshRecentHistory()
         {
             var recent = _speedTestService.RecentHistory.Take(5).ToList();

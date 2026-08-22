@@ -22,6 +22,15 @@ namespace RouterPilot.Views
         private async void ProtectionView_Loaded(object sender, RoutedEventArgs e) => await _viewModel.StartAsync();
         private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => _viewModel.Stop();
 
+        private void ViewTopBlockedDomainActivity_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel.HasTopBlockedDomain &&
+                Window.GetWindow(this) is DashboardWindow dashboard)
+            {
+                dashboard.NavigateToDnsActivityForDomain(_viewModel.TopBlockedDomain);
+            }
+        }
+
         private Expander? ScheduleEditor => FindDescendant<Expander>(this, "ScheduleEditor");
         private Expander? AllowedWindowEditor => FindDescendant<Expander>(this, "AllowedWindowEditor");
 

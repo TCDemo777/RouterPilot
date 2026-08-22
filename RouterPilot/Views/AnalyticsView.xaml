@@ -593,11 +593,12 @@
                                             </Grid.RowDefinitions>
 
                                             <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="36" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
+                                                 <Grid.ColumnDefinitions>
+                                                     <ColumnDefinition Width="36" />
+                                                     <ColumnDefinition Width="*" />
+                                                     <ColumnDefinition Width="Auto" />
+                                                     <ColumnDefinition Width="Auto" />
+                                                 </Grid.ColumnDefinitions>
 
                                                 <Border
                                                     Width="28"
@@ -763,13 +764,24 @@
                                                     Text="{Binding Name}"
                                                     TextTrimming="CharacterEllipsis" />
 
-                                                <TextBlock
-                                                    Grid.Column="2"
-                                                    VerticalAlignment="Center"
-                                                    FontWeight="SemiBold"
-                                                    Foreground="{DynamicResource Brush.Danger}"
-                                                    Text="{Binding Count, StringFormat={}{0:N0}}" />
-                                            </Grid>
+                                                 <TextBlock
+                                                     Grid.Column="2"
+                                                     VerticalAlignment="Center"
+                                                     FontWeight="SemiBold"
+                                                     Foreground="{DynamicResource Brush.Danger}"
+                                                     Text="{Binding Count, StringFormat={}{0:N0}}" />
+
+                                                 <Button
+                                                     Grid.Column="3"
+                                                     Margin="12,0,0,0"
+                                                     Padding="10,4"
+                                                     VerticalAlignment="Center"
+                                                     Style="{DynamicResource Button.Secondary}"
+                                                     Tag="{Binding Name}"
+                                                     Content="View activity"
+                                                     ToolTip="View matching DNS activity"
+                                                     Click="ViewDomainActivity_Click" />
+                                             </Grid>
 
                                             <ProgressBar
                                                 Grid.Row="2"
@@ -860,12 +872,13 @@
                                     <Grid
                                         Margin="0,0,0,15"
                                         ToolTip="{Binding Name}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="38" />
-                                            <ColumnDefinition Width="280" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="80" />
-                                        </Grid.ColumnDefinitions>
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="38" />
+                                             <ColumnDefinition Width="280" />
+                                             <ColumnDefinition Width="*" />
+                                             <ColumnDefinition Width="80" />
+                                             <ColumnDefinition Width="Auto" />
+                                         </Grid.ColumnDefinitions>
 
                                         <Border
                                             Width="28"
@@ -900,14 +913,25 @@
                                             Style="{StaticResource Leaderboard.Track}"
                                             Value="{Binding RelativePercent}" />
 
-                                        <TextBlock
-                                            Grid.Column="3"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Foreground="{DynamicResource Brush.Success}"
-                                            Text="{Binding Count, StringFormat={}{0:N0}}" />
-                                    </Grid>
+                                         <TextBlock
+                                             Grid.Column="3"
+                                             HorizontalAlignment="Right"
+                                             VerticalAlignment="Center"
+                                             FontWeight="SemiBold"
+                                             Foreground="{DynamicResource Brush.Success}"
+                                             Text="{Binding Count, StringFormat={}{0:N0}}" />
+
+                                         <Button
+                                             Grid.Column="4"
+                                             Margin="12,0,0,0"
+                                             Padding="10,4"
+                                             VerticalAlignment="Center"
+                                             Style="{DynamicResource Button.Secondary}"
+                                             Tag="{Binding Name}"
+                                             Content="View activity"
+                                             ToolTip="View matching DNS activity"
+                                             Click="ViewDomainActivity_Click" />
+                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>

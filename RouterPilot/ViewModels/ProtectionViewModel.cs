@@ -61,6 +61,7 @@ namespace RouterPilot.ViewModels
         private string _blockedQueriesText = "—";
         private string _blockPercentageText = "—";
         private string _topBlockedDomain = "No blocked domains yet";
+        private bool _hasTopBlockedDomain;
         private string _queryLogSearch = "";
         private bool _showBlockedQueriesOnly;
         private string _queryLogStatus = "Loading recent DNS activity...";
@@ -161,6 +162,7 @@ namespace RouterPilot.ViewModels
                     BlockedQueriesText = "N/A";
                     BlockPercentageText = "N/A";
                     TopBlockedDomain = "N/A";
+                    HasTopBlockedDomain = false;
                     QueryLogEntries.Clear();
                     QueryLogStatus = "DNS query information requires AdGuard Home.";
                 }
@@ -193,6 +195,7 @@ namespace RouterPilot.ViewModels
         public string BlockedQueriesText { get => _blockedQueriesText; private set => SetProperty(ref _blockedQueriesText, value); }
         public string BlockPercentageText { get => _blockPercentageText; private set => SetProperty(ref _blockPercentageText, value); }
         public string TopBlockedDomain { get => _topBlockedDomain; private set => SetProperty(ref _topBlockedDomain, value); }
+        public bool HasTopBlockedDomain { get => _hasTopBlockedDomain; private set => SetProperty(ref _hasTopBlockedDomain, value); }
         public string QueryLogSearch { get => _queryLogSearch; set { if (SetProperty(ref _queryLogSearch, value)) QueryLogView.Refresh(); } }
         public bool ShowBlockedQueriesOnly { get => _showBlockedQueriesOnly; set { if (SetProperty(ref _showBlockedQueriesOnly, value)) QueryLogView.Refresh(); } }
         public string QueryLogStatus { get => _queryLogStatus; private set => SetProperty(ref _queryLogStatus, value); }
@@ -385,6 +388,7 @@ namespace RouterPilot.ViewModels
             BlockPercentageText = statistics.BlockPercentage.ToString("0.0") + "%";
             TopBlockedDomain = statistics.TopBlockedDomains.FirstOrDefault()?.Name
                 ?? "No blocked domains yet";
+            HasTopBlockedDomain = statistics.TopBlockedDomains.Count > 0;
         }
 
 

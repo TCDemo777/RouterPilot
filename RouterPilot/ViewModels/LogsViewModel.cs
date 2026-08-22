@@ -186,6 +186,14 @@ namespace RouterPilot.ViewModels
             RefreshAvailabilityDisplays();
         }
 
+        public void ApplyDomainFilter(
+            string domain)
+        {
+            // Reuse the visible Logs search instead of adding another domain
+            // filtering implementation for cross-feature navigation.
+            SearchText = domain ?? string.Empty;
+        }
+
         [RelayCommand]
         private void TogglePause()
         {
