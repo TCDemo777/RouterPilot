@@ -29,6 +29,7 @@ namespace RouterPilot.Models
         public bool IsFavourite { get; set; }
         public string ProfileId { get; set; } = string.Empty;
         public string ScopeDisplay { get; set; } = "Unknown";
+        public bool CanViewClient => ClientIdentity.IsMacKey(MacAddress);
     }
 
     public sealed class DhcpReservationInfo
@@ -43,6 +44,7 @@ namespace RouterPilot.Models
         public bool IsFavourite { get; set; }
         public string ProfileId { get; set; } = string.Empty;
         public string ScopeDisplay { get; set; } = "Unknown";
+        public bool CanViewClient => ClientIdentity.IsMacKey(MacAddress);
     }
 
     public sealed record DhcpReservationIdentity(string MacAddress, string IpAddress, string? FriendlyName = null);

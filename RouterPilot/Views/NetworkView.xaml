@@ -722,12 +722,26 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="1.5*"/><ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="1.4*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding ClientName}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextPrimary}"/>
                                             <TextBlock Grid.Column="1" Text="{Binding IpAddress}" Foreground="{DynamicResource Brush.TextSecondary}"/>
                                             <TextBlock Grid.Column="2" Text="{Binding MacAddress}" Foreground="{DynamicResource Brush.TextMuted}"/>
                                             <TextBlock Grid.Column="3" Text="{Binding RemainingLease, Mode=OneWay}" Foreground="{DynamicResource Brush.TextSecondary}"/>
                                             <TextBlock Grid.Column="4" Text="{Binding DeviceType}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <Button Grid.Column="5" Content="View client" Padding="9,5" Margin="8,0,0,0"
+                                                    Tag="{Binding}" Click="ViewDhcpClient_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanViewClient}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -761,6 +775,18 @@
                                             <TextBlock Grid.Column="2" Text="{Binding IpAddress}" Foreground="{DynamicResource Brush.TextSecondary}"/>
                                             <TextBlock Grid.Column="3" Text="{Binding ScopeDisplay, Mode=OneWay}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
                                             <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                                <Button Content="View client" Padding="9,5" Margin="8,0,0,0" Tag="{Binding}" Click="ViewDhcpClient_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanViewClient}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
                                                 <Button Content="Edit" Padding="9,5" Margin="8,0,0,0" Style="{DynamicResource Button.Secondary}"
                                                         Tag="{Binding}" Click="EditDhcpReservation_Click"
                                                         IsEnabled="{Binding DataContext.CanManageDhcpReservations, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"/>

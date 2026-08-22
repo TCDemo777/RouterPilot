@@ -63,6 +63,26 @@ namespace RouterPilot.Views
             ShowDhcpReservationDialog(reservation);
         }
 
+        private void ViewDhcpClient_Click(object sender, RoutedEventArgs e)
+        {
+            string? macAddress = sender is FrameworkElement
+            {
+                Tag: DhcpLeaseInfo lease
+            }
+                ? lease.MacAddress
+                : sender is FrameworkElement
+                {
+                    Tag: DhcpReservationInfo reservation
+                }
+                    ? reservation.MacAddress
+                    : null;
+
+            if (!ClientIdentity.IsMacKey(macAddress)) return;
+
+            if (Window.GetWindow(this) is DashboardWindow dashboard)
+                dashboard.OpenClientDetailsForDeviceIdentity(macAddress);
+        }
+
         private async void DeleteDhcpReservation_Click(object sender, RoutedEventArgs e)
         {
             if (!CanManageDhcpReservations() || sender is not FrameworkElement { Tag: DhcpReservationInfo reservation }) return;
