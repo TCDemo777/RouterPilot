@@ -1128,10 +1128,23 @@ namespace RouterPilot.Views
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
                 case "health": NavigateToHealthTarget("network"); break;
                 case "wifi": case "dhcp": case "port-forward": case "vpn":
-                    var network = new NetworkView();
+                    var network = PageContent.Content as NetworkView ?? new NetworkView();
                     PageContent.Content = network;
                     SelectNavigationButton(NetworkButton);
-                    network.NavigateToSection(result.NavigationTarget);
+                    if (result.NavigationTarget == "dhcp" &&
+                        string.Equals(result.Category, "DHCP Reservation", StringComparison.Ordinal))
+                    {
+                        network.NavigateToDhcpReservation(result.EntityId);
+                    }
+                    else if (result.NavigationTarget == "port-forward" &&
+                             string.Equals(result.Category, "Port Forward", StringComparison.Ordinal))
+                    {
+                        network.NavigateToPortForwardRule(result.EntityId);
+                    }
+                    else
+                    {
+                        network.NavigateToSection(result.NavigationTarget);
+                    }
                     break;
             }
         }

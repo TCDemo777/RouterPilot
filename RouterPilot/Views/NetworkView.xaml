@@ -48,6 +48,35 @@
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
         </Style>
+
+        <Style x:Key="Network.SearchTargetRow" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource Radius.Small}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource Brush.PrimarySubtle}"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource Brush.PrimarySubtleBorder}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -715,8 +744,14 @@
                             <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Active leases"/>
                             <TextBlock Margin="0,5,0,12" Style="{DynamicResource Text.Secondary}"
                                        Text="Devices currently listed by the router DHCP lease table."/>
-                            <ItemsControl ItemsSource="{Binding DhcpLeases}">
-                                <ItemsControl.ItemTemplate>
+                            <ListBox x:Name="DhcpLeasesList"
+                                     ItemsSource="{Binding DhcpLeases}"
+                                     ItemContainerStyle="{StaticResource Network.SearchTargetRow}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,5">
                                             <Grid.ColumnDefinitions>
@@ -744,8 +779,8 @@
                                             </Button>
                                         </Grid>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                             <TextBlock Margin="0,4,0,0" Text="No active DHCP leases.">
                                 <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="FontWeight" Value="Normal"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasDhcpLeases, Mode=OneWay}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
@@ -765,8 +800,14 @@
                                        Text="Configured DHCP host reservations."/>
                             <TextBlock Margin="0,0,0,8" Foreground="{DynamicResource Brush.TextSecondary}" Text="Pending…"
                                        Visibility="{Binding DhcpReservationMutationInProgress, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
-                            <ItemsControl ItemsSource="{Binding DhcpReservations}">
-                                <ItemsControl.ItemTemplate>
+                            <ListBox x:Name="DhcpReservationsList"
+                                     ItemsSource="{Binding DhcpReservations}"
+                                     ItemContainerStyle="{StaticResource Network.SearchTargetRow}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,5">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="1.4*"/><ColumnDefinition Width="1.35*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -796,8 +837,8 @@
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                             <TextBlock Margin="0,4,0,0" Text="No static DHCP reservations configured.">
                                 <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="FontWeight" Value="Normal"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasDhcpReservations, Mode=OneWay}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
@@ -818,8 +859,14 @@
                             </Grid>
                             <TextBlock Text="{Binding PortForwardStatus, Mode=OneWay}" Foreground="{DynamicResource Brush.TextMuted}"/>
                             <TextBlock Margin="0,10,0,0" Text="Loading port forwarding rules…" Visibility="{Binding PortForwardIsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            <ItemsControl ItemsSource="{Binding PortForwardRules}">
-                                <ItemsControl.ItemTemplate>
+                            <ListBox x:Name="PortForwardRulesList"
+                                     ItemsSource="{Binding PortForwardRules}"
+                                     ItemContainerStyle="{StaticResource Network.SearchTargetRow}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Border Margin="0,10,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="8">
                                             <StackPanel>
@@ -855,8 +902,8 @@
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                             <Border Margin="0,12,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8"><TextBlock Text="No port forwarding rules are configured."><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding PortForwardRules.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Border>
                         </StackPanel>
                     </Border>

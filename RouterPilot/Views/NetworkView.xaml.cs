@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -49,6 +50,42 @@ namespace RouterPilot.Views
                 _ => 0
             };
             UpdateNetworkTabVisibility();
+        }
+
+        public void NavigateToDhcpReservation(string? deviceIdentity)
+        {
+            NavigateToSection("dhcp");
+            string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
+            if (!ClientIdentity.IsMacKey(macKey)) return;
+
+            SelectAndBringIntoView(
+                DhcpReservationsList,
+                () => (DataContext as DashboardViewModel)?.DhcpReservations
+                    .FirstOrDefault(item => ClientIdentity.MacEquals(item.MacAddress, macKey)));
+        }
+
+        public void NavigateToPortForwardRule(string? ruleId)
+        {
+            NavigateToSection("port-forward");
+            if (string.IsNullOrWhiteSpace(ruleId)) return;
+
+            SelectAndBringIntoView(
+                PortForwardRulesList,
+                () => (DataContext as DashboardViewModel)?.PortForwardRules
+                    .FirstOrDefault(item => string.Equals(item.Id, ruleId, StringComparison.Ordinal)));
+        }
+
+        private void SelectAndBringIntoView(ListBox list, Func<object?> resolveTarget)
+        {
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                object? target = resolveTarget();
+                if (target is null) return;
+
+                list.SelectedItem = target;
+                if (list.ItemContainerGenerator.ContainerFromItem(target) is FrameworkElement container)
+                    container.BringIntoView();
+            }, DispatcherPriority.Loaded);
         }
 
         private void AddDhcpReservation_Click(object sender, RoutedEventArgs e)
