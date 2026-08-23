@@ -32,7 +32,7 @@ namespace RouterPilot.Views
             _dataStatistics = dataStatistics;
             _metricHistoryService = ((App)Application.Current).Services.GetRequiredService<IMetricHistoryService>();
             DataContext = _dashboard;
-            DataStatisticsPanel.DataContext = _dataStatistics;
+            DataStatisticsContent.DataContext = _dataStatistics;
             SpeedTestPanel.DataContext = _speedTestService;
             _speedTestService.PropertyChanged += SpeedTestService_PropertyChanged;
             Unloaded += AnalyticsView_Unloaded;
@@ -51,7 +51,6 @@ namespace RouterPilot.Views
             {
                 // Selecting this tab is the intentional activation point for the
                 // existing idempotent Data Statistics lazy load.
-                DataStatisticsPanel.IsExpanded = true;
                 await _dataStatistics.EnsureLoadedAsync();
             }
         }
@@ -272,11 +271,6 @@ namespace RouterPilot.Views
             _speedTestService.PropertyChanged -= SpeedTestService_PropertyChanged;
             Unloaded -= AnalyticsView_Unloaded;
             _dataStatistics.Dispose();
-        }
-
-        private async void DataStatistics_Expanded(object sender, RoutedEventArgs e)
-        {
-            await _dataStatistics.EnsureLoadedAsync();
         }
 
         private void TopApplication_Click(object sender, RoutedEventArgs e)

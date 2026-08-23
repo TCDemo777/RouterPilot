@@ -96,17 +96,7 @@
 
             <StackPanel x:Name="DataStatisticsContent" Visibility="Collapsed">
             <Border Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
-            <Expander x:Name="DataStatisticsPanel"
-                      Expanded="DataStatistics_Expanded">
-                <Expander.Header>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Data Statistics" />
-                        <TextBlock Margin="0,4,0,0"
-                                   Style="{StaticResource Text.Secondary}"
-                                   Text="Application traffic classified by the router's DPI engine" />
-                    </StackPanel>
-                </Expander.Header>
-                <StackPanel Margin="0,16,0,0">
+                <StackPanel>
                     <Grid Margin="0,0,0,14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -351,7 +341,6 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </Expander>
             </Border>
             </StackPanel>
 
