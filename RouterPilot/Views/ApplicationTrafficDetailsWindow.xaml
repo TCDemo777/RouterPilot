@@ -1,0 +1,30 @@
+<Window x:Class="RouterPilot.Views.ApplicationTrafficDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RouterPilot.Converters"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="Application traffic" Width="980" Height="680" MinWidth="760" MinHeight="500"
+        Background="{DynamicResource Brush.WindowBackground}" Foreground="{DynamicResource Brush.TextPrimary}">
+    <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="180"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock Style="{DynamicResource Text.PageTitle}" Text="{Binding Label}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding ApplicationName}"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding Detail.Description}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding Detail.Url}"/></StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                <Button Style="{DynamicResource Button.Secondary}" Content="Refresh" Command="{Binding RefreshCommand}"/>
+                <TextBlock Margin="0,14,0,3" HorizontalAlignment="Right" Style="{DynamicResource Text.CardCaption}" Text="PROTECTION"/>
+                <TextBlock HorizontalAlignment="Right" Text="{Binding ProtectionState}"/>
+                <Button Margin="0,6,0,0" Style="{DynamicResource Button.Secondary}" Content="{Binding ProtectionActionText}" IsEnabled="{Binding CanChangeProtection}" Click="ChangeProtection_Click"/>
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Row="1" Margin="0,16,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="PERIOD"/><TextBlock Margin="0,3,0,0" Text="{Binding Period}"/></StackPanel>
+            <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DOWNLOADED"/><TextBlock Margin="0,3,0,0" Text="{Binding Download}"/></StackPanel>
+            <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="UPLOADED"/><TextBlock Margin="0,3,0,0" Text="{Binding Upload}"/></StackPanel>
+            <StackPanel Grid.Column="3"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TOTAL TRAFFIC"/><TextBlock Margin="0,3,0,0" Text="{Binding Total}"/></StackPanel>
+        </Grid>
+        <lvc:CartesianChart Grid.Row="2" Background="Transparent" Series="{Binding TrafficSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}"/>
+        <Grid Grid.Row="3" Margin="0,14,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" Style="{DynamicResource Text.SectionTitle}" Text="Devices using this application"/><TextBox Grid.Column="1" Padding="9,6" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search devices"/></Grid>
+        <Grid Grid.Row="4"><DataGrid AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True" CanUserSortColumns="True" ItemsSource="{Binding DevicesView}" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" Foreground="{DynamicResource Brush.TextPrimary}"><DataGrid.Columns>
+            <DataGridTextColumn Width="*" Header="Device" Binding="{Binding FriendlyName}" SortMemberPath="FriendlyName"/><DataGridTextColumn Width="115" Header="IP" Binding="{Binding CurrentIp}" SortMemberPath="CurrentIp"/><DataGridTextColumn Width="150" Header="MAC" Binding="{Binding MacDisplay}" SortMemberPath="MacDisplay"/><DataGridTextColumn Width="105" Header="Download" Binding="{Binding DownloadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="DownloadBytes"/><DataGridTextColumn Width="105" Header="Upload" Binding="{Binding UploadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="UploadBytes"/><DataGridTextColumn Width="105" Header="Total" Binding="{Binding TotalBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="TotalBytes"/><DataGridTextColumn Width="135" Header="Last Seen" Binding="{Binding LastSeenDisplay}" SortMemberPath="LastSeenUtc"/><DataGridTemplateColumn Width="95" Header="Action"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="View client" Tag="{Binding StableMacKey}" Click="ViewClient_Click" Style="{DynamicResource Button.Secondary}" Padding="7,3" Visibility="{Binding CanViewClient, Converter={StaticResource BooleanToVisibilityConverter}}"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+        </DataGrid.Columns></DataGrid><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="{Binding StatusMessage}" TextWrapping="Wrap"/></Grid>
+    </Grid>
+</Window>

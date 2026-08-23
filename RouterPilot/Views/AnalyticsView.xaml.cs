@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -250,16 +251,28 @@ namespace RouterPilot.Views
             await _dataStatistics.EnsureLoadedAsync();
         }
 
-        private async void TopApplication_Click(object sender, RoutedEventArgs e)
+        private void TopApplication_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { Tag: ApplicationTrafficStat app })
-                await _dataStatistics.OpenApplicationDetailAsync(app.ApplicationId, app.ApplicationName);
+                OpenApplicationTrafficDetails(app.ApplicationId, app.ApplicationName);
         }
 
-        private async void AllApplications_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void AllApplications_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is DataGrid { SelectedItem: ApplicationTrafficRow app })
-                await _dataStatistics.OpenApplicationDetailAsync(app.ApplicationId, app.ApplicationName);
+                OpenApplicationTrafficDetails(app.ApplicationId, app.ApplicationName);
+        }
+
+        private void OpenApplicationTrafficDetails(string applicationId, string applicationName)
+        {
+            if (string.IsNullOrWhiteSpace(applicationId) || string.IsNullOrWhiteSpace(applicationName))
+                return;
+
+            var window = new ApplicationTrafficDetailsWindow(applicationId, applicationName)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            window.ShowDialog();
         }
 
         private async void RefreshApplicationDetail_Click(object sender, RoutedEventArgs e)

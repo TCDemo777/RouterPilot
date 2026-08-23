@@ -99,6 +99,12 @@ Require(detailSnapshot.Devices.Count == 3, "MAC dictionary or malformed device h
 Require(detailSnapshot.Devices.Count(device => device.CanViewClient) == 2, "MAC normalization did not retain valid MAC keys.");
 Require(detailSnapshot.Devices.First(device => device.Hostname == string.Empty && device.CanViewClient).PacketCount is null, "Missing device packets were not tolerated.");
 Require(ClientIdentity.NormalizeMac("aa-bb-cc-dd-ee-ff") == "AABBCCDDEEFF", "ClientIdentity MAC normalization failed.");
+Require(ApplicationProtectionVerification.Matches(detailSnapshot, false), "Block verification should accept the requested unblocked state.");
+Require(!ApplicationProtectionVerification.Matches(detailSnapshot, true), "Verification mismatch should not report success.");
+
+var blockedDetail = new ApplicationTrafficDetail { ApplicationId = "0", ApplicationName = "example_protocol", IsBlocked = true };
+Require(ApplicationProtectionVerification.Matches(blockedDetail, true), "Block verification should accept the requested blocked state.");
+Require(!ApplicationProtectionVerification.Matches(null, true), "Missing read-back detail should not report success.");
 
 using JsonDocument emptyDetail = JsonDocument.Parse("""{ "application_id": "app", "application_name": "example", "mac_addresses": {} }""");
 Require(DataStatisticsParser.ParseApplicationDetail(emptyDetail.RootElement).Devices.Count == 0, "Empty detail devices were not tolerated.");

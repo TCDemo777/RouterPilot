@@ -22,6 +22,7 @@ namespace RouterPilot.ViewModels
         private readonly IClientPresenceHistoryService _presenceHistory;
         private readonly IDataFreshnessService _dataFreshnessService;
         private readonly ClientInventoryState _clientInventoryState;
+        private readonly ClientInventoryCoordinator _clientInventoryCoordinator;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -127,7 +128,8 @@ namespace RouterPilot.ViewModels
             FavouriteDeviceMonitoringService favouriteDeviceMonitoring,
             IClientPresenceHistoryService presenceHistory,
             IDataFreshnessService dataFreshnessService,
-            ClientInventoryState clientInventoryState)
+            ClientInventoryState clientInventoryState,
+            ClientInventoryCoordinator clientInventoryCoordinator)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
@@ -137,6 +139,7 @@ namespace RouterPilot.ViewModels
             _presenceHistory = presenceHistory;
             _dataFreshnessService = dataFreshnessService;
             _clientInventoryState = clientInventoryState;
+            _clientInventoryCoordinator = clientInventoryCoordinator;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -161,6 +164,17 @@ namespace RouterPilot.ViewModels
 
             try
             {
+                if (await _clientInventoryCoordinator.EnsureAuthoritativeInventoryAsync())
+                {
+                    string? sharedSelectedKey = SelectedClient is null ? null : ClientKey(SelectedClient);
+                    _allClients.Clear();
+                    _allClients.AddRange(_clientInventoryState.Snapshot.Values);
+                    ApplyFilterAndSort(sharedSelectedKey);
+                    _dataFreshnessService.MarkSuccess("Clients");
+                    StatusMessage = string.Empty;
+                    return;
+                }
+
                 RouterManager routerManager =
                     await _routerManagerProvider.GetRouterManagerAsync();
 
@@ -252,6 +266,7 @@ namespace RouterPilot.ViewModels
                 _allClients.Clear();
                 _allClients.AddRange(clients);
                 _clientInventoryState.Update(_allClients);
+                _clientInventoryCoordinator.MarkAuthoritativelyLoaded();
 
                 ApplyFilterAndSort(selectedKey);
                 SaveProfiles();

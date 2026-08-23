@@ -66,6 +66,29 @@ public partial class RouterManager
         return DataStatisticsParser.ParseApplicationDetail(GetDataStatisticsResult(document));
     }
 
+    public async Task SetApplicationContentProtectionAsync(
+        string applicationName, bool blocked, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
+
+        string sessionId = await _sessionService.GetAdminTokenAsync(cancellationToken);
+        using JsonDocument document = await _sessionService.CallAsync(
+            sessionId,
+            "dpi",
+            "mod_app_content_protection",
+            new { action = blocked ? "add" : "del", app = applicationName },
+            cancellationToken);
+
+        if (document.RootElement.TryGetProperty("error", out JsonElement error))
+        {
+            int? code = error.TryGetProperty("code", out JsonElement codeElement) &&
+                codeElement.TryGetInt32(out int numericCode)
+                ? numericCode
+                : null;
+            throw new DataStatisticsRpcException(code);
+        }
+    }
+
     private static JsonElement GetDataStatisticsResult(JsonDocument document)
     {
         JsonElement root = document.RootElement;

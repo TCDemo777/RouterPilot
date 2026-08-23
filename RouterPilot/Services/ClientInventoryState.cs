@@ -21,4 +21,22 @@ public sealed class ClientInventoryState
         }
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// Adds clients observed by an existing application-level router snapshot
+    /// without replacing the richer Clients-page reconciliation when it exists.
+    /// </summary>
+    public void AddMissing(IEnumerable<ClientInfo> clients)
+    {
+        bool changed = false;
+        foreach (ClientInfo client in clients)
+        {
+            string mac = ClientIdentity.NormalizeHexMac(client.MacAddress);
+            if (mac.Length != 12 || _clients.ContainsKey(mac)) continue;
+            _clients[mac] = client;
+            changed = true;
+        }
+
+        if (changed) Changed?.Invoke(this, EventArgs.Empty);
+    }
 }

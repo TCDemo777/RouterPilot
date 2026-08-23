@@ -8,6 +8,7 @@ namespace RouterPilot.Services;
 public sealed class DataStatisticsService
 {
     private readonly IRouterManagerProvider _routerManagerProvider;
+    private readonly SemaphoreSlim _applicationProtectionGate = new(1, 1);
 
     public DataStatisticsService(IRouterManagerProvider routerManagerProvider)
     {
@@ -133,6 +134,65 @@ public sealed class DataStatisticsService
         catch (DataStatisticsRpcException)
         {
             return new ApplicationTrafficDetailReadResult { Availability = ApplicationTrafficDetailAvailability.TemporarilyUnavailable };
+        }
+    }
+
+    public async Task<ApplicationProtectionMutationResult> SetApplicationContentProtectionAsync(
+        string applicationId, string applicationName, bool blocked, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId) || string.IsNullOrWhiteSpace(applicationName))
+            return new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.InvalidApplication };
+
+        if (!await _applicationProtectionGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            return new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.Busy };
+
+        bool writeAccepted = false;
+        try
+        {
+            RouterManager routerManager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await routerManager.SetApplicationContentProtectionAsync(applicationName, blocked, cancellationToken).ConfigureAwait(false);
+                writeAccepted = true;
+            }
+            catch (DataStatisticsRpcException exception) when (exception.IsMethodOrServiceUnavailable)
+            {
+                return new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.Unsupported };
+            }
+            catch (DataStatisticsRpcException)
+            {
+                return new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.WriteFailed };
+            }
+
+            ApplicationTrafficDetail detail;
+            try
+            {
+                detail = await routerManager.GetAppFlowStatisticsAsync(applicationId, applicationName, cancellationToken).ConfigureAwait(false);
+            }
+            catch (DataStatisticsRpcException)
+            {
+                return new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.VerificationFailed };
+            }
+            return ApplicationProtectionVerification.Matches(detail, blocked)
+                ? new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.Succeeded, VerifiedDetail = detail }
+                : new ApplicationProtectionMutationResult { Availability = ApplicationProtectionMutationAvailability.VerificationFailed };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return new ApplicationProtectionMutationResult
+            {
+                Availability = writeAccepted
+                    ? ApplicationProtectionMutationAvailability.VerificationFailed
+                    : ApplicationProtectionMutationAvailability.WriteFailed
+            };
+        }
+        finally
+        {
+            _applicationProtectionGate.Release();
         }
     }
 }

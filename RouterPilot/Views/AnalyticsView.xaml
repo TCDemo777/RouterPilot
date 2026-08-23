@@ -144,9 +144,14 @@
                                             YAxes="{Binding TrafficYAxes}" />
                     </Border>
 
-                    <TextBlock Margin="0,0,0,10"
-                               Style="{StaticResource Text.SectionTitle}"
-                               Text="Top applications" />
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Style="{StaticResource Text.SectionTitle}"
+                                   Text="Top applications" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Style="{StaticResource Text.Muted}"
+                                   TextWrapping="Wrap"
+                                   Text="Select an application to view traffic details and devices using it." />
+                    </StackPanel>
                     <Grid Margin="0,0,0,6"
                           Visibility="{Binding HasTopApps, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid.ColumnDefinitions>
@@ -166,6 +171,15 @@
                             <DataTemplate>
                                 <Border Padding="0,8" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0"
                                         Tag="{Binding}" Cursor="Hand" MouseLeftButtonUp="TopApplication_Click">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.SurfaceMuted}" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -193,6 +207,10 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Style="{StaticResource Text.SectionTitle}" Text="All Applications" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Style="{StaticResource Text.Muted}"
+                                       TextWrapping="Wrap"
+                                       Text="Select an application to view traffic details and devices using it." />
                             <TextBlock Margin="0,4,0,0"
                                        Style="{StaticResource Text.Muted}"
                                        Text="{Binding FullTablePeriod, StringFormat=Current period: {0}}" />
@@ -259,7 +277,7 @@
                               Background="{DynamicResource Brush.SurfaceMuted}"
                               BorderBrush="{DynamicResource Brush.Border}"
                               Foreground="{DynamicResource Brush.TextPrimary}"
-                              SelectionChanged="AllApplications_SelectionChanged"
+                              MouseDoubleClick="AllApplications_MouseDoubleClick"
                               Visibility="{Binding HasAllApplications, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="*" Header="Application" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" />

@@ -643,6 +643,7 @@ namespace RouterPilot.Views
 
                 Debug.Assert(wifiRadios.Count > 0);
                 _viewModel.UpdateWifiRadios(wifiRadios);
+                SeedClientInventoryFromWifi(wifiRadios);
                 _dataFreshnessService.MarkSuccess(WifiFreshnessSource);
                 _viewModel.WifiRefreshError = string.Empty;
                 Debug.WriteLine(
@@ -754,6 +755,35 @@ namespace RouterPilot.Views
         private void ResetTrafficStatistics()
         {
             _trafficAccumulator.Reset();
+        }
+
+        private static void SeedClientInventoryFromWifi(IEnumerable<WifiRadioInfo> radios)
+        {
+            var observedClients = radios.SelectMany(radio => radio.Clients.Select(client => new
+            {
+                Client = client,
+                Ssid = WifiClientInfo.Useful(client.Ssid) ? client.Ssid : radio.Ssid,
+                Band = WifiClientInfo.Useful(client.Band) ? client.Band : radio.Band,
+                Interface = WifiClientInfo.Useful(client.Interface) ? client.Interface : radio.Interface
+            }))
+            .Where(item => ClientIdentity.IsMacKey(item.Client.MacAddress))
+            .Select(item => new ClientInfo
+            {
+                Name = WifiClientInfo.Useful(item.Client.Name) ? item.Client.Name : "Unknown device",
+                RouterName = WifiClientInfo.Useful(item.Client.Name) ? item.Client.Name : "Unknown device",
+                MacAddress = item.Client.MacAddress,
+                IpAddress = item.Client.IpAddress,
+                ConnectionType = item.Band,
+                WifiNetwork = item.Ssid,
+                SignalStrength = item.Client.Signal,
+                LiveInterface = item.Interface,
+                AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable,
+                QueryLogAvailable = false
+            });
+
+            ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryState>()
+                .AddMissing(observedClients);
         }
 
         private void UpdateNetworkTraffic(
@@ -1208,7 +1238,7 @@ namespace RouterPilot.Views
 
             if (inventory.Snapshot.TryGetValue(macKey, out ClientInfo? liveClient))
             {
-                OpenClientDetailsFromGlobalSearch(liveClient);
+                OpenClientDetailsForResolvedClient(liveClient);
                 return true;
             }
 
@@ -1218,15 +1248,35 @@ namespace RouterPilot.Views
             if (profile is not null)
             {
                 var known = new KnownDeviceInfo { Profile = profile };
-                OpenClientDetailsFromGlobalSearch(known.ToClientInfo(), allowLiveRefresh: false);
+                OpenClientDetailsForResolvedClient(known.ToClientInfo(), allowLiveRefresh: false);
                 return true;
             }
 
             return false;
         }
 
-        private void OpenClientDetailsFromGlobalSearch(ClientInfo client, bool allowLiveRefresh = true)
+        /// <summary>Ensures the existing shared client reconciliation once before resolving a deep link.</summary>
+        public async Task<bool> OpenClientDetailsForDeviceIdentityAsync(string? deviceIdentity)
         {
+            string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
+            if (!ClientIdentity.IsMacKey(macKey)) return false;
+
+            ClientInventoryCoordinator coordinator = ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryCoordinator>();
+            if (!coordinator.IsAuthoritativelyLoaded &&
+                !await coordinator.EnsureAuthoritativeInventoryAsync())
+            {
+                // Preserve the existing profile-only fallback without opening a blank window.
+                return OpenClientDetailsForDeviceIdentity(macKey);
+            }
+
+            return OpenClientDetailsForDeviceIdentity(macKey);
+        }
+
+        /// <summary>Opens Client Details from an already-authoritative client record.</summary>
+        public void OpenClientDetailsForResolvedClient(ClientInfo client, bool allowLiveRefresh = true)
+        {
+            ArgumentNullException.ThrowIfNull(client);
             new ClientDetailsWindow(client, allowLiveRefresh) { Owner = this }.ShowDialog();
         }
 

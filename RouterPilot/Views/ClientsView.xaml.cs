@@ -444,12 +444,6 @@ namespace RouterPilot.Views
 
         private void OpenClientDetails(ClientInfo client)
         {
-            var window =
-                new ClientDetailsWindow(client)
-                {
-                    Owner = Window.GetWindow(this)
-                };
-
             // Keep the card list stable while the user is viewing or editing
             // the selected client. Automatic refresh resumes when the details
             // window closes.
@@ -458,7 +452,10 @@ namespace RouterPilot.Views
 
             try
             {
-                window.ShowDialog();
+                if (Window.GetWindow(this) is DashboardWindow dashboard)
+                    dashboard.OpenClientDetailsForResolvedClient(client);
+                else
+                    new ClientDetailsWindow(client) { Owner = Window.GetWindow(this) }.ShowDialog();
             }
             finally
             {

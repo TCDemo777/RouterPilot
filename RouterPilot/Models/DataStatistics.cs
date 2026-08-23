@@ -128,6 +128,45 @@ public sealed class ApplicationDeviceTraffic
         : LastActiveRelative;
 }
 
+public sealed class ApplicationTrafficDeviceRow
+{
+    public string StableMacKey { get; init; } = string.Empty;
+    public string MacDisplay { get; init; } = string.Empty;
+    public string FriendlyName { get; init; } = "Unknown device";
+    public string CurrentIp { get; init; } = "—";
+    public string RouterHostname { get; init; } = string.Empty;
+    public long DownloadBytes { get; init; }
+    public long UploadBytes { get; init; }
+    public long TotalBytes { get; init; }
+    public long? PacketCount { get; init; }
+    public DateTimeOffset? LastSeenUtc { get; init; }
+    public string LastSeenFallback { get; init; } = string.Empty;
+    public bool CanViewClient => ClientIdentity.IsMacKey(StableMacKey);
+    public string LastSeenDisplay => LastSeenUtc is { } time ? time.LocalDateTime.ToString("g") : LastSeenFallback;
+}
+
+public enum ApplicationProtectionMutationAvailability
+{
+    Succeeded,
+    Busy,
+    InvalidApplication,
+    Unsupported,
+    WriteFailed,
+    VerificationFailed
+}
+
+public sealed class ApplicationProtectionMutationResult
+{
+    public ApplicationProtectionMutationAvailability Availability { get; init; }
+    public ApplicationTrafficDetail? VerifiedDetail { get; init; }
+}
+
+public static class ApplicationProtectionVerification
+{
+    public static bool Matches(ApplicationTrafficDetail? detail, bool expectedBlocked) =>
+        detail is not null && detail.IsBlocked == expectedBlocked;
+}
+
 public enum ApplicationTrafficDetailAvailability
 {
     Available,
