@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +22,9 @@ namespace RouterPilot.Views
         private readonly IPortForwardService _portForwardService;
         private readonly IPublicIpService _publicIpService;
         private readonly VpnView _vpnView;
+        private DashboardViewModel? _portForwardRulesOwner;
         private bool _maintenanceInProgress;
+        private bool _showPortForwardAttentionOnly;
 
         public NetworkView()
         {
@@ -36,6 +39,9 @@ namespace RouterPilot.Views
             _publicIpService = ((App)Application.Current).Services.GetRequiredService<IPublicIpService>();
             _vpnView = new VpnView(embedded: true);
             VpnContent.Content = _vpnView;
+            Loaded += NetworkView_Loaded;
+            Unloaded += NetworkView_Unloaded;
+            DataContextChanged += NetworkView_DataContextChanged;
             UpdateNetworkTabVisibility();
         }
 
@@ -67,12 +73,80 @@ namespace RouterPilot.Views
         public void NavigateToPortForwardRule(string? ruleId)
         {
             NavigateToSection("port-forward");
+            ShowAllPortForwardRules();
             if (string.IsNullOrWhiteSpace(ruleId)) return;
 
             SelectAndBringIntoView(
                 PortForwardRulesList,
                 () => (DataContext as DashboardViewModel)?.PortForwardRules
                     .FirstOrDefault(item => string.Equals(item.Id, ruleId, StringComparison.Ordinal)));
+        }
+
+        private void NetworkView_Loaded(object sender, RoutedEventArgs e)
+        {
+            AttachPortForwardRuleViewUpdates();
+            RefreshPortForwardRuleFilter();
+        }
+
+        private void NetworkView_Unloaded(object sender, RoutedEventArgs e) => DetachPortForwardRuleViewUpdates();
+
+        private void NetworkView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            DetachPortForwardRuleViewUpdates();
+            AttachPortForwardRuleViewUpdates();
+            RefreshPortForwardRuleFilter();
+        }
+
+        private void AttachPortForwardRuleViewUpdates()
+        {
+            if (_portForwardRulesOwner is not null || DataContext is not DashboardViewModel viewModel) return;
+
+            _portForwardRulesOwner = viewModel;
+            viewModel.PropertyChanged += PortForwardRulesOwner_PropertyChanged;
+        }
+
+        private void DetachPortForwardRuleViewUpdates()
+        {
+            if (_portForwardRulesOwner is not null)
+                _portForwardRulesOwner.PropertyChanged -= PortForwardRulesOwner_PropertyChanged;
+            _portForwardRulesOwner = null;
+        }
+
+        private void PortForwardRulesOwner_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(DashboardViewModel.PortForwardRules))
+                RefreshPortForwardRuleFilter();
+        }
+
+        private void PortForwardFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _showPortForwardAttentionOnly = PortForwardFilterComboBox.SelectedIndex == 1;
+            RefreshPortForwardRuleFilter();
+        }
+
+        private void ShowAllPortForwardRules()
+        {
+            if (!_showPortForwardAttentionOnly) return;
+
+            PortForwardFilterComboBox.SelectedIndex = 0;
+        }
+
+        private void RefreshPortForwardRuleFilter()
+        {
+            if (PortForwardRulesList is null) return;
+
+            object? selectedRule = PortForwardRulesList.SelectedItem;
+            PortForwardRulesList.Items.Filter = item => item is PortForwardRuleInfo rule &&
+                (!_showPortForwardAttentionOnly || rule.TargetStatusSeverity is "Warning" or "Critical");
+            PortForwardRulesList.Items.Refresh();
+
+            if (selectedRule is not null && !PortForwardRulesList.Items.Contains(selectedRule))
+                PortForwardRulesList.SelectedItem = null;
+
+            bool hasRules = DataContext is DashboardViewModel { PortForwardRules.Count: > 0 };
+            NoPortForwardAttentionRulesState.Visibility = _showPortForwardAttentionOnly && hasRules && PortForwardRulesList.Items.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void SelectAndBringIntoView(ListBox list, Func<object?> resolveTarget)

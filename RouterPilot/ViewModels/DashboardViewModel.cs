@@ -992,13 +992,16 @@ namespace RouterPilot.ViewModels
             ReevaluatePortForwardIntelligence();
         }
 
-        public void ReevaluatePortForwardIntelligence() =>
+        public void ReevaluatePortForwardIntelligence()
+        {
             PortForwardRuleIntelligence.Evaluate(
                 PortForwardRules,
                 DhcpLeases,
                 DhcpReservations,
                 WifiNetworks,
                 DhcpLoaded);
+            OnPropertyChanged(nameof(PortForwardRules));
+        }
 
         private static void ApplyDhcpProfileCorrelation(
             IEnumerable<DhcpLeaseInfo> leases,

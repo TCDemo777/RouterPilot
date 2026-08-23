@@ -858,6 +858,16 @@
                                 <Button Grid.Column="2" Content="Add Port Forward" Margin="8,0,0,0" Click="AddPortForward_Click" IsEnabled="{Binding PortForwardingWriteSupported, Mode=OneWay}"/>
                             </Grid>
                             <TextBlock Text="{Binding PortForwardStatus, Mode=OneWay}" Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="Show:"/>
+                                <ComboBox x:Name="PortForwardFilterComboBox"
+                                          MinWidth="150"
+                                          SelectedIndex="0"
+                                          SelectionChanged="PortForwardFilter_SelectionChanged">
+                                    <ComboBoxItem Content="All"/>
+                                    <ComboBoxItem Content="Needs attention"/>
+                                </ComboBox>
+                            </StackPanel>
                             <TextBlock Margin="0,10,0,0" Text="Loading port forwarding rules…" Visibility="{Binding PortForwardIsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <ListBox x:Name="PortForwardRulesList"
                                      ItemsSource="{Binding PortForwardRules}"
@@ -905,6 +915,9 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <Border Margin="0,12,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8"><TextBlock Text="No port forwarding rules are configured."><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding PortForwardRules.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Border>
+                            <Border x:Name="NoPortForwardAttentionRulesState" Margin="0,12,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
+                                <TextBlock Style="{DynamicResource Network.Value}" FontWeight="Normal" Text="No port forwarding rules need attention."/>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </StackPanel>
