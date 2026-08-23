@@ -1,6 +1,7 @@
 <UserControl x:Class="RouterPilot.Views.ProtectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
              Background="{DynamicResource Brush.WindowBackground}">
     <UserControl.Resources>
         <Style x:Key="Protection.ActionButton"
@@ -179,9 +180,10 @@
                     Command="{Binding RefreshAllCommand}"/>
         </Grid>
 
-        <TabControl Grid.Row="2" Margin="24,0,0,0"
-                    Style="{StaticResource RouterPilotTabControlStyle}"
-                    ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}">
+        <TabControl x:Name="ProtectionTabs" Grid.Row="2" Margin="24,0,0,0"
+                     Style="{StaticResource RouterPilotTabControlStyle}"
+                     ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
+                     SelectionChanged="ProtectionTabs_SelectionChanged">
             <TabControl.Resources>
                 <DataTemplate x:Key="ProtectionTab.Core">
                     <StackPanel>
@@ -284,8 +286,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Live AdGuard statistics -->
-                <Grid Margin="0,0,0,16">
+                <!-- Read-only statistics are presented on the Insights tab. -->
+                <Grid Margin="0,0,0,16" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="12"/>
@@ -806,6 +808,57 @@
                 </Border>
                 </DataTemplate>
 
+                <DataTemplate x:Key="ProtectionTab.ConfigurationDetails">
+                    <Border Margin="0,0,0,16" Padding="14" Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Configuration details"/>
+                            <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}"
+                                       Text="Read-only context reported by AdGuard Home."/>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="FILTERING"/>
+                                    <Grid Margin="0,6,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="State"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding FilteringStateDisplay}"/>
+                                    </Grid>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Filter update interval"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding FilteringUpdateIntervalDisplay}"/>
+                                    </Grid>
+                                    <TextBlock Margin="0,16,0,0" Style="{DynamicResource Text.CardCaption}" Text="QUERY LOG"/>
+                                    <Grid Margin="0,6,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="State"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding QueryLogStateDisplay}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Client IP anonymization"/><TextBlock Grid.Column="1" FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="Off"/><Style.Triggers><DataTrigger Binding="{Binding QueryLogAnonymizeClientIp}" Value="True"><Setter Property="Text" Value="On"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Retention"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding QueryLogRetentionDisplay}"/>
+                                    </Grid>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Ignored entries"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding IgnoredQueryLogEntryCount, StringFormat={}{0:N0}}"/>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="PROTECTION SERVICES"/>
+                                    <Grid Margin="0,6,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Safe Browsing"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeBrowsingStateDisplay}"/></Grid>
+                                    <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Parental protection"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding ParentalStateDisplay}"/></Grid>
+                                    <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Safe Search"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchStateDisplay}"/></Grid>
+                                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="SAFE SEARCH SERVICES"/>
+                                    <UniformGrid Columns="2" Margin="0,6,0,0">
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Bing"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchBingDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="DuckDuckGo"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchDuckDuckGoDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Ecosia"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchEcosiaDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Google"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchGoogleDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Pixabay"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchPixabayDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Yandex"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchYandexDisplay}"/>
+                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="YouTube"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchYouTubeDisplay}"/>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+
                 <DataTemplate x:Key="ProtectionTab.DnsManagement">
                 <StackPanel>
                 <!-- Rules and rewrites -->
@@ -943,22 +996,160 @@
             </TabControl.Resources>
 
             <TabItem Header="Protection">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer x:Name="ProtectionScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,0,24,24">
                         <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Core}"/>
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.ConfigurationDetails}"/>
                         <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.DnsManagement}"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem x:Name="InsightsTab" Header="Insights">
+                <ScrollViewer x:Name="InsightsScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,24,24">
+                        <TextBlock Margin="0,0,0,16" Style="{DynamicResource Text.Secondary}"
+                                   Text="Read-only AdGuard Home activity and protection statistics." />
+
+                        <WrapPanel Margin="0,0,-12,16">
+                            <Border Width="220" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS REQUESTS"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding AdGuardQueriesDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Current statistics period"/></StackPanel>
+                            </Border>
+                            <Border Width="220" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCKED"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding AdGuardBlockedDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Requests stopped by protection"/></StackPanel>
+                            </Border>
+                            <Border Width="220" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="PROTECTION RATE"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding AdGuardBlockRateDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="DNS requests blocked"/></StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <Border Margin="0,0,0,16" Padding="12" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="DNS activity trend"/>
+                                <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="Requests and blocked requests reported by AdGuard Home."/>
+                                <lvc:CartesianChart MinHeight="220" Background="Transparent" LegendPosition="Top"
+                                                    Series="{Binding QueryHistorySeries}"
+                                                    XAxes="{Binding QueryHistoryXAxes}"
+                                                    YAxes="{Binding QueryHistoryYAxes}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Border Padding="14" Style="{DynamicResource Card}">
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Top blocked domains"/>
+                                    <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="Most frequently blocked domains."/>
+                                    <ItemsControl ItemsSource="{Binding TopBlockedDomains}">
+                                        <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"/><TextBlock Grid.Column="1" Margin="10,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Count, StringFormat={}{0:N0}}"/>
+                                            <Button Grid.Column="2" Padding="8,3" Style="{DynamicResource Button.Secondary}" Tag="{Binding Name}" Content="View activity" Click="ViewInsightsDomainActivity_Click"/>
+                                        </Grid></DataTemplate></ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding TopBlockedDomainsEmptyText}">
+                                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopBlockedDomains.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Padding="14" Style="{DynamicResource Card}">
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Top requested domains"/>
+                                    <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="Most frequently requested domains."/>
+                                    <ItemsControl ItemsSource="{Binding TopQueriedDomains}">
+                                        <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"/><TextBlock Grid.Column="1" Margin="10,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Count, StringFormat={}{0:N0}}"/>
+                                            <Button Grid.Column="2" Padding="8,3" Style="{DynamicResource Button.Secondary}" Tag="{Binding Name}" Content="View activity" Click="ViewInsightsDomainActivity_Click"/>
+                                        </Grid></DataTemplate></ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding TopQueriedDomainsEmptyText}">
+                                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopQueriedDomains.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Margin="0,16,0,0" Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Top clients"/>
+                                <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="AdGuard client identifiers are shown for statistics only."/>
+                                <ItemsControl ItemsSource="{Binding TopClients}">
+                                    <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"/><TextBlock Grid.Column="1" Margin="10,0,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Count, StringFormat={}{0:N0}}"/>
+                                    </Grid></DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding TopClientsEmptyText}">
+                                    <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopClients.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Filters">
+                <ScrollViewer x:Name="FiltersScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,24,24">
+                        <TextBlock Margin="0,0,0,16" Style="{DynamicResource Text.Secondary}"
+                                   Text="Read-only DNS filtering configuration and custom rules reported by AdGuard Home." />
+
+                        <WrapPanel Margin="0,0,-12,16">
+                            <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TOTAL RULES"/><TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding TotalFilteringRuleCount, StringFormat={}{0:N0}}"/></StackPanel></Border>
+                            <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCK"/><TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding BlockFilteringRuleCount, StringFormat={}{0:N0}}"/></StackPanel></Border>
+                            <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ALLOW"/><TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding AllowFilteringRuleCount, StringFormat={}{0:N0}}"/></StackPanel></Border>
+                            <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CUSTOM"/><TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding CustomFilteringRuleCount, StringFormat={}{0:N0}}"/></StackPanel></Border>
+                        </WrapPanel>
+
+                        <Border Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Custom filtering rules"/>
+                                <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="Read-only rules reported by AdGuard Home. Allow is a rule classification, not a separate allowlist."/>
+                                <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="12"/><ColumnDefinition Width="220"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="Show"/>
+                                    <ComboBox Grid.Column="2" SelectedValue="{Binding FilterRulesType}" SelectedValuePath="Content" Style="{StaticResource Protection.ComboBox}">
+                                        <ComboBoxItem Content="All"/><ComboBoxItem Content="Block"/><ComboBoxItem Content="Allow"/><ComboBoxItem Content="Custom"/>
+                                    </ComboBox>
+                                    <TextBox Grid.Column="4" Style="{StaticResource Protection.Input}" Text="{Binding FilterRulesSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search rules"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TYPE"/><TextBlock Grid.Column="1" Style="{DynamicResource Text.CardCaption}" Text="RULE"/></Grid>
+                                <ListBox MaxHeight="420" IsHitTestVisible="False" ItemsSource="{Binding FilteringRulesView}"
+                                         Style="{StaticResource Protection.List}"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         ScrollViewer.CanContentScroll="True">
+                                    <ListBox.ItemTemplate><DataTemplate><Grid Margin="6,4"><Grid.ColumnDefinitions><ColumnDefinition Width="80"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding Type}"/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="{Binding Rule}"/>
+                                    </Grid></DataTemplate></ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock Margin="0,10,0,0" Text="No custom filtering rules are configured.">
+                                    <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding HasFilteringRulesData}" Value="True"/><Condition Binding="{Binding TotalFilteringRuleCount}" Value="0"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Margin="0,10,0,0" Text="Filtering rules are temporarily unavailable.">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasFilteringRulesData}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,16,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                   Text="Filter-list names, source URLs, per-list rule counts, and update status are not supplied by RouterPilot's current proven AdGuard read contract." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem Header="Blocked Services">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer x:Name="BlockedServicesScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.BlockedServices}"/>
                 </ScrollViewer>
             </TabItem>
 
             <TabItem Header="Schedules">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer x:Name="SchedulesScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Schedules}"/>
                 </ScrollViewer>
             </TabItem>

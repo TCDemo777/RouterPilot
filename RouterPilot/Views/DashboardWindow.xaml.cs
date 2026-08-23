@@ -1261,8 +1261,22 @@ namespace RouterPilot.Views
             string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
             if (!ClientIdentity.IsMacKey(macKey)) return false;
 
+            ClientInventoryState inventory = ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryState>();
             ClientInventoryCoordinator coordinator = ((App)Application.Current).Services
                 .GetRequiredService<ClientInventoryCoordinator>();
+
+            // A profile-only device already has all of the information needed for
+            // the existing offline Client Details path.  Do not fetch a live
+            // inventory merely to open that offline presentation.
+            if (!coordinator.IsAuthoritativelyLoaded &&
+                !inventory.Snapshot.ContainsKey(macKey) &&
+                ((App)Application.Current).Services.GetRequiredService<ClientProfileService>()
+                    .Load().ContainsKey(macKey))
+            {
+                return OpenClientDetailsForDeviceIdentity(macKey);
+            }
+
             if (!coordinator.IsAuthoritativelyLoaded &&
                 !await coordinator.EnsureAuthoritativeInventoryAsync())
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows.Data;
 using System.Linq;
@@ -65,6 +66,9 @@ namespace RouterPilot.ViewModels
         private string _queryLogSearch = "";
         private bool _showBlockedQueriesOnly;
         private string _queryLogStatus = "Loading recent DNS activity...";
+        private string _filterRulesSearch = "";
+        private string _filterRulesType = "All";
+        private bool _hasFilteringRulesData;
 
         public ProtectionViewModel(
             IRouterManagerProvider routerManagerProvider,
@@ -114,6 +118,9 @@ namespace RouterPilot.ViewModels
                 new SortDescription(
                     nameof(BlockedServiceItem.Name),
                     ListSortDirection.Ascending));
+            FilteringRulesView = CollectionViewSource.GetDefaultView(FilteringRules);
+            FilteringRulesView.Filter = FilterFilteringRule;
+            FilteringRules.CollectionChanged += FilteringRules_CollectionChanged;
             QueryLogView = CollectionViewSource.GetDefaultView(QueryLogEntries);
             QueryLogView.Filter = FilterQueryLogEntry;
             RefreshQueryLogCommand = new AsyncRelayCommand(() => RefreshQueryLogAsync(true), () => !IsBusy);
@@ -129,6 +136,7 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<string> BlockedServiceCategories { get; } = new();
         public ICollectionView BlockedServicesView { get; }
         public ObservableCollection<CustomFilteringRule> FilteringRules { get; } = new();
+        public ICollectionView FilteringRulesView { get; }
         public ObservableCollection<DnsRewriteRule> DnsRewrites { get; } = new();
         public ObservableCollection<QueryLogEntry> QueryLogEntries { get; } = new();
         public ICollectionView QueryLogView { get; }
@@ -199,12 +207,42 @@ namespace RouterPilot.ViewModels
         public string QueryLogSearch { get => _queryLogSearch; set { if (SetProperty(ref _queryLogSearch, value)) QueryLogView.Refresh(); } }
         public bool ShowBlockedQueriesOnly { get => _showBlockedQueriesOnly; set { if (SetProperty(ref _showBlockedQueriesOnly, value)) QueryLogView.Refresh(); } }
         public string QueryLogStatus { get => _queryLogStatus; private set => SetProperty(ref _queryLogStatus, value); }
+        public string FilterRulesSearch { get => _filterRulesSearch; set { if (SetProperty(ref _filterRulesSearch, value)) FilteringRulesView.Refresh(); } }
+        public string FilterRulesType { get => _filterRulesType; set { if (SetProperty(ref _filterRulesType, value)) FilteringRulesView.Refresh(); } }
+        public bool HasFilteringRulesData { get => _hasFilteringRulesData; private set => SetProperty(ref _hasFilteringRulesData, value); }
+        public int TotalFilteringRuleCount => FilteringRules.Count;
+        public int BlockFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Block");
+        public int AllowFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Allow");
+        public int CustomFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Custom");
+        public string FilteringUpdateIntervalDisplay => FormatHours(_options.FilteringIntervalHours);
+        public string QueryLogRetentionDisplay => FormatHours(_options.QueryLogInterval);
+        public int IgnoredQueryLogEntryCount => _options.QueryLogIgnored.Length;
+        public bool QueryLogAnonymizeClientIp => _options.QueryLogAnonymizeClientIp;
+        public bool SafeSearchBing => _options.SafeSearch.Bing;
+        public bool SafeSearchDuckDuckGo => _options.SafeSearch.DuckDuckGo;
+        public bool SafeSearchEcosia => _options.SafeSearch.Ecosia;
+        public bool SafeSearchGoogle => _options.SafeSearch.Google;
+        public bool SafeSearchPixabay => _options.SafeSearch.Pixabay;
+        public bool SafeSearchYandex => _options.SafeSearch.Yandex;
+        public bool SafeSearchYouTube => _options.SafeSearch.YouTube;
+        public string SafeSearchBingDisplay => FormatOnOff(SafeSearchBing);
+        public string SafeSearchDuckDuckGoDisplay => FormatOnOff(SafeSearchDuckDuckGo);
+        public string SafeSearchEcosiaDisplay => FormatOnOff(SafeSearchEcosia);
+        public string SafeSearchGoogleDisplay => FormatOnOff(SafeSearchGoogle);
+        public string SafeSearchPixabayDisplay => FormatOnOff(SafeSearchPixabay);
+        public string SafeSearchYandexDisplay => FormatOnOff(SafeSearchYandex);
+        public string SafeSearchYouTubeDisplay => FormatOnOff(SafeSearchYouTube);
+        public string FilteringStateDisplay => FormatOnOff(FilteringEnabled);
+        public string QueryLogStateDisplay => FormatOnOff(QueryLogEnabled);
+        public string SafeBrowsingStateDisplay => FormatOnOff(SafeBrowsingEnabled);
+        public string ParentalStateDisplay => FormatOnOff(ParentalEnabled);
+        public string SafeSearchStateDisplay => FormatOnOff(SafeSearchEnabled);
 
-        public bool FilteringEnabled { get => _filteringEnabled; set { if (SetProperty(ref _filteringEnabled, value) && !_isInitialising) _ = UpdateOptionAsync("DNS filtering", r => r.SetFilteringEnabledAsync(value)); } }
-        public bool SafeBrowsingEnabled { get => _safeBrowsingEnabled; set { if (SetProperty(ref _safeBrowsingEnabled, value) && !_isInitialising) _ = UpdateOptionAsync("Safe Browsing", r => r.SetSafeBrowsingEnabledAsync(value)); } }
-        public bool SafeSearchEnabled { get => _safeSearchEnabled; set { if (SetProperty(ref _safeSearchEnabled, value) && !_isInitialising) _ = UpdateOptionAsync("Safe Search", r => r.SetSafeSearchEnabledAsync(value, _options.SafeSearch)); } }
-        public bool ParentalEnabled { get => _parentalEnabled; set { if (SetProperty(ref _parentalEnabled, value) && !_isInitialising) _ = UpdateOptionAsync("Parental Control", r => r.SetParentalEnabledAsync(value)); } }
-        public bool QueryLogEnabled { get => _queryLogEnabled; set { if (SetProperty(ref _queryLogEnabled, value) && !_isInitialising) _ = UpdateOptionAsync("Query logging", r => r.SetQueryLogEnabledAsync(value, _options)); } }
+        public bool FilteringEnabled { get => _filteringEnabled; set { if (SetProperty(ref _filteringEnabled, value)) { OnPropertyChanged(nameof(FilteringStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("DNS filtering", r => r.SetFilteringEnabledAsync(value)); } } }
+        public bool SafeBrowsingEnabled { get => _safeBrowsingEnabled; set { if (SetProperty(ref _safeBrowsingEnabled, value)) { OnPropertyChanged(nameof(SafeBrowsingStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Safe Browsing", r => r.SetSafeBrowsingEnabledAsync(value)); } } }
+        public bool SafeSearchEnabled { get => _safeSearchEnabled; set { if (SetProperty(ref _safeSearchEnabled, value)) { OnPropertyChanged(nameof(SafeSearchStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Safe Search", r => r.SetSafeSearchEnabledAsync(value, _options.SafeSearch)); } } }
+        public bool ParentalEnabled { get => _parentalEnabled; set { if (SetProperty(ref _parentalEnabled, value)) { OnPropertyChanged(nameof(ParentalStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Parental Control", r => r.SetParentalEnabledAsync(value)); } } }
+        public bool QueryLogEnabled { get => _queryLogEnabled; set { if (SetProperty(ref _queryLogEnabled, value)) { OnPropertyChanged(nameof(QueryLogStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Query logging", r => r.SetQueryLogEnabledAsync(value, _options)); } } }
 
         public string NewRuleDomain { get => _newRuleDomain; set => SetProperty(ref _newRuleDomain, value); }
         public string NewRewriteDomain { get => _newRewriteDomain; set => SetProperty(ref _newRewriteDomain, value); }
@@ -291,6 +329,7 @@ namespace RouterPilot.ViewModels
                 AdGuardProtectionStatus status = await router.GetAdGuardProtectionStatusAsync();
                 AdGuardStatistics statistics = await router.GetAdGuardStatisticsAsync();
                 _options = await router.GetProtectionOptionsAsync();
+                NotifyConfigurationDetails();
                 bool catalogueRefreshed = await _serviceCatalogue.RefreshAsync(router, _disposalCancellation.Token);
                 _blockedConfig = await router.GetBlockedServicesConfigAsync();
                 var rules = await router.GetCustomFilteringRulesAsync();
@@ -336,6 +375,7 @@ namespace RouterPilot.ViewModels
                     : $"{BlockedServices.Count} services available. Select services and save your changes.";
                 FilteringRules.Clear();
                 foreach (var rule in rules) FilteringRules.Add(rule);
+                HasFilteringRulesData = true;
                 DnsRewrites.Clear();
                 foreach (var rewrite in rewrites) DnsRewrites.Add(rewrite);
                 ApplyQueryLog(queryLog);
@@ -344,6 +384,7 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception)
             {
+                HasFilteringRulesData = false;
                 IsAdGuardAvailable = false;
                 if (BlockedServices.Count == 0)
                     BlockedServicesStatus = "Blocked services could not be loaded. Use Refresh all to try again.";
@@ -541,7 +582,7 @@ namespace RouterPilot.ViewModels
         {
             if (IsBusy) return;
             IsBusy = true; Message = $"Updating {label}...";
-            try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); await action(router); Message = $"{label} updated."; _options = await router.GetProtectionOptionsAsync(); DetermineProfile(); }
+            try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); await action(router); Message = $"{label} updated."; _options = await router.GetProtectionOptionsAsync(); NotifyConfigurationDetails(); DetermineProfile(); }
             catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, $"Protection option update ({label})", $"Unable to update {label}. Check the router connection and try again."); await RefreshOptionsOnlyAsync(); }
             finally { IsBusy = false; }
         }
@@ -553,6 +594,7 @@ namespace RouterPilot.ViewModels
                 RouterManager router =
                     await _routerManagerProvider.GetRouterManagerAsync();
                 _options = await router.GetProtectionOptionsAsync();
+                NotifyConfigurationDetails();
                 _isInitialising = true;
                 FilteringEnabled = _options.FilteringEnabled; SafeBrowsingEnabled = _options.SafeBrowsingEnabled; SafeSearchEnabled = _options.SafeSearchEnabled; ParentalEnabled = _options.ParentalEnabled; QueryLogEnabled = _options.QueryLogEnabled;
                 DetermineProfile();
@@ -702,7 +744,7 @@ namespace RouterPilot.ViewModels
                 RouterManager router =
                     await _routerManagerProvider.GetRouterManagerAsync();
                 await router.SetCustomFilteringRulesAsync(rules);
-                FilteringRules.Clear(); foreach (var rule in await router.GetCustomFilteringRulesAsync()) FilteringRules.Add(rule);
+                FilteringRules.Clear(); foreach (var rule in await router.GetCustomFilteringRulesAsync()) FilteringRules.Add(rule); HasFilteringRulesData = true;
                 Message = success;
             }
             catch (Exception ex) { Message = OperationFailurePolicy.UserMessage(ex, "Filtering-rule save", "Unable to save filtering rules. Check the router connection and try again."); }
@@ -754,6 +796,41 @@ namespace RouterPilot.ViewModels
                           FilteringEnabled && SafeBrowsingEnabled && !ParentalEnabled && !SafeSearchEnabled && QueryLogEnabled ? "Standard" : "Custom";
         }
 
+        private bool FilterFilteringRule(object item)
+        {
+            if (item is not CustomFilteringRule rule) return false;
+            if (!string.Equals(FilterRulesType, "All", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(rule.Type, FilterRulesType, StringComparison.OrdinalIgnoreCase)) return false;
+            return string.IsNullOrWhiteSpace(FilterRulesSearch) ||
+                   rule.Rule.Contains(FilterRulesSearch.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void FilteringRules_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            FilteringRulesView.Refresh();
+            OnPropertyChanged(nameof(TotalFilteringRuleCount));
+            OnPropertyChanged(nameof(BlockFilteringRuleCount));
+            OnPropertyChanged(nameof(AllowFilteringRuleCount));
+            OnPropertyChanged(nameof(CustomFilteringRuleCount));
+        }
+
+        private void NotifyConfigurationDetails()
+        {
+            foreach (string property in new[]
+                     {
+                         nameof(FilteringUpdateIntervalDisplay), nameof(QueryLogRetentionDisplay),
+                         nameof(IgnoredQueryLogEntryCount), nameof(QueryLogAnonymizeClientIp),
+                         nameof(SafeSearchBing), nameof(SafeSearchDuckDuckGo), nameof(SafeSearchEcosia),
+                         nameof(SafeSearchGoogle), nameof(SafeSearchPixabay), nameof(SafeSearchYandex),
+                         nameof(SafeSearchYouTube), nameof(FilteringStateDisplay), nameof(QueryLogStateDisplay),
+                         nameof(SafeBrowsingStateDisplay), nameof(ParentalStateDisplay), nameof(SafeSearchStateDisplay),
+                         nameof(SafeSearchBingDisplay), nameof(SafeSearchDuckDuckGoDisplay), nameof(SafeSearchEcosiaDisplay),
+                         nameof(SafeSearchGoogleDisplay), nameof(SafeSearchPixabayDisplay), nameof(SafeSearchYandexDisplay),
+                         nameof(SafeSearchYouTubeDisplay)
+                     })
+                OnPropertyChanged(property);
+        }
+
         private void NotifyCommands()
         {
             foreach (var command in new[] { RefreshAllCommand, EnableProtectionCommand, DisableProtectionCommand, ResumeProtectionCommand, Pause30Command, Pause1HourCommand, Pause4HoursCommand, PauseUntilTomorrowCommand, ApplyStandardProfileCommand, ApplyFamilyProfileCommand, ApplyPrivacyProfileCommand, SaveBlockedServicesCommand, RefreshQueryLogCommand, AddDenyRuleCommand, AddAllowRuleCommand, DeleteRuleCommand, AddRewriteCommand, DeleteRewriteCommand }) command.NotifyCanExecuteChanged();
@@ -763,5 +840,9 @@ namespace RouterPilot.ViewModels
         private static string NormaliseDomain(string value) => value.Trim().TrimEnd('.').ToLowerInvariant();
         private static string FormatRemaining(TimeSpan d) => d.TotalDays >= 1 ? $"{(int)d.TotalDays}d {d.Hours}h {d.Minutes}m" : d.TotalHours >= 1 ? $"{(int)d.TotalHours}h {d.Minutes}m" : $"{Math.Max(1, d.Minutes)}m";
         private static string FormatDuration(TimeSpan d) => d.TotalHours >= 1 ? (d.TotalHours == 1 ? "1 hour" : $"{d.TotalHours:0.#} hours") : $"{d.TotalMinutes:0} minutes";
+        private static string FormatHours(double hours) => hours <= 0 ? "Not reported" :
+            hours % 24 == 0 ? (hours / 24 == 1 ? "1 day" : $"{hours / 24:0.#} days") :
+            (hours == 1 ? "1 hour" : $"{hours:0.#} hours");
+        private static string FormatOnOff(bool enabled) => enabled ? "On" : "Off";
     }
 }

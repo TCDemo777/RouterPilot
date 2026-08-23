@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using RouterPilot.ViewModels;
 using RouterPilot.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,11 +17,32 @@ namespace RouterPilot.Views
             _viewModel = ((App)Application.Current).Services
                 .GetRequiredService<ProtectionViewModel>();
             DataContext = _viewModel;
+            InsightsTab.DataContext = Application.Current.MainWindow?.DataContext as DashboardViewModel;
             Loaded += ProtectionView_Loaded;
             Unloaded += ProtectionView_Unloaded;
         }
         private async void ProtectionView_Loaded(object sender, RoutedEventArgs e) => await _viewModel.StartAsync();
         private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => _viewModel.Stop();
+
+        private void ProtectionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!ReferenceEquals(e.Source, ProtectionTabs)) return;
+
+            ScrollViewer? selected = ProtectionTabs.SelectedIndex switch
+            {
+                0 => ProtectionScrollViewer,
+                1 => InsightsScrollViewer,
+                2 => FiltersScrollViewer,
+                3 => BlockedServicesScrollViewer,
+                4 => SchedulesScrollViewer,
+                _ => null
+            };
+
+            // Let the TabControl activate and lay out its new content first;
+            // this runs only for a direct tab selection, never for data updates.
+            if (selected is not null)
+                _ = Dispatcher.BeginInvoke(selected.ScrollToTop, DispatcherPriority.Loaded);
+        }
 
         private void ViewTopBlockedDomainActivity_Click(object sender, RoutedEventArgs e)
         {
@@ -28,6 +50,15 @@ namespace RouterPilot.Views
                 Window.GetWindow(this) is DashboardWindow dashboard)
             {
                 dashboard.NavigateToDnsActivityForDomain(_viewModel.TopBlockedDomain);
+            }
+        }
+
+        private void ViewInsightsDomainActivity_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string domain } &&
+                Window.GetWindow(this) is DashboardWindow dashboard)
+            {
+                dashboard.NavigateToDnsActivityForDomain(domain);
             }
         }
 

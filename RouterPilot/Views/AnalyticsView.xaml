@@ -64,7 +64,7 @@
                     <TextBlock
                         Margin="0,5,0,0"
                         Style="{StaticResource Text.Secondary}"
-                        Text="AdGuard Home query trends, clients and domain activity" />
+                        Text="Router traffic, reliability, application traffic and DNS activity" />
                 </StackPanel>
 
                 <StackPanel
@@ -84,6 +84,17 @@
                 </StackPanel>
             </Grid>
 
+            <TabControl x:Name="AnalyticsTabs"
+                        Margin="0,0,0,18"
+                        Style="{StaticResource RouterPilotTabControlStyle}"
+                        ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
+                        SelectionChanged="AnalyticsTabs_SelectionChanged">
+                <TabItem Header="Overview" />
+                <TabItem Header="Data Statistics" />
+                <TabItem Header="DNS / Protection" />
+            </TabControl>
+
+            <StackPanel x:Name="DataStatisticsContent" Visibility="Collapsed">
             <Border Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
             <Expander x:Name="DataStatisticsPanel"
                       Expanded="DataStatistics_Expanded">
@@ -342,7 +353,9 @@
                 </StackPanel>
             </Expander>
             </Border>
+            </StackPanel>
 
+            <StackPanel x:Name="OverviewContent">
             <!-- Live network activity -->
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -648,6 +661,9 @@
             </Border>
 
             <!-- Summary -->
+            </StackPanel>
+
+            <StackPanel x:Name="DnsProtectionContent" Visibility="Collapsed">
             <TextBlock
                 Margin="0,0,0,12"
                 Style="{StaticResource Text.Secondary}"
@@ -1200,6 +1216,7 @@
             </Border>
             </StackPanel>
             </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

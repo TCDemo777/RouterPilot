@@ -38,6 +38,34 @@ namespace RouterPilot.Views
             Unloaded += AnalyticsView_Unloaded;
             RefreshRecentHistory();
             RefreshReliability();
+            AnalyticsTabs.SelectedIndex = 0;
+            UpdateAnalyticsTabVisibility();
+        }
+
+        private async void AnalyticsTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!ReferenceEquals(e.Source, AnalyticsTabs)) return;
+
+            UpdateAnalyticsTabVisibility();
+            if (AnalyticsTabs.SelectedIndex == 1)
+            {
+                // Selecting this tab is the intentional activation point for the
+                // existing idempotent Data Statistics lazy load.
+                DataStatisticsPanel.IsExpanded = true;
+                await _dataStatistics.EnsureLoadedAsync();
+            }
+        }
+
+        private void UpdateAnalyticsTabVisibility()
+        {
+            // The content blocks are kept in their existing views and bindings;
+            // inactive blocks are removed from layout instead of leaving blank space.
+            if (OverviewContent is null || DataStatisticsContent is null || DnsProtectionContent is null)
+                return;
+
+            OverviewContent.Visibility = AnalyticsTabs.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+            DataStatisticsContent.Visibility = AnalyticsTabs.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            DnsProtectionContent.Visibility = AnalyticsTabs.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void HistoryRange_Click(object sender, RoutedEventArgs e)
