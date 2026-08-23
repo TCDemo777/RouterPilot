@@ -48,6 +48,44 @@ public sealed class ApplicationTrafficPoint
     public long TotalBytes { get; init; }
 }
 
+public sealed class FullApplicationStatisticsSnapshot
+{
+    public string Period { get; init; } = string.Empty;
+    public ApplicationTrafficRow? Aggregate { get; init; }
+    public IReadOnlyList<ApplicationTrafficRow> Applications { get; init; } = [];
+}
+
+public sealed class ApplicationTrafficRow
+{
+    public string ApplicationId { get; init; } = string.Empty;
+    public string ApplicationName { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public string IconUrl { get; init; } = string.Empty;
+    public long UploadBytes { get; init; }
+    public long DownloadBytes { get; init; }
+    public long TotalBytes { get; init; }
+    public long? PacketCount { get; init; }
+
+    public string DisplayName => !string.IsNullOrWhiteSpace(Label)
+        ? Label
+        : !string.IsNullOrWhiteSpace(ApplicationName)
+            ? ApplicationName
+            : "Unlabelled application";
+}
+
+public enum FullApplicationStatisticsAvailability
+{
+    Available,
+    Unsupported,
+    TemporarilyUnavailable
+}
+
+public sealed class FullApplicationStatisticsReadResult
+{
+    public FullApplicationStatisticsAvailability Availability { get; init; }
+    public FullApplicationStatisticsSnapshot? Snapshot { get; init; }
+}
+
 public enum DataStatisticsAvailability
 {
     Available,

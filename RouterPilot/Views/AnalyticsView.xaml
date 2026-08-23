@@ -184,6 +184,92 @@
                     <TextBlock Style="{StaticResource Text.Muted}"
                                Text="{Binding TopAppsEmptyText}"
                                Visibility="{Binding HasNoTopApps, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <Grid Margin="0,22,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Text.SectionTitle}" Text="All Applications" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Style="{StaticResource Text.Muted}"
+                                       Text="{Binding FullTablePeriod, StringFormat=Current period: {0}}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1"
+                                 Width="220"
+                                 Margin="16,0,0,0"
+                                 Padding="9,6"
+                                 VerticalContentAlignment="Center"
+                                 Background="{DynamicResource Brush.SurfaceMuted}"
+                                 BorderBrush="{DynamicResource Brush.Border}"
+                                 Foreground="{DynamicResource Brush.TextPrimary}"
+                                 ToolTip="Search applications"
+                                 Text="{Binding AllApplicationsSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding HasApplicationSearch, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </Grid>
+
+                    <TextBlock Margin="0,0,0,10"
+                               Style="{StaticResource Text.Muted}"
+                               TextWrapping="Wrap"
+                               Text="{Binding FullTablePeriodWarning}"
+                               Visibility="{Binding HasFullTablePeriodWarning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Margin="0,0,0,10"
+                               Style="{StaticResource Text.Muted}"
+                               TextWrapping="Wrap"
+                               Text="{Binding FullTableError}" />
+
+                    <Grid Margin="0,0,0,14"
+                          Visibility="{Binding HasAggregate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="TOTAL TRAFFIC" />
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Body}" Text="{Binding AggregateTotalTraffic}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="DOWNLOADED" />
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Body}" Text="{Binding AggregateDownload}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource Text.CardCaption}" Text="UPLOADED" />
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Body}" Text="{Binding AggregateUpload}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <DataGrid MaxHeight="360"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserReorderColumns="False"
+                              CanUserResizeRows="False"
+                              CanUserSortColumns="True"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding AllApplicationsView}"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              Background="{DynamicResource Brush.SurfaceMuted}"
+                              BorderBrush="{DynamicResource Brush.Border}"
+                              Foreground="{DynamicResource Brush.TextPrimary}"
+                              Visibility="{Binding HasAllApplications, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="*" Header="Application" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" />
+                            <DataGridTextColumn Width="110" Header="Download" Binding="{Binding DownloadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="DownloadBytes" />
+                            <DataGridTextColumn Width="110" Header="Upload" Binding="{Binding UploadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="UploadBytes" />
+                            <DataGridTextColumn Width="110" Header="Total" Binding="{Binding TotalBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" SortMemberPath="TotalBytes" />
+                            <DataGridTextColumn Width="100" Header="Packets" Binding="{Binding PacketCount, StringFormat=N0, TargetNullValue=—}" SortMemberPath="PacketCount" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Style="{StaticResource Text.Muted}"
+                               Text="{Binding AllApplicationsEmptyText}"
+                               Visibility="{Binding HasNoAllApplications, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
             </Expander>
             </Border>

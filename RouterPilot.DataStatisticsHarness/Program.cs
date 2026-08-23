@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using RouterPilot.Services;
+using RouterPilot.ViewModels;
 
 static void Require(bool condition, string message)
 {
@@ -44,5 +46,33 @@ using JsonDocument activeStatus = JsonDocument.Parse("""{ "system": { "flow_stat
 using JsonDocument disabledStatus = JsonDocument.Parse("""{ "system": { "flow_statistics_enabled": false } }""");
 Require(DataStatisticsParser.ParseStatus(activeStatus.RootElement).IsDpiActive, "Active status was not parsed.");
 Require(DataStatisticsParser.ParseStatus(disabledStatus.RootElement).FlowStatisticsEnabled is false, "Disabled status was not parsed.");
+
+using JsonDocument fullHour = JsonDocument.Parse("""
+{
+  "time": "hour",
+  "applications": [
+    { "application_id": "-1", "application_name": "all_traffic", "label": "All traffic", "upload": 200000000000, "download": 300000000000, "total": 500000000000, "icon": "" },
+    { "application_id": "0", "application_name": "http", "label": "HTTP/S", "upload": 10, "download": 90, "total": 100, "packets": 15, "icon": "" },
+    { "application_id": "0", "application_name": "quic", "label": "QUIC", "upload": 20, "download": 180, "total": 200, "icon": "" },
+    { "application_id": "malformed", "application_name": "partial", "total": "not-a-number" },
+    "not-an-application"
+  ]
+}
+""");
+var fullHourSnapshot = DataStatisticsParser.ParseFullSnapshot(fullHour.RootElement);
+Require(fullHourSnapshot.Period == "hour", "Full table hour period was not parsed.");
+Require(fullHourSnapshot.Aggregate?.TotalBytes == 500000000000, "All traffic aggregate was not extracted.");
+Require(fullHourSnapshot.Applications.Count == 3, "Aggregate or malformed rows were handled incorrectly.");
+Require(fullHourSnapshot.Applications.Count(row => row.ApplicationId == "0") == 2, "Duplicate application ID rows collided in full table.");
+Require(fullHourSnapshot.Applications.Single(row => row.ApplicationName == "quic").PacketCount is null, "Missing packets were not tolerated.");
+Require(fullHourSnapshot.Applications.Single(row => row.ApplicationName == "partial").TotalBytes == 0, "Malformed numeric field was not tolerated.");
+Require(DataStatisticsViewModel.ArePeriodsAligned(3600, fullHourSnapshot.Period), "Hour periods should align.");
+Require(DataStatisticsViewModel.ArePeriodsAligned(86400, "day"), "Day periods should align.");
+Require(!DataStatisticsViewModel.ArePeriodsAligned(3600, "day"), "Period mismatch was not detected.");
+
+using JsonDocument emptyFullTable = JsonDocument.Parse("""{ "time": "week", "applications": [] }""");
+var emptyFullSnapshot = DataStatisticsParser.ParseFullSnapshot(emptyFullTable.RootElement);
+Require(emptyFullSnapshot.Period == "week" && emptyFullSnapshot.Aggregate is null && emptyFullSnapshot.Applications.Count == 0,
+    "Empty full table was not tolerated.");
 
 Console.WriteLine("Data Statistics parser fixtures passed.");

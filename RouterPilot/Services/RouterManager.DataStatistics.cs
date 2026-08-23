@@ -35,6 +35,20 @@ public partial class RouterManager
         return DataStatisticsParser.ParseSnapshot(GetDataStatisticsResult(document));
     }
 
+    public async Task<FullApplicationStatisticsSnapshot> GetFlowStatisticsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        string sessionId = await _sessionService.GetAdminTokenAsync(cancellationToken);
+        using JsonDocument document = await _sessionService.CallAsync(
+            sessionId,
+            "flow_statistics",
+            "get_flow_statistics",
+            new { },
+            cancellationToken);
+
+        return DataStatisticsParser.ParseFullSnapshot(GetDataStatisticsResult(document));
+    }
+
     private static JsonElement GetDataStatisticsResult(JsonDocument document)
     {
         JsonElement root = document.RootElement;

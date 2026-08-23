@@ -33,6 +33,37 @@ public static class DataStatisticsParser
             : []
     };
 
+    public static FullApplicationStatisticsSnapshot ParseFullSnapshot(JsonElement result)
+    {
+        ApplicationTrafficRow? aggregate = null;
+        ApplicationTrafficRow[] applications = result.TryGetProperty("applications", out JsonElement apps) &&
+            apps.ValueKind == JsonValueKind.Array
+            ? apps.EnumerateArray()
+                .Where(app => app.ValueKind == JsonValueKind.Object)
+                .Select(ParseFullApplication)
+                .Where(app => !string.IsNullOrWhiteSpace(app.ApplicationId) ||
+                              !string.IsNullOrWhiteSpace(app.ApplicationName))
+                .Where(app =>
+                {
+                    if (IsAllTrafficAggregate(app))
+                    {
+                        aggregate ??= app;
+                        return false;
+                    }
+
+                    return true;
+                })
+                .ToArray()
+            : [];
+
+        return new FullApplicationStatisticsSnapshot
+        {
+            Period = ReadString(result, "time"),
+            Aggregate = aggregate,
+            Applications = applications
+        };
+    }
+
     private static ApplicationTrafficStat ParseApplication(JsonElement app) => new()
     {
         ApplicationId = ReadString(app, "application_id"), ApplicationName = ReadString(app, "application_name"),
@@ -49,6 +80,22 @@ public static class DataStatisticsParser
         UploadBytes = ReadNullableInt64(point, "upload") ?? 0, DownloadBytes = ReadNullableInt64(point, "download") ?? 0,
         TotalBytes = ReadNullableInt64(point, "total") ?? 0
     };
+
+    private static ApplicationTrafficRow ParseFullApplication(JsonElement app) => new()
+    {
+        ApplicationId = ReadString(app, "application_id"),
+        ApplicationName = ReadString(app, "application_name"),
+        Label = ReadString(app, "label"),
+        IconUrl = ReadString(app, "icon"),
+        UploadBytes = ReadNullableInt64(app, "upload") ?? 0,
+        DownloadBytes = ReadNullableInt64(app, "download") ?? 0,
+        TotalBytes = ReadNullableInt64(app, "total") ?? 0,
+        PacketCount = ReadNullableInt64(app, "packets")
+    };
+
+    private static bool IsAllTrafficAggregate(ApplicationTrafficRow app) =>
+        string.Equals(app.ApplicationId, "-1", StringComparison.Ordinal) &&
+        string.Equals(app.ApplicationName, "all_traffic", StringComparison.Ordinal);
 
     private static DateTimeOffset? ReadUnixTime(JsonElement source, string property)
     {

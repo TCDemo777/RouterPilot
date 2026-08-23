@@ -78,4 +78,37 @@ public sealed class DataStatisticsService
             };
         }
     }
+
+    public async Task<FullApplicationStatisticsReadResult> ReadFullApplicationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            RouterManager routerManager = await _routerManagerProvider
+                .GetRouterManagerAsync(cancellationToken)
+                .ConfigureAwait(false);
+            FullApplicationStatisticsSnapshot snapshot = await routerManager
+                .GetFlowStatisticsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return new FullApplicationStatisticsReadResult
+            {
+                Availability = FullApplicationStatisticsAvailability.Available,
+                Snapshot = snapshot
+            };
+        }
+        catch (DataStatisticsRpcException exception) when (exception.IsMethodOrServiceUnavailable)
+        {
+            return new FullApplicationStatisticsReadResult
+            {
+                Availability = FullApplicationStatisticsAvailability.Unsupported
+            };
+        }
+        catch (DataStatisticsRpcException)
+        {
+            return new FullApplicationStatisticsReadResult
+            {
+                Availability = FullApplicationStatisticsAvailability.TemporarilyUnavailable
+            };
+        }
+    }
 }
