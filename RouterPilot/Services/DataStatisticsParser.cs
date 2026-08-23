@@ -64,6 +64,40 @@ public static class DataStatisticsParser
         };
     }
 
+    public static ApplicationTrafficDetail ParseApplicationDetail(JsonElement result)
+    {
+        JsonElement metadata = result.TryGetProperty("metadata", out JsonElement metadataElement) &&
+            metadataElement.ValueKind == JsonValueKind.Object ? metadataElement : default;
+        ApplicationDeviceTraffic[] devices = result.TryGetProperty("mac_addresses", out JsonElement macAddresses) &&
+            macAddresses.ValueKind == JsonValueKind.Object
+            ? macAddresses.EnumerateObject()
+                .Where(property => property.Value.ValueKind == JsonValueKind.Object)
+                .Select(property => ParseDevice(property.Name, property.Value))
+                .ToArray()
+            : [];
+
+        return new ApplicationTrafficDetail
+        {
+            ApplicationId = ReadString(result, "application_id"),
+            ApplicationName = ReadString(result, "application_name"),
+            Identifier = ReadString(result, "identifier"),
+            Label = ReadString(result, "label"),
+            Url = ReadString(result, "url"),
+            Description = ReadString(result, "desc"),
+            LogoUrl = ReadString(result, "logo"),
+            IsBlocked = result.TryGetProperty("application_block", out JsonElement blocked) ? ReadNullableBool(blocked) : null,
+            PeriodSeconds = ReadNullableInt64(result, "period_seconds"),
+            TotalUploadBytes = ReadNullableInt64(result, "total_upload") ?? 0,
+            TotalDownloadBytes = ReadNullableInt64(result, "total_download") ?? 0,
+            MetadataStartUtc = ReadUnixTime(metadata, "start_time"),
+            MetadataEndUtc = ReadUnixTime(metadata, "end_time"),
+            Devices = devices,
+            TimeSeries = result.TryGetProperty("time_series", out JsonElement series) && series.ValueKind == JsonValueKind.Array
+                ? series.EnumerateArray().Where(point => point.ValueKind == JsonValueKind.Object).Select(ParsePoint).ToArray()
+                : []
+        };
+    }
+
     private static ApplicationTrafficStat ParseApplication(JsonElement app) => new()
     {
         ApplicationId = ReadString(app, "application_id"), ApplicationName = ReadString(app, "application_name"),
@@ -91,6 +125,20 @@ public static class DataStatisticsParser
         DownloadBytes = ReadNullableInt64(app, "download") ?? 0,
         TotalBytes = ReadNullableInt64(app, "total") ?? 0,
         PacketCount = ReadNullableInt64(app, "packets")
+    };
+
+    private static ApplicationDeviceTraffic ParseDevice(string macAddress, JsonElement device) => new()
+    {
+        MacAddress = macAddress,
+        NormalizedMac = ClientIdentity.NormalizeMac(macAddress),
+        Hostname = ReadString(device, "hostname"),
+        UploadBytes = ReadNullableInt64(device, "upload") ?? 0,
+        DownloadBytes = ReadNullableInt64(device, "download") ?? 0,
+        TotalBytes = ReadNullableInt64(device, "total") ?? 0,
+        PacketCount = ReadNullableInt64(device, "packets"),
+        RecordCount = ReadNullableInt64(device, "record_count"),
+        LastActiveUtc = ReadUnixTime(device, "last_active_time"),
+        LastActiveRelative = ReadString(device, "last_active_relative")
     };
 
     private static bool IsAllTrafficAggregate(ApplicationTrafficRow app) =>

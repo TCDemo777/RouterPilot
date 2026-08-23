@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Text.Json;
+using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
 
@@ -74,5 +75,32 @@ using JsonDocument emptyFullTable = JsonDocument.Parse("""{ "time": "week", "app
 var emptyFullSnapshot = DataStatisticsParser.ParseFullSnapshot(emptyFullTable.RootElement);
 Require(emptyFullSnapshot.Period == "week" && emptyFullSnapshot.Aggregate is null && emptyFullSnapshot.Applications.Count == 0,
     "Empty full table was not tolerated.");
+
+using JsonDocument detail = JsonDocument.Parse("""
+{
+  "application_id": "0", "application_name": "example_protocol", "identifier": "example", "label": "Example",
+  "url": "https://example.invalid", "desc": "Sanitised application description.", "logo": "", "application_block": false,
+  "period_seconds": 3600, "total_upload": 200000000000, "total_download": 300000000000,
+  "metadata": { "start_time": 1700000000, "end_time": 1700000300 },
+  "mac_addresses": {
+    "AA:BB:CC:DD:EE:FF": { "hostname": "Example device", "upload": 10, "download": 90, "total": 100, "packets": 5, "record_count": 2, "last_active_time": 1700000300, "last_active_relative": "recently" },
+    "aabbccddeeff": { "hostname": "", "upload": 20, "download": 180, "total": 200, "record_count": 1 },
+    "invalid-key": { "upload": 1, "download": 2, "total": 3 },
+    "malformed": "not-an-object"
+  },
+  "time_series": [{ "start_time": 1700000000, "end_time": 1700000300, "upload": 30, "download": 270, "total": 300 }]
+}
+""");
+var detailSnapshot = DataStatisticsParser.ParseApplicationDetail(detail.RootElement);
+Require(detailSnapshot.ApplicationId == "0" && detailSnapshot.ApplicationName == "example_protocol", "Detail request key was not retained.");
+Require(detailSnapshot.TotalBytes == 500000000000, "Large application detail counters were not added safely.");
+Require(detailSnapshot.MetadataEndUtc?.ToUnixTimeSeconds() == 1700000300 && detailSnapshot.TimeSeries.Count == 1, "Detail metadata or time series was not parsed.");
+Require(detailSnapshot.Devices.Count == 3, "MAC dictionary or malformed device handling failed.");
+Require(detailSnapshot.Devices.Count(device => device.CanViewClient) == 2, "MAC normalization did not retain valid MAC keys.");
+Require(detailSnapshot.Devices.First(device => device.Hostname == string.Empty && device.CanViewClient).PacketCount is null, "Missing device packets were not tolerated.");
+Require(ClientIdentity.NormalizeMac("aa-bb-cc-dd-ee-ff") == "AABBCCDDEEFF", "ClientIdentity MAC normalization failed.");
+
+using JsonDocument emptyDetail = JsonDocument.Parse("""{ "application_id": "app", "application_name": "example", "mac_addresses": {} }""");
+Require(DataStatisticsParser.ParseApplicationDetail(emptyDetail.RootElement).Devices.Count == 0, "Empty detail devices were not tolerated.");
 
 Console.WriteLine("Data Statistics parser fixtures passed.");

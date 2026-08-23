@@ -49,6 +49,23 @@ public partial class RouterManager
         return DataStatisticsParser.ParseFullSnapshot(GetDataStatisticsResult(document));
     }
 
+    public async Task<ApplicationTrafficDetail> GetAppFlowStatisticsAsync(
+        string applicationId, string applicationName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId) || string.IsNullOrWhiteSpace(applicationName))
+            throw new ArgumentException("Application ID and application name are required.");
+
+        string sessionId = await _sessionService.GetAdminTokenAsync(cancellationToken);
+        using JsonDocument document = await _sessionService.CallAsync(
+            sessionId,
+            "flow_statistics",
+            "get_app_flow_statistics",
+            new { application_id = applicationId, application_name = applicationName },
+            cancellationToken);
+
+        return DataStatisticsParser.ParseApplicationDetail(GetDataStatisticsResult(document));
+    }
+
     private static JsonElement GetDataStatisticsResult(JsonDocument document)
     {
         JsonElement root = document.RootElement;

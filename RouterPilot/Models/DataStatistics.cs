@@ -86,6 +86,61 @@ public sealed class FullApplicationStatisticsReadResult
     public FullApplicationStatisticsSnapshot? Snapshot { get; init; }
 }
 
+public sealed class ApplicationTrafficDetail
+{
+    public string ApplicationId { get; init; } = string.Empty;
+    public string ApplicationName { get; init; } = string.Empty;
+    public string Identifier { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public string Url { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string LogoUrl { get; init; } = string.Empty;
+    public bool? IsBlocked { get; init; }
+    public long? PeriodSeconds { get; init; }
+    public long TotalUploadBytes { get; init; }
+    public long TotalDownloadBytes { get; init; }
+    public DateTimeOffset? MetadataStartUtc { get; init; }
+    public DateTimeOffset? MetadataEndUtc { get; init; }
+    public IReadOnlyList<ApplicationDeviceTraffic> Devices { get; init; } = [];
+    public IReadOnlyList<ApplicationTrafficPoint> TimeSeries { get; init; } = [];
+
+    public long TotalBytes => TotalDownloadBytes > long.MaxValue - TotalUploadBytes
+        ? long.MaxValue
+        : TotalDownloadBytes + TotalUploadBytes;
+}
+
+public sealed class ApplicationDeviceTraffic
+{
+    public string MacAddress { get; init; } = string.Empty;
+    public string NormalizedMac { get; init; } = string.Empty;
+    public string Hostname { get; init; } = string.Empty;
+    public long UploadBytes { get; init; }
+    public long DownloadBytes { get; init; }
+    public long TotalBytes { get; init; }
+    public long? PacketCount { get; init; }
+    public long? RecordCount { get; init; }
+    public DateTimeOffset? LastActiveUtc { get; init; }
+    public string LastActiveRelative { get; init; } = string.Empty;
+    public bool CanViewClient => ClientIdentity.IsMacKey(NormalizedMac);
+    public string DisplayName { get; set; } = string.Empty;
+    public string LastActiveDisplay => LastActiveUtc is { } time
+        ? time.LocalDateTime.ToString("g")
+        : LastActiveRelative;
+}
+
+public enum ApplicationTrafficDetailAvailability
+{
+    Available,
+    Unsupported,
+    TemporarilyUnavailable
+}
+
+public sealed class ApplicationTrafficDetailReadResult
+{
+    public ApplicationTrafficDetailAvailability Availability { get; init; }
+    public ApplicationTrafficDetail? Detail { get; init; }
+}
+
 public enum DataStatisticsAvailability
 {
     Available,

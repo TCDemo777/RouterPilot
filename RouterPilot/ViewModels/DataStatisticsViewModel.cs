@@ -20,10 +20,14 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 {
     private const int ChartApplicationLimit = 5;
     private readonly DataStatisticsService _dataStatisticsService;
+    private readonly ClientInventoryState _clientInventory;
+    private readonly ClientProfileService _clientProfiles;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly SemaphoreSlim _detailGate = new(1, 1);
     private readonly CancellationTokenSource _disposeCancellation = new();
     private bool _loaded;
     private bool _fullTableLoaded;
+    private long? _topAppsPeriodSeconds;
     private bool _disposed;
 
     [ObservableProperty] private bool isLoading;
@@ -37,11 +41,18 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     [ObservableProperty] private string fullTableError = string.Empty;
     [ObservableProperty] private string fullTablePeriodWarning = string.Empty;
     [ObservableProperty] private ApplicationTrafficRow? aggregate;
+    [ObservableProperty] private bool isDetailLoading;
+    [ObservableProperty] private string detailError = string.Empty;
+    [ObservableProperty] private string detailPeriodWarning = string.Empty;
+    [ObservableProperty] private ApplicationTrafficDetail? selectedDetail;
 
     public ObservableCollection<ApplicationTrafficStat> TopApps { get; } = new();
     public ObservableCollection<ApplicationTrafficRow> AllApplications { get; } = new();
     public ICollectionView AllApplicationsView { get; }
+    public ObservableCollection<ApplicationDeviceTraffic> DetailDevices { get; } = new();
+    public ICollectionView DetailDevicesView { get; }
     public ISeries[] TrafficSeries { get; private set; } = [];
+    public ISeries[] DetailTrafficSeries { get; private set; } = [];
     public Axis[] TrafficXAxes { get; }
     public Axis[] TrafficYAxes { get; }
     public IAsyncRelayCommand RefreshCommand { get; }
@@ -61,16 +72,32 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public string AllApplicationsEmptyText => AllApplications.Count == 0
         ? "No application traffic is available for the current period."
         : "No applications match the current search.";
+    public bool HasDetail => SelectedDetail is not null;
+    public bool HasDetailArea => HasDetail || !string.IsNullOrWhiteSpace(DetailError);
+    public bool HasDetailPeriodWarning => !string.IsNullOrWhiteSpace(DetailPeriodWarning);
+    public bool HasDetailDevices => !DetailDevicesView.IsEmpty;
+    public bool HasNoDetailDevices => HasDetail && !IsDetailLoading && string.IsNullOrWhiteSpace(DetailError) && DetailDevicesView.IsEmpty;
+    public string DetailPeriod => SelectedDetail is null ? "Current period unavailable" : FormatPeriod(SelectedDetail.PeriodSeconds);
+    public string DetailDownload => SelectedDetail is null ? "Unavailable" : FormatBytes(SelectedDetail.TotalDownloadBytes);
+    public string DetailUpload => SelectedDetail is null ? "Unavailable" : FormatBytes(SelectedDetail.TotalUploadBytes);
+    public string DetailTotal => SelectedDetail is null ? "Unavailable" : FormatBytes(SelectedDetail.TotalBytes);
+    public string DetailBlockState => SelectedDetail?.IsBlocked switch { true => "Blocked", false => "Not blocked", _ => "Status unavailable" };
 
-    public DataStatisticsViewModel(DataStatisticsService dataStatisticsService)
+    public DataStatisticsViewModel(DataStatisticsService dataStatisticsService, ClientInventoryState clientInventory,
+        ClientProfileService clientProfiles)
     {
         _dataStatisticsService = dataStatisticsService;
+        _clientInventory = clientInventory;
+        _clientProfiles = clientProfiles;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsLoading && !_disposed);
         AllApplicationsView = CollectionViewSource.GetDefaultView(AllApplications);
         AllApplicationsView.SortDescriptions.Add(
             new SortDescription(nameof(ApplicationTrafficRow.TotalBytes), ListSortDirection.Descending));
         AllApplicationsView.Filter = FilterApplication;
         AllApplications.CollectionChanged += (_, _) => NotifyFullTablePresentationChanged();
+        DetailDevicesView = CollectionViewSource.GetDefaultView(DetailDevices);
+        DetailDevicesView.SortDescriptions.Add(new SortDescription(nameof(ApplicationDeviceTraffic.TotalBytes), ListSortDirection.Descending));
+        DetailDevices.CollectionChanged += (_, _) => NotifyDetailPresentationChanged();
         TrafficXAxes =
         [
             new Axis
@@ -107,7 +134,11 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             _loaded = true;
             Apply(readResult);
             if (readResult.Availability == DataStatisticsAvailability.Available)
+            {
                 await RefreshFullTableAsync(readResult.Snapshot?.PeriodSeconds);
+                if (SelectedDetail is not null)
+                    await OpenApplicationDetailAsync(SelectedDetail.ApplicationId, SelectedDetail.ApplicationName);
+            }
         }
         catch (OperationCanceledException) when (_disposeCancellation.IsCancellationRequested)
         {
@@ -137,6 +168,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     {
         TopApps.Clear();
         TrafficSeries = [];
+        _topAppsPeriodSeconds = null;
         ClearFullTable();
         DataStatisticsStatus? routerStatus = result.Status;
         DpiLibrary = FormatDpiLibrary(routerStatus);
@@ -148,6 +180,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
                 StatusTitle = "Data Statistics active";
                 StatusDetail = "Application traffic classified by the router's DPI engine.";
                 DataStatisticsSnapshot snapshot = result.Snapshot ?? new DataStatisticsSnapshot();
+                _topAppsPeriodSeconds = snapshot.PeriodSeconds;
                 CurrentPeriod = FormatPeriod(snapshot.PeriodSeconds);
                 foreach (ApplicationTrafficStat app in snapshot.TopApps)
                     TopApps.Add(app);
@@ -253,6 +286,82 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         NotifyFullTablePresentationChanged();
     }
 
+    public async Task OpenApplicationDetailAsync(string applicationId, string applicationName)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(applicationId) || string.IsNullOrWhiteSpace(applicationName) ||
+            !await _detailGate.WaitAsync(0))
+            return;
+
+        try
+        {
+            IsDetailLoading = true;
+            DetailError = string.Empty;
+            ApplicationTrafficDetailReadResult result = await _dataStatisticsService
+                .ReadApplicationDetailAsync(applicationId, applicationName, _disposeCancellation.Token);
+            if (result.Availability != ApplicationTrafficDetailAvailability.Available || result.Detail is null)
+            {
+                DetailDevices.Clear();
+                DetailTrafficSeries = [];
+                DetailError = result.Availability == ApplicationTrafficDetailAvailability.Unsupported
+                    ? "Application details are not available on this router."
+                    : "Application details are temporarily unavailable.";
+                NotifyDetailPresentationChanged();
+                return;
+            }
+
+            SelectedDetail = result.Detail;
+            DetailPeriodWarning = !ArePeriodsAligned(_topAppsPeriodSeconds, PeriodToken(result.Detail.PeriodSeconds))
+                ? "Application detail period differs from the current Top Apps period."
+                : string.Empty;
+            DetailDevices.Clear();
+            var profiles = _clientProfiles.Load();
+            foreach (ApplicationDeviceTraffic device in result.Detail.Devices)
+            {
+                device.DisplayName = ResolveDeviceDisplayName(device, profiles);
+                DetailDevices.Add(device);
+            }
+            DetailTrafficSeries = BuildDetailTrafficSeries(result.Detail);
+            NotifyDetailPresentationChanged();
+        }
+        catch (OperationCanceledException) when (_disposeCancellation.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            DetailError = "Application details are temporarily unavailable.";
+            NotifyDetailPresentationChanged();
+        }
+        finally
+        {
+            IsDetailLoading = false;
+            _detailGate.Release();
+        }
+    }
+
+    private string ResolveDeviceDisplayName(ApplicationDeviceTraffic device, IReadOnlyDictionary<string, ClientProfile> profiles)
+    {
+        if (device.CanViewClient && _clientInventory.Snapshot.TryGetValue(device.NormalizedMac, out ClientInfo? live) &&
+            !string.IsNullOrWhiteSpace(live.Name) && live.Name != "-")
+            return live.Name;
+        if (device.CanViewClient && profiles.TryGetValue(device.NormalizedMac, out ClientProfile? profile) &&
+            !string.IsNullOrWhiteSpace(profile.Nickname))
+            return profile.Nickname;
+        if (!string.IsNullOrWhiteSpace(device.Hostname)) return device.Hostname;
+        return device.CanViewClient ? device.MacAddress : "Unknown device";
+    }
+
+    private static ISeries[] BuildDetailTrafficSeries(ApplicationTrafficDetail detail) =>
+        detail.TimeSeries.Where(point => point.StartTimeUtc.HasValue).Any()
+            ? [(ISeries)new LineSeries<ApplicationTrafficPoint>
+            {
+                Name = "Traffic",
+                Values = detail.TimeSeries.Where(point => point.StartTimeUtc.HasValue).ToArray(),
+                Mapping = (point, _) => new Coordinate(point.StartTimeUtc!.Value.ToUnixTimeSeconds(), point.TotalBytes),
+                GeometrySize = 0,
+                LineSmoothness = 0.25
+            }]
+            : [];
+
     private static ISeries[] BuildTrafficSeries(IReadOnlyList<ApplicationTrafficStat> apps) => apps
         .Take(ChartApplicationLimit)
         .Where(app => app.TimeSeries.Count > 0)
@@ -314,6 +423,13 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         3600 => "hour",
         86400 => "day",
         _ => null
+    };
+
+    private static string PeriodToken(long? seconds) => seconds switch
+    {
+        3600 => "hour",
+        86400 => "day",
+        _ => string.Empty
     };
 
     public static bool ArePeriodsAligned(long? topAppsPeriodSeconds, string fullTablePeriod)
@@ -394,6 +510,21 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         OnPropertyChanged(nameof(AllApplicationsEmptyText));
     }
 
+    private void NotifyDetailPresentationChanged()
+    {
+        OnPropertyChanged(nameof(DetailTrafficSeries));
+        OnPropertyChanged(nameof(HasDetail));
+        OnPropertyChanged(nameof(HasDetailArea));
+        OnPropertyChanged(nameof(HasDetailDevices));
+        OnPropertyChanged(nameof(HasNoDetailDevices));
+        OnPropertyChanged(nameof(DetailPeriod));
+        OnPropertyChanged(nameof(DetailDownload));
+        OnPropertyChanged(nameof(DetailUpload));
+        OnPropertyChanged(nameof(DetailTotal));
+        OnPropertyChanged(nameof(DetailBlockState));
+        OnPropertyChanged(nameof(HasDetailPeriodWarning));
+    }
+
     partial void OnIsLoadingChanged(bool value)
     {
         OnPropertyChanged(nameof(HasNoTopApps));
@@ -411,6 +542,10 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         NotifyFullTablePresentationChanged();
     }
 
+    partial void OnSelectedDetailChanged(ApplicationTrafficDetail? value) => NotifyDetailPresentationChanged();
+
+    partial void OnIsDetailLoadingChanged(bool value) => NotifyDetailPresentationChanged();
+
     public void Dispose()
     {
         if (_disposed)
@@ -420,5 +555,6 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         _disposeCancellation.Cancel();
         _disposeCancellation.Dispose();
         _refreshGate.Dispose();
+        _detailGate.Dispose();
     }
 }

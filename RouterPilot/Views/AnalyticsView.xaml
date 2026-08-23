@@ -164,7 +164,8 @@
                                   Visibility="{Binding HasTopApps, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="0,8" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0">
+                                <Border Padding="0,8" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0"
+                                        Tag="{Binding}" Cursor="Hand" MouseLeftButtonUp="TopApplication_Click">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -258,6 +259,7 @@
                               Background="{DynamicResource Brush.SurfaceMuted}"
                               BorderBrush="{DynamicResource Brush.Border}"
                               Foreground="{DynamicResource Brush.TextPrimary}"
+                              SelectionChanged="AllApplications_SelectionChanged"
                               Visibility="{Binding HasAllApplications, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="*" Header="Application" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" />
@@ -270,6 +272,55 @@
                     <TextBlock Style="{StaticResource Text.Muted}"
                                Text="{Binding AllApplicationsEmptyText}"
                                Visibility="{Binding HasNoAllApplications, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <Border Margin="0,22,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}"
+                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8"
+                            Visibility="{Binding HasDetailArea, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Style="{StaticResource Text.SectionTitle}" Text="{Binding SelectedDetail.Label}" />
+                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="{Binding SelectedDetail.ApplicationName}" /></StackPanel>
+                                <Button Grid.Column="1" Style="{DynamicResource Button.Secondary}" Content="Refresh details" Click="RefreshApplicationDetail_Click" />
+                            </Grid>
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding SelectedDetail.Description}" />
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Text="{Binding SelectedDetail.Url}" />
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Text="{Binding DetailPeriodWarning}"
+                                       Visibility="{Binding HasDetailPeriodWarning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="PERIOD"/><TextBlock Margin="0,3,0,0" Text="{Binding DetailPeriod}"/></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="DOWNLOADED"/><TextBlock Margin="0,3,0,0" Text="{Binding DetailDownload}"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="UPLOADED"/><TextBlock Margin="0,3,0,0" Text="{Binding DetailUpload}"/></StackPanel>
+                                <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource Text.CardCaption}" Text="TOTAL TRAFFIC"/><TextBlock Margin="0,3,0,0" Text="{Binding DetailTotal}"/></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource Text.CardCaption}" Text="BLOCK STATE"/><TextBlock Margin="0,3,0,0" Text="{Binding DetailBlockState}"/></StackPanel>
+                            </Grid>
+                            <lvc:CartesianChart MinHeight="180" Margin="0,0,0,12" Background="Transparent" LegendPosition="Top"
+                                                Series="{Binding DetailTrafficSeries}" XAxes="{Binding TrafficXAxes}" YAxes="{Binding TrafficYAxes}" />
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.SectionTitle}" Text="Devices using this application" />
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Text="{Binding DetailError}" />
+                            <DataGrid MaxHeight="300" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                      CanUserResizeRows="False" IsReadOnly="True" ItemsSource="{Binding DetailDevicesView}"
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto" Background="{DynamicResource Brush.WindowBackground}"
+                                      BorderBrush="{DynamicResource Brush.Border}" Foreground="{DynamicResource Brush.TextPrimary}"
+                                      Visibility="{Binding HasDetailDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="*" Header="Device" Binding="{Binding DisplayName}" />
+                                    <DataGridTextColumn Width="100" Header="Download" Binding="{Binding DownloadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" />
+                                    <DataGridTextColumn Width="100" Header="Upload" Binding="{Binding UploadBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" />
+                                    <DataGridTextColumn Width="100" Header="Total" Binding="{Binding TotalBytes, Converter={x:Static local:DataStatisticsValueConverter.Instance}}" />
+                                    <DataGridTextColumn Width="90" Header="Packets" Binding="{Binding PacketCount, StringFormat=N0, TargetNullValue=—}" />
+                                    <DataGridTextColumn Width="135" Header="Last active" Binding="{Binding LastActiveDisplay}" />
+                                    <DataGridTemplateColumn Width="95" Header="Action"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                        <Button Content="View client" Style="{DynamicResource Button.Secondary}" Padding="7,3" Tag="{Binding NormalizedMac}"
+                                                Click="ViewDetailDeviceClient_Click" Visibility="{Binding CanViewClient, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <TextBlock Style="{StaticResource Text.Muted}" Text="No device traffic is available for this application in the current period."
+                                       Visibility="{Binding HasNoDetailDevices, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Expander>
             </Border>

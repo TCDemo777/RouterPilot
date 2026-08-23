@@ -250,6 +250,30 @@ namespace RouterPilot.Views
             await _dataStatistics.EnsureLoadedAsync();
         }
 
+        private async void TopApplication_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: ApplicationTrafficStat app })
+                await _dataStatistics.OpenApplicationDetailAsync(app.ApplicationId, app.ApplicationName);
+        }
+
+        private async void AllApplications_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is DataGrid { SelectedItem: ApplicationTrafficRow app })
+                await _dataStatistics.OpenApplicationDetailAsync(app.ApplicationId, app.ApplicationName);
+        }
+
+        private async void RefreshApplicationDetail_Click(object sender, RoutedEventArgs e)
+        {
+            if (_dataStatistics.SelectedDetail is { } detail)
+                await _dataStatistics.OpenApplicationDetailAsync(detail.ApplicationId, detail.ApplicationName);
+        }
+
+        private void ViewDetailDeviceClient_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string mac } && Window.GetWindow(this) is DashboardWindow dashboard)
+                dashboard.OpenClientDetailsForDeviceIdentity(mac);
+        }
+
         private void ViewDomainActivity_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { Tag: string domain } &&
