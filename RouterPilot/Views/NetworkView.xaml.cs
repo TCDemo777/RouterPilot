@@ -174,7 +174,7 @@ namespace RouterPilot.Views
             ShowDhcpReservationDialog(reservation);
         }
 
-        private void ViewDhcpClient_Click(object sender, RoutedEventArgs e)
+        private async void ViewDhcpClient_Click(object sender, RoutedEventArgs e)
         {
             string? macAddress = sender is FrameworkElement
             {
@@ -191,7 +191,7 @@ namespace RouterPilot.Views
             if (!ClientIdentity.IsMacKey(macAddress)) return;
 
             if (Window.GetWindow(this) is DashboardWindow dashboard)
-                dashboard.OpenClientDetailsForDeviceIdentity(macAddress);
+                await dashboard.OpenClientDetailsForDeviceIdentityAsync(macAddress);
         }
 
         private async void DeleteDhcpReservation_Click(object sender, RoutedEventArgs e)
