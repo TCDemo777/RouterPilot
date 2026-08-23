@@ -94,6 +94,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<MaintenanceOperationService>();
             serviceCollection.AddSingleton<FirmwareUpdateService>();
             serviceCollection.AddSingleton<IInternetSpeedTestService, InternetSpeedTestService>();
+            serviceCollection.AddSingleton<DataStatisticsService>();
             serviceCollection.AddSingleton<DhcpReservationValidator>();
             serviceCollection.AddSingleton<IDhcpReservationService, DhcpReservationService>();
             serviceCollection.AddSingleton<IPortForwardService, PortForwardService>();
@@ -132,6 +133,7 @@ namespace RouterPilot
             serviceCollection.AddTransient<ClientsViewModel>();
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
+            serviceCollection.AddTransient<DataStatisticsViewModel>();
             serviceCollection.AddSingleton<ProtectionViewModel>();
             serviceCollection.AddTransient<GlobalSearchViewModel>();
             serviceCollection.AddTransient<SettingsViewModel>();

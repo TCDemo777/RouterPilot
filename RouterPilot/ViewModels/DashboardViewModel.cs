@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Windows;
 using RouterPilot.Models;
@@ -353,7 +354,13 @@ namespace RouterPilot.ViewModels
         private string externalDns = "-";
 
         [ObservableProperty]
-        private string advertisedDns = "-";
+        private string routerLanAddress = "-";
+
+        public DnsResolverPathPresentation DnsResolverPath =>
+            DnsResolverPathPresentation.Create(
+                ExternalDns,
+                RouterLanAddress,
+                InternetConnected);
 
         [ObservableProperty]
         private string latency = "-";
@@ -774,6 +781,8 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<DhcpLeaseInfo> DhcpLeases { get; } = new();
         public ObservableCollection<DhcpReservationInfo> DhcpReservations { get; } = new();
         public ObservableCollection<DhcpNetworkScopeInfo> DhcpNetworkScopes { get; } = new();
+        public ObservableCollection<DhcpScopeCapacityInfo> DhcpScopeCapacities { get; } = new();
+        public ObservableCollection<DhcpLeaseInfo> UnreservedDhcpLeases { get; } = new();
         public ObservableCollection<PortForwardRuleInfo> PortForwardRules { get; } = new();
         public ObservableCollection<LanClientInfo> LanClients { get; } = new();
         [ObservableProperty] private int lanConnectedCount;
@@ -813,6 +822,8 @@ namespace RouterPilot.ViewModels
 
         public bool HasDhcpLeases => DhcpLeases.Count > 0;
         public bool HasDhcpReservations => DhcpReservations.Count > 0;
+        public bool HasUnreservedDhcpLeases => UnreservedDhcpLeases.Count > 0;
+        public int UnreservedDhcpLeaseCount => UnreservedDhcpLeases.Count;
         public bool DhcpReservationValidationReady { get; private set; }
 
         [ObservableProperty]
@@ -973,6 +984,8 @@ namespace RouterPilot.ViewModels
             ReplaceDhcpCollection(DhcpReservations, snapshot.Reservations);
             ReplaceDhcpCollection(DhcpNetworkScopes, snapshot.Scopes);
             ReplaceDhcpCollection(DhcpWarnings, snapshot.Warnings);
+            ReplaceDhcpCollection(DhcpScopeCapacities, BuildDhcpScopeCapacities(snapshot.Scopes, snapshot.Leases, snapshot.Reservations));
+            ReplaceDhcpCollection(UnreservedDhcpLeases, BuildUnreservedDhcpLeases(snapshot.Leases, snapshot.Reservations));
 
             RouterCapabilities.Dhcp.Read = snapshot.Configurations.Count > 0;
             RouterCapabilities.Dhcp.ActiveLeases = true;
@@ -989,7 +1002,74 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(DhcpStatusColour));
             OnPropertyChanged(nameof(HasDhcpLeases));
             OnPropertyChanged(nameof(HasDhcpReservations));
+            OnPropertyChanged(nameof(HasUnreservedDhcpLeases));
+            OnPropertyChanged(nameof(UnreservedDhcpLeaseCount));
             ReevaluatePortForwardIntelligence();
+        }
+
+        private static IEnumerable<DhcpScopeCapacityInfo> BuildDhcpScopeCapacities(
+            IEnumerable<DhcpNetworkScopeInfo> scopes,
+            IEnumerable<DhcpLeaseInfo> leases,
+            IEnumerable<DhcpReservationInfo> reservations)
+        {
+            List<DhcpLeaseInfo> currentLeases = leases.Where(IsCurrentDhcpLease).ToList();
+            List<DhcpReservationInfo> enabledReservations = reservations.Where(reservation => reservation.Enabled).ToList();
+
+            return scopes.Where(scope => scope.DhcpEnabled).Select(scope =>
+            {
+                int activeLeaseCount = currentLeases
+                    .Where(lease => IsInDynamicRange(scope, lease.IpAddress))
+                    .Select(lease => lease.IpAddress.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+                int reservationCount = enabledReservations.Count(reservation =>
+                    ParseIpv4(reservation.IpAddress) is IPAddress address && scope.ContainsAddress(address));
+                int reservationsInDynamicRange = enabledReservations.Count(reservation => IsInDynamicRange(scope, reservation.IpAddress));
+
+                return new DhcpScopeCapacityInfo
+                {
+                    Scope = scope,
+                    ActiveLeaseCount = activeLeaseCount,
+                    EnabledReservationCount = reservationCount,
+                    EnabledReservationsInDynamicRangeCount = reservationsInDynamicRange
+                };
+            });
+        }
+
+        private static IEnumerable<DhcpLeaseInfo> BuildUnreservedDhcpLeases(
+            IEnumerable<DhcpLeaseInfo> leases,
+            IEnumerable<DhcpReservationInfo> reservations)
+        {
+            List<DhcpReservationInfo> enabledReservations = reservations.Where(reservation => reservation.Enabled).ToList();
+            return leases.Where(IsCurrentDhcpLease)
+                .Where(lease => !enabledReservations.Any(reservation => ClientIdentity.MacEquals(reservation.MacAddress, lease.MacAddress)))
+                .ToList();
+        }
+
+        private static bool IsCurrentDhcpLease(DhcpLeaseInfo lease) =>
+            lease.IsStatic || lease.Expiry is null || lease.Expiry > DateTimeOffset.UtcNow;
+
+        private static bool IsInDynamicRange(DhcpNetworkScopeInfo scope, string? address)
+        {
+            IPAddress? parsedAddress = ParseIpv4(address);
+            IPAddress? start = ParseIpv4(scope.DynamicRangeStart);
+            IPAddress? end = ParseIpv4(scope.DynamicRangeEnd);
+            if (parsedAddress is null || start is null || end is null) return false;
+
+            uint value = ToIpv4UInt(parsedAddress);
+            return value >= ToIpv4UInt(start) && value <= ToIpv4UInt(end);
+        }
+
+        private static IPAddress? ParseIpv4(string? value) =>
+            IPAddress.TryParse(value, out IPAddress? address) && address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                ? address
+                : null;
+
+        private static uint ToIpv4UInt(IPAddress address)
+        {
+            byte[] bytes = address.GetAddressBytes();
+            return ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
         }
 
         public void ReevaluatePortForwardIntelligence()
@@ -1745,8 +1825,15 @@ namespace RouterPilot.ViewModels
         partial void OnInternetConnectedChanged(
             bool value)
         {
+            OnPropertyChanged(nameof(DnsResolverPath));
             RefreshStatusIndicators();
         }
+
+        partial void OnExternalDnsChanged(string value) =>
+            OnPropertyChanged(nameof(DnsResolverPath));
+
+        partial void OnRouterLanAddressChanged(string value) =>
+            OnPropertyChanged(nameof(DnsResolverPath));
 
         partial void OnAdGuardProtectionPausedChanged(
             bool value)

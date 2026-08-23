@@ -661,8 +661,8 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Advertised DNS" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding AdvertisedDns}" />
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Router LAN address" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding RouterLanAddress}" />
                             </Grid>
 
                             <TextBlock Margin="0,2,0,0"

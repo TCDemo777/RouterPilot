@@ -394,8 +394,8 @@ namespace RouterPilot.Views
                 _viewModel.ExternalDns =
                     network.ExternalDns;
 
-                _viewModel.AdvertisedDns =
-                    network.AdvertisedDns;
+                _viewModel.RouterLanAddress =
+                    network.RouterLanAddress;
 
                 _viewModel.Latency =
                     network.Latency;
@@ -994,7 +994,7 @@ namespace RouterPilot.Views
             _viewModel.ExternalDns =
                 "-";
 
-            _viewModel.AdvertisedDns =
+            _viewModel.RouterLanAddress =
                 "-";
 
             _viewModel.Latency =
@@ -1133,6 +1133,14 @@ namespace RouterPilot.Views
             SelectNavigationButton(LogsButton);
         }
 
+        public void NavigateToNetworkSection(string section)
+        {
+            NetworkView network = PageContent.Content as NetworkView ?? new NetworkView();
+            PageContent.Content = network;
+            SelectNavigationButton(NetworkButton);
+            network.NavigateToSection(section);
+        }
+
         public void NavigateToGlobalSearchResult(GlobalSearchResult result)
         {
             switch (result.NavigationTarget)
@@ -1163,9 +1171,8 @@ namespace RouterPilot.Views
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
                 case "health": NavigateToHealthTarget("network"); break;
                 case "wifi": case "dhcp": case "port-forward": case "vpn":
-                    var network = PageContent.Content as NetworkView ?? new NetworkView();
-                    PageContent.Content = network;
-                    SelectNavigationButton(NetworkButton);
+                    NavigateToNetworkSection(result.NavigationTarget);
+                    var network = (NetworkView)PageContent.Content;
                     if (result.NavigationTarget == "dhcp" &&
                         string.Equals(result.Category, "DHCP Reservation", StringComparison.Ordinal))
                     {
@@ -1175,10 +1182,6 @@ namespace RouterPilot.Views
                              string.Equals(result.Category, "Port Forward", StringComparison.Ordinal))
                     {
                         network.NavigateToPortForwardRule(result.EntityId);
-                    }
-                    else
-                    {
-                        network.NavigateToSection(result.NavigationTarget);
                     }
                     break;
             }
@@ -1245,7 +1248,8 @@ namespace RouterPilot.Views
             var analyticsView = new AnalyticsView(
                 ((App)Application.Current).Services.GetRequiredService<IInternetSpeedTestService>(),
                 ((App)Application.Current).Services.GetRequiredService<SettingsService>(),
-                _viewModel);
+                _viewModel,
+                ((App)Application.Current).Services.GetRequiredService<DataStatisticsViewModel>());
             PageContent.Content = analyticsView;
 
             SelectNavigationButton(
@@ -1519,7 +1523,7 @@ namespace RouterPilot.Views
                     _viewModel.WanIp = network.WanIp;
                     _viewModel.Gateway = network.Gateway;
                     _viewModel.ExternalDns = network.ExternalDns;
-                    _viewModel.AdvertisedDns = network.AdvertisedDns;
+                    _viewModel.RouterLanAddress = network.RouterLanAddress;
                     _viewModel.Latency = network.Latency;
                     _viewModel.RefreshStatusIndicators();
                 }

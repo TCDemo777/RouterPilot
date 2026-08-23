@@ -1,0 +1,81 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using RouterPilot.Models;
+
+namespace RouterPilot.Services;
+
+public sealed class DataStatisticsService
+{
+    private readonly IRouterManagerProvider _routerManagerProvider;
+
+    public DataStatisticsService(IRouterManagerProvider routerManagerProvider)
+    {
+        _routerManagerProvider = routerManagerProvider;
+    }
+
+    public async Task<DataStatisticsReadResult> ReadAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            RouterManager routerManager = await _routerManagerProvider
+                .GetRouterManagerAsync(cancellationToken)
+                .ConfigureAwait(false);
+            DataStatisticsStatus status = await routerManager
+                .GetDataStatisticsStatusAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!status.HasFlowStatisticsState)
+            {
+                return new DataStatisticsReadResult
+                {
+                    Availability = DataStatisticsAvailability.Unsupported,
+                    Status = status
+                };
+            }
+
+            if (status.FlowStatisticsEnabled is false)
+            {
+                return new DataStatisticsReadResult
+                {
+                    Availability = DataStatisticsAvailability.Disabled,
+                    Status = status
+                };
+            }
+
+            if (!status.IsDpiActive)
+            {
+                return new DataStatisticsReadResult
+                {
+                    Availability = DataStatisticsAvailability.DpiInactive,
+                    Status = status
+                };
+            }
+
+            DataStatisticsSnapshot snapshot = await routerManager
+                .GetTopAppFlowStatisticsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return new DataStatisticsReadResult
+            {
+                Availability = DataStatisticsAvailability.Available,
+                Status = status,
+                Snapshot = snapshot
+            };
+        }
+        catch (DataStatisticsRpcException exception) when (exception.IsMethodOrServiceUnavailable)
+        {
+            return new DataStatisticsReadResult
+            {
+                Availability = DataStatisticsAvailability.Unsupported
+            };
+        }
+        catch (DataStatisticsRpcException)
+        {
+            return new DataStatisticsReadResult
+            {
+                Availability = DataStatisticsAvailability.TemporarilyUnavailable
+            };
+        }
+    }
+}

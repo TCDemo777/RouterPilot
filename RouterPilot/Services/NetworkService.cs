@@ -107,7 +107,7 @@ namespace RouterPilot.Services
 
 
             //
-            // Advertised DNS
+            // Router LAN address
             //
 
             try
@@ -117,12 +117,12 @@ namespace RouterPilot.Services
                         "uci get network.lan.ipaddr");
 
 
-                info.AdvertisedDns =
+                info.RouterLanAddress =
                     advertised.Trim();
             }
             catch
             {
-                info.AdvertisedDns = "-";
+                info.RouterLanAddress = "-";
             }
 
 

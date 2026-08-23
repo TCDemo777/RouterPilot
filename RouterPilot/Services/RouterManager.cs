@@ -1709,7 +1709,7 @@ namespace RouterPilot.Services
                         MacAddress = mac,
                         Signal = FormatSignal(signal),
                         Band = string.IsNullOrWhiteSpace(band) ?
-                            (rawInterface.Contains("cable", StringComparison.OrdinalIgnoreCase) ? "Ethernet" : "Unknown") : band,
+                            (IsExplicitWiredClientConnection(rawInterface) ? "Ethernet" : "Unknown") : band,
                         Interface = string.IsNullOrWhiteSpace(rawInterface) ? "-" : rawInterface,
                         Ssid = string.IsNullOrWhiteSpace(ssid) ? "-" : ssid
                     });
@@ -1843,6 +1843,14 @@ namespace RouterPilot.Services
 
             return string.Empty;
         }
+
+        // This only interprets the explicit connection value already returned
+        // by the normal GL.iNet client inventory. It does not infer a wired
+        // link from missing Wi-Fi metadata or diagnostic bridge state.
+        private static bool IsExplicitWiredClientConnection(string value) =>
+            value.Contains("cable", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("wired", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("ethernet", StringComparison.OrdinalIgnoreCase);
 
         private static WifiRadioInfo? FindClientNetwork(
             List<WifiRadioInfo> networks,

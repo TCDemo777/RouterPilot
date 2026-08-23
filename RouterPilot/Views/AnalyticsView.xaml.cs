@@ -17,18 +17,21 @@ namespace RouterPilot.Views
         private readonly IInternetSpeedTestService _speedTestService;
         private readonly SettingsService _settingsService;
         private readonly DashboardViewModel _dashboard;
+        private readonly DataStatisticsViewModel _dataStatistics;
         private readonly IMetricHistoryService _metricHistoryService;
         private TimeSpan _selectedHistoryRange = TimeSpan.FromHours(1);
 
         public AnalyticsView(IInternetSpeedTestService speedTestService, SettingsService settingsService,
-            DashboardViewModel dashboard)
+            DashboardViewModel dashboard, DataStatisticsViewModel dataStatistics)
         {
             InitializeComponent();
             _speedTestService = speedTestService;
             _settingsService = settingsService;
             _dashboard = dashboard;
+            _dataStatistics = dataStatistics;
             _metricHistoryService = ((App)Application.Current).Services.GetRequiredService<IMetricHistoryService>();
             DataContext = _dashboard;
+            DataStatisticsPanel.DataContext = _dataStatistics;
             SpeedTestPanel.DataContext = _speedTestService;
             _speedTestService.PropertyChanged += SpeedTestService_PropertyChanged;
             Unloaded += AnalyticsView_Unloaded;
@@ -239,6 +242,12 @@ namespace RouterPilot.Views
         {
             _speedTestService.PropertyChanged -= SpeedTestService_PropertyChanged;
             Unloaded -= AnalyticsView_Unloaded;
+            _dataStatistics.Dispose();
+        }
+
+        private async void DataStatistics_Expanded(object sender, RoutedEventArgs e)
+        {
+            await _dataStatistics.EnsureLoadedAsync();
         }
 
         private void ViewDomainActivity_Click(object sender, RoutedEventArgs e)

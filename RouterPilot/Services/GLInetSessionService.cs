@@ -168,9 +168,25 @@ namespace RouterPilot.Services
             string method,
             CancellationToken cancellationToken = default)
         {
+            return CallAsync(
+                sessionId,
+                service,
+                method,
+                new { },
+                cancellationToken);
+        }
+
+        internal Task<JsonDocument> CallAsync(
+            string sessionId,
+            string service,
+            string method,
+            object parameters,
+            CancellationToken cancellationToken = default)
+        {
             ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
             ArgumentException.ThrowIfNullOrWhiteSpace(service);
             ArgumentException.ThrowIfNullOrWhiteSpace(method);
+            ArgumentNullException.ThrowIfNull(parameters);
 
             return PostRpcAsync(
                 new
@@ -178,7 +194,7 @@ namespace RouterPilot.Services
                     jsonrpc = "2.0",
                     id = 3,
                     method = "call",
-                    @params = new object[] { sessionId, service, method, new { } }
+                    @params = new object[] { sessionId, service, method, parameters }
                 },
                 cancellationToken);
         }

@@ -22,14 +22,30 @@ namespace RouterPilot.ViewModels
 
         private readonly List<QueryLogEntry> _allEntries =
             new();
+        private bool _suppressFilterApplication;
 
         public ObservableCollection<QueryLogEntry> Entries
         {
             get;
         } = new();
 
+        public IReadOnlyList<string> StatusOptions { get; } =
+            new[] { "All", "Allowed", "Blocked" };
+
         [ObservableProperty]
         private string searchText =
+            string.Empty;
+
+        [ObservableProperty]
+        private string selectedStatus =
+            "All";
+
+        [ObservableProperty]
+        private string domainFilter =
+            string.Empty;
+
+        [ObservableProperty]
+        private string clientFilter =
             string.Empty;
 
         [ObservableProperty]
@@ -64,12 +80,22 @@ namespace RouterPilot.ViewModels
             _adGuardAvailabilityService.IsAvailable ? "AdGuard Home" : "N/A";
 
         public string EmptyStateTitle =>
-            _adGuardAvailabilityService.IsAvailable ? "No DNS requests" : "DNS queries unavailable";
+            !_adGuardAvailabilityService.IsAvailable ? "DNS queries unavailable" :
+            HasActiveFilters && _allEntries.Count > 0 ? "No matching DNS activity" :
+            "No DNS requests";
 
         public string EmptyStateMessage =>
-            _adGuardAvailabilityService.IsAvailable
-                ? "AdGuard Home query activity will appear here."
-                : "DNS query information requires AdGuard Home.";
+            !_adGuardAvailabilityService.IsAvailable
+                ? "DNS query information requires AdGuard Home."
+                : HasActiveFilters && _allEntries.Count > 0
+                    ? "No DNS activity matches the current filters."
+                    : "AdGuard Home query activity will appear here.";
+
+        public bool HasActiveFilters =>
+            !string.IsNullOrWhiteSpace(SearchText) ||
+            !string.Equals(SelectedStatus, "All", StringComparison.Ordinal) ||
+            !string.IsNullOrWhiteSpace(DomainFilter) ||
+            !string.IsNullOrWhiteSpace(ClientFilter);
 
         public LogsViewModel(
             IRouterManagerProvider routerManagerProvider,
@@ -170,8 +196,9 @@ namespace RouterPilot.ViewModels
 
             ApplyFilter();
 
-            StatusMessage =
-                _allEntries.Count switch
+            StatusMessage = HasActiveFilters
+                ? $"{Entries.Count} of {_allEntries.Count} entries shown."
+                : _allEntries.Count switch
                 {
                     0 =>
                         "No query-log entries found.",
@@ -189,9 +216,29 @@ namespace RouterPilot.ViewModels
         public void ApplyDomainFilter(
             string domain)
         {
-            // Reuse the visible Logs search instead of adding another domain
-            // filtering implementation for cross-feature navigation.
+            // Cross-feature navigation continues to use the visible general
+            // search, while clearing local refinements from a prior session.
+            _suppressFilterApplication = true;
+            SelectedStatus = "All";
+            DomainFilter = string.Empty;
+            ClientFilter = string.Empty;
             SearchText = domain ?? string.Empty;
+            _suppressFilterApplication = false;
+            OnPropertyChanged(nameof(HasActiveFilters));
+            ApplyFilter();
+        }
+
+        [RelayCommand]
+        private void ClearFilters()
+        {
+            _suppressFilterApplication = true;
+            SelectedStatus = "All";
+            DomainFilter = string.Empty;
+            ClientFilter = string.Empty;
+            SearchText = string.Empty;
+            _suppressFilterApplication = false;
+            OnPropertyChanged(nameof(HasActiveFilters));
+            ApplyFilter();
         }
 
         [RelayCommand]
@@ -214,6 +261,32 @@ namespace RouterPilot.ViewModels
         partial void OnSearchTextChanged(
             string value)
         {
+            if (_suppressFilterApplication) return;
+            OnPropertyChanged(nameof(HasActiveFilters));
+            ApplyFilter();
+        }
+
+        partial void OnSelectedStatusChanged(
+            string value)
+        {
+            if (_suppressFilterApplication) return;
+            OnPropertyChanged(nameof(HasActiveFilters));
+            ApplyFilter();
+        }
+
+        partial void OnDomainFilterChanged(
+            string value)
+        {
+            if (_suppressFilterApplication) return;
+            OnPropertyChanged(nameof(HasActiveFilters));
+            ApplyFilter();
+        }
+
+        partial void OnClientFilterChanged(
+            string value)
+        {
+            if (_suppressFilterApplication) return;
+            OnPropertyChanged(nameof(HasActiveFilters));
             ApplyFilter();
         }
 
@@ -228,6 +301,10 @@ namespace RouterPilot.ViewModels
         {
             string search =
                 SearchText.Trim();
+            string domain =
+                DomainFilter.Trim();
+            string client =
+                ClientFilter.Trim();
 
             IEnumerable<QueryLogEntry> filteredEntries =
                 _allEntries;
@@ -247,6 +324,25 @@ namespace RouterPilot.ViewModels
                             ContainsText(
                                 entry.Status,
                                 search));
+            }
+
+            if (SelectedStatus == "Allowed")
+            {
+                filteredEntries = filteredEntries.Where(entry => !entry.IsBlocked);
+            }
+            else if (SelectedStatus == "Blocked")
+            {
+                filteredEntries = filteredEntries.Where(entry => entry.IsBlocked);
+            }
+
+            if (!string.IsNullOrWhiteSpace(domain))
+            {
+                filteredEntries = filteredEntries.Where(entry => ContainsText(entry.Domain, domain));
+            }
+
+            if (!string.IsNullOrWhiteSpace(client))
+            {
+                filteredEntries = filteredEntries.Where(entry => ContainsText(entry.Client, client));
             }
 
             List<QueryLogEntry> visibleEntries =
@@ -270,8 +366,7 @@ namespace RouterPilot.ViewModels
             if (!IsLoading &&
                 _allEntries.Count > 0)
             {
-                if (!string.IsNullOrWhiteSpace(
-                        search))
+                if (HasActiveFilters)
                 {
                     StatusMessage =
                         $"{Entries.Count} of " +
@@ -286,6 +381,8 @@ namespace RouterPilot.ViewModels
                         $"{_allEntries.Count:N0} entries.";
                 }
             }
+
+            RefreshAvailabilityDisplays();
         }
 
         private void RefreshAvailabilityDisplays()

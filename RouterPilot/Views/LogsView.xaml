@@ -72,6 +72,13 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
+
+        <Style x:Key="Logs.FilterBox"
+               TargetType="TextBox"
+               BasedOn="{StaticResource Logs.SearchBox}">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="10,6"/>
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -177,6 +184,8 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="16"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="14"/>
@@ -223,8 +232,48 @@
                                     Content="Refresh"/>
                         </Grid>
 
+                        <WrapPanel Grid.Row="2"
+                                   VerticalAlignment="Center">
+                            <TextBlock Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Style="{DynamicResource Text.Secondary}"
+                                       Text="Status:"/>
+                            <ComboBox Width="120"
+                                      Height="34"
+                                      Margin="0,0,16,0"
+                                      Style="{StaticResource RouterPilot.ComboBox}"
+                                      ItemsSource="{Binding StatusOptions}"
+                                      SelectedItem="{Binding SelectedStatus, Mode=TwoWay}"/>
+
+                            <TextBlock Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Style="{DynamicResource Text.Secondary}"
+                                       Text="Domain:"/>
+                            <TextBox Width="190"
+                                     Margin="0,0,10,0"
+                                     Style="{StaticResource Logs.FilterBox}"
+                                     Text="{Binding DomainFilter, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Refine by domain only"/>
+
+                            <TextBlock Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Style="{DynamicResource Text.Secondary}"
+                                       Text="Client:"/>
+                            <TextBox Width="190"
+                                     Margin="0,0,10,0"
+                                     Style="{StaticResource Logs.FilterBox}"
+                                     Text="{Binding ClientFilter, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Refine by the displayed query-log client"/>
+
+                            <Button Height="34"
+                                    Padding="12,4"
+                                    Style="{DynamicResource Button.Secondary}"
+                                    Command="{Binding ClearFiltersCommand}"
+                                    Content="Clear filters"/>
+                        </WrapPanel>
+
                         <!-- Query log -->
-                        <Border Grid.Row="2"
+                        <Border Grid.Row="4"
                                 Background="{DynamicResource Brush.Surface}"
                                 BorderBrush="{DynamicResource Brush.Border}"
                                 BorderThickness="1"
@@ -345,7 +394,7 @@
                         </Border>
 
                         <!-- Status -->
-                        <Grid Grid.Row="4">
+                        <Grid Grid.Row="6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>

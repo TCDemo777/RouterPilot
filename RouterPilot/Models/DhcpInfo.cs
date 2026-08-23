@@ -105,10 +105,58 @@ namespace RouterPilot.Models
         public bool ContainsAddress(System.Net.IPAddress address)
         {
             if (NetworkAddress is null || BroadcastAddress is null || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return false;
-            byte[] v = address.GetAddressBytes(), n = System.Net.IPAddress.Parse(NetworkAddress).GetAddressBytes(), b = System.Net.IPAddress.Parse(BroadcastAddress).GetAddressBytes();
+            if (!System.Net.IPAddress.TryParse(NetworkAddress, out var network) || !System.Net.IPAddress.TryParse(BroadcastAddress, out var broadcast) ||
+                network.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || broadcast.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return false;
+            byte[] v = address.GetAddressBytes(), n = network.GetAddressBytes(), b = broadcast.GetAddressBytes();
             uint x = ((uint)v[0]<<24)|((uint)v[1]<<16)|((uint)v[2]<<8)|v[3], lo = ((uint)n[0]<<24)|((uint)n[1]<<16)|((uint)n[2]<<8)|n[3], hi = ((uint)b[0]<<24)|((uint)b[1]<<16)|((uint)b[2]<<8)|b[3];
             return x >= lo && x <= hi;
         }
+    }
+
+    /// <summary>
+    /// Read-only presentation derived from one DHCP scope and the current
+    /// lease/reservation snapshot. Reservations remain contextual: a
+    /// reservation can be outside the dynamic pool, so it is never subtracted
+    /// from available dynamic addresses.
+    /// </summary>
+    public sealed class DhcpScopeCapacityInfo
+    {
+        public required DhcpNetworkScopeInfo Scope { get; init; }
+        public int ActiveLeaseCount { get; init; }
+        public int EnabledReservationCount { get; init; }
+        public int EnabledReservationsInDynamicRangeCount { get; init; }
+
+        public bool HasCapacity => Scope.DhcpLimit is > 0 &&
+            !string.IsNullOrWhiteSpace(Scope.DynamicRangeStart) &&
+            !string.IsNullOrWhiteSpace(Scope.DynamicRangeEnd);
+
+        public int? TotalPoolCapacity => HasCapacity ? Scope.DhcpLimit : null;
+        public int? AvailableAddressCount => TotalPoolCapacity is int capacity
+            ? Math.Max(0, capacity - ActiveLeaseCount)
+            : null;
+        public int? UtilisationPercent => TotalPoolCapacity is int capacity && capacity > 0
+            ? Math.Clamp((int)Math.Round(ActiveLeaseCount * 100d / capacity, MidpointRounding.AwayFromZero), 0, 100)
+            : null;
+
+        public string CapacitySummary => TotalPoolCapacity is int capacity
+            ? $"{ActiveLeaseCount} / {capacity} addresses in use"
+            : "Pool capacity unavailable";
+
+        public string AvailableAddressDisplay => AvailableAddressCount is int available
+            ? available.ToString()
+            : "Unavailable";
+
+        public string UtilisationDisplay => UtilisationPercent is int percent
+            ? $"{percent}% in use"
+            : "Unavailable";
+
+        public string CapacityState => !HasCapacity ? "Unavailable" : UtilisationPercent switch
+        {
+            >= 100 => "Full",
+            >= 90 => "Low capacity",
+            >= 70 => "Getting full",
+            _ => "Healthy"
+        };
     }
 
     public sealed class DhcpSnapshot
