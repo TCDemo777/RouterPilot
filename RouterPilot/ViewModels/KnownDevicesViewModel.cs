@@ -37,9 +37,19 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         ClientRefreshNotifier.ProfileStateChanged += ProfileStateChanged;
         _relativeTimeTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _relativeTimeTimer.Tick += RelativeTimeTimer_Tick;
-        _relativeTimeTimer.Start();
         ReloadProfiles();
     }
+
+    public void Start()
+    {
+        if (_disposed) return;
+
+        RefreshRelativeTimePresentation();
+        if (!_relativeTimeTimer.IsEnabled)
+            _relativeTimeTimer.Start();
+    }
+
+    public void Stop() => _relativeTimeTimer.Stop();
 
     public void ReloadProfiles()
     {
@@ -72,6 +82,11 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
 
+        RefreshRelativeTimePresentation();
+    }
+
+    private void RefreshRelativeTimePresentation()
+    {
         foreach (KnownDeviceInfo device in Devices)
         {
             device.RefreshLastObservedPresentation();

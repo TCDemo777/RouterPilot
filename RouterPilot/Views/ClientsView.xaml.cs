@@ -22,6 +22,7 @@ namespace RouterPilot.Views
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private bool _isRefreshNotifierSubscribed;
         private bool _isActivityFeedSubscribed;
+        private bool _isActive;
 
         public ClientsView()
         {
@@ -44,28 +45,61 @@ namespace RouterPilot.Views
 
             Loaded += ClientsView_Loaded;
             Unloaded += ClientsView_Unloaded;
+            IsVisibleChanged += ClientsView_IsVisibleChanged;
         }
 
         private async void ClientsView_Loaded(
             object sender,
             RoutedEventArgs e)
         {
+            await ActivateAsync();
+        }
+
+        private async void ClientsView_IsVisibleChanged(
+            object sender,
+            DependencyPropertyChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+
+            if (IsVisible)
+            {
+                await ActivateAsync();
+            }
+            else
+            {
+                Deactivate();
+            }
+        }
+
+        private async Task ActivateAsync()
+        {
+            if (_isActive || !IsVisible) return;
+
+            _isActive = true;
             SubscribeToRefreshNotifier();
             SubscribeToActivityFeed();
 
             await RefreshClientsAsync();
 
-            if (!_refreshTimer.IsEnabled)
+            if (_isActive && !_refreshTimer.IsEnabled)
             {
                 _refreshTimer.Start();
             }
+        }
+
+        private void Deactivate()
+        {
+            _isActive = false;
+            _refreshTimer.Stop();
+            UnsubscribeFromRefreshNotifier();
+            UnsubscribeFromActivityFeed();
         }
 
         private async void ClientsRefreshTimer_Tick(
             object? sender,
             EventArgs e)
         {
-            if (!IsVisible ||
+            if (!_isActive ||
                 _viewModel.IsLoading)
             {
                 return;
@@ -78,9 +112,7 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
-            _refreshTimer.Stop();
-            UnsubscribeFromRefreshNotifier();
-            UnsubscribeFromActivityFeed();
+            Deactivate();
         }
 
         private void SubscribeToRefreshNotifier()
@@ -139,15 +171,22 @@ namespace RouterPilot.Views
             object? sender,
             EventArgs e)
         {
+            if (!_isActive) return;
+
             if (!Dispatcher.CheckAccess())
             {
                 await Dispatcher.InvokeAsync(
-                    async () => await RefreshClientsAsync());
+                    async () =>
+                    {
+                        if (_isActive)
+                            await RefreshClientsAsync();
+                    });
 
                 return;
             }
 
-            await RefreshClientsAsync();
+            if (_isActive)
+                await RefreshClientsAsync();
         }
 
         private void ClientRefreshNotifier_ProfileStateChanged(
@@ -459,7 +498,7 @@ namespace RouterPilot.Views
             }
             finally
             {
-                if (resumeRefresh && IsLoaded)
+                if (resumeRefresh && _isActive)
                 {
                     _refreshTimer.Start();
                 }

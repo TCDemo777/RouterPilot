@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 using RouterPilot.ViewModels;
 using RouterPilot.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,7 @@ namespace RouterPilot.Views
     public partial class ProtectionView : UserControl
     {
         private readonly ProtectionViewModel _viewModel;
+        private bool _isActive;
         public ProtectionView()
         {
             InitializeComponent();
@@ -20,9 +22,37 @@ namespace RouterPilot.Views
             InsightsTab.DataContext = Application.Current.MainWindow?.DataContext as DashboardViewModel;
             Loaded += ProtectionView_Loaded;
             Unloaded += ProtectionView_Unloaded;
+            IsVisibleChanged += ProtectionView_IsVisibleChanged;
         }
-        private async void ProtectionView_Loaded(object sender, RoutedEventArgs e) => await _viewModel.StartAsync();
-        private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => _viewModel.Stop();
+        private async void ProtectionView_Loaded(object sender, RoutedEventArgs e) => await ActivateAsync();
+        private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => Deactivate();
+
+        private async void ProtectionView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+
+            if (IsVisible)
+                await ActivateAsync();
+            else
+                Deactivate();
+        }
+
+        private async Task ActivateAsync()
+        {
+            if (_isActive || !IsVisible) return;
+
+            _isActive = true;
+            await _viewModel.StartAsync();
+
+            if (!_isActive)
+                _viewModel.Stop();
+        }
+
+        private void Deactivate()
+        {
+            _isActive = false;
+            _viewModel.Stop();
+        }
 
         private void ProtectionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {

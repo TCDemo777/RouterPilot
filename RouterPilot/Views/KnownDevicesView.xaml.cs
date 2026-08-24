@@ -14,12 +14,33 @@ public partial class KnownDevicesView : UserControl
         InitializeComponent();
         _viewModel = ((App)Application.Current).Services.GetRequiredService<KnownDevicesViewModel>();
         DataContext = _viewModel;
+        Loaded += KnownDevicesView_Loaded;
         Unloaded += KnownDevicesView_Unloaded;
+        IsVisibleChanged += KnownDevicesView_IsVisibleChanged;
+    }
+
+    private void KnownDevicesView_Loaded(object sender, RoutedEventArgs e) => Activate();
+
+    private void KnownDevicesView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+
+        if (IsVisible)
+            Activate();
+        else
+            _viewModel.Stop();
+    }
+
+    private void Activate()
+    {
+        if (IsVisible)
+            _viewModel.Start();
     }
 
     private void KnownDevicesView_Unloaded(object sender, RoutedEventArgs e)
     {
         Unloaded -= KnownDevicesView_Unloaded;
+        _viewModel.Stop();
         _viewModel.Dispose();
     }
 
