@@ -9,6 +9,7 @@ public sealed class ClientInventoryCoordinator
     private readonly ClientInventoryState _inventory;
     private readonly ClientProfileService _profiles;
     private readonly IClientPresenceHistoryService _presence;
+    private readonly Func<CancellationToken, Task<IReadOnlyList<ClientInfo>>>? _testReconciliation;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _loaded;
 
@@ -21,6 +22,16 @@ public sealed class ClientInventoryCoordinator
         _presence = presence;
     }
 
+    internal ClientInventoryCoordinator(ClientInventoryState inventory,
+        Func<CancellationToken, Task<IReadOnlyList<ClientInfo>>> testReconciliation)
+    {
+        _provider = null!;
+        _inventory = inventory;
+        _profiles = null!;
+        _presence = null!;
+        _testReconciliation = testReconciliation;
+    }
+
     public bool IsAuthoritativelyLoaded => _loaded;
 
     public async Task<bool> EnsureAuthoritativeInventoryAsync(CancellationToken token = default)
@@ -30,6 +41,14 @@ public sealed class ClientInventoryCoordinator
         try
         {
             if (_loaded) return true;
+
+            if (_testReconciliation is not null)
+            {
+                _inventory.Update(await _testReconciliation(token));
+                _loaded = true;
+                return true;
+            }
+
             RouterManager router = await _provider.GetRouterManagerAsync(token);
             Task<List<ClientInfo>> adGuardTask = router.GetAdGuardClientsAsync();
             Task<List<WifiRadioInfo>> radiosTask = router.GetWifiRadiosAsync();

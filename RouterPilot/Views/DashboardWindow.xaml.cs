@@ -1229,23 +1229,39 @@ namespace RouterPilot.Views
         /// </summary>
         public bool OpenClientDetailsForDeviceIdentity(string? deviceIdentity)
         {
-            string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
-            if (!ClientIdentity.IsMacKey(macKey))
-                return false;
-
             ClientInventoryState inventory =
                 ((App)Application.Current).Services.GetRequiredService<ClientInventoryState>();
+            ClientDetailsNavigationTarget? target = ClientDetailsNavigationPreparation.Resolve(
+                deviceIdentity,
+                inventory.Snapshot,
+                _clientProfileService.Load());
+            return OpenClientDetailsForNavigationTarget(target);
+        }
 
-            if (inventory.Snapshot.TryGetValue(macKey, out ClientInfo? liveClient))
+        /// <summary>Ensures the existing shared client reconciliation once before resolving a deep link.</summary>
+        public async Task<bool> OpenClientDetailsForDeviceIdentityAsync(string? deviceIdentity)
+        {
+            ClientInventoryState inventory = ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryState>();
+            ClientInventoryCoordinator coordinator = ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryCoordinator>();
+            ClientDetailsNavigationTarget? target = await ClientDetailsNavigationPreparation.ResolveAsync(
+                deviceIdentity,
+                inventory,
+                coordinator,
+                _clientProfileService.Load());
+            return OpenClientDetailsForNavigationTarget(target);
+        }
+
+        private bool OpenClientDetailsForNavigationTarget(ClientDetailsNavigationTarget? target)
+        {
+            if (target?.LiveClient is ClientInfo liveClient)
             {
                 OpenClientDetailsForResolvedClient(liveClient);
                 return true;
             }
 
-            // Resolve again when activated so a device that disappeared since the
-            // search result was built can still open its existing offline details.
-            ClientProfile? profile = _clientProfileService.Load().GetValueOrDefault(macKey);
-            if (profile is not null)
+            if (target?.Profile is ClientProfile profile)
             {
                 var known = new KnownDeviceInfo { Profile = profile };
                 OpenClientDetailsForResolvedClient(known.ToClientInfo(), allowLiveRefresh: false);
@@ -1253,38 +1269,6 @@ namespace RouterPilot.Views
             }
 
             return false;
-        }
-
-        /// <summary>Ensures the existing shared client reconciliation once before resolving a deep link.</summary>
-        public async Task<bool> OpenClientDetailsForDeviceIdentityAsync(string? deviceIdentity)
-        {
-            string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
-            if (!ClientIdentity.IsMacKey(macKey)) return false;
-
-            ClientInventoryState inventory = ((App)Application.Current).Services
-                .GetRequiredService<ClientInventoryState>();
-            ClientInventoryCoordinator coordinator = ((App)Application.Current).Services
-                .GetRequiredService<ClientInventoryCoordinator>();
-
-            // A profile-only device already has all of the information needed for
-            // the existing offline Client Details path.  Do not fetch a live
-            // inventory merely to open that offline presentation.
-            if (!coordinator.IsAuthoritativelyLoaded &&
-                !inventory.Snapshot.ContainsKey(macKey) &&
-                ((App)Application.Current).Services.GetRequiredService<ClientProfileService>()
-                    .Load().ContainsKey(macKey))
-            {
-                return OpenClientDetailsForDeviceIdentity(macKey);
-            }
-
-            if (!coordinator.IsAuthoritativelyLoaded &&
-                !await coordinator.EnsureAuthoritativeInventoryAsync())
-            {
-                // Preserve the existing profile-only fallback without opening a blank window.
-                return OpenClientDetailsForDeviceIdentity(macKey);
-            }
-
-            return OpenClientDetailsForDeviceIdentity(macKey);
         }
 
         /// <summary>Opens Client Details from an already-authoritative client record.</summary>
