@@ -44,7 +44,7 @@ namespace RouterPilot
             {
                 MessageBox.Show(
                     "A router address has not been configured. Open Settings and enter the router host or IP address.",
-                    "AdGuard Tray",
+                    "RouterPilot",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return false;
@@ -66,7 +66,7 @@ namespace RouterPilot
                         ex,
                         "Router configuration validation",
                         "The saved router configuration is invalid. Open Settings and review the router connection values."),
-                    "AdGuard Tray",
+                    "RouterPilot",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 return false;
@@ -78,7 +78,7 @@ namespace RouterPilot
             trayIcon = new TaskbarIcon
             {
                 Icon = System.Drawing.SystemIcons.Application,
-                ToolTipText = "AdGuard Tray",
+                ToolTipText = "RouterPilot",
                 ContextMenu = new System.Windows.Controls.ContextMenu()
             };
 
@@ -167,7 +167,7 @@ namespace RouterPilot
                         ex,
                         "Open AdGuard Home",
                         "Unable to open AdGuard Home. Check the saved address and try again."),
-                    "AdGuard Tray",
+                    "RouterPilot",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -193,7 +193,7 @@ namespace RouterPilot
                         ex,
                         "Open router page",
                         "Unable to open the router page. Check the saved address and try again."),
-                    "AdGuard Tray",
+                    "RouterPilot",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }

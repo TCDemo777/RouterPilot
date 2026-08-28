@@ -28,9 +28,9 @@ Companion for GL.iNet Routers & AdGuard Home
 - Light, dark and system theme support
 - Notification-area integration with close-to-tray behaviour
 
-## What's new in 1.9.0
+## What's new in 2.0.0
 
-RouterPilot v1.9.0 improves everyday visibility and management without changing router configuration automatically.
+RouterPilot v2.0.0 improves everyday visibility and management without changing router configuration automatically.
 
 - Added a persistent Event Timeline with filtering, search, date filtering, read state and safe CSV/JSON/text export
 - Added firmware update awareness, background checks after connection, installed/latest version presentation and deduplicated update notifications
@@ -64,7 +64,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-1.9.0-x64.msi` and `RouterPilot-1.9.0-win-x64.zip`.
+Release assets are published as `RouterPilot-2.0.0-x64.msi` and `RouterPilot-2.0.0-win-x64.zip`.
 
 When upgrading from v1.8.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
 
