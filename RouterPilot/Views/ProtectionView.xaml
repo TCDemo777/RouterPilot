@@ -1112,7 +1112,11 @@
                                 <TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="Read-only rules reported by AdGuard Home. Allow is a rule classification, not a separate allowlist."/>
                                 <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="12"/><ColumnDefinition Width="220"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                     <TextBlock VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="Show"/>
-                                    <ComboBox Grid.Column="2" SelectedValue="{Binding FilterRulesType}" SelectedValuePath="Content" Style="{StaticResource Protection.ComboBox}">
+                                    <ComboBox Grid.Column="2"
+                                              SelectedValue="{Binding FilterRulesType}"
+                                              SelectedValuePath="Content"
+                                              Style="{StaticResource RouterPilot.ComboBox}"
+                                              ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}">
                                         <ComboBoxItem Content="All"/><ComboBoxItem Content="Block"/><ComboBoxItem Content="Allow"/><ComboBoxItem Content="Custom"/>
                                     </ComboBox>
                                     <Grid Grid.Column="4">
@@ -1120,10 +1124,11 @@
                                                  Style="{StaticResource Protection.Input}"
                                                  Text="{Binding FilterRulesSearch, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="Search rules"/>
-                                        <TextBlock Margin="10,0"
+                                        <TextBlock Panel.ZIndex="1"
+                                                   Margin="10,0"
                                                    VerticalAlignment="Center"
                                                    IsHitTestVisible="False"
-                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Foreground="{DynamicResource Brush.TextSecondary}"
                                                    Text="Search">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">

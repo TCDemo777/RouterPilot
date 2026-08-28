@@ -948,6 +948,7 @@
                                 <ComboBox x:Name="PortForwardFilterComboBox"
                                           MinWidth="150"
                                           Style="{StaticResource RouterPilot.ComboBox}"
+                                          ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}"
                                           SelectedIndex="0"
                                           SelectionChanged="PortForwardFilter_SelectionChanged">
                                     <ComboBoxItem Content="All"/>

@@ -217,7 +217,7 @@
                                        Text="{Binding FullTablePeriod, StringFormat=Current period: {0}}" />
                         </StackPanel>
                         <Grid Grid.Column="1"
-                              Width="150"
+                              Width="128"
                               Margin="16,0,0,0"
                               Visibility="{Binding HasApplicationSearch, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBox x:Name="AllApplicationsSearchBox"
@@ -229,10 +229,11 @@
                                      Foreground="{DynamicResource Brush.TextPrimary}"
                                      ToolTip="Search applications"
                                      Text="{Binding AllApplicationsSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Margin="10,0"
+                            <TextBlock Panel.ZIndex="1"
+                                       Margin="10,0"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Foreground="{DynamicResource Brush.TextSecondary}"
                                        Text="Search">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
