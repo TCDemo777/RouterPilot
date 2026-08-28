@@ -108,6 +108,7 @@
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
             <TabItem Header="VPN"/>
+            <TabItem Header="Health"/>
         </TabControl>
 
         <ScrollViewer Grid.Row="2"
@@ -116,6 +117,7 @@
             <StackPanel Margin="24,0,24,24">
 
                 <!-- Overview -->
+                <ContentControl x:Name="HealthContent" Visibility="Collapsed"/>
                 <Grid x:Name="OverviewSummaryContent" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

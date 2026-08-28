@@ -132,10 +132,15 @@ namespace RouterPilot
             serviceCollection.AddSingleton<NewDeviceNotificationTracker>();
             serviceCollection.AddSingleton<NotificationCentreViewModel>();
             serviceCollection.AddSingleton<TimelineViewModel>();
+            // The dashboard window and read-only projections share this single
+            // application state instance.
+            serviceCollection.AddSingleton<DashboardViewModel>();
             serviceCollection.AddTransient<ClientsViewModel>();
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
-            serviceCollection.AddTransient<DataStatisticsViewModel>();
+            // This is existing Analytics state, retained so read-only surfaces can project it.
+            serviceCollection.AddSingleton<DataStatisticsViewModel>();
+            serviceCollection.AddTransient<NetworkHealthViewModel>();
             serviceCollection.AddSingleton<ProtectionViewModel>();
             serviceCollection.AddTransient<GlobalSearchViewModel>();
             serviceCollection.AddTransient<SettingsViewModel>();

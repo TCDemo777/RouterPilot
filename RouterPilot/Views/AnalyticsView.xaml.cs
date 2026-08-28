@@ -270,7 +270,9 @@ namespace RouterPilot.Views
         {
             _speedTestService.PropertyChanged -= SpeedTestService_PropertyChanged;
             Unloaded -= AnalyticsView_Unloaded;
-            _dataStatistics.Dispose();
+            // Data Statistics is application-owned shared state. The DI
+            // container disposes it during application shutdown, not when a
+            // transient Analytics view leaves the visual tree.
         }
 
         private void TopApplication_Click(object sender, RoutedEventArgs e)

@@ -87,8 +87,8 @@ namespace RouterPilot.Views
         {
             InitializeComponent();
 
-            _viewModel =
-                new DashboardViewModel();
+            _viewModel = ((App)Application.Current).Services
+                .GetRequiredService<DashboardViewModel>();
 
             DataContext =
                 _viewModel;

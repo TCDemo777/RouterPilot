@@ -58,6 +58,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public bool HasTopApps => TopApps.Count > 0;
+    public bool HasLoaded => _loaded;
     public bool HasNoTopApps => !IsLoading && Status == RouterPilotStatus.Active && TopApps.Count == 0;
     public string TopAppsEmptyText => "No application traffic is available for the current period.";
     public bool HasAllApplications => !AllApplicationsView.IsEmpty;
@@ -132,6 +133,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             DataStatisticsReadResult readResult = await _dataStatisticsService
                 .ReadAsync(_disposeCancellation.Token);
             _loaded = true;
+            OnPropertyChanged(nameof(HasLoaded));
             Apply(readResult);
             if (readResult.Availability == DataStatisticsAvailability.Available)
             {
