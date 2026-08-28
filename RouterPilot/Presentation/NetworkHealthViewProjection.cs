@@ -77,8 +77,9 @@ public static class NetworkHealthViewProjection
         DataFreshnessState.Stale => Check("Wi-Fi", "Stale", "Wi-Fi status has not refreshed.", RouterPilotStatus.Pending, "wifi"),
         DataFreshnessState.Unavailable => Check("Wi-Fi", "Unavailable", "Wi-Fi data is unavailable.", RouterPilotStatus.NotAvailable, "wifi"),
         _ when x.WifiRadios == 0 => Check("Wi-Fi", "Unavailable", "No Wi-Fi radios were reported.", RouterPilotStatus.NotAvailable, "wifi", false),
-        _ when x.WifiDisabledRadios == x.WifiRadios => Check("Wi-Fi", "Disabled", $"Radios: {x.WifiRadios} disabled; connected clients: {x.WifiClients}", RouterPilotStatus.Disabled, "wifi"),
-        _ when x.WifiDisabledRadios > 0 || x.WifiUnknownRadios > 0 => Check("Wi-Fi", "Partial", $"Radios: {x.WifiActiveRadios} active, {x.WifiDisabledRadios} disabled, {x.WifiUnknownRadios} unavailable; connected clients: {x.WifiClients}", RouterPilotStatus.Pending, "wifi"),
+        _ when x.WifiDisabledRadios == x.WifiRadios => Check("Wi-Fi", "Disabled", $"Radios: {x.WifiRadios} disabled; connected clients: {x.WifiClients}", RouterPilotStatus.Disabled, "wifi", false),
+        _ when x.WifiDisabledRadios > 0 && x.WifiUnknownRadios == 0 => Check("Wi-Fi", "Partial", $"Radios: {x.WifiActiveRadios} active, {x.WifiDisabledRadios} disabled, {x.WifiUnknownRadios} unavailable; connected clients: {x.WifiClients}", RouterPilotStatus.Pending, "wifi", false),
+        _ when x.WifiUnknownRadios > 0 => Check("Wi-Fi", "Partial", $"Radios: {x.WifiActiveRadios} active, {x.WifiDisabledRadios} disabled, {x.WifiUnknownRadios} unavailable; connected clients: {x.WifiClients}", RouterPilotStatus.Pending, "wifi"),
         _ => Check("Wi-Fi", "Available", $"Radios: {x.WifiRadios} · Connected clients: {x.WifiClients}", RouterPilotStatus.Active, "wifi")
     };
 
@@ -107,10 +108,11 @@ public static class NetworkHealthViewProjection
     }
     private static NetworkHealthViewCheck Firmware(NetworkHealthViewInput x) => x.FirmwareStatus switch
     {
-        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.FirmwareVersion), RouterPilotStatus.Pending, "overview"),
-        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.FirmwareVersion), RouterPilotStatus.Active, "overview"),
-        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.FirmwareVersion), RouterPilotStatus.Pending, "overview", false),
-        _ => Check("Firmware", "Unavailable", Known(x.FirmwareVersion), RouterPilotStatus.NotAvailable, "overview", false)
+        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "overview"),
+        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.RouterFirmwareVersion), RouterPilotStatus.Active, "overview"),
+        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "overview", false),
+        FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "overview", false),
+        _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "overview", false)
     };
     private static NetworkHealthViewCheck DataStatistics(NetworkHealthViewInput x) => !x.DataStatisticsLoaded
         ? Check("Data Statistics", "Not loaded", "Open Analytics to load its existing Data Statistics state.", RouterPilotStatus.NotAvailable, "analytics", false)
@@ -130,4 +132,4 @@ public static class NetworkHealthViewProjection
 
 public sealed record NetworkHealthViewCheck(string Title, string Status, string Detail, RouterPilotStatus Severity, string NavigationTarget, bool AffectsOverall);
 public sealed record NetworkHealthViewSnapshot(string OverallStatus, RouterPilotStatus OverallSeverity, string OverallDetail, IReadOnlyList<NetworkHealthViewCheck> Checks);
-public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string FirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, RouterPilotStatus DataStatisticsStatus, string DataStatisticsDetail);
+public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, RouterPilotStatus DataStatisticsStatus, string DataStatisticsDetail);

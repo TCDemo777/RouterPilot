@@ -760,18 +760,28 @@
             <Border Margin="0,0,0,20" Style="{StaticResource Card}">
                 <StackPanel>
                 <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="Quick actions" />
-                <WrapPanel>
-                    <Button x:Name="RefreshQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Primary}"
-                            Tag="RefreshAll" Content="Refresh" ToolTip="Refresh all current RouterPilot data" AutomationProperties.Name="Refresh all data" Click="QuickAction_Click" />
-                    <Button x:Name="RestartAdGuardQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RestartAdGuard" Content="Restart AdGuard" ToolTip="Restart AdGuard Home" AutomationProperties.Name="Restart AdGuard Home" Click="QuickAction_Click" />
-                    <Button x:Name="RestartWifiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="RestartWifi" Content="Restart Wi-Fi" ToolTip="Restart router wireless interfaces" AutomationProperties.Name="Restart Wi-Fi" Click="QuickAction_Click" />
-                    <Button x:Name="BackupQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="CreateBackup" Content="Create Backup" ToolTip="Create a RouterPilot backup package" AutomationProperties.Name="Create Backup" Click="QuickAction_Click" />
-                    <Button x:Name="RouterUiQuickAction" Margin="0,0,10,10" Width="152" Height="36" Style="{DynamicResource Button.Secondary}"
-                            Tag="OpenRouter" Content="Open Router UI" ToolTip="Open the configured router interface" AutomationProperties.Name="Open Router UI" Click="QuickAction_Click" />
-                </WrapPanel>
+                <UniformGrid Columns="5">
+                    <Button x:Name="RefreshQuickAction" Margin="4,0" Height="38" Padding="6,4" FontSize="12" Style="{DynamicResource Button.Primary}"
+                            Tag="RefreshAll" ToolTip="Refresh all current RouterPilot data" AutomationProperties.Name="Refresh all data" Click="QuickAction_Click">
+                        <TextBlock Text="Refresh" TextAlignment="Center" TextWrapping="Wrap" />
+                    </Button>
+                    <Button x:Name="RestartAdGuardQuickAction" Margin="4,0" Height="38" Padding="6,4" FontSize="12" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartAdGuard" ToolTip="Restart AdGuard Home" AutomationProperties.Name="Restart AdGuard Home" Click="QuickAction_Click">
+                        <TextBlock Text="Restart AdGuard" TextAlignment="Center" TextWrapping="Wrap" />
+                    </Button>
+                    <Button x:Name="RestartWifiQuickAction" Margin="4,0" Height="38" Padding="6,4" FontSize="12" Style="{DynamicResource Button.Secondary}"
+                            Tag="RestartWifi" ToolTip="Restart router wireless interfaces" AutomationProperties.Name="Restart Wi-Fi" Click="QuickAction_Click">
+                        <TextBlock Text="Restart Wi-Fi" TextAlignment="Center" TextWrapping="Wrap" />
+                    </Button>
+                    <Button x:Name="BackupQuickAction" Margin="4,0" Height="38" Padding="6,4" FontSize="12" Style="{DynamicResource Button.Secondary}"
+                            Tag="CreateBackup" ToolTip="Create a RouterPilot backup package" AutomationProperties.Name="Create Backup" Click="QuickAction_Click">
+                        <TextBlock Text="Create Backup" TextAlignment="Center" TextWrapping="Wrap" />
+                    </Button>
+                    <Button x:Name="RouterUiQuickAction" Margin="4,0" Height="38" Padding="6,4" FontSize="12" Style="{DynamicResource Button.Secondary}"
+                            Tag="OpenRouter" ToolTip="Open the configured router interface" AutomationProperties.Name="Open Router UI" Click="QuickAction_Click">
+                        <TextBlock Text="Open Router UI" TextAlignment="Center" TextWrapping="Wrap" />
+                    </Button>
+                </UniformGrid>
                 </StackPanel>
             </Border>
         </StackPanel>

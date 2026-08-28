@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
-NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1") => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, "1.0", FirmwareUpdateCheckStatus.UpToDate, statsLoaded, stats, "Existing status.");
+NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, stats, "Existing status.");
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Unavailable)).OverallStatus == "Unavailable", "router unavailable");
@@ -22,13 +22,22 @@ Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Stale)).Chec
 Require(NetworkHealthViewProjection.Create(Input(statsLoaded: false)).Checks.Single(x => x.Title == "Data Statistics").Status == "Not loaded", "partial state");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Loading)).OverallStatus == "Initializing", "loading state");
 Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Loading)).OverallStatus != "Healthy", "Wi-Fi loading state");
+Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Stale)).OverallStatus != "Healthy", "Wi-Fi stale state");
 Require(NetworkHealthViewProjection.Create(Input(dhcp: DataFreshnessState.Loading)).OverallStatus != "Healthy", "DHCP loading state");
 Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Unavailable)).OverallStatus != "Healthy", "Wi-Fi unavailable state");
+Require(NetworkHealthViewProjection.Create(Input() with { WifiActiveRadios = 1, WifiDisabledRadios = 1 }).OverallStatus == "Healthy", "intentionally disabled Wi-Fi radio is informational");
+Require(NetworkHealthViewProjection.Create(Input() with { WifiActiveRadios = 0, WifiDisabledRadios = 2 }).OverallStatus == "Healthy", "all intentionally disabled Wi-Fi radios are informational");
 Require(NetworkHealthViewProjection.Create(Input(dhcp: DataFreshnessState.Unavailable)).OverallStatus != "Healthy", "DHCP unavailable state");
 Require(NetworkHealthViewProjection.Create(Input(cpu: "-", temperature: "-", memory: "-", storage: "-", uptime: "-", load: "-")).Checks.Single(x => x.Title == "Router resources").Status == "Unavailable", "missing resources");
 Require(NetworkHealthViewProjection.Create(Input(cpu: "-", temperature: "45 C")).Checks.Single(x => x.Title == "Router resources").Status == "Partial", "partial resources");
 Require(NetworkHealthViewProjection.Create(Input(wan: DataFreshnessState.Loading)).OverallStatus != "Healthy", "WAN loading state");
 Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading)).OverallStatus != "Healthy", "AdGuard loading state");
+NetworkHealthViewCheck firmwareUpToDate = NetworkHealthViewProjection.Create(Input(routerFirmwareVersion: "4.6.0", firmwareStatus: FirmwareUpdateCheckStatus.UpToDate)).Checks.Single(x => x.Title == "Firmware");
+Require(firmwareUpToDate.Status == "Up to date" && firmwareUpToDate.Detail == "Current version: 4.6.0", "GL.iNet firmware up to date");
+Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.UpdateAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Update available", "GL.iNet firmware update available");
+Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.Pending)).Checks.Single(x => x.Title == "Firmware").Status == "Checking", "GL.iNet firmware checking");
+Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.NotAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Unavailable", "GL.iNet firmware unavailable");
+Require(nameof(NetworkHealthViewInput.RouterFirmwareVersion) == "RouterFirmwareVersion", "Network Health has no LuCI firmware input.");
 using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardViewModel>().BuildServiceProvider();
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
-Console.WriteLine("Network Health projection fixtures passed: 20/20.");
+Console.WriteLine("Network Health projection fixtures passed: 28/28.");

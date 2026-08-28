@@ -74,7 +74,7 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
             _dashboard.WifiNetworks.Count(radio => radio.StatusDisplay == RouterPilotStatusPresentation.NotAvailable), _dashboard.WifiUniqueClientTotal,
             _dashboard.DhcpLoaded, _dashboard.DhcpLeases.Count, _dashboard.DhcpReservations.Count, _dashboard.CpuUsageDisplay,
             _dashboard.Temperature, _dashboard.MemoryUsage, _dashboard.StorageUsage, _dashboard.Uptime, _dashboard.LoadAverage,
-            _dashboard.FirmwareVersion, _dashboard.FirmwareUpdateStatus, _dataStatistics.HasLoaded, _dataStatistics.Status, _dataStatistics.StatusDetail));
+            _dashboard.RouterFirmwareVersion, _dashboard.FirmwareUpdateStatus, _dataStatistics.HasLoaded, _dataStatistics.Status, _dataStatistics.StatusDetail));
         OnPropertyChanged(nameof(Checks)); OnPropertyChanged(nameof(OverallStatus)); OnPropertyChanged(nameof(OverallDetail)); OnPropertyChanged(nameof(OverallColour));
     }
 
