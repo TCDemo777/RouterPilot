@@ -57,10 +57,19 @@ public static class NetworkHealthViewProjection
         if (x.VpnFreshness == DataFreshnessState.Stale) return Check("VPN", "Stale", "VPN status has not refreshed.", RouterPilotStatus.Pending, "vpn");
         if (!x.VpnAvailable) return Check("VPN", "Unavailable", "VPN client backend is unavailable.", RouterPilotStatus.NotAvailable, "vpn", false);
         if (!x.VpnConfigured) return Check("VPN", "Not configured", "No VPN tunnel is configured.", RouterPilotStatus.NotAvailable, "vpn", false);
+        if (IsExplicitVpnFailure(x.VpnState))
+            return Check("VPN", "Error", string.IsNullOrWhiteSpace(x.VpnDetail) ? x.VpnState : x.VpnDetail, RouterPilotStatus.Error, "vpn");
         bool disconnected = x.VpnState == "Disconnected";
         return Check("VPN", x.VpnState, string.IsNullOrWhiteSpace(x.VpnDetail) ? "VPN tunnel status." : x.VpnDetail,
-            x.VpnState == "Connected" ? RouterPilotStatus.Connected : x.VpnState == "Connecting" ? RouterPilotStatus.Pending : disconnected ? RouterPilotStatus.Disabled : RouterPilotStatus.NotAvailable, "vpn", disconnected || x.VpnState == "Connecting");
+            x.VpnState == "Connected" ? RouterPilotStatus.Connected : x.VpnState == "Connecting" ? RouterPilotStatus.Pending : disconnected ? RouterPilotStatus.Disabled : RouterPilotStatus.NotAvailable, "vpn", false);
     }
+
+    private static bool IsExplicitVpnFailure(string state) =>
+        state.Contains("fail", StringComparison.OrdinalIgnoreCase) ||
+        state.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+        state.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||
+        state.Contains("needs attention", StringComparison.OrdinalIgnoreCase) ||
+        state.Contains("connection did not complete", StringComparison.OrdinalIgnoreCase);
 
     private static NetworkHealthViewCheck Wifi(NetworkHealthViewInput x) => x.WifiFreshness switch
     {
