@@ -1,5 +1,49 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.0.0
+
+## Added
+- Added Network Health to the Network page: a compact read-only summary of router reachability, WAN, DNS protection, VPN, Wi-Fi, DHCP, resources, firmware and Data Statistics using existing application state.
+- Added production DHCP reservation management with validation, client-aware selectors and direct navigation between DHCP rows and Client Details.
+- Added production port-forwarding management with add, edit and delete workflows, capability-aware controls, rule validation, client context and an attention filter.
+- Added GL.iNet VPN management with live tunnel status, connection-state feedback, diagnostics and local VPN schedules that run while RouterPilot is active.
+- Added Data Statistics / DPI application analytics, including router application traffic, per-application device traffic, DNS/application context and supported per-application blocking controls.
+- Added Internet Speed Test with history, preferences and clear availability/failure feedback.
+- Added persistent Known Devices, favourites, device-presence history, offline client context and favourite-device availability monitoring.
+- Added public-IP visibility, persistent WAN/CPU/memory metrics, internet reliability insights and network-instability alerts.
+- Added dashboard card preferences and a compact five-action Quick Actions row.
+- Added Protection Insights, expanded filter and blocked-service controls, DNS rewrite management and direct navigation from domains to DNS Activity.
+- Added broader Global Search coverage and direct client navigation from search, DHCP, port-forwarding and DNS-related views.
+- Added a sanitised network-snapshot export and lightweight Client Navigation, Data Statistics and Network Health regression harnesses.
+
+## Changed
+- Redesigned the Dashboard and Overview around clearer router, Internet, AdGuard and VPN status, configurable cards and actionable health context.
+- Improved Network and Client Details so DHCP leases, reservations, Wi-Fi intelligence, port forwards and router client data reconcile into a consistent device view.
+- Expanded Analytics into a single place for traffic, reliability, DNS activity, Internet Speed Test and Data Statistics.
+- Expanded Protection into focused protection, filters, blocked services, rules/rewrites and Insights views without duplicating DNS Activity.
+- Clarified firmware presentation by keeping the GL.iNet router-firmware update state separate from the LuCI/OpenWrt board-release value.
+- Updated RouterPilot branding, installer metadata and the authoritative solution to include the lightweight regression harnesses.
+
+## Fixed
+- Fixed client DNS Activity availability so an empty enrichment result is not reported as an AdGuard Home outage.
+- Fixed client identity reconciliation, category selection, detail navigation and offline known-device presentation across dashboard, Network and Clients views.
+- Fixed VPN profile/tunnel reconciliation and live connection-state feedback for unlinked, disconnected and failed states.
+- Fixed loading, stale, unavailable, disabled and recovery presentation across Network Health, Wi-Fi, DHCP, Dashboard, VPN, Protection, Clients and Data Statistics.
+- Fixed shared Data Statistics lifetime handling so leaving Analytics does not dispose state used by other views.
+- Fixed page refresh timers and transient view subscriptions so hidden pages do not continue unnecessary UI refresh work or retain stale view state.
+- Fixed dashboard startup presentation so unresolved connection and VPN state is shown as loading rather than as an immediate failure or empty configuration.
+
+## Performance
+- Reused shared router, client, VPN, AdGuard and Data Statistics state across views rather than adding parallel polling paths.
+- Centralised client inventory reconciliation and network-traffic accumulation to reduce duplicate work and keep client data consistent between pages.
+- Made page-specific refresh timers visibility-aware and kept Network Health as a lightweight projection of existing state.
+
+## Reliability
+- Added explicit freshness and availability semantics so loading, stale, disabled, unsupported and unavailable states are distinguished instead of being treated as healthy data.
+- Improved shared AdGuard availability ordering so an older hidden Protection refresh cannot overwrite newer state.
+- Added atomic JSON persistence for local application data and standardised user-facing operation failure handling.
+- Expanded deterministic regression coverage for client navigation, Data Statistics sharing and Network Health aggregation/lifecycle behaviour.
+
 # RouterPilot v1.9.0
 
 ## Added

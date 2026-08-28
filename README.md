@@ -8,37 +8,30 @@ Companion for GL.iNet Routers & AdGuard Home
 
 ## Features
 
-- Live router, AdGuard Home, network and storage status
-- AdGuard protection controls, filtering options and blocked-service management
-- Scheduled AdGuard blocked-service controls, including paired allowed-time windows
-- DNS analytics, query history, live logs and client details
-- Wi-Fi network and connected-client monitoring
-- GL.iNet main, Guest and IoT network awareness
-- Favourite clients, persistent device history and connection activity
-- Live and historical WAN throughput, DNS, CPU and memory charts
-- Event Timeline with persistent activity history, local filtering/search and safe export
-- Persistent Notification Centre with router, AdGuard and new-device events
-- Configurable Windows notifications, Notification Centre delivery and quiet hours
-- Maintenance Centre with safe router actions, shared action history and diagnostics
-- Portable `.rpb` Backup & Restore with manifest validation and pre-restore backups
-- SSH host-key verification and HTTPS certificate trust-on-first-use for router connections
-- Router diagnostics, safe diagnostic export, ping, traceroute and DNS lookup tools
-- Automatic GitHub release update checks
-- Secure password storage using Windows user-scoped encryption
-- Light, dark and system theme support
-- Notification-area integration with close-to-tray behaviour
+- Router overview with connection, WAN, public-IP, Wi-Fi, resource, firmware and Network Health status
+- Client inventory, favourites, Known Devices, connection history, client details and direct navigation from search, DHCP and DNS activity
+- Network management for Wi-Fi, DHCP reservations and port-forwarding rules where supported by the router
+- AdGuard Home protection controls, DNS activity, client DNS context, Insights, filters, blocked services and DNS rewrites
+- Analytics for live and historical WAN, DNS, CPU and memory data, Internet Speed Test history and internet reliability
+- Read-only Data Statistics / DPI application analytics, including per-application device traffic and supported application blocking controls
+- GL.iNet VPN management with live tunnel status, diagnostics and local schedules while RouterPilot is running
+- Event Timeline, Notification Centre, configurable Windows notifications and quiet hours
+- Maintenance actions, diagnostics, firmware awareness, safe network-snapshot export and portable `.rpb` backup/restore
+- Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
+- Light, dark and system themes plus notification-area close-to-tray behaviour
 
 ## What's new in 2.0.0
 
-RouterPilot v2.0.0 improves everyday visibility and management without changing router configuration automatically.
+RouterPilot 2.0 adds deeper network visibility and management while keeping router configuration changes user initiated.
 
-- Added a persistent Event Timeline with filtering, search, date filtering, read state and safe CSV/JSON/text export
-- Added firmware update awareness, background checks after connection, installed/latest version presentation and deduplicated update notifications
-- Added Router Health explanations and Internet Quality using existing router and connectivity data
-- Added Overview Quick Actions, client context menus and Maintenance overflow actions that reuse established services
-- Redesigned the global application header with labelled Router, Internet and AdGuard Home states and smart refresh feedback
-- Clarified the distinction between LuCI snapshot and installed GL.iNet router firmware, and improved diagnostics with separate Run Diagnostics and Backup Diagnostics actions
-- Standardised major page sections, spacing and page scrollbar alignment for a more cohesive desktop experience
+- Added Network Health, a compact read-only view of current router, WAN, DNS protection, VPN, Wi-Fi, DHCP, resources, firmware and Data Statistics state.
+- Added Data Statistics / DPI application analytics, per-application device traffic and supported application protection controls.
+- Added production DHCP reservation and port-forwarding management, with client-aware navigation and validation.
+- Added live GL.iNet VPN status, management, diagnostics and local VPN schedules.
+- Added Known Devices, favourites, connection history, Internet Speed Test history, public-IP visibility and reliability insights.
+- Expanded Protection with Insights, filter and rewrite management, blocked-service controls and direct DNS-activity navigation.
+- Improved freshness, loading, unavailable and recovery states across dashboard, clients, Network, VPN, Protection and Analytics.
+- Made the Dashboard more adaptable with configurable cards and a compact five-action Quick Actions row.
 
 ## Security
 
@@ -52,6 +45,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 - A supported GL.iNet router reachable over the local network
 - SSH access enabled on the router
 - AdGuard Home installed on the router for DNS filtering, query activity and protection controls
+- Data Statistics application analytics require a router and firmware that expose the required GL.iNet Data Statistics / DPI interface
 - .NET 9 Desktop Runtime when using a framework-dependent build
 
 ## Getting started
@@ -66,7 +60,11 @@ User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are prote
 
 Release assets are published as `RouterPilot-2.0.0-x64.msi` and `RouterPilot-2.0.0-win-x64.zip`.
 
-When upgrading from v1.8.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
+## Upgrading to 2.0
+
+When upgrading from v1.9.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. RouterPilot continues to copy supported legacy AdGuardTray data only when a RouterPilot replacement does not already exist.
+
+Data Statistics, VPN, DHCP reservation and port-forwarding capabilities vary by router model, firmware and enabled router services; RouterPilot shows unavailable or unsupported states when the required router interface is not available. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
 
 ## Building from source
 
