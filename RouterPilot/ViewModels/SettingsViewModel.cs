@@ -41,7 +41,6 @@ namespace RouterPilot.ViewModels
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
-        private string _searchText = string.Empty;
 
         public string RouterIp
         {
@@ -163,21 +162,6 @@ namespace RouterPilot.ViewModels
         public string QuietHoursStart { get => _quietHoursStart; set { if (SetProperty(ref _quietHoursStart, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursEnd { get => _quietHoursEnd; set { if (SetProperty(ref _quietHoursEnd, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
 
-        public string SearchText
-        {
-            get => _searchText;
-            set
-            {
-                if (SetProperty(ref _searchText, value))
-                {
-                    OnPropertyChanged(nameof(GeneralSectionVisibility));
-                    OnPropertyChanged(nameof(RouterSectionVisibility));
-                    OnPropertyChanged(nameof(NotificationsSectionVisibility));
-                    OnPropertyChanged(nameof(FirmwareSectionVisibility));
-                }
-            }
-        }
-
         public bool IsAdGuardHttpConfigured => !_useAdGuardHttps;
 
         public string AdGuardTransportStatus => AdGuardTransportSecurity.Status switch
@@ -218,10 +202,6 @@ namespace RouterPilot.ViewModels
                                                 !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotesUrl) ||
                                                 !string.IsNullOrWhiteSpace(FirmwareUpdate.DownloadUrl);
 
-        public Visibility GeneralSectionVisibility => Matches("General Startup Appearance Theme Application dashboard refresh") ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility RouterSectionVisibility => Matches("Router Connection Authentication SSH password AdGuard Home router communication protection") ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility NotificationsSectionVisibility => Matches("Notifications Windows Notification Centre Quiet Hours categories test") ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility FirmwareSectionVisibility => Matches("Firmware Current Latest Update Release Notes Check") ? Visibility.Visible : Visibility.Collapsed;
 
         public IRelayCommand SaveCommand { get; }
 
@@ -462,9 +442,6 @@ namespace RouterPilot.ViewModels
 
         private async Task CheckFirmwareUpdateAsync() =>
             await _firmwareUpdateService.CheckManuallyAsync();
-
-        private bool Matches(string terms) => string.IsNullOrWhiteSpace(SearchText) ||
-            terms.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase);
 
         private bool IsQuietHoursActive() =>
             new NotificationPreferences

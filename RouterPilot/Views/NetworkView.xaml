@@ -947,6 +947,7 @@
                                 <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="Show:"/>
                                 <ComboBox x:Name="PortForwardFilterComboBox"
                                           MinWidth="150"
+                                          Style="{StaticResource RouterPilot.ComboBox}"
                                           SelectedIndex="0"
                                           SelectionChanged="PortForwardFilter_SelectionChanged">
                                     <ComboBoxItem Content="All"/>

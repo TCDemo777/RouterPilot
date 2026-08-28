@@ -84,7 +84,8 @@
         </Style>
 
         <Style x:Key="Protection.ComboBox"
-               TargetType="ComboBox">
+               TargetType="ComboBox"
+               BasedOn="{StaticResource RouterPilot.ComboBox}">
             <Setter Property="Height" Value="36"/>
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Background" Value="{DynamicResource Brush.Surface}"/>
@@ -1114,7 +1115,32 @@
                                     <ComboBox Grid.Column="2" SelectedValue="{Binding FilterRulesType}" SelectedValuePath="Content" Style="{StaticResource Protection.ComboBox}">
                                         <ComboBoxItem Content="All"/><ComboBoxItem Content="Block"/><ComboBoxItem Content="Allow"/><ComboBoxItem Content="Custom"/>
                                     </ComboBox>
-                                    <TextBox Grid.Column="4" Style="{StaticResource Protection.Input}" Text="{Binding FilterRulesSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search rules"/>
+                                    <Grid Grid.Column="4">
+                                        <TextBox x:Name="FilterRulesSearchBox"
+                                                 Style="{StaticResource Protection.Input}"
+                                                 Text="{Binding FilterRulesSearch, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Search rules"/>
+                                        <TextBlock Margin="10,0"
+                                                   VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Search">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding Text, ElementName=FilterRulesSearchBox}" Value=""/>
+                                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=FilterRulesSearchBox}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                 </Grid>
                                 <Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TYPE"/><TextBlock Grid.Column="1" Style="{DynamicResource Text.CardCaption}" Text="RULE"/></Grid>
                                 <ListBox MaxHeight="420" IsHitTestVisible="False" ItemsSource="{Binding FilteringRulesView}"

@@ -43,14 +43,6 @@
             <TextBlock Margin="0,5,0,0"
                        Style="{DynamicResource Text.Secondary}"
                        Text="Application behaviour, router credentials and AdGuard Home defaults."/>
-            <TextBox Margin="0,16,0,0"
-                     Height="38"
-                     Padding="12,6"
-                     Background="{DynamicResource Brush.Surface}"
-                     Foreground="{DynamicResource Brush.TextPrimary}"
-                     BorderBrush="{DynamicResource Brush.BorderStrong}"
-                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Search settings by section, name or description" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="2"
@@ -119,8 +111,8 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
-                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Router" Visibility="{Binding RouterSectionVisibility}" />
-                        <Border Style="{DynamicResource Card}" Visibility="{Binding RouterSectionVisibility}">
+                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Router" />
+                        <Border Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router connection"/>
                                 <TextBlock Margin="0,5,0,18" Style="{DynamicResource Text.Secondary}"
@@ -174,8 +166,8 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2">
-                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="General" Visibility="{Binding GeneralSectionVisibility}" />
-                        <Border Style="{DynamicResource Card}" Visibility="{Binding GeneralSectionVisibility}">
+                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="General" />
+                        <Border Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Application"/>
                                 <TextBlock Margin="0,5,0,18" Style="{DynamicResource Text.Secondary}"
@@ -219,7 +211,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,16,0,0" Style="{DynamicResource Card}" Visibility="{Binding RouterSectionVisibility}">
+                        <Border Margin="0,16,0,0" Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="AdGuard Home"/>
                                 <TextBlock Margin="0,8,0,0"
@@ -282,8 +274,8 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Notifications" Visibility="{Binding NotificationsSectionVisibility}" />
-                        <Border Style="{DynamicResource Card}" Visibility="{Binding NotificationsSectionVisibility}">
+                        <TextBlock Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Notifications" />
+                        <Border Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Notification Preferences"/>
                                 <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"
@@ -321,7 +313,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Border Margin="0,16,0,0" Style="{DynamicResource Card}" Visibility="{Binding GeneralSectionVisibility}">
+                <Border Margin="0,16,0,0" Style="{DynamicResource Card}">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>

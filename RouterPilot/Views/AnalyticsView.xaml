@@ -216,17 +216,40 @@
                                        Style="{StaticResource Text.Muted}"
                                        Text="{Binding FullTablePeriod, StringFormat=Current period: {0}}" />
                         </StackPanel>
-                        <TextBox Grid.Column="1"
-                                 Width="220"
-                                 Margin="16,0,0,0"
-                                 Padding="9,6"
-                                 VerticalContentAlignment="Center"
-                                 Background="{DynamicResource Brush.SurfaceMuted}"
-                                 BorderBrush="{DynamicResource Brush.Border}"
-                                 Foreground="{DynamicResource Brush.TextPrimary}"
-                                 ToolTip="Search applications"
-                                 Text="{Binding AllApplicationsSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding HasApplicationSearch, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Grid Grid.Column="1"
+                              Width="150"
+                              Margin="16,0,0,0"
+                              Visibility="{Binding HasApplicationSearch, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBox x:Name="AllApplicationsSearchBox"
+                                     Height="34"
+                                     Padding="9,5"
+                                     VerticalContentAlignment="Center"
+                                     Background="{DynamicResource Brush.SurfaceMuted}"
+                                     BorderBrush="{DynamicResource Brush.Border}"
+                                     Foreground="{DynamicResource Brush.TextPrimary}"
+                                     ToolTip="Search applications"
+                                     Text="{Binding AllApplicationsSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="10,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="Search">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Text, ElementName=AllApplicationsSearchBox}" Value=""/>
+                                                    <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=AllApplicationsSearchBox}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Grid>
 
                     <TextBlock Margin="0,0,0,10"
