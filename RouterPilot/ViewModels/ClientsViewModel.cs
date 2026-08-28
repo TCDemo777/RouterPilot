@@ -144,6 +144,7 @@ namespace RouterPilot.ViewModels
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
             _clientProfileStoreReliable = _clientProfileService.LastLoadSucceeded;
+            AdGuardDataAvailability = _adGuardAvailabilityService.State;
             SelectedClientActivity.CollectionChanged += (_, _) =>
                 OnPropertyChanged(nameof(HasSelectedClientActivity));
 
@@ -170,6 +171,7 @@ namespace RouterPilot.ViewModels
                     _allClients.Clear();
                     _allClients.AddRange(_clientInventoryState.Snapshot.Values);
                     ApplyFilterAndSort(sharedSelectedKey);
+                    AdGuardDataAvailability = _adGuardAvailabilityService.State;
                     _dataFreshnessService.MarkSuccess("Clients");
                     StatusMessage = string.Empty;
                     return;
@@ -240,11 +242,10 @@ namespace RouterPilot.ViewModels
 
                 RebuildLiveClientLookup(liveClients);
 
-                AdGuardDataAvailability = adGuardResult.Error is not null
-                    ? _adGuardAvailabilityService.State
-                    : adGuardResult.Value is { Count: > 0 }
-                        ? AdGuardAvailabilityState.Available
-                        : AdGuardAvailabilityState.Unavailable;
+                // The shared availability service is authoritative for whether
+                // AdGuard Home is reachable. An empty client-enrichment result
+                // only means no matching client data was returned.
+                AdGuardDataAvailability = _adGuardAvailabilityService.State;
 
                 List<ClientInfo> clients = BuildRouterClients(liveClients);
                 ApplyAdGuardEnrichment(clients, adGuardResult.Value ?? [], AdGuardDataAvailability);
@@ -324,7 +325,12 @@ namespace RouterPilot.ViewModels
         private AdGuardAvailabilityState _adGuardDataAvailability =
             AdGuardAvailabilityState.Unavailable;
 
-        public string DnsActivityAvailabilityMessage => AdGuardDataAvailability switch
+        partial void OnIsLoadingChanged(bool value) =>
+            OnPropertyChanged(nameof(DnsActivityAvailabilityMessage));
+
+        public string DnsActivityAvailabilityMessage => IsLoading
+            ? "DNS activity is loading. Router client information remains available."
+            : AdGuardDataAvailability switch
         {
             AdGuardAvailabilityState.Available => string.Empty,
             AdGuardAvailabilityState.NotConfigured =>
