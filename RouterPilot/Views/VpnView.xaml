@@ -65,8 +65,11 @@
                             </StackPanel>
                         </Border>
                     </Expander>
+                    <TextBlock Margin="0,14,0,8" Text="Loading VPN tunnels…">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsVpnInventoryLoading}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Margin="0,14,0,8" Text="No VPN tunnels are configured.">
-                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasVpnTunnels}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ShowNoVpnTunnels}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                     </TextBlock>
                     <ItemsControl ItemsSource="{Binding VpnTunnels}">
                         <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type models:VpnTunnelInfo}"><Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

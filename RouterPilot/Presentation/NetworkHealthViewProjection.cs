@@ -66,7 +66,7 @@ public static class NetworkHealthViewProjection
     {
         DataFreshnessState.Loading => Check("Wi-Fi", "Loading", "Waiting for Wi-Fi radio data.", RouterPilotStatus.Pending, "wifi"),
         DataFreshnessState.Stale => Check("Wi-Fi", "Stale", "Wi-Fi status has not refreshed.", RouterPilotStatus.Pending, "wifi"),
-        DataFreshnessState.Unavailable => Check("Wi-Fi", "Unavailable", "Wi-Fi data is unavailable.", RouterPilotStatus.NotAvailable, "wifi", false),
+        DataFreshnessState.Unavailable => Check("Wi-Fi", "Unavailable", "Wi-Fi data is unavailable.", RouterPilotStatus.NotAvailable, "wifi"),
         _ when x.WifiRadios == 0 => Check("Wi-Fi", "Unavailable", "No Wi-Fi radios were reported.", RouterPilotStatus.NotAvailable, "wifi", false),
         _ when x.WifiDisabledRadios == x.WifiRadios => Check("Wi-Fi", "Disabled", $"Radios: {x.WifiRadios} disabled; connected clients: {x.WifiClients}", RouterPilotStatus.Disabled, "wifi"),
         _ when x.WifiDisabledRadios > 0 || x.WifiUnknownRadios > 0 => Check("Wi-Fi", "Partial", $"Radios: {x.WifiActiveRadios} active, {x.WifiDisabledRadios} disabled, {x.WifiUnknownRadios} unavailable; connected clients: {x.WifiClients}", RouterPilotStatus.Pending, "wifi"),
@@ -77,7 +77,7 @@ public static class NetworkHealthViewProjection
     {
         DataFreshnessState.Loading => Check("DHCP", "Loading", "Waiting for DHCP lease data.", RouterPilotStatus.Pending, "dhcp"),
         DataFreshnessState.Stale => Check("DHCP", "Stale", "DHCP lease data has not refreshed.", RouterPilotStatus.Pending, "dhcp"),
-        DataFreshnessState.Unavailable => Check("DHCP", "Unavailable", "DHCP data is unavailable.", RouterPilotStatus.NotAvailable, "dhcp", false),
+        DataFreshnessState.Unavailable => Check("DHCP", "Unavailable", "DHCP data is unavailable.", RouterPilotStatus.NotAvailable, "dhcp"),
         _ when !x.DhcpLoaded => Check("DHCP", "Loading", "Waiting for DHCP lease data.", RouterPilotStatus.Pending, "dhcp"),
         _ => Check("DHCP", "Available", $"Leases: {x.DhcpLeases} · Reservations: {x.DhcpReservations}", RouterPilotStatus.Active, "dhcp")
     };

@@ -458,6 +458,7 @@ namespace RouterPilot.Views
                 }
 
                 _refreshInProgress = false;
+                _viewModel.IsInitialising = false;
             }
         }
 

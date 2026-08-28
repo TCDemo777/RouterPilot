@@ -19,10 +19,12 @@ Require(NetworkHealthViewProjection.Create(Input(statsLoaded: false)).Checks.Sin
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Loading)).OverallStatus == "Initializing", "loading state");
 Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Loading)).OverallStatus != "Healthy", "Wi-Fi loading state");
 Require(NetworkHealthViewProjection.Create(Input(dhcp: DataFreshnessState.Loading)).OverallStatus != "Healthy", "DHCP loading state");
+Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Unavailable)).OverallStatus != "Healthy", "Wi-Fi unavailable state");
+Require(NetworkHealthViewProjection.Create(Input(dhcp: DataFreshnessState.Unavailable)).OverallStatus != "Healthy", "DHCP unavailable state");
 Require(NetworkHealthViewProjection.Create(Input(cpu: "-", temperature: "-", memory: "-", storage: "-", uptime: "-", load: "-")).Checks.Single(x => x.Title == "Router resources").Status == "Unavailable", "missing resources");
 Require(NetworkHealthViewProjection.Create(Input(cpu: "-", temperature: "45 C")).Checks.Single(x => x.Title == "Router resources").Status == "Partial", "partial resources");
 Require(NetworkHealthViewProjection.Create(Input(wan: DataFreshnessState.Loading)).OverallStatus != "Healthy", "WAN loading state");
 Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading)).OverallStatus != "Healthy", "AdGuard loading state");
 using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardViewModel>().BuildServiceProvider();
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
-Console.WriteLine("Network Health projection fixtures passed: 15/15.");
+Console.WriteLine("Network Health projection fixtures passed: 17/17.");

@@ -589,6 +589,11 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string dataFreshnessColour = RouterPilotStatusPresentation.Colour(RouterPilotStatus.Pending);
 
+        // Presentation-only: connectivity has not yet been determined by the
+        // first established dashboard refresh.
+        [ObservableProperty]
+        private bool isInitialising = true;
+
         [ObservableProperty]
         private VpnSummaryState vpnSummary = new();
 
@@ -598,13 +603,18 @@ namespace RouterPilot.ViewModels
         //
 
         public string RouterStatusText =>
-            RouterPilotStatusPresentation.Text(
+            IsInitialising
+                ? "Initializing"
+                : RouterPilotStatusPresentation.Text(
                 RouterConnected
                     ? RouterPilotStatus.Connected
                     : RouterPilotStatus.Error);
 
         public string RouterStatusColour =>
             RouterPilotStatusPresentation.Colour(
+                IsInitialising
+                    ? RouterPilotStatus.Pending
+                    :
                 RouterConnected
                     ? RouterPilotStatus.Connected
                     : RouterPilotStatus.Error);
@@ -677,7 +687,9 @@ namespace RouterPilot.ViewModels
                         : RouterPilotStatusPresentation.Colour(RouterPilotStatus.Disabled);
 
         public string InternetStatusText =>
-            !InternetConnected
+            IsInitialising
+                ? "Initializing"
+                : !InternetConnected
                 ? RouterPilotStatusPresentation.Text(RouterPilotStatus.Error)
                 : IsVpnConnected
                     ? "Connected via VPN"
@@ -685,7 +697,9 @@ namespace RouterPilot.ViewModels
 
         public string InternetStatusColour =>
             RouterPilotStatusPresentation.Colour(
-                InternetConnected
+                IsInitialising
+                    ? RouterPilotStatus.Pending
+                    : InternetConnected
                     ? RouterPilotStatus.Connected
                     : RouterPilotStatus.Error);
 
@@ -1751,6 +1765,8 @@ namespace RouterPilot.ViewModels
             UpdateDhcpReservationWriteCapability();
             OnPropertyChanged(nameof(CanManageDhcpReservations));
         }
+
+        partial void OnIsInitialisingChanged(bool value) => RefreshStatusIndicators();
 
         partial void OnNetworkHealthChanged(NetworkHealthSnapshot value) => OnPropertyChanged(nameof(NetworkHealthColour));
 

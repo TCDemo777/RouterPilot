@@ -24,7 +24,6 @@ namespace RouterPilot.ViewModels
         private readonly BlockedServiceMutationService _blockedServiceMutations;
         private readonly AdGuardServiceScheduleService _scheduleService;
         private readonly IAdGuardServiceCatalogueProvider _serviceCatalogue;
-        private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly DispatcherTimer _timer;
         private readonly SemaphoreSlim _protectionStateGate = new(1, 1);
@@ -77,7 +76,6 @@ namespace RouterPilot.ViewModels
             AdGuardServiceScheduleService scheduleService,
             IAdGuardServiceCatalogueProvider serviceCatalogue,
             AdGuardServiceScheduleViewModel schedules,
-            AdGuardAvailabilityService adGuardAvailabilityService,
             AdGuardMaintenanceStateService adGuardMaintenanceStateService)
         {
             _routerManagerProvider = routerManagerProvider;
@@ -85,7 +83,6 @@ namespace RouterPilot.ViewModels
             _blockedServiceMutations = blockedServiceMutations;
             _scheduleService = scheduleService;
             _serviceCatalogue = serviceCatalogue;
-            _adGuardAvailabilityService = adGuardAvailabilityService;
             _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
             _adGuardMaintenanceStateService.PropertyChanged += (_, _) =>
             {
@@ -152,17 +149,8 @@ namespace RouterPilot.ViewModels
                 if (!SetProperty(ref _isAdGuardAvailable, value)) return;
                 OnPropertyChanged(nameof(ControlsEnabled));
                 OnPropertyChanged(nameof(AdGuardAvailabilityMessage));
-                if (value)
+                if (!value)
                 {
-                    _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Available);
-                }
-                else
-                {
-                    if (_adGuardAvailabilityService.State == AdGuardAvailabilityState.Available)
-                    {
-                        _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Unavailable);
-                    }
-
                     SetProtectionStatus(RouterPilotStatus.NotAvailable);
                     StatusDetail = "AdGuard Home is unavailable. Router monitoring remains active.";
                     Remaining = string.Empty;

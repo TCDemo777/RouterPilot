@@ -10,6 +10,7 @@ public sealed partial class VpnViewModel : ObservableObject
     public ObservableCollection<VpnTunnelInfo> VpnTunnels { get; } = new();
     public ObservableCollection<VpnClientProfileInfo> VpnProfiles { get; } = new();
     [ObservableProperty] private bool vpnIsLoading;
+    [ObservableProperty] private bool vpnInventoryLoadCompleted;
     [ObservableProperty] private string vpnStatus = string.Empty;
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private int vpnOperationTunnelId;
@@ -22,13 +23,24 @@ public sealed partial class VpnViewModel : ObservableObject
     private string _failedConnectionLocation = string.Empty;
     public bool HasVpnTunnels => VpnTunnels.Count > 0;
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
+    public bool IsVpnInventoryLoading => !VpnInventoryLoadCompleted || VpnIsLoading;
+    public bool ShowNoVpnTunnels => VpnInventoryLoadCompleted && VpnSupported && !HasVpnTunnels;
     public bool IsTunnelBusy(VpnTunnelInfo tunnel) => VpnOperationTunnelId == tunnel.TunnelId;
     public void Replace(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles)
     {
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in tunnels) VpnTunnels.Add(tunnel);
         VpnProfiles.Clear(); foreach (VpnClientProfileInfo profile in profiles) VpnProfiles.Add(profile);
         OnPropertyChanged(nameof(HasVpnTunnels)); OnPropertyChanged(nameof(HasVpnProfiles));
+        OnPropertyChanged(nameof(ShowNoVpnTunnels));
     }
+
+    partial void OnVpnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsVpnInventoryLoading));
+    partial void OnVpnInventoryLoadCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsVpnInventoryLoading));
+        OnPropertyChanged(nameof(ShowNoVpnTunnels));
+    }
+    partial void OnVpnSupportedChanged(bool value) => OnPropertyChanged(nameof(ShowNoVpnTunnels));
 
     public void BeginConnectionAttempt(VpnTunnelInfo tunnel)
     {

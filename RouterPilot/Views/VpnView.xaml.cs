@@ -100,7 +100,11 @@ public partial class VpnView : UserControl
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
 #endif
         }
-        finally { _viewModel.VpnIsLoading = false; }
+        finally
+        {
+            _viewModel.VpnInventoryLoadCompleted = true;
+            _viewModel.VpnIsLoading = false;
+        }
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();
