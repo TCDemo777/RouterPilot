@@ -1,5 +1,12 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.0.1
+
+## Fixed
+- Fixed Protection Custom Filtering Rules and Network Port Forwarding drop-downs so their closed controls, menus and items follow the active RouterPilot theme.
+- Added visual Search watermarks to Protection filtering and Analytics Data Statistics application search fields without changing their filter input.
+- Made the Analytics All Applications search field more compact and removed the unused Settings-page search box.
+
 # RouterPilot v2.0.0
 
 ## Added

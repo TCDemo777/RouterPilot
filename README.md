@@ -20,7 +20,7 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in 2.0.0
+## What's new in RouterPilot 2.0
 
 RouterPilot 2.0 adds deeper network visibility and management while keeping router configuration changes user initiated.
 
@@ -32,6 +32,8 @@ RouterPilot 2.0 adds deeper network visibility and management while keeping rout
 - Expanded Protection with Insights, filter and rewrite management, blocked-service controls and direct DNS-activity navigation.
 - Improved freshness, loading, unavailable and recovery states across dashboard, clients, Network, VPN, Protection and Analytics.
 - Made the Dashboard more adaptable with configurable cards and a compact five-action Quick Actions row.
+
+RouterPilot v2.0.1 is a small UI-polish update with dark-theme fixes for Protection and Port Forwarding drop-downs, clearer search placeholders, and a simplified Settings page.
 
 ## Security
 
@@ -58,7 +60,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.0.0-x64.msi` and `RouterPilot-2.0.0-win-x64.zip`.
+Release assets are published as `RouterPilot-2.0.1-x64.msi` and `RouterPilot-2.0.1-win-x64.zip`.
 
 ## Upgrading to 2.0
 
