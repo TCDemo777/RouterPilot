@@ -19,7 +19,11 @@ public enum NotificationCategory
     Internet,
     AdGuard,
     Network,
-    Device
+    Device,
+    Vpn,
+    NetworkHealth,
+    Firmware,
+    ApplicationUpdates
 }
 
 public enum NotificationEventType

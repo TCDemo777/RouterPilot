@@ -25,6 +25,8 @@ namespace RouterPilot.ViewModels
         private readonly AdGuardServiceScheduleService _scheduleService;
         private readonly IAdGuardServiceCatalogueProvider _serviceCatalogue;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
+        private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
+        private readonly NotificationService _notificationService;
         private readonly DispatcherTimer _timer;
         private readonly SemaphoreSlim _protectionStateGate = new(1, 1);
         private readonly CancellationTokenSource _disposalCancellation = new();
@@ -68,6 +70,10 @@ namespace RouterPilot.ViewModels
         private string _filterRulesSearch = "";
         private string _filterRulesType = "All";
         private bool _hasFilteringRulesData;
+        private bool _blocklistsLoaded;
+        private bool _blocklistsLoading;
+        private string _blocklistsStatus = "Open Blocklists to load AdGuard Home subscriptions.";
+        private string _blocklistSearch = "";
 
         public ProtectionViewModel(
             IRouterManagerProvider routerManagerProvider,
@@ -76,7 +82,9 @@ namespace RouterPilot.ViewModels
             AdGuardServiceScheduleService scheduleService,
             IAdGuardServiceCatalogueProvider serviceCatalogue,
             AdGuardServiceScheduleViewModel schedules,
-            AdGuardMaintenanceStateService adGuardMaintenanceStateService)
+            AdGuardMaintenanceStateService adGuardMaintenanceStateService,
+            AdGuardAvailabilityService adGuardAvailabilityService,
+            NotificationService notificationService)
         {
             _routerManagerProvider = routerManagerProvider;
             _protectionNotificationTracker = protectionNotificationTracker;
@@ -84,6 +92,8 @@ namespace RouterPilot.ViewModels
             _scheduleService = scheduleService;
             _serviceCatalogue = serviceCatalogue;
             _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
+            _adGuardAvailabilityService = adGuardAvailabilityService;
+            _notificationService = notificationService;
             _adGuardMaintenanceStateService.PropertyChanged += (_, _) =>
             {
                 OnPropertyChanged(nameof(ControlsEnabled));
@@ -118,6 +128,9 @@ namespace RouterPilot.ViewModels
             FilteringRulesView = CollectionViewSource.GetDefaultView(FilteringRules);
             FilteringRulesView.Filter = FilterFilteringRule;
             FilteringRules.CollectionChanged += FilteringRules_CollectionChanged;
+            BlocklistsView = CollectionViewSource.GetDefaultView(Blocklists);
+            BlocklistsView.Filter = FilterBlocklist;
+            BlocklistsView.SortDescriptions.Add(new SortDescription(nameof(AdGuardBlocklist.Name), ListSortDirection.Ascending));
             QueryLogView = CollectionViewSource.GetDefaultView(QueryLogEntries);
             QueryLogView.Filter = FilterQueryLogEntry;
             RefreshQueryLogCommand = new AsyncRelayCommand(() => RefreshQueryLogAsync(true), () => !IsBusy);
@@ -126,6 +139,8 @@ namespace RouterPilot.ViewModels
             DeleteRuleCommand = new AsyncRelayCommand(DeleteRuleAsync, () => !IsBusy && SelectedRule is not null);
             AddRewriteCommand = new AsyncRelayCommand(AddRewriteAsync, () => !IsBusy);
             DeleteRewriteCommand = new AsyncRelayCommand(DeleteRewriteAsync, () => !IsBusy && SelectedRewrite is not null);
+            ToggleBlocklistCommand = new AsyncRelayCommand<AdGuardBlocklist>(ToggleBlocklistAsync, blocklist => ControlsEnabled && blocklist is not null);
+            UpdateAllBlocklistsCommand = new AsyncRelayCommand(UpdateAllBlocklistsAsync, () => ControlsEnabled && BlocklistsLoaded);
         }
 
         public ObservableCollection<BlockedServiceItem> BlockedServices { get; } = new();
@@ -137,6 +152,8 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<DnsRewriteRule> DnsRewrites { get; } = new();
         public ObservableCollection<QueryLogEntry> QueryLogEntries { get; } = new();
         public ICollectionView QueryLogView { get; }
+        public ObservableCollection<AdGuardBlocklist> Blocklists { get; } = new();
+        public ICollectionView BlocklistsView { get; }
 
         public bool IsBusy { get => _isBusy; private set { if (SetProperty(ref _isBusy, value)) { OnPropertyChanged(nameof(ControlsEnabled)); NotifyCommands(); } } }
         public bool ControlsEnabled => !IsBusy && IsAdGuardAvailable &&
@@ -198,6 +215,10 @@ namespace RouterPilot.ViewModels
         public string FilterRulesSearch { get => _filterRulesSearch; set { if (SetProperty(ref _filterRulesSearch, value)) FilteringRulesView.Refresh(); } }
         public string FilterRulesType { get => _filterRulesType; set { if (SetProperty(ref _filterRulesType, value)) FilteringRulesView.Refresh(); } }
         public bool HasFilteringRulesData { get => _hasFilteringRulesData; private set => SetProperty(ref _hasFilteringRulesData, value); }
+        public bool BlocklistsLoaded { get => _blocklistsLoaded; private set => SetProperty(ref _blocklistsLoaded, value); }
+        public bool BlocklistsLoading { get => _blocklistsLoading; private set => SetProperty(ref _blocklistsLoading, value); }
+        public string BlocklistsStatus { get => _blocklistsStatus; private set => SetProperty(ref _blocklistsStatus, value); }
+        public string BlocklistSearch { get => _blocklistSearch; set { if (SetProperty(ref _blocklistSearch, value)) BlocklistsView.Refresh(); } }
         public int TotalFilteringRuleCount => FilteringRules.Count;
         public int BlockFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Block");
         public int AllowFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Allow");
@@ -258,6 +279,8 @@ namespace RouterPilot.ViewModels
         public IAsyncRelayCommand DeleteRuleCommand { get; }
         public IAsyncRelayCommand AddRewriteCommand { get; }
         public IAsyncRelayCommand DeleteRewriteCommand { get; }
+        public IAsyncRelayCommand<AdGuardBlocklist> ToggleBlocklistCommand { get; }
+        public IAsyncRelayCommand UpdateAllBlocklistsCommand { get; }
 
         public async Task StartAsync()
         {
@@ -739,6 +762,178 @@ namespace RouterPilot.ViewModels
             finally { IsBusy = false; }
         }
 
+        public async Task LoadBlocklistsAsync(bool force = false)
+        {
+            if (BlocklistsLoading || (!force && BlocklistsLoaded))
+                return;
+
+            BlocklistsLoading = true;
+            BlocklistsStatus = "Loading AdGuard Home blocklists...";
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                ApplyBlocklists(await router.GetBlocklistsAsync());
+                BlocklistsLoaded = true;
+                BlocklistsStatus = Blocklists.Count == 0
+                    ? "No DNS blocklists are configured in AdGuard Home."
+                    : $"{Blocklists.Count} blocklist{(Blocklists.Count == 1 ? string.Empty : "s")} loaded from AdGuard Home.";
+                _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Available);
+            }
+            catch (Exception ex)
+            {
+                BlocklistsLoaded = false;
+                BlocklistsStatus = OperationFailurePolicy.UserMessage(ex, "Blocklist load", "AdGuard Home blocklists are unavailable. Check AdGuard Home and try again.");
+                _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Unavailable);
+            }
+            finally
+            {
+                BlocklistsLoading = false;
+                NotifyCommands();
+            }
+        }
+
+        public async Task<string?> AddBlocklistAsync(AdGuardBlocklistDraft draft)
+        {
+            if (!TryValidateBlocklist(draft, out string? validationError))
+                return validationError;
+            if (Blocklists.Any(item => SameUrl(item.Url, draft.Url)))
+                return "This blocklist URL is already configured in AdGuard Home.";
+
+            IsBusy = true;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                await router.AddBlocklistAsync(draft);
+                if (!draft.Enabled)
+                    await router.SetBlocklistAsync(draft.Url, draft);
+                await LoadBlocklistsAfterMutationAsync();
+                if (!Blocklists.Any(item => SameUrl(item.Url, draft.Url)))
+                    return "AdGuard Home did not confirm that the blocklist was added.";
+
+                Message = "Blocklist added.";
+                await NotifyBlocklistAsync("Blocklist added", $"{DisplayBlocklistName(draft)} was added to AdGuard Home.", NotificationSeverity.Success);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                string message = OperationFailurePolicy.UserMessage(ex, "Blocklist add", "Unable to add the blocklist to AdGuard Home.");
+                Message = message;
+                await NotifyBlocklistAsync("Blocklist add failed", message, NotificationSeverity.Warning);
+                return message;
+            }
+            finally { IsBusy = false; }
+        }
+
+        public async Task<string?> EditBlocklistAsync(AdGuardBlocklist existing, AdGuardBlocklistDraft draft)
+        {
+            if (!TryValidateBlocklist(draft, out string? validationError))
+                return validationError;
+            if (Blocklists.Any(item => !SameUrl(item.Url, existing.Url) && SameUrl(item.Url, draft.Url)))
+                return "This blocklist URL is already configured in AdGuard Home.";
+
+            IsBusy = true;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                await router.SetBlocklistAsync(existing.Url, draft);
+                await LoadBlocklistsAfterMutationAsync();
+                if (!Blocklists.Any(item => SameUrl(item.Url, draft.Url) && item.Enabled == draft.Enabled && string.Equals(item.Name, draft.Name, StringComparison.Ordinal)))
+                    return "AdGuard Home did not confirm the blocklist changes.";
+
+                Message = "Blocklist updated.";
+                await NotifyBlocklistAsync("Blocklist updated", $"{DisplayBlocklistName(draft)} was updated in AdGuard Home.", NotificationSeverity.Success);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                string message = OperationFailurePolicy.UserMessage(ex, "Blocklist edit", "Unable to update the blocklist in AdGuard Home.");
+                Message = message;
+                await NotifyBlocklistAsync("Blocklist update failed", message, NotificationSeverity.Warning);
+                return message;
+            }
+            finally { IsBusy = false; }
+        }
+
+        public async Task<string?> RemoveBlocklistAsync(AdGuardBlocklist blocklist)
+        {
+            IsBusy = true;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                await router.RemoveBlocklistAsync(blocklist.Url);
+                await LoadBlocklistsAfterMutationAsync();
+                if (Blocklists.Any(item => SameUrl(item.Url, blocklist.Url)))
+                    return "AdGuard Home did not confirm that the blocklist was removed.";
+
+                Message = "Blocklist removed.";
+                await NotifyBlocklistAsync("Blocklist removed", $"{DisplayBlocklistName(blocklist)} was removed from AdGuard Home.", NotificationSeverity.Success);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                string message = OperationFailurePolicy.UserMessage(ex, "Blocklist removal", "Unable to remove the blocklist from AdGuard Home.");
+                Message = message;
+                await NotifyBlocklistAsync("Blocklist removal failed", message, NotificationSeverity.Warning);
+                return message;
+            }
+            finally { IsBusy = false; }
+        }
+
+        private async Task ToggleBlocklistAsync(AdGuardBlocklist? blocklist)
+        {
+            if (blocklist is null) return;
+            var draft = new AdGuardBlocklistDraft { Name = blocklist.Name, Url = blocklist.Url, Enabled = !blocklist.Enabled };
+            string? failure = await EditBlocklistAsync(blocklist, draft);
+            if (failure is null)
+                Message = draft.Enabled ? "Blocklist enabled." : "Blocklist disabled.";
+        }
+
+        private async Task UpdateAllBlocklistsAsync()
+        {
+            if (IsBusy) return;
+            IsBusy = true;
+            Message = "Updating AdGuard Home blocklists...";
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                _ = await router.RefreshBlocklistsAsync();
+                await LoadBlocklistsAfterMutationAsync();
+                Message = "AdGuard Home blocklists were updated successfully.";
+                await NotifyBlocklistAsync("Blocklists updated", Message, NotificationSeverity.Success);
+            }
+            catch (Exception ex)
+            {
+                Message = OperationFailurePolicy.UserMessage(ex, "Blocklist update", "Unable to update AdGuard Home blocklists.");
+                await NotifyBlocklistAsync("Blocklist update failed", Message, NotificationSeverity.Warning);
+            }
+            finally { IsBusy = false; }
+        }
+
+        private async Task LoadBlocklistsAfterMutationAsync()
+        {
+            BlocklistsLoaded = false;
+            await LoadBlocklistsAsync(force: true);
+            if (!BlocklistsLoaded)
+                throw new InvalidOperationException(BlocklistsStatus);
+        }
+
+        private void ApplyBlocklists(IEnumerable<AdGuardBlocklist> blocklists)
+        {
+            Blocklists.Clear();
+            foreach (AdGuardBlocklist blocklist in blocklists)
+                Blocklists.Add(blocklist);
+            BlocklistsView.Refresh();
+        }
+
+        private async Task NotifyBlocklistAsync(string title, string message, NotificationSeverity severity) =>
+            await _notificationService.AddManualFeedbackAsync(new AppNotification
+            {
+                Title = title,
+                Message = message,
+                Severity = severity,
+                Category = NotificationCategory.AdGuard
+            });
+
         private async Task AddRewriteAsync()
         {
             string domain = NormaliseDomain(NewRewriteDomain); string answer = NewRewriteAnswer.Trim();
@@ -793,6 +988,34 @@ namespace RouterPilot.ViewModels
                    rule.Rule.Contains(FilterRulesSearch.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
+        private bool FilterBlocklist(object item) => item is AdGuardBlocklist blocklist &&
+            (string.IsNullOrWhiteSpace(BlocklistSearch) ||
+             blocklist.Name.Contains(BlocklistSearch.Trim(), StringComparison.OrdinalIgnoreCase) ||
+             blocklist.Url.Contains(BlocklistSearch.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        private static bool TryValidateBlocklist(AdGuardBlocklistDraft draft, out string? error)
+        {
+            if (string.IsNullOrWhiteSpace(draft.Url))
+            {
+                error = "Enter a blocklist URL.";
+                return false;
+            }
+
+            if (!Uri.TryCreate(draft.Url.Trim(), UriKind.Absolute, out Uri? uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                error = "Enter a valid HTTP or HTTPS blocklist URL.";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private static bool SameUrl(string left, string right) => string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+        private static string DisplayBlocklistName(AdGuardBlocklistDraft draft) => string.IsNullOrWhiteSpace(draft.Name) ? draft.Url : draft.Name;
+        private static string DisplayBlocklistName(AdGuardBlocklist blocklist) => string.IsNullOrWhiteSpace(blocklist.Name) ? blocklist.Url : blocklist.Name;
+
         private void FilteringRules_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             FilteringRulesView.Refresh();
@@ -821,7 +1044,8 @@ namespace RouterPilot.ViewModels
 
         private void NotifyCommands()
         {
-            foreach (var command in new[] { RefreshAllCommand, EnableProtectionCommand, DisableProtectionCommand, ResumeProtectionCommand, Pause30Command, Pause1HourCommand, Pause4HoursCommand, PauseUntilTomorrowCommand, ApplyStandardProfileCommand, ApplyFamilyProfileCommand, ApplyPrivacyProfileCommand, SaveBlockedServicesCommand, RefreshQueryLogCommand, AddDenyRuleCommand, AddAllowRuleCommand, DeleteRuleCommand, AddRewriteCommand, DeleteRewriteCommand }) command.NotifyCanExecuteChanged();
+            foreach (var command in new[] { RefreshAllCommand, EnableProtectionCommand, DisableProtectionCommand, ResumeProtectionCommand, Pause30Command, Pause1HourCommand, Pause4HoursCommand, PauseUntilTomorrowCommand, ApplyStandardProfileCommand, ApplyFamilyProfileCommand, ApplyPrivacyProfileCommand, SaveBlockedServicesCommand, RefreshQueryLogCommand, AddDenyRuleCommand, AddAllowRuleCommand, DeleteRuleCommand, AddRewriteCommand, DeleteRewriteCommand, UpdateAllBlocklistsCommand }) command.NotifyCanExecuteChanged();
+            ToggleBlocklistCommand.NotifyCanExecuteChanged();
             SelectAllServicesCommand.NotifyCanExecuteChanged();
             ClearAllServicesCommand.NotifyCanExecuteChanged();
         }

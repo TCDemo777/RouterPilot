@@ -1173,6 +1173,64 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Blocklists">
+                <ScrollViewer x:Name="BlocklistsScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,24,24">
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Blocklists"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                       Text="Manage AdGuard Home DNS blocklist subscriptions. AdGuard Home downloads and processes the lists."/>
+                        </StackPanel>
+
+                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Secondary}" Text="{Binding BlocklistsStatus}"/>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBox x:Name="BlocklistSearchBox" Grid.Column="0" Width="280" HorizontalAlignment="Left"
+                                     Style="{StaticResource Protection.Input}"
+                                     Text="{Binding BlocklistSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search blocklists by name or URL"/>
+                            <TextBlock Panel.ZIndex="1" Margin="10,0" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                       IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=BlocklistSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=BlocklistSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                            <Button Grid.Column="2" Style="{DynamicResource Button.Secondary}" Content="Update all"
+                                    Command="{Binding UpdateAllBlocklistsCommand}"/>
+                            <Button Grid.Column="4" Style="{DynamicResource Button.Primary}" Content="Add blocklist" Click="AddBlocklist_Click"/>
+                        </Grid>
+
+                        <ListBox ItemsSource="{Binding BlocklistsView}" Style="{StaticResource Protection.List}"
+                                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="110"/><ColumnDefinition Width="120"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Url}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Url}"/>
+                                                <TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding Status}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="STATE"/><TextBlock Margin="0,4,0,0" Text="{Binding EnabledDisplay}"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="RULES"/><TextBlock Margin="0,4,0,0" Text="{Binding RuleCountDisplay}"/></StackPanel>
+                                            <StackPanel Grid.Column="3"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="UPDATED"/><TextBlock Margin="0,4,0,0" Text="{Binding LastUpdatedDisplay}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LastUpdated}"/></StackPanel>
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Content="Edit" Tag="{Binding}" Click="EditBlocklist_Click"/>
+                                                <Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Content="Enable/Disable"
+                                                        Command="{Binding DataContext.ToggleBlocklistCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"/>
+                                                <Button Style="{DynamicResource Button.Secondary}" Content="Remove" Tag="{Binding}" Click="RemoveBlocklist_Click"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Margin="0,12,0,0" Text="No blocklists match the current search.">
+                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding BlocklistsLoaded}" Value="True"/><Condition Binding="{Binding Blocklists.Count}" Value="0"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem Header="Blocked Services">
                 <ScrollViewer x:Name="BlockedServicesScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.BlockedServices}"/>

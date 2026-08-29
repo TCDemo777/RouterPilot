@@ -142,7 +142,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
                     Title = "Router firmware update available",
                     Message = $"Current: {result.CurrentVersion}; latest: {result.LatestVersion}.",
                     Severity = NotificationSeverity.Information,
-                    Category = NotificationCategory.Router,
+                    Category = NotificationCategory.Firmware,
                     EventType = NotificationEventType.FirmwareUpdateAvailable,
                     DeduplicationKey = $"FirmwareUpdate-{settings.RouterHost}-{result.LatestVersion}"
                 });

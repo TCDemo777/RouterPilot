@@ -109,7 +109,7 @@ public sealed class NetworkHealthService : INetworkHealthService
                 Title = detected ? "Monitored device offline" : "Monitored device restored",
                 Message = detected ? issue.Description : $"{name} is online again after {FormatDuration(DateTimeOffset.UtcNow - issue.FirstDetectedAt)}.",
                 Severity = detected ? NotificationSeverity.Warning : NotificationSeverity.Success,
-                Category = NotificationCategory.Device,
+                Category = NotificationCategory.NetworkHealth,
                 EventType = detected ? NotificationEventType.MonitoredDeviceOffline : NotificationEventType.MonitoredDeviceRestored,
                 ActionTarget = issue.Id["client.monitor.".Length..],
                 DeduplicationKey = $"monitor:{issue.Id}:{episode}:{(detected ? "offline" : "restored")}" 

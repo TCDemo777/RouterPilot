@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using RouterPilot.Configuration;
 using RouterPilot.Models;
 
 namespace RouterPilot.Services;
@@ -11,6 +12,10 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         string Host,
         string Username,
         string EncryptedPassword,
+        int SshPort,
+        SshAuthenticationMethod SshAuthenticationMethod,
+        string PrivateKeyPath,
+        string EncryptedPrivateKeyPassphrase,
         bool UseRouterHttps,
         int RouterPort,
         bool UseAdGuardHttps,
@@ -20,6 +25,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
     private readonly ISshHostKeyTrustService _hostKeyTrustService;
     private readonly IRouterCertificateTrustService _certificateTrustService;
     private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
+    private readonly ISshConnectionFactory _sshConnectionFactory;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly object _disposeLock = new();
     private RouterManager? _manager;
@@ -33,12 +39,14 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         SettingsService settingsService,
         ISshHostKeyTrustService hostKeyTrustService,
         IRouterCertificateTrustService certificateTrustService,
-        AdGuardTransportSecurityService adGuardTransportSecurity)
+        AdGuardTransportSecurityService adGuardTransportSecurity,
+        ISshConnectionFactory sshConnectionFactory)
     {
         _settingsService = settingsService;
         _hostKeyTrustService = hostKeyTrustService;
         _certificateTrustService = certificateTrustService;
         _adGuardTransportSecurity = adGuardTransportSecurity;
+        _sshConnectionFactory = sshConnectionFactory;
     }
 
     public async Task<RouterManager> GetRouterManagerAsync(
@@ -56,6 +64,10 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 settings.RouterHost.Trim(),
                 settings.Username.Trim(),
                 settings.EncryptedPassword,
+                settings.SshPort,
+                settings.SshAuthenticationMethod,
+                settings.PrivateKeyPath,
+                settings.EncryptedPrivateKeyPassphrase,
                 settings.UseRouterHttps,
                 settings.RouterPort,
                 settings.UseAdGuardHttps,
@@ -84,11 +96,26 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
             cancellationToken.ThrowIfCancellationRequested();
             string password = _settingsService.DecryptPassword(
                 settings.EncryptedPassword);
+            string keyPassphrase = settings.SshAuthenticationMethod == SshAuthenticationMethod.PrivateKey
+                ? _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase)
+                : string.Empty;
+            var sshSettings = new SshConnectionSettings
+            {
+                Host = RouterConnectionOptions.NormaliseHost(settings.RouterHost),
+                Port = settings.SshPort,
+                Username = settings.Username.Trim(),
+                AuthenticationMethod = settings.SshAuthenticationMethod,
+                Password = password,
+                PrivateKeyPath = settings.PrivateKeyPath,
+                PrivateKeyPassphrase = keyPassphrase
+            };
 
             _manager = new RouterManager(
                 settings.RouterHost,
                 settings.Username,
                 password,
+                sshSettings,
+                _sshConnectionFactory,
                 _hostKeyTrustService,
                 _certificateTrustService,
                 settings.AdGuardPort,

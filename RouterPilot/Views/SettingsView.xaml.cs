@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Diagnostics;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 
 namespace RouterPilot.Views
 {
@@ -10,6 +11,7 @@ namespace RouterPilot.Views
     {
         private readonly SettingsViewModel _viewModel;
         private bool _isUpdatingPassword;
+        private bool _isUpdatingPrivateKeyPassphrase;
 
         public SettingsView()
         {
@@ -34,6 +36,7 @@ namespace RouterPilot.Views
             RoutedEventArgs e)
         {
             UpdatePasswordBox();
+            UpdatePrivateKeyPassphraseBox();
         }
 
         private void PasswordInput_PasswordChanged(
@@ -47,6 +50,36 @@ namespace RouterPilot.Views
 
             _viewModel.Password =
                 PasswordInput.Password;
+        }
+
+        private void PrivateKeyPassphraseInput_PasswordChanged(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (_isUpdatingPrivateKeyPassphrase)
+            {
+                return;
+            }
+
+            _viewModel.PrivateKeyPassphrase = PrivateKeyPassphraseInput.Password;
+        }
+
+        private void BrowsePrivateKey_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Select SSH private key",
+                Filter = "All files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+            {
+                _viewModel.PrivateKeyPath = dialog.FileName;
+            }
         }
 
         private void ShowPasswordCheckBox_Changed(
@@ -98,6 +131,13 @@ namespace RouterPilot.Views
 
             _isUpdatingPassword =
                 false;
+        }
+
+        private void UpdatePrivateKeyPassphraseBox()
+        {
+            _isUpdatingPrivateKeyPassphrase = true;
+            PrivateKeyPassphraseInput.Password = _viewModel.PrivateKeyPassphrase;
+            _isUpdatingPrivateKeyPassphrase = false;
         }
 
         private void ResetDashboard_Click(

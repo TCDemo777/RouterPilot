@@ -95,15 +95,18 @@ public sealed class UpdateService : IDisposable
             return;
         }
 
-        bool added = await _notificationService.AddAsync(new AppNotification
+        AppNotification notification = new()
         {
             Title = "RouterPilot update available",
             Message = $"RouterPilot v{release.Version} is available. You are currently running v{CurrentVersion}.",
             Severity = NotificationSeverity.Information,
-            Category = NotificationCategory.System,
+            Category = NotificationCategory.ApplicationUpdates,
             ActionTarget = release.ReleaseNotesUrl?.AbsoluteUri ?? ReleasesPageUrl,
             DeduplicationKey = (manual ? "RouterPilotUpdateManual-" : "RouterPilotUpdate-") + release.Version
-        });
+        };
+        bool added = manual
+            ? await _notificationService.AddManualFeedbackAsync(notification)
+            : await _notificationService.AddAsync(notification);
         if (added)
         {
             settings.LastNotifiedUpdateVersion = release.Version;
@@ -125,7 +128,7 @@ public sealed class UpdateService : IDisposable
                 Title = "RouterPilot is up to date",
                 Message = $"You are running RouterPilot v{CurrentVersion}.",
                 Severity = NotificationSeverity.Information,
-                Category = NotificationCategory.System,
+                Category = NotificationCategory.ApplicationUpdates,
                 DeduplicationKey = "RouterPilotUpdateManualCurrent-" + CurrentVersion
             },
             UpdateCheckStatus.Unavailable => new AppNotification
@@ -133,7 +136,7 @@ public sealed class UpdateService : IDisposable
                 Title = "Update check unavailable",
                 Message = result.Message,
                 Severity = NotificationSeverity.Information,
-                Category = NotificationCategory.System,
+                Category = NotificationCategory.ApplicationUpdates,
                 DeduplicationKey = "RouterPilotUpdateManualUnavailable-" + result.Message
             },
             _ => null
@@ -141,7 +144,7 @@ public sealed class UpdateService : IDisposable
 
         if (notification is not null)
         {
-            await _notificationService.AddAsync(notification);
+            await _notificationService.AddManualFeedbackAsync(notification);
         }
 
         return result;

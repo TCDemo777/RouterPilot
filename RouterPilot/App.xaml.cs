@@ -60,6 +60,8 @@ namespace RouterPilot
             serviceCollection.AddSingleton<DashboardPreferencesService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,
                 SshHostKeyTrustService>();
+            serviceCollection.AddSingleton<ISshConnectionFactory,
+                SshConnectionFactory>();
             serviceCollection.AddSingleton<IRouterCertificateTrustService,
                 RouterCertificateTrustService>();
             serviceCollection.AddSingleton<AdGuardTransportSecurityService>();

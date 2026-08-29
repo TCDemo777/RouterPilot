@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using System.Threading.Tasks;
 using RouterPilot.ViewModels;
 using RouterPilot.Services;
+using RouterPilot.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace RouterPilot.Views
@@ -63,10 +64,14 @@ namespace RouterPilot.Views
                 0 => ProtectionScrollViewer,
                 1 => InsightsScrollViewer,
                 2 => FiltersScrollViewer,
-                3 => BlockedServicesScrollViewer,
-                4 => SchedulesScrollViewer,
+                3 => BlocklistsScrollViewer,
+                4 => BlockedServicesScrollViewer,
+                5 => SchedulesScrollViewer,
                 _ => null
             };
+
+            if (ProtectionTabs.SelectedIndex == 3)
+                _ = _viewModel.LoadBlocklistsAsync();
 
             // Let the TabControl activate and lay out its new content first;
             // this runs only for a direct tab selection, never for data updates.
@@ -90,6 +95,28 @@ namespace RouterPilot.Views
             {
                 dashboard.NavigateToDnsActivityForDomain(domain);
             }
+        }
+
+        private void AddBlocklist_Click(object sender, RoutedEventArgs e) =>
+            BlocklistEditorDialog.Show(Window.GetWindow(this), "Add blocklist", null, _viewModel.AddBlocklistAsync);
+
+        private void EditBlocklist_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: AdGuardBlocklist blocklist }) return;
+            BlocklistEditorDialog.Show(Window.GetWindow(this), "Edit blocklist", blocklist,
+                draft => _viewModel.EditBlocklistAsync(blocklist, draft));
+        }
+
+        private async void RemoveBlocklist_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: AdGuardBlocklist blocklist }) return;
+            string name = string.IsNullOrWhiteSpace(blocklist.Name) ? blocklist.Url : blocklist.Name;
+            if (MessageBox.Show($"Remove blocklist?\n\n{name} will be removed from AdGuard Home.", "Remove blocklist", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            string? failure = await _viewModel.RemoveBlocklistAsync(blocklist);
+            if (failure is not null)
+                MessageBox.Show(failure, "Remove blocklist", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private Expander? ScheduleEditor => FindDescendant<Expander>(this, "ScheduleEditor");

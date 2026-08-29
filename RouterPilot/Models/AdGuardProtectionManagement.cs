@@ -65,4 +65,26 @@ namespace RouterPilot.Models
         public string Type { get; init; } = "Custom";
         public string Display => $"[{Type}] {Rule}";
     }
+
+    /// <summary>AdGuard Home's DNS blocklist subscription (its API calls this a filter).</summary>
+    public sealed class AdGuardBlocklist
+    {
+        public long Id { get; init; }
+        public string Name { get; init; } = "";
+        public string Url { get; init; } = "";
+        public bool Enabled { get; init; }
+        public long RuleCount { get; init; }
+        public string LastUpdated { get; init; } = "";
+        public string Status { get; init; } = "";
+        public string EnabledDisplay => Enabled ? "Enabled" : "Disabled";
+        public string RuleCountDisplay => RuleCount.ToString("N0");
+        public string LastUpdatedDisplay => string.IsNullOrWhiteSpace(LastUpdated) ? "Not reported" : LastUpdated;
+    }
+
+    public sealed class AdGuardBlocklistDraft
+    {
+        public string Name { get; init; } = "";
+        public string Url { get; init; } = "";
+        public bool Enabled { get; init; } = true;
+    }
 }

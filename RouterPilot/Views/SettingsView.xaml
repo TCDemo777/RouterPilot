@@ -1,6 +1,7 @@
 <UserControl x:Class="RouterPilot.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:RouterPilot.Models"
              Background="{DynamicResource Brush.WindowBackground}"
              Foreground="{DynamicResource Brush.TextPrimary}">
     <UserControl.Resources>
@@ -116,7 +117,8 @@
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router connection"/>
                                 <TextBlock Margin="0,5,0,18" Style="{DynamicResource Text.Secondary}"
-                                           Text="SSH credentials used to connect to the GL.iNet router."/>
+                                           TextWrapping="Wrap"
+                                           Text="Router login details and SSH transport settings. The router login password remains protected for GL.iNet router management."/>
 
                                 <TextBlock Style="{StaticResource Settings.FieldLabel}"
                                            Text="ROUTER IP ADDRESS OR HOSTNAME"/>
@@ -129,7 +131,7 @@
                                          Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"/>
 
                                 <TextBlock Margin="0,16,0,7" Style="{StaticResource Settings.FieldLabel}"
-                                           Text="SSH PASSWORD"/>
+                                            Text="ROUTER LOGIN PASSWORD"/>
                                 <Grid>
                                     <PasswordBox x:Name="PasswordInput"
                                                  Height="38"
@@ -146,7 +148,7 @@
                                              Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"/>
                                 </Grid>
 
-                                <StackPanel Margin="0,13,0,0">
+                                 <StackPanel Margin="0,13,0,0">
                                     <CheckBox x:Name="ShowPasswordCheckBox"
                                               Content="Show password"
                                               Checked="ShowPasswordCheckBox_Changed"
@@ -154,6 +156,87 @@
                                     <CheckBox Margin="0,10,0,0"
                                               Content="Remember password securely for this Windows user"
                                               IsChecked="{Binding RememberPassword}"/>
+                                 </StackPanel>
+
+                                <TextBlock Margin="0,18,0,7" Style="{StaticResource Settings.FieldLabel}"
+                                           Text="SSH PORT"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Style="{StaticResource Settings.Input}"
+                                             Text="{Binding SshPort, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                               Style="{DynamicResource Text.Secondary}"
+                                               Text="1–65,535 (default 22)"/>
+                                </Grid>
+
+                                <TextBlock Margin="0,18,0,7" Style="{StaticResource Settings.FieldLabel}"
+                                           Text="SSH AUTHENTICATION"/>
+                                <ComboBox Height="38"
+                                          Style="{StaticResource RouterPilot.ComboBox}"
+                                          SelectedValue="{Binding SshAuthenticationMethod, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="Password" Tag="{x:Static models:SshAuthenticationMethod.Password}"/>
+                                    <ComboBoxItem Content="Private Key" Tag="{x:Static models:SshAuthenticationMethod.PrivateKey}"/>
+                                </ComboBox>
+
+                                <TextBlock Margin="0,7,0,0" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="SSH uses the protected router login password above."/>
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+                                            <Setter Property="FontSize" Value="12"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPrivateKeyAuthentication}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <StackPanel Margin="0,14,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPrivateKeyAuthentication}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Style="{StaticResource Settings.FieldLabel}" Text="PRIVATE KEY"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                                 Style="{StaticResource Settings.Input}"
+                                                 Text="{Binding PrivateKeyPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <Button Grid.Column="2"
+                                                Style="{DynamicResource Button.Secondary}"
+                                                Content="Browse…"
+                                                Click="BrowsePrivateKey_Click"/>
+                                    </Grid>
+                                    <TextBlock Margin="0,14,0,7" Style="{StaticResource Settings.FieldLabel}" Text="KEY PASSPHRASE (OPTIONAL)"/>
+                                    <PasswordBox x:Name="PrivateKeyPassphraseInput"
+                                                 Height="38"
+                                                 Padding="10,6"
+                                                 VerticalContentAlignment="Center"
+                                                 Background="{DynamicResource Brush.Surface}"
+                                                 Foreground="{DynamicResource Brush.TextPrimary}"
+                                                 BorderBrush="{DynamicResource Brush.BorderStrong}"
+                                                 BorderThickness="1"
+                                                 PasswordChanged="PrivateKeyPassphraseInput_PasswordChanged"/>
+                                    <TextBlock Margin="0,7,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                               Text="Select a user-managed SSH private-key file. The optional passphrase is protected with Windows Data Protection."/>
                                 </StackPanel>
 
                                 <Border Style="{StaticResource Settings.SectionNote}">
@@ -310,6 +393,23 @@
                                 <CheckBox Margin="0,8,0,0" Content="Notification Centre entries" IsChecked="{Binding NotificationCentreEnabled}"/>
                                 <CheckBox Margin="0,8,0,0" Content="Windows toast notifications" IsChecked="{Binding WindowsToastsEnabled}"/>
                                 <CheckBox Margin="0,8,0,0" Content="Monitored device availability" IsChecked="{Binding MonitoredDeviceAvailabilityEnabled}" ToolTip="Notify when monitored devices remain offline beyond the existing grace period and when they return."/>
+                                <TextBlock Margin="0,18,0,4" Style="{DynamicResource Text.CardCaption}" Text="EVENT CATEGORIES"/>
+                                <TextBlock Margin="0,0,0,10" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                           Text="Choose which RouterPilot events appear in Notifications."/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <CheckBox Content="Router &amp; WAN" IsChecked="{Binding RouterWanNotificationsEnabled}"/>
+                                        <CheckBox Margin="0,8,0,0" Content="VPN" IsChecked="{Binding VpnNotificationsEnabled}"/>
+                                        <CheckBox Margin="0,8,0,0" Content="Network Health" IsChecked="{Binding NetworkHealthNotificationsEnabled}"/>
+                                        <CheckBox Margin="0,8,0,0" Content="Firmware" IsChecked="{Binding FirmwareNotificationsEnabled}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <CheckBox Content="AdGuard Home &amp; DNS" IsChecked="{Binding AdGuardNotificationsEnabled}"/>
+                                        <CheckBox Margin="0,8,0,0" Content="Clients &amp; Devices" IsChecked="{Binding ClientNotificationsEnabled}"/>
+                                        <CheckBox Margin="0,8,0,0" Content="Application Updates" IsChecked="{Binding ApplicationUpdateNotificationsEnabled}"/>
+                                    </StackPanel>
+                                </Grid>
                                 <CheckBox Margin="0,8,0,0" Content="Enable quiet hours" IsChecked="{Binding QuietHoursEnabled}"/>
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="12"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>

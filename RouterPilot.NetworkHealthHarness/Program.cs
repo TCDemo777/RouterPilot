@@ -5,7 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Renci.SshNet;
+using Renci.SshNet.Common;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
@@ -73,4 +78,182 @@ DateTimeOffset updateNow = DateTimeOffset.UtcNow;
 Require((bool)automaticUpdateDue!.Invoke(null, [new AppSettings(), updateNow])!, "first automatic update check is due");
 Require(!(bool)automaticUpdateDue.Invoke(null, [new AppSettings { LastSuccessfulUpdateCheckUtc = updateNow - TimeSpan.FromHours(23) }, updateNow])!, "automatic update check is skipped before 24 hours");
 Require((bool)automaticUpdateDue.Invoke(null, [new AppSettings { LastSuccessfulUpdateCheckUtc = updateNow - TimeSpan.FromHours(25) }, updateNow])!, "automatic update check is due after 24 hours");
-Console.WriteLine("Network Health projection fixtures passed: 43/43.");
+
+NotificationPreferences defaults = new();
+Require(defaults.Allows(new AppNotification { Category = NotificationCategory.Router }), "new category preferences preserve router notifications by default");
+Require(defaults.Allows(new AppNotification { Category = NotificationCategory.Firmware }), "new category preferences preserve firmware notifications by default");
+Require(defaults.Allows(new AppNotification { Category = NotificationCategory.AdGuard }), "new category preferences preserve AdGuard notifications by default");
+Require(defaults.Allows(new AppNotification { Category = NotificationCategory.Device }), "new category preferences preserve device notifications by default");
+Require(defaults.Allows(new AppNotification { Category = NotificationCategory.ApplicationUpdates }), "new category preferences preserve update notifications by default");
+
+NotificationPreferences disabledCategories = new NotificationPreferences
+{
+    Categories = new Dictionary<NotificationCategory, bool>
+    {
+        [NotificationCategory.Router] = false,
+        [NotificationCategory.Vpn] = false,
+        [NotificationCategory.NetworkHealth] = false,
+        [NotificationCategory.Firmware] = false,
+        [NotificationCategory.AdGuard] = false,
+        [NotificationCategory.Device] = false,
+        [NotificationCategory.ApplicationUpdates] = false
+    }
+};
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.Router }), "Router and WAN suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.Vpn }), "VPN suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.NetworkHealth }), "Network Health suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.Firmware }), "firmware suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.AdGuard }), "AdGuard suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.Device }), "client and device suppression is central");
+Require(!disabledCategories.Allows(new AppNotification { Category = NotificationCategory.ApplicationUpdates }), "automatic update suppression is central");
+Require(disabledCategories.Allows(new AppNotification { Category = NotificationCategory.ApplicationUpdates }, bypassCategoryPreference: true), "manual update feedback bypasses only the category preference");
+Require(!new NotificationPreferences { Enabled = false }.Allows(new AppNotification { Category = NotificationCategory.ApplicationUpdates }, bypassCategoryPreference: true), "manual feedback still honours the master notification preference");
+string preferencesFolder = Path.Combine(Path.GetTempPath(), "RouterPilot-notification-preferences-" + Guid.NewGuid().ToString("N"));
+var preferencesStorage = new SettingsService(preferencesFolder);
+preferencesStorage.Save(new AppSettings { NotificationPreferences = disabledCategories });
+Require(!preferencesStorage.Load().NotificationPreferences.IsCategoryEnabled(NotificationCategory.ApplicationUpdates), "category preferences persist after reload");
+
+var sshFactory = new SshConnectionFactory();
+ConnectionInfo passwordConnection = sshFactory.CreateConnectionInfo(new SshConnectionSettings
+{
+    Host = "router.example",
+    Port = 22,
+    Username = "root",
+    AuthenticationMethod = SshAuthenticationMethod.Password,
+    Password = "fixture-password"
+});
+Require(passwordConnection.Port == 22, "default SSH port is 22");
+Require(passwordConnection.AuthenticationMethods.Single() is PasswordAuthenticationMethod, "password authentication is constructed");
+ConnectionInfo customPortConnection = sshFactory.CreateConnectionInfo(new SshConnectionSettings
+{
+    Host = "router.example",
+    Port = 2222,
+    Username = "root",
+    AuthenticationMethod = SshAuthenticationMethod.Password,
+    Password = "fixture-password"
+});
+Require(customPortConnection.Port == 2222, "custom SSH port is passed to ConnectionInfo");
+RequireThrows(() => sshFactory.CreateConnectionInfo(new SshConnectionSettings { Host = "router.example", Port = 0, Username = "root", Password = "fixture-password" }), "invalid zero SSH port is rejected");
+RequireThrows(() => sshFactory.CreateConnectionInfo(new SshConnectionSettings { Host = "router.example", Port = 65536, Username = "root", Password = "fixture-password" }), "invalid high SSH port is rejected");
+
+string sshFixtureDirectory = Path.Combine(Path.GetTempPath(), "RouterPilot-ssh-fixtures-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(sshFixtureDirectory);
+string unencryptedKeyPath = Path.Combine(sshFixtureDirectory, "id_rsa");
+string encryptedKeyPath = Path.Combine(sshFixtureDirectory, "id_rsa_encrypted");
+string invalidKeyPath = Path.Combine(sshFixtureDirectory, "invalid-key");
+const string fixturePassphrase = "fixture-key-passphrase";
+try
+{
+    using (RSA rsa = RSA.Create(2048))
+    {
+        File.WriteAllText(unencryptedKeyPath, rsa.ExportRSAPrivateKeyPem());
+        File.WriteAllText(encryptedKeyPath, rsa.ExportEncryptedPkcs8PrivateKeyPem(
+            fixturePassphrase,
+            new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, 10_000)));
+    }
+    File.WriteAllText(invalidKeyPath, "not an SSH private key");
+
+    ConnectionInfo privateKeyConnection = sshFactory.CreateConnectionInfo(new SshConnectionSettings
+    {
+        Host = "router.example",
+        Port = 2222,
+        Username = "root",
+        AuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+        PrivateKeyPath = unencryptedKeyPath
+    });
+    Require(privateKeyConnection.AuthenticationMethods.Single() is PrivateKeyAuthenticationMethod, "unencrypted private-key authentication is constructed");
+
+    ConnectionInfo encryptedKeyConnection = sshFactory.CreateConnectionInfo(new SshConnectionSettings
+    {
+        Host = "router.example",
+        Port = 2222,
+        Username = "root",
+        AuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+        PrivateKeyPath = encryptedKeyPath,
+        PrivateKeyPassphrase = fixturePassphrase
+    });
+    Require(encryptedKeyConnection.AuthenticationMethods.Single() is PrivateKeyAuthenticationMethod, "encrypted private-key authentication accepts its passphrase");
+    RequireThrows(() => sshFactory.CreateConnectionInfo(new SshConnectionSettings
+    {
+        Host = "router.example", Port = 2222, Username = "root",
+        AuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+        PrivateKeyPath = encryptedKeyPath, PrivateKeyPassphrase = "wrong-passphrase"
+    }), "incorrect key passphrase fails cleanly");
+    RequireThrows(() => sshFactory.CreateConnectionInfo(new SshConnectionSettings
+    {
+        Host = "router.example", Port = 2222, Username = "root",
+        AuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+        PrivateKeyPath = invalidKeyPath
+    }), "invalid SSH key fails cleanly");
+}
+finally
+{
+    Directory.Delete(sshFixtureDirectory, recursive: true);
+}
+RequireThrows(() => sshFactory.CreateConnectionInfo(new SshConnectionSettings
+{
+    Host = "router.example", Port = 2222, Username = "root",
+    AuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+    PrivateKeyPath = Path.Combine(Path.GetTempPath(), "missing-routerpilot-key")
+}), "missing SSH key fails cleanly");
+
+string sshSettingsFolder = Path.Combine(Path.GetTempPath(), "RouterPilot-ssh-settings-" + Guid.NewGuid().ToString("N"));
+var sshSettingsStorage = new SettingsService(sshSettingsFolder);
+sshSettingsStorage.Save(new AppSettings
+{
+    RouterHost = "router.example",
+    Username = "root",
+    RememberPassword = true,
+    EncryptedPassword = sshSettingsStorage.EncryptPassword("fixture-password")
+});
+AppSettings migratedSshSettings = sshSettingsStorage.Load();
+Require(migratedSshSettings.SshPort == 22 && migratedSshSettings.SshAuthenticationMethod == SshAuthenticationMethod.Password, "existing settings migrate to password authentication on port 22");
+Require(sshSettingsStorage.DecryptPassword(migratedSshSettings.EncryptedPassword) == "fixture-password", "existing protected password is preserved during SSH migration");
+AppSettings migratedSshSettingsAgain = sshSettingsStorage.Load();
+Require(migratedSshSettingsAgain.SshPort == 22 && migratedSshSettingsAgain.SshAuthenticationMethod == SshAuthenticationMethod.Password, "SSH migration is idempotent");
+sshSettingsStorage.Save(new AppSettings
+{
+    RouterHost = "router.example",
+    Username = "root",
+    SshPort = 2222,
+    SshAuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+    PrivateKeyPath = "key-a",
+    EncryptedPrivateKeyPassphrase = sshSettingsStorage.EncryptPassword("fixture-key-passphrase")
+});
+Require(sshSettingsStorage.DecryptPassword(sshSettingsStorage.Load().EncryptedPrivateKeyPassphrase) == "fixture-key-passphrase", "private-key passphrase remains protected and persists");
+AppSettings isolatedSshSettings = new() { SshPort = 2201, SshAuthenticationMethod = SshAuthenticationMethod.PrivateKey, PrivateKeyPath = "key-a" };
+AppSettings otherSshSettings = new() { SshPort = 2202, SshAuthenticationMethod = SshAuthenticationMethod.Password, PrivateKeyPath = "key-b" };
+Require(isolatedSshSettings.SshPort != otherSshSettings.SshPort && isolatedSshSettings.SshAuthenticationMethod != otherSshSettings.SshAuthenticationMethod, "active router settings keep SSH configuration isolated");
+Require(!new InvalidOperationException("SSH private key could not be found or opened.").Message.Contains("fixture-password", StringComparison.Ordinal), "SSH diagnostics do not expose credentials");
+
+MethodInfo? parseBlocklists = typeof(RouterManager).GetMethod("ParseBlocklists", BindingFlags.Static | BindingFlags.NonPublic);
+Require(parseBlocklists is not null, "blocklist parser is available for deterministic coverage");
+using JsonDocument blocklistDocument = JsonDocument.Parse("""
+    { "filters": [
+      { "id": 1, "name": "Enabled list", "url": "https://example.test/enabled.txt", "enabled": true, "rules_count": 922337203685477, "last_updated": "2026-01-01T00:00:00Z" },
+      { "id": 2, "name": "Disabled list", "url": "https://example.test/disabled.txt", "enabled": false, "rules_count": 7 }
+    ] }
+    """);
+var parsedBlocklists = (List<AdGuardBlocklist>)parseBlocklists!.Invoke(null, [blocklistDocument.RootElement])!;
+Require(parsedBlocklists.Count == 2, "blocklist parser reads filters");
+Require(parsedBlocklists[0].Enabled && parsedBlocklists[0].RuleCount == 922337203685477, "blocklist parser preserves enabled state and 64-bit rule count");
+Require(!parsedBlocklists[1].Enabled && parsedBlocklists[1].RuleCount == 7, "blocklist parser reads disabled state");
+using JsonDocument emptyBlocklistDocument = JsonDocument.Parse("{ \"filters\": [] }");
+Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [emptyBlocklistDocument.RootElement])!).Count == 0, "blocklist parser accepts an empty list");
+using JsonDocument malformedBlocklistDocument = JsonDocument.Parse("{ \"filters\": [ { \"name\": \"no URL\" } ] }");
+Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [malformedBlocklistDocument.RootElement])!).Count == 0, "blocklist parser ignores malformed entries");
+Console.WriteLine("Network Health, notification, blocklist and SSH fixtures passed: 74 checks.");
+
+static void RequireThrows(Action action, string message)
+{
+    try
+    {
+        action();
+    }
+    catch (InvalidOperationException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException(message);
+}

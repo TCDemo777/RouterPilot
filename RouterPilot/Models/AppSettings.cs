@@ -16,6 +16,10 @@ public sealed class AppSettings
     public string Username { get; set; } = "root";
     public string EncryptedPassword { get; set; } = string.Empty;
     public bool RememberPassword { get; set; } = true;
+    public int SshPort { get; set; } = 22;
+    public SshAuthenticationMethod SshAuthenticationMethod { get; set; } = SshAuthenticationMethod.Password;
+    public string PrivateKeyPath { get; set; } = string.Empty;
+    public string EncryptedPrivateKeyPassphrase { get; set; } = string.Empty;
     // Endpoint-bound SSH host-key pins. Values use SSH.NET's SHA-256 format:
     // SHA256:<non-padded-base64-fingerprint>.
     public Dictionary<string, string> TrustedSshHostFingerprints { get; set; } =

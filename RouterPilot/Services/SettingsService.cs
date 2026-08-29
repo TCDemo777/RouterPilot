@@ -181,6 +181,9 @@ public sealed class SettingsService
             settings.AdGuardPort is >= 1 and <= 65535
                 ? settings.AdGuardPort
                 : 3000;
+        settings.SshPort = settings.SshPort is >= 1 and <= 65535 ? settings.SshPort : 22;
+        if (!Enum.IsDefined(settings.SshAuthenticationMethod))
+            settings.SshAuthenticationMethod = SshAuthenticationMethod.Password;
         settings.RefreshIntervalSeconds =
             Math.Clamp(
                 settings.RefreshIntervalSeconds,

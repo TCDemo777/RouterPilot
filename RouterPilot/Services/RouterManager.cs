@@ -45,6 +45,8 @@ namespace RouterPilot.Services
             string routerIp,
             string username,
             string password,
+            SshConnectionSettings sshSettings,
+            ISshConnectionFactory sshConnectionFactory,
             ISshHostKeyTrustService hostKeyTrustService,
             IRouterCertificateTrustService certificateTrustService,
             int adGuardPort,
@@ -87,12 +89,7 @@ namespace RouterPilot.Services
                 throw new ArgumentNullException(
                     nameof(adGuardTransportSecurity));
 
-            _ssh =
-                new GLInetSshService(
-                    _routerIp,
-                    username,
-                    password,
-                    hostKeyTrustService);
+            _ssh = new GLInetSshService(sshSettings, sshConnectionFactory, hostKeyTrustService);
 
             _sessionService =
                 new GLInetSessionService(

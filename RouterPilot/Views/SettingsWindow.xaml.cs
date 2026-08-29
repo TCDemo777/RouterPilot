@@ -92,6 +92,10 @@ namespace RouterPilot.Views
                         Theme = existing.Theme,
                         RefreshIntervalSeconds = existing.RefreshIntervalSeconds,
                         DefaultPauseMinutes = existing.DefaultPauseMinutes,
+                        SshPort = existing.SshPort,
+                        SshAuthenticationMethod = existing.SshAuthenticationMethod,
+                        PrivateKeyPath = existing.PrivateKeyPath,
+                        EncryptedPrivateKeyPassphrase = existing.EncryptedPrivateKeyPassphrase,
 
                         Username =
                             UsernameBox.Text.Trim(),

@@ -649,6 +649,76 @@ namespace RouterPilot.Services
 
         public Task SetCustomFilteringRulesAsync(IEnumerable<string> rules) => SendControlJsonAsync(HttpMethod.Post, "filtering/set_rules", JsonSerializer.Serialize(new { rules = rules.ToArray() }));
 
+        public async Task<List<AdGuardBlocklist>> GetBlocklistsAsync()
+        {
+            JsonElement status = await GetControlJsonAsync("filtering/status");
+            return ParseBlocklists(status);
+        }
+
+        private static List<AdGuardBlocklist> ParseBlocklists(JsonElement status)
+        {
+            var result = new List<AdGuardBlocklist>();
+            if (!status.TryGetProperty("filters", out JsonElement filters) ||
+                filters.ValueKind != JsonValueKind.Array)
+            {
+                return result;
+            }
+
+            foreach (JsonElement filter in filters.EnumerateArray())
+            {
+                string url = GetString(filter, "url");
+                if (url.Length == 0)
+                    continue;
+
+                result.Add(new AdGuardBlocklist
+                {
+                    Id = GetInt64(filter, "id"),
+                    Name = GetString(filter, "name"),
+                    Url = url,
+                    Enabled = GetBoolean(filter, "enabled"),
+                    RuleCount = GetInt64(filter, "rules_count"),
+                    LastUpdated = GetString(filter, "last_updated"),
+                    Status = GetString(filter, "status")
+                });
+            }
+
+            return result;
+        }
+
+        public Task AddBlocklistAsync(AdGuardBlocklistDraft draft) =>
+            SendControlJsonAsync(HttpMethod.Post, "filtering/add_url", JsonSerializer.Serialize(new
+            {
+                name = draft.Name,
+                url = draft.Url,
+                whitelist = false
+            }));
+
+        public Task SetBlocklistAsync(string currentUrl, AdGuardBlocklistDraft draft) =>
+            SendControlJsonAsync(HttpMethod.Post, "filtering/set_url", JsonSerializer.Serialize(new
+            {
+                url = currentUrl,
+                whitelist = false,
+                data = new { name = draft.Name, url = draft.Url, enabled = draft.Enabled }
+            }));
+
+        public Task RemoveBlocklistAsync(string url) =>
+            SendControlJsonAsync(HttpMethod.Post, "filtering/remove_url", JsonSerializer.Serialize(new
+            {
+                url,
+                whitelist = false
+            }));
+
+        public async Task<int> RefreshBlocklistsAsync()
+        {
+            AdGuardControlResponse response = await SendAuthenticatedControlAsync(
+                HttpMethod.Post, "filtering/refresh", JsonSerializer.Serialize(new { whitelist = false }));
+            if (!response.IsSuccess)
+                throw CreateAdGuardControlException("refresh blocklists", response);
+
+            using JsonDocument document = JsonDocument.Parse(response.Content);
+            return GetInteger(document.RootElement, "updated", 0);
+        }
+
         public async Task<List<DnsRewriteRule>> GetDnsRewritesAsync()
         {
             JsonElement root = await GetControlJsonAsync("rewrite/list");
@@ -697,6 +767,7 @@ namespace RouterPilot.Services
 
         private static bool GetBoolean(JsonElement root, string name, bool fallback = false) => root.TryGetProperty(name, out JsonElement value) ? value.ValueKind == JsonValueKind.True : fallback;
         private static int GetInteger(JsonElement root, string name, int fallback) => root.TryGetProperty(name, out JsonElement value) && value.TryGetInt32(out int result) ? result : fallback;
+        private static long GetInt64(JsonElement root, string name) => root.TryGetProperty(name, out JsonElement value) && value.TryGetInt64(out long result) ? result : 0;
         private static double GetDouble(JsonElement root, string name, double fallback) => root.TryGetProperty(name, out JsonElement value) && value.TryGetDouble(out double result) ? result : fallback;
         private static string CategorizeBlockedService(
             string id,

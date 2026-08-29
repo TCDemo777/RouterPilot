@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Threading.Tasks;
 using RouterPilot.Configuration;
@@ -38,11 +39,22 @@ namespace RouterPilot.ViewModels
         private bool _notificationCentreEnabled = true;
         private bool _windowsToastsEnabled = true;
         private bool _monitoredDeviceAvailabilityEnabled;
+        private bool _routerWanNotificationsEnabled = true;
+        private bool _vpnNotificationsEnabled = true;
+        private bool _networkHealthNotificationsEnabled = true;
+        private bool _firmwareNotificationsEnabled = true;
+        private bool _adGuardNotificationsEnabled = true;
+        private bool _clientNotificationsEnabled = true;
+        private bool _applicationUpdateNotificationsEnabled = true;
         private bool _quietHoursEnabled;
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
         private bool _includeAdGuardHomeInRouterHealth;
+        private int _sshPort = 22;
+        private SshAuthenticationMethod _sshAuthenticationMethod = RouterPilot.Models.SshAuthenticationMethod.Password;
+        private string _privateKeyPath = "";
+        private string _privateKeyPassphrase = "";
 
         public bool IncludeAdGuardHomeInRouterHealth
         {
@@ -101,6 +113,62 @@ namespace RouterPilot.ViewModels
             set
             {
                 if (SetProperty(ref _rememberPassword, value))
+                {
+                    MarkChanged();
+                }
+            }
+        }
+
+        public int SshPort
+        {
+            get => _sshPort;
+            set
+            {
+                if (SetProperty(ref _sshPort, value))
+                {
+                    MarkChanged();
+                }
+            }
+        }
+
+        public SshAuthenticationMethod SshAuthenticationMethod
+        {
+            get => _sshAuthenticationMethod;
+            set
+            {
+                if (SetProperty(ref _sshAuthenticationMethod, value))
+                {
+                    OnPropertyChanged(nameof(IsPasswordAuthentication));
+                    OnPropertyChanged(nameof(IsPrivateKeyAuthentication));
+                    MarkChanged();
+                }
+            }
+        }
+
+        public bool IsPasswordAuthentication =>
+            SshAuthenticationMethod == RouterPilot.Models.SshAuthenticationMethod.Password;
+
+        public bool IsPrivateKeyAuthentication =>
+            SshAuthenticationMethod == RouterPilot.Models.SshAuthenticationMethod.PrivateKey;
+
+        public string PrivateKeyPath
+        {
+            get => _privateKeyPath;
+            set
+            {
+                if (SetProperty(ref _privateKeyPath, value))
+                {
+                    MarkChanged();
+                }
+            }
+        }
+
+        public string PrivateKeyPassphrase
+        {
+            get => _privateKeyPassphrase;
+            set
+            {
+                if (SetProperty(ref _privateKeyPassphrase, value))
                 {
                     MarkChanged();
                 }
@@ -175,6 +243,13 @@ namespace RouterPilot.ViewModels
         public bool NotificationCentreEnabled { get => _notificationCentreEnabled; set { if (SetProperty(ref _notificationCentreEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public bool WindowsToastsEnabled { get => _windowsToastsEnabled; set { if (SetProperty(ref _windowsToastsEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public bool MonitoredDeviceAvailabilityEnabled { get => _monitoredDeviceAvailabilityEnabled; set { if (SetProperty(ref _monitoredDeviceAvailabilityEnabled, value)) MarkChanged(); } }
+        public bool RouterWanNotificationsEnabled { get => _routerWanNotificationsEnabled; set { if (SetProperty(ref _routerWanNotificationsEnabled, value)) MarkChanged(); } }
+        public bool VpnNotificationsEnabled { get => _vpnNotificationsEnabled; set { if (SetProperty(ref _vpnNotificationsEnabled, value)) MarkChanged(); } }
+        public bool NetworkHealthNotificationsEnabled { get => _networkHealthNotificationsEnabled; set { if (SetProperty(ref _networkHealthNotificationsEnabled, value)) MarkChanged(); } }
+        public bool FirmwareNotificationsEnabled { get => _firmwareNotificationsEnabled; set { if (SetProperty(ref _firmwareNotificationsEnabled, value)) MarkChanged(); } }
+        public bool AdGuardNotificationsEnabled { get => _adGuardNotificationsEnabled; set { if (SetProperty(ref _adGuardNotificationsEnabled, value)) MarkChanged(); } }
+        public bool ClientNotificationsEnabled { get => _clientNotificationsEnabled; set { if (SetProperty(ref _clientNotificationsEnabled, value)) MarkChanged(); } }
+        public bool ApplicationUpdateNotificationsEnabled { get => _applicationUpdateNotificationsEnabled; set { if (SetProperty(ref _applicationUpdateNotificationsEnabled, value)) MarkChanged(); } }
         public bool QuietHoursEnabled { get => _quietHoursEnabled; set { if (SetProperty(ref _quietHoursEnabled, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursStart { get => _quietHoursStart; set { if (SetProperty(ref _quietHoursStart, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
         public string QuietHoursEnd { get => _quietHoursEnd; set { if (SetProperty(ref _quietHoursEnd, value)) { MarkChanged(); RefreshNotificationSummary(); } } }
@@ -294,6 +369,13 @@ namespace RouterPilot.ViewModels
                             settings.EncryptedPassword)
                         : "";
 
+                SshPort = settings.SshPort;
+                SshAuthenticationMethod = settings.SshAuthenticationMethod;
+                PrivateKeyPath = settings.PrivateKeyPath;
+                PrivateKeyPassphrase = string.IsNullOrWhiteSpace(settings.EncryptedPrivateKeyPassphrase)
+                    ? ""
+                    : _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase);
+
                 StartWithWindows =
                     settings.StartWithWindows;
 
@@ -319,6 +401,13 @@ namespace RouterPilot.ViewModels
                 NotificationCentreEnabled = preferences.NotificationCentreEnabled;
                 WindowsToastsEnabled = preferences.WindowsToastsEnabled;
                 MonitoredDeviceAvailabilityEnabled = preferences.MonitoredDeviceAvailabilityEnabled;
+                RouterWanNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.Router);
+                VpnNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.Vpn);
+                NetworkHealthNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.NetworkHealth);
+                FirmwareNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.Firmware);
+                AdGuardNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.AdGuard);
+                ClientNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.Device);
+                ApplicationUpdateNotificationsEnabled = preferences.IsCategoryEnabled(NotificationCategory.ApplicationUpdates);
                 QuietHoursEnabled = preferences.QuietHoursEnabled;
                 QuietHoursStart = preferences.QuietHoursStart.ToString("HH:mm");
                 QuietHoursEnd = preferences.QuietHoursEnd.ToString("HH:mm");
@@ -376,6 +465,9 @@ namespace RouterPilot.ViewModels
                                 StringComparer.OrdinalIgnoreCase),
                         FirmwareUpdateCheck = existing.FirmwareUpdateCheck ?? new FirmwareUpdateCheck(),
                         LastNotifiedFirmwareVersion = existing.LastNotifiedFirmwareVersion,
+                        LastSuccessfulUpdateCheckUtc = existing.LastSuccessfulUpdateCheckUtc,
+                        LatestVersionSeen = existing.LatestVersionSeen,
+                        LastNotifiedUpdateVersion = existing.LastNotifiedUpdateVersion,
                         RouterHost =
                             RouterConnectionOptions.NormaliseHost(RouterIp),
 
@@ -390,6 +482,13 @@ namespace RouterPilot.ViewModels
                                 ? _settingsService.EncryptPassword(
                                     Password)
                                 : "",
+
+                        SshPort = SshPort,
+                        SshAuthenticationMethod = SshAuthenticationMethod,
+                        PrivateKeyPath = PrivateKeyPath.Trim(),
+                        EncryptedPrivateKeyPassphrase = SshAuthenticationMethod == RouterPilot.Models.SshAuthenticationMethod.PrivateKey
+                            ? _settingsService.EncryptPassword(PrivateKeyPassphrase)
+                            : existing.EncryptedPrivateKeyPassphrase,
 
                         StartWithWindows =
                             StartWithWindows,
@@ -409,6 +508,8 @@ namespace RouterPilot.ViewModels
                             NotificationCentreEnabled = NotificationCentreEnabled,
                             WindowsToastsEnabled = WindowsToastsEnabled,
                             MonitoredDeviceAvailabilityEnabled = MonitoredDeviceAvailabilityEnabled,
+                            Events = existing.NotificationPreferences?.Events ?? new Dictionary<NotificationEventType, bool>(),
+                            Categories = BuildNotificationCategories(existing.NotificationPreferences),
                             QuietHoursEnabled = QuietHoursEnabled,
                             QuietHoursStart = TimeOnly.TryParse(QuietHoursStart, out TimeOnly start) ? start : new TimeOnly(22, 0),
                             QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)
@@ -474,6 +575,22 @@ namespace RouterPilot.ViewModels
                 QuietHoursEnd = TimeOnly.TryParse(QuietHoursEnd, out TimeOnly end) ? end : new TimeOnly(7, 0)
             }.IsQuietHours(DateTimeOffset.Now);
 
+        private Dictionary<NotificationCategory, bool> BuildNotificationCategories(
+            NotificationPreferences? existing)
+        {
+            var categories = existing?.Categories is { } saved
+                ? new Dictionary<NotificationCategory, bool>(saved)
+                : new Dictionary<NotificationCategory, bool>();
+            categories[NotificationCategory.Router] = RouterWanNotificationsEnabled;
+            categories[NotificationCategory.Vpn] = VpnNotificationsEnabled;
+            categories[NotificationCategory.NetworkHealth] = NetworkHealthNotificationsEnabled;
+            categories[NotificationCategory.Firmware] = FirmwareNotificationsEnabled;
+            categories[NotificationCategory.AdGuard] = AdGuardNotificationsEnabled;
+            categories[NotificationCategory.Device] = ClientNotificationsEnabled;
+            categories[NotificationCategory.ApplicationUpdates] = ApplicationUpdateNotificationsEnabled;
+            return categories;
+        }
+
         private string? Validate()
         {
             if (string.IsNullOrWhiteSpace(
@@ -493,6 +610,17 @@ namespace RouterPilot.ViewModels
                     Password))
             {
                 return "Enter a password, or turn off Remember password.";
+            }
+
+            if (SshPort is < 1 or > 65535)
+            {
+                return "SSH port must be between 1 and 65,535.";
+            }
+
+            if (SshAuthenticationMethod == RouterPilot.Models.SshAuthenticationMethod.PrivateKey &&
+                (string.IsNullOrWhiteSpace(PrivateKeyPath) || !File.Exists(PrivateKeyPath)))
+            {
+                return "SSH private key could not be found or opened.";
             }
 
             if (RefreshIntervalSeconds < 5 ||

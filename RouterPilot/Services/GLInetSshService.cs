@@ -5,28 +5,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using Renci.SshNet;
 using Renci.SshNet.Common;
+using RouterPilot.Models;
 
 namespace RouterPilot.Services
 {
     public sealed class GLInetSshService : IDisposable
     {
-        private readonly string _ip;
-        private readonly string _username;
-        private readonly string _password;
+        private readonly SshConnectionSettings _settings;
+        private readonly ISshConnectionFactory _connectionFactory;
         private readonly ISshHostKeyTrustService _hostKeyTrustService;
         private readonly SemaphoreSlim _commandGate = new(1, 1);
         private SshClient? _client;
         private bool _disposed;
 
         public GLInetSshService(
-            string ip,
-            string username,
-            string password,
+            SshConnectionSettings settings,
+            ISshConnectionFactory connectionFactory,
             ISshHostKeyTrustService hostKeyTrustService)
         {
-            _ip = ip;
-            _username = username;
-            _password = password;
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
             _hostKeyTrustService = hostKeyTrustService;
         }
 
@@ -96,6 +94,11 @@ namespace RouterPilot.Services
                 ResetClient();
                 return "SSH_NETWORK_FAILED";
             }
+            catch (InvalidOperationException)
+            {
+                ResetClient();
+                return "SSH_CONFIGURATION_FAILED";
+            }
             catch (Exception ex)
             {
                 ResetClient();
@@ -112,13 +115,8 @@ namespace RouterPilot.Services
 
             ResetClient();
 
-            _client = new SshClient(
-                _ip,
-                _username,
-                _password)
-            {
-                KeepAliveInterval = TimeSpan.FromSeconds(30)
-            };
+            _client = _connectionFactory.CreateClient(_settings);
+            _client.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
             _client.ConnectionInfo.Timeout =
                 TimeSpan.FromSeconds(5);
@@ -140,7 +138,7 @@ namespace RouterPilot.Services
         {
             SshHostKeyTrustDecision decision =
                 _hostKeyTrustService.Evaluate(
-                    _ip,
+                    _settings.Host,
                     eventArgs.FingerPrintSHA256);
 
             eventArgs.CanTrust = decision is

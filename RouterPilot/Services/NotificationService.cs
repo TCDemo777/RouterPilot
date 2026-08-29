@@ -120,13 +120,22 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
 
     public Task<bool> AddAsync(AppNotification notification) => AddAsync(notification, preferencesOverride: null);
 
+    /// <summary>
+    /// Delivers feedback for an explicit user action while retaining the global
+    /// notification and delivery-channel preferences. This intentionally bypasses
+    /// only the event category preference.
+    /// </summary>
+    public Task<bool> AddManualFeedbackAsync(AppNotification notification) =>
+        AddAsync(notification, preferencesOverride: null, bypassCategoryPreference: true);
+
     public async Task<bool> AddAsync(
         AppNotification notification,
-        NotificationPreferences? preferencesOverride)
+        NotificationPreferences? preferencesOverride,
+        bool bypassCategoryPreference = false)
     {
         ArgumentNullException.ThrowIfNull(notification);
 
-        NotificationDeliveryChannels channels = GetDeliveryChannels(notification, preferencesOverride);
+        NotificationDeliveryChannels channels = GetDeliveryChannels(notification, preferencesOverride, bypassCategoryPreference);
         if (!channels.HasAny)
         {
             return false;
@@ -185,7 +194,8 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
 
     private NotificationDeliveryChannels GetDeliveryChannels(
         AppNotification notification,
-        NotificationPreferences? preferencesOverride = null)
+        NotificationPreferences? preferencesOverride = null,
+        bool bypassCategoryPreference = false)
     {
         if (_settingsService is null && preferencesOverride is null)
         {
@@ -197,7 +207,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
         NotificationPreferences preferences = preferencesOverride ?? _settingsService!.Load().NotificationPreferences
             ?? new NotificationPreferences();
 
-        if (!preferences.Enabled || !preferences.IsEnabled(notification.EventType))
+        if (!preferences.Allows(notification, bypassCategoryPreference))
         {
             return default;
         }
