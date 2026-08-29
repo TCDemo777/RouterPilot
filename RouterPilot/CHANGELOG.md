@@ -5,6 +5,12 @@
 ## Added
 - Added Saved Routers for keeping multiple router configurations while monitoring one active router at a time.
 
+## Router Profiles & SSH
+- Added configurable SSH ports for individual router profiles.
+- Added per-router SSH authentication method support.
+- Added support for password and private-key SSH authentication.
+- Improved credential isolation when switching between router profiles using different SSH configurations.
+
 ## Changed
 - Improved active-router switching, profile-aware Settings, and credential isolation when changing routers.
 - Improved Protection configuration presentation, blocklist ordering, Notification Centre control sizing, and general UI consistency.
