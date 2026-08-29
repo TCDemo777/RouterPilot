@@ -183,10 +183,9 @@
             <!-- Main details -->
             <Border x:Name="NetworkHealthDashboardCard" Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Health"/><TextBlock Grid.Column="1" FontSize="18" FontWeight="SemiBold" Foreground="{Binding NetworkHealthColour}" Text="{Binding NetworkHealth.OverallState}"/></Grid>
-                    <StackPanel Grid.Row="1" Margin="0,12,0,0"><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealth.Summary}"/><ContentControl Margin="0,6,0,0" Content="{Binding NetworkHealth.PrimaryNetworkIssue}"><ContentControl.ContentTemplate><DataTemplate><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}"/><TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding Description}"/></StackPanel></DataTemplate></ContentControl.ContentTemplate></ContentControl></StackPanel>
-                    <Button Grid.Row="2" Margin="0,8,0,0" HorizontalAlignment="Right" Style="{DynamicResource Button.Secondary}" Tag="{Binding NetworkHealth.PrimaryNetworkIssue.NavigationTarget}" Content="View Network" Click="HealthIssueNavigate_Click" Visibility="{Binding NetworkHealth.HasPrimaryNetworkIssue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Health"/><Button Grid.Column="1" Padding="10,4" Style="{DynamicResource Button.Secondary}" Foreground="{Binding NetworkHealthViewColour}" Tag="network-health" Content="{Binding NetworkHealthView.OverallStatus}" ToolTip="Open Network Health" Click="HealthIssueNavigate_Click"/></Grid>
+                    <StackPanel Grid.Row="1" Margin="0,12,0,0"><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealthView.OverallDetail}"/></StackPanel>
                 </Grid>
             </Border>
 

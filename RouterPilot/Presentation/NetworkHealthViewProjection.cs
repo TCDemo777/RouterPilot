@@ -15,6 +15,10 @@ public static class NetworkHealthViewProjection
             Router(input), Wan(input), AdGuard(input), Vpn(input), Wifi(input), Dhcp(input), Resources(input), Firmware(input), DataStatistics(input)
         };
 
+        if (checks.Any(check => check.AffectsOverall && check.Status == "Loading") ||
+            checks.Any(check => check.Title == "DNS / AdGuard" && check.Status == "Checking"))
+            return new("Initializing", RouterPilotStatus.Pending, "Waiting for required health data.", checks);
+
         bool routerUnavailable = checks[0].Status is "Unavailable" or "Stale";
         bool attention = checks.Any(check => check.AffectsOverall && check.Severity is RouterPilotStatus.Error or RouterPilotStatus.Pending or RouterPilotStatus.Disabled or RouterPilotStatus.NotAvailable);
         return routerUnavailable
@@ -43,9 +47,16 @@ public static class NetworkHealthViewProjection
 
     private static NetworkHealthViewCheck AdGuard(NetworkHealthViewInput x)
     {
+        if (!x.IncludeAdGuardHomeInRouterHealth)
+        {
+            return x.AdGuardFreshness == DataFreshnessState.Loading
+                ? Check("DNS / AdGuard", "Checking", "AdGuard Home is optional and is excluded from the overall health score.", RouterPilotStatus.Pending, "protection", false)
+                : Check("DNS / AdGuard", "Not in use", "AdGuard Home is optional and is not included in the overall health score.", RouterPilotStatus.NotAvailable, "protection", false);
+        }
+
         if (x.AdGuardFreshness == DataFreshnessState.Loading) return Check("DNS / AdGuard", "Loading", "Waiting for AdGuard status.", RouterPilotStatus.Pending, "protection");
         if (x.AdGuardFreshness == DataFreshnessState.Stale) return Check("DNS / AdGuard", "Stale", "AdGuard status has not refreshed.", RouterPilotStatus.Pending, "protection");
-        if (x.AdGuardAvailability != AdGuardAvailabilityState.Available) return Check("DNS / AdGuard", "Unavailable", "AdGuard Home is unavailable.", RouterPilotStatus.Error, "protection");
+        if (x.AdGuardAvailability != AdGuardAvailabilityState.Available) return Check("DNS / AdGuard", "Unavailable", "AdGuard Home is configured for Router Health but is currently unavailable.", RouterPilotStatus.Error, "protection");
         if (!x.AdGuardProtectionKnown) return Check("DNS / AdGuard", "Protection state unavailable", "AdGuard Home is running; protection state is not yet available.", RouterPilotStatus.Pending, "protection");
         string state = x.AdGuardPaused ? "Paused" : x.AdGuardProtected ? "Protected" : "Disabled";
         RouterPilotStatus severity = x.AdGuardPaused ? RouterPilotStatus.Pending : x.AdGuardProtected ? RouterPilotStatus.Active : RouterPilotStatus.Disabled;
@@ -108,11 +119,11 @@ public static class NetworkHealthViewProjection
     }
     private static NetworkHealthViewCheck Firmware(NetworkHealthViewInput x) => x.FirmwareStatus switch
     {
-        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "overview"),
-        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.RouterFirmwareVersion), RouterPilotStatus.Active, "overview"),
-        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "overview", false),
-        FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "overview", false),
-        _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "overview", false)
+        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "maintenance-firmware"),
+        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.RouterFirmwareVersion), RouterPilotStatus.Active, "maintenance-firmware"),
+        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "maintenance-firmware", false),
+        FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "maintenance-firmware", false),
+        _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "maintenance-firmware", false)
     };
     private static NetworkHealthViewCheck DataStatistics(NetworkHealthViewInput x) => !x.DataStatisticsLoaded
         ? Check("Data Statistics", "Not loaded", "Open Analytics to load its existing Data Statistics state.", RouterPilotStatus.NotAvailable, "analytics", false)
@@ -132,4 +143,4 @@ public static class NetworkHealthViewProjection
 
 public sealed record NetworkHealthViewCheck(string Title, string Status, string Detail, RouterPilotStatus Severity, string NavigationTarget, bool AffectsOverall);
 public sealed record NetworkHealthViewSnapshot(string OverallStatus, RouterPilotStatus OverallSeverity, string OverallDetail, IReadOnlyList<NetworkHealthViewCheck> Checks);
-public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, RouterPilotStatus DataStatisticsStatus, string DataStatisticsDetail);
+public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool IncludeAdGuardHomeInRouterHealth, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, RouterPilotStatus DataStatisticsStatus, string DataStatisticsDetail);

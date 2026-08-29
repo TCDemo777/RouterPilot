@@ -58,7 +58,7 @@ public sealed class DashboardHealthProjection
 
         int score = 100;
         if (!input.InternetConnected) score -= 20;
-        if (!input.AdGuardAvailable) score -= 15;
+        if (input.AdGuardExpected && !input.AdGuardAvailable) score -= 15;
         if (input.CpuPercentage >= 90) score -= 10;
         else if (input.CpuPercentage >= 70) score -= 5;
         if (input.MemoryPercentage >= 90) score -= 10;
@@ -83,7 +83,7 @@ public sealed class DashboardHealthProjection
         List<string> reasons = [];
         if (!input.RouterConnected) reasons.Add("Router is disconnected");
         if (input.RouterConnected && !input.InternetConnected) reasons.Add("Internet connection is unavailable");
-        if (input.RouterConnected && !input.AdGuardAvailable) reasons.Add("AdGuard Home is unavailable");
+        if (input.RouterConnected && input.AdGuardExpected && !input.AdGuardAvailable) reasons.Add("AdGuard Home is unavailable");
         if (input.FirmwareUpdateAvailable) reasons.Add($"Firmware update available ({input.FirmwareLatestVersion})");
         if (input.CpuPercentage >= 90) reasons.Add("CPU usage is high");
         else if (input.CpuPercentage >= 70) reasons.Add("CPU usage is elevated");
@@ -103,7 +103,7 @@ public sealed class DashboardHealthProjection
 
         List<string> conditions = [];
         if (input.InternetConnected) conditions.Add("Internet connected");
-        if (input.AdGuardAvailable) conditions.Add("AdGuard Home active");
+        if (input.AdGuardExpected && input.AdGuardAvailable) conditions.Add("AdGuard Home active");
         if (input.CpuPercentage is > 0 and < 70) conditions.Add("CPU normal");
         if (input.MemoryPercentage is > 0 and < 75) conditions.Add("Memory normal");
         if (input.FirmwareUpdateStatus == FirmwareUpdateCheckStatus.UpToDate) conditions.Add("Firmware up to date");
@@ -141,6 +141,7 @@ public sealed record DashboardHealthInput(
     bool RouterConnected,
     bool InternetConnected,
     bool AdGuardAvailable,
+    bool AdGuardExpected,
     double CpuPercentage,
     bool CpuUtilisationPending,
     double MemoryPercentage,

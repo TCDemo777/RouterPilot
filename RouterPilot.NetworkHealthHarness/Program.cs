@@ -1,17 +1,26 @@
 using RouterPilot.Models;
 using RouterPilot.Presentation;
+using RouterPilot.Services;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
-NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, stats, "Existing status.");
+NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, stats, "Existing status.");
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Unavailable)).OverallStatus == "Unavailable", "router unavailable");
 NetworkHealthViewSnapshot adGuardUnavailable = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable));
 Require(adGuardUnavailable.Checks.Single(x => x.Title == "DNS / AdGuard").Status == "Unavailable" && adGuardUnavailable.OverallStatus == "Attention needed", "AdGuard unavailable");
+NetworkHealthViewSnapshot adGuardUnused = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
+Require(adGuardUnused.Checks.Single(x => x.Title == "DNS / AdGuard").Status == "Not in use" && adGuardUnused.OverallStatus == "Healthy", "optional AdGuard is informational");
+Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading)).OverallStatus == "Initializing", "expected AdGuard loading state");
+Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, includeAdGuard: false)).OverallStatus == "Initializing", "optional AdGuard checking state");
+Require(DashboardHealthProjection.Create(new(true, true, false, false, 0, false, 0, 0, false, FirmwareUpdateCheckStatus.UpToDate, string.Empty, string.Empty)).Score == 100, "unused AdGuard is excluded from Dashboard health score");
+Require(DashboardHealthProjection.Create(new(true, true, false, true, 0, false, 0, 0, false, FirmwareUpdateCheckStatus.UpToDate, string.Empty, string.Empty)).Score == 85, "expected AdGuard affects Dashboard health score");
 NetworkHealthViewSnapshot disconnectedVpn = NetworkHealthViewProjection.Create(Input(vpn: "Disconnected"));
 Require(disconnectedVpn.Checks.Single(x => x.Title == "VPN").Status == "Disconnected" && disconnectedVpn.OverallStatus == "Healthy", "VPN disconnected is informational");
 Require(NetworkHealthViewProjection.Create(Input(vpnConfigured: false)).OverallStatus == "Healthy", "VPN not configured is informational");
@@ -37,7 +46,24 @@ Require(firmwareUpToDate.Status == "Up to date" && firmwareUpToDate.Detail == "C
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.UpdateAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Update available", "GL.iNet firmware update available");
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.Pending)).Checks.Single(x => x.Title == "Firmware").Status == "Checking", "GL.iNet firmware checking");
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.NotAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Unavailable", "GL.iNet firmware unavailable");
+Require(firmwareUpToDate.NavigationTarget == "maintenance-firmware", "Firmware navigation targets Maintenance firmware.");
 Require(nameof(NetworkHealthViewInput.RouterFirmwareVersion) == "RouterFirmwareVersion", "Network Health has no LuCI firmware input.");
 using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardViewModel>().BuildServiceProvider();
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
-Console.WriteLine("Network Health projection fixtures passed: 28/28.");
+
+using PublicIpService publicIp = new();
+List<(string? Previous, string Current)> publicIpEvents = [];
+publicIp.PublicIpChanged += (previous, current) => publicIpEvents.Add((previous, current));
+MethodInfo? publish = typeof(PublicIpService).GetMethod("Publish", BindingFlags.Instance | BindingFlags.NonPublic);
+Require(publish is not null, "Public-IP publisher is available for deterministic change detection coverage.");
+publish!.Invoke(publicIp, [new PublicIpResult(" 1.2.3.4 ", DateTimeOffset.UtcNow, PublicIpStatus.Available, null)]);
+Require(publicIpEvents.Count == 0, "first confirmed public IP establishes a silent baseline");
+publish.Invoke(publicIp, [new PublicIpResult("1.2.3.4", DateTimeOffset.UtcNow, PublicIpStatus.Available, null)]);
+Require(publicIpEvents.Count == 0, "normalized unchanged public IP does not raise an event");
+publish.Invoke(publicIp, [new PublicIpResult(null, DateTimeOffset.UtcNow, PublicIpStatus.Unavailable, null)]);
+publish.Invoke(publicIp, [new PublicIpResult("1.2.3.4", DateTimeOffset.UtcNow, PublicIpStatus.Available, null)]);
+Require(publicIpEvents.Count == 0, "unavailable then unchanged public IP does not raise an event");
+publish.Invoke(publicIp, [new PublicIpResult("5.6.7.8", DateTimeOffset.UtcNow, PublicIpStatus.Available, null)]);
+Require(publicIpEvents.Count == 1, "a confirmed public IP transition raises one event");
+Require(publicIpEvents[0] == ("1.2.3.4", "5.6.7.8"), "public IP event compares confirmed normalized values");
+Console.WriteLine("Network Health projection fixtures passed: 40/40.");

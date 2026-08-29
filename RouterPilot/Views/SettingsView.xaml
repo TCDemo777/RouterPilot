@@ -249,9 +249,9 @@
                                                Text="AdGuard Home control traffic is unencrypted on the local network."/>
                                 </Border>
 
-                                <TextBlock Margin="0,18,0,0"
-                                           Style="{StaticResource Settings.FieldLabel}"
-                                           Text="DEFAULT PROTECTION PAUSE"/>
+                                 <TextBlock Margin="0,18,0,0"
+                                            Style="{StaticResource Settings.FieldLabel}"
+                                            Text="DEFAULT PROTECTION PAUSE"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="130"/>
@@ -264,9 +264,17 @@
                                     <TextBlock Grid.Column="2" VerticalAlignment="Center"
                                                Style="{DynamicResource Text.Secondary}"
                                                Text="minutes (1–1,440)"/>
-                                </Grid>
+                                 </Grid>
 
-                                <Border Style="{StaticResource Settings.SectionNote}">
+                                <TextBlock Margin="0,18,0,7"
+                                           Style="{StaticResource Settings.FieldLabel}"
+                                           Text="ROUTER HEALTH"/>
+                                <CheckBox Content="Include AdGuard Home in Router Health"
+                                          IsChecked="{Binding IncludeAdGuardHomeInRouterHealth, Mode=TwoWay}"/>
+                                <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                           Text="When enabled, AdGuard Home availability contributes to the overall Router Health status. Turn this off if you don't use AdGuard Home."/>
+
+                                 <Border Style="{StaticResource Settings.SectionNote}">
                                     <TextBlock Style="{DynamicResource Text.Secondary}"
                                                TextWrapping="Wrap"
                                                Text="RouterPilot reaches AdGuard Home through the configured router connection. No separate API credentials are required."/>

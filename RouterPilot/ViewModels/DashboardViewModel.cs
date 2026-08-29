@@ -32,6 +32,16 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private NetworkHealthSnapshot networkHealth = NetworkHealthSnapshot.Loading;
 
+        [ObservableProperty]
+        private NetworkHealthViewSnapshot networkHealthView = new(
+            "Initializing",
+            RouterPilotStatus.Pending,
+            "Waiting for the existing router refresh.",
+            []);
+
+        public string NetworkHealthViewColour =>
+            RouterPilotStatusPresentation.Colour(NetworkHealthView.OverallSeverity);
+
         public string NetworkHealthColour => RouterPilotStatusPresentation.Colour(NetworkHealth.OverallState switch
         {
             NetworkHealthState.Healthy => RouterPilotStatus.Active,
@@ -129,6 +139,7 @@ namespace RouterPilot.ViewModels
             RouterConnected,
             InternetConnected,
             IsAdGuardAvailable,
+            IsAdGuardExpectedForOverallHealth,
             CpuPercentage,
             CpuUtilisationPending,
             MemoryPercentage,
@@ -137,6 +148,11 @@ namespace RouterPilot.ViewModels
             FirmwareUpdateStatus,
             FirmwareLatestVersion,
             Latency));
+
+        [ObservableProperty]
+        private bool includeAdGuardHomeInRouterHealth;
+
+        public bool IsAdGuardExpectedForOverallHealth => IncludeAdGuardHomeInRouterHealth;
 
         public int RouterHealthScore => CurrentHealthProjection.Score;
         public string RouterHealthState => CurrentHealthProjection.State;
@@ -1770,6 +1786,9 @@ namespace RouterPilot.ViewModels
 
         partial void OnNetworkHealthChanged(NetworkHealthSnapshot value) => OnPropertyChanged(nameof(NetworkHealthColour));
 
+        partial void OnNetworkHealthViewChanged(NetworkHealthViewSnapshot value) =>
+            OnPropertyChanged(nameof(NetworkHealthViewColour));
+
         partial void OnVpnSummaryChanged(VpnSummaryState value)
         {
             RefreshStatusIndicators();
@@ -1807,7 +1826,11 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(TopBlockedDomainsEmptyText));
             OnPropertyChanged(nameof(TopQueriedDomainsEmptyText));
             RefreshStatusIndicators();
+            NotifyRouterHealthChanged();
         }
+
+        partial void OnIncludeAdGuardHomeInRouterHealthChanged(bool value) =>
+            NotifyRouterHealthChanged();
 
         partial void OnAdGuardMaintenanceStateChanged(AdGuardMaintenanceState value)
         {

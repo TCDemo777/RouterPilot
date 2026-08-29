@@ -12,7 +12,6 @@ public partial class NetworkHealthView : UserControl
         InitializeComponent();
         _viewModel = ((App)Application.Current).Services.GetRequiredService<NetworkHealthViewModel>();
         DataContext = _viewModel;
-        Unloaded += (_, _) => _viewModel.Dispose();
     }
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {

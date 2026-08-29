@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
         private readonly NotificationService _notificationService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
         private readonly DashboardPreferencesService _dashboardPreferences;
+        private readonly DashboardViewModel _dashboard;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
         public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
         public ObservableCollection<DashboardCardPreference> DashboardCards => _dashboardPreferences.Cards;
@@ -41,6 +42,22 @@ namespace RouterPilot.ViewModels
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
+        private bool _includeAdGuardHomeInRouterHealth;
+
+        public bool IncludeAdGuardHomeInRouterHealth
+        {
+            get => _includeAdGuardHomeInRouterHealth;
+            set
+            {
+                if (SetProperty(ref _includeAdGuardHomeInRouterHealth, value))
+                {
+                    // Health consumes the shared Dashboard state, so a user
+                    // toggle takes effect immediately without a refresh.
+                    _dashboard.IncludeAdGuardHomeInRouterHealth = value;
+                    MarkChanged();
+                }
+            }
+        }
 
         public string RouterIp
         {
@@ -224,7 +241,8 @@ namespace RouterPilot.ViewModels
             AdGuardTransportSecurityService adGuardTransportSecurity,
             NotificationService notificationService,
             FirmwareUpdateService firmwareUpdateService,
-            DashboardPreferencesService dashboardPreferences)
+            DashboardPreferencesService dashboardPreferences,
+            DashboardViewModel dashboard)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
@@ -233,6 +251,7 @@ namespace RouterPilot.ViewModels
             _notificationService = notificationService;
             _firmwareUpdateService = firmwareUpdateService;
             _dashboardPreferences = dashboardPreferences;
+            _dashboard = dashboard;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
             AdGuardTransportSecurity.PropertyChanged +=
                 (_, _) => RefreshAdGuardTransportStatus();
@@ -291,6 +310,8 @@ namespace RouterPilot.ViewModels
                         ? 30
                         : settings.DefaultPauseMinutes;
                 _useAdGuardHttps = settings.UseAdGuardHttps;
+                IncludeAdGuardHomeInRouterHealth = settings.IncludeAdGuardHomeInRouterHealth ?? false;
+                _dashboard.IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth;
                 OnPropertyChanged(nameof(IsAdGuardHttpConfigured));
                 RefreshAdGuardTransportStatus();
                 NotificationPreferences preferences = settings.NotificationPreferences ?? new NotificationPreferences();
@@ -381,6 +402,7 @@ namespace RouterPilot.ViewModels
 
                         DefaultPauseMinutes =
                             DefaultPauseMinutes,
+                        IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth,
                         NotificationPreferences = new NotificationPreferences
                         {
                             Enabled = NotificationsEnabled,
@@ -396,6 +418,7 @@ namespace RouterPilot.ViewModels
 
                 _settingsService.Save(
                     settings);
+                _dashboard.IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth;
                 _routerManagerProvider.Invalidate();
 
                 HasUnsavedChanges =

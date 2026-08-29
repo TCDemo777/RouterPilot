@@ -92,22 +92,48 @@ public sealed class PublicIpService : IPublicIpService, IDisposable
     private PublicIpResult Publish(PublicIpResult result)
     {
         string? previousIp;
+        string? currentIp = result.Status == PublicIpStatus.Available
+            ? NormalizeConfirmedIp(result.PublicIp)
+            : null;
+
+        if (result.Status == PublicIpStatus.Available && currentIp is null)
+        {
+            result = result with
+            {
+                PublicIp = null,
+                Status = PublicIpStatus.Unavailable,
+                FailureReason = "The public-IP service returned an invalid address."
+            };
+        }
+        else if (currentIp is not null)
+        {
+            result = result with { PublicIp = currentIp };
+        }
+
         lock (_sync)
         {
             previousIp = _lastConfirmedIp;
             _current = result;
-            if (result.Status == PublicIpStatus.Available)
+            if (currentIp is not null)
             {
-                _lastConfirmedIp = result.PublicIp;
+                _lastConfirmedIp = currentIp;
             }
         }
         ResultChanged?.Invoke(result);
-        if (result.Status == PublicIpStatus.Available &&
-            !string.Equals(previousIp, result.PublicIp, StringComparison.Ordinal))
+        // The first confirmed address establishes the session baseline. Only
+        // a later confirmed, normalized address may be a user-visible change.
+        if (previousIp is not null && currentIp is not null &&
+            !string.Equals(previousIp, currentIp, StringComparison.Ordinal))
         {
-            PublicIpChanged?.Invoke(previousIp, result.PublicIp!);
+            PublicIpChanged?.Invoke(previousIp, currentIp);
         }
         return result;
+    }
+
+    private static string? NormalizeConfirmedIp(string? value)
+    {
+        string candidate = value?.Trim() ?? string.Empty;
+        return IPAddress.TryParse(candidate, out IPAddress? address) ? address.ToString() : null;
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

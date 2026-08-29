@@ -72,6 +72,12 @@ public sealed class NetworkHealthService : INetworkHealthService
     private NetworkHealthSnapshot Publish(NetworkHealthSnapshot snapshot) { _current = snapshot; SnapshotChanged?.Invoke(snapshot); return snapshot; }
     private void Record(NetworkHealthIssue issue, bool detected)
     {
+        // Freshness is already surfaced by Network Health and the connection
+        // footer. A delayed scheduled refresh is not itself a diagnosed network
+        // fault, so it must not create a vague user-visible Timeline episode.
+        if (issue.Id == "data.refresh_delayed")
+            return;
+
         bool instability = issue.Id == "internet.unstable";
         bool monitoredDevice = issue.Id.StartsWith("client.monitor.", StringComparison.Ordinal);
         string episode = issue.TimelineEpisodeKey ?? issue.FirstDetectedAt.UtcTicks.ToString();

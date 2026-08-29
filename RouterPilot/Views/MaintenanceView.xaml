@@ -122,7 +122,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="FirmwareSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router firmware" />
             <Border Padding="0" BorderThickness="0">

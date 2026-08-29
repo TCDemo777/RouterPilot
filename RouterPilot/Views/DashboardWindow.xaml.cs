@@ -52,6 +52,7 @@ namespace RouterPilot.Views
         private readonly IVpnSummaryService _vpnSummaryService;
         private readonly IPublicIpService _publicIpService;
         private readonly INetworkHealthService _networkHealthService;
+        private readonly NetworkHealthViewModel _networkHealthViewModel;
         private readonly IDataFreshnessService _dataFreshnessService;
         private readonly IMetricHistoryService _metricHistoryService;
         private readonly TimelineService _timelineService;
@@ -120,6 +121,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<IPublicIpService>();
             _networkHealthService = ((App)Application.Current).Services
                 .GetRequiredService<INetworkHealthService>();
+            _networkHealthViewModel = ((App)Application.Current).Services
+                .GetRequiredService<NetworkHealthViewModel>();
             _dataFreshnessService = ((App)Application.Current).Services
                 .GetRequiredService<IDataFreshnessService>();
             _metricHistoryService = ((App)Application.Current).Services
@@ -130,12 +133,14 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged += PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged += PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged += NetworkHealthService_SnapshotChanged;
+            _networkHealthViewModel.PropertyChanged += NetworkHealthViewModel_PropertyChanged;
             _dataFreshnessService.Changed += DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged += MetricHistoryService_AvailabilityHistoryChanged;
             SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
             ApplyPublicIpResult(_publicIpService.Current);
             _viewModel.NetworkHealth = _networkHealthService.Current;
+            _viewModel.NetworkHealthView = _networkHealthViewModel.Snapshot;
             TimelineButton.DataContext = ((App)Application.Current).Services.GetRequiredService<TimelineService>();
             _viewModel.RouterFirmwareVersion = string.IsNullOrWhiteSpace(
                 _firmwareUpdateService.Current.CurrentVersion)
@@ -162,6 +167,7 @@ namespace RouterPilot.Views
 
             _settingsService =
                 new SettingsService();
+            _viewModel.IncludeAdGuardHomeInRouterHealth = _settingsService.Load().IncludeAdGuardHomeInRouterHealth ?? false;
 
             PageContent.Content = CreateOverviewView();
 
@@ -557,6 +563,7 @@ namespace RouterPilot.Views
                 {
                     _viewModel.AdGuardAvailability = AdGuardAvailabilityState.Available;
                     _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Available);
+                    ResolveInitialAdGuardHealthPreference();
                     if (_adGuardMaintenanceStateService.State == AdGuardMaintenanceState.Failed)
                     {
                         _adGuardMaintenanceStateService.CompleteRestart();
@@ -583,6 +590,22 @@ namespace RouterPilot.Views
             _adGuardAvailabilityService.SetState(state);
             _viewModel.AdGuardRunning = false;
             _viewModel.ClearAdGuardStatistics();
+        }
+
+        private void ResolveInitialAdGuardHealthPreference()
+        {
+            AppSettings settings = _settingsService.Load();
+            if (settings.IncludeAdGuardHomeInRouterHealth is not null)
+            {
+                return;
+            }
+
+            // Leave the default unset/off until a real, successful AdGuard
+            // status proves that it is in use. A transient outage must not
+            // become a persisted user preference to exclude it.
+            settings.IncludeAdGuardHomeInRouterHealth = true;
+            _settingsService.Save(settings);
+            _viewModel.IncludeAdGuardHomeInRouterHealth = true;
         }
 
         private static AdGuardAvailabilityState ClassifyAdGuardFailure(Exception exception)
@@ -1133,6 +1156,14 @@ namespace RouterPilot.Views
                     Analytics_Click(this, new RoutedEventArgs());
                     break;
 
+                case "network-health":
+                    NavigateToNetworkSection("health");
+                    break;
+
+                case "maintenance-firmware":
+                    NavigateToMaintenanceFirmware();
+                    break;
+
                 case "network":
                 default:
                     // Preserve the established safe destination for unknown
@@ -1170,6 +1201,17 @@ namespace RouterPilot.Views
             PageContent.Content = network;
             SelectNavigationButton(NetworkButton);
             network.NavigateToSection(section);
+        }
+
+        private void NavigateToMaintenanceFirmware()
+        {
+            MaintenanceView maintenance = PageContent.Content as MaintenanceView ?? new MaintenanceView(
+                _maintenanceViewModel,
+                _viewModel,
+                RefreshNowAsync);
+            PageContent.Content = maintenance;
+            SelectNavigationButton(MaintenanceButton);
+            maintenance.NavigateToFirmware();
         }
 
         public void NavigateToGlobalSearchResult(GlobalSearchResult result)
@@ -1492,6 +1534,7 @@ namespace RouterPilot.Views
             _publicIpService.ResultChanged -= PublicIpService_ResultChanged;
             _publicIpService.PublicIpChanged -= PublicIpService_PublicIpChanged;
             _networkHealthService.SnapshotChanged -= NetworkHealthService_SnapshotChanged;
+            _networkHealthViewModel.PropertyChanged -= NetworkHealthViewModel_PropertyChanged;
             _dataFreshnessService.Changed -= DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged -= MetricHistoryService_AvailabilityHistoryChanged;
             SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
@@ -1627,9 +1670,12 @@ namespace RouterPilot.Views
 
         private async void PublicIpService_PublicIpChanged(string? previousIp, string currentIp)
         {
-            string vpnState = _viewModel.VpnSummary.State;
-            string context = string.Equals(vpnState, "Connected", StringComparison.Ordinal) ? "VPN active" : string.Equals(vpnState, "Disconnected", StringComparison.Ordinal) ? "VPN inactive" : "VPN state changing";
-            await _timelineService.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = TimelineEventType.PublicIpChanged, Title = "Public IP changed", Message = string.IsNullOrWhiteSpace(previousIp) ? context : $"{previousIp} → {currentIp} • {context}", Severity = TimelineSeverity.Information, DeduplicationKey = $"public-ip:{previousIp}:{currentIp}" });
+            if (string.IsNullOrWhiteSpace(previousIp))
+            {
+                return;
+            }
+
+            await _timelineService.AddAsync(new TimelineEvent { Category = TimelineCategory.Router, EventType = TimelineEventType.PublicIpChanged, Title = "Public IP changed", Message = $"{previousIp} → {currentIp}", Severity = TimelineSeverity.Information, DeduplicationKey = $"public-ip:{previousIp}:{currentIp}" });
         }
 
         private async Task RecordMetricAndReliabilityHistoryAsync()
@@ -1721,6 +1767,13 @@ namespace RouterPilot.Views
         {
             if (Dispatcher.CheckAccess()) _viewModel.NetworkHealth = snapshot;
             else _ = Dispatcher.InvokeAsync(() => _viewModel.NetworkHealth = snapshot);
+        }
+
+        private void NetworkHealthViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(NetworkHealthViewModel.Snapshot)) return;
+            if (Dispatcher.CheckAccess()) _viewModel.NetworkHealthView = _networkHealthViewModel.Snapshot;
+            else _ = Dispatcher.InvokeAsync(() => _viewModel.NetworkHealthView = _networkHealthViewModel.Snapshot);
         }
 
         private Task RunOnUiThreadAsync(Func<Task> callback)

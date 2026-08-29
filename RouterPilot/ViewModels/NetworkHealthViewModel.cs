@@ -18,6 +18,7 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
     private readonly DashboardViewModel _dashboard;
     private readonly IDataFreshnessService _freshness;
     private readonly IVpnSummaryService _vpn;
+    private readonly FirmwareUpdateService _firmwareUpdates;
     private readonly DataStatisticsViewModel _dataStatistics;
     private readonly IUiDispatcher _uiDispatcher;
     private bool _disposed;
@@ -28,23 +29,38 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
     public string OverallDetail => Snapshot.OverallDetail;
     public string OverallColour => RouterPilotStatusPresentation.Colour(Snapshot.OverallSeverity);
 
-    public NetworkHealthViewModel(DashboardViewModel dashboard, IDataFreshnessService freshness, IVpnSummaryService vpn, DataStatisticsViewModel dataStatistics, IUiDispatcher uiDispatcher)
+    public NetworkHealthViewModel(DashboardViewModel dashboard, IDataFreshnessService freshness, IVpnSummaryService vpn,
+        FirmwareUpdateService firmwareUpdates, DataStatisticsViewModel dataStatistics, IUiDispatcher uiDispatcher)
     {
         _dashboard = dashboard;
         _freshness = freshness;
         _vpn = vpn;
+        _firmwareUpdates = firmwareUpdates;
         _dataStatistics = dataStatistics;
         _uiDispatcher = uiDispatcher;
         _dashboard.PropertyChanged += SourceChanged;
         _dataStatistics.PropertyChanged += SourceChanged;
         _freshness.Changed += FreshnessChanged;
         _vpn.SummaryChanged += VpnChanged;
+        _firmwareUpdates.PropertyChanged += FirmwareChanged;
         Rebuild();
     }
 
-    private void SourceChanged(object? sender, PropertyChangedEventArgs e) => RebuildOnUiThread();
+    private void SourceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // The Dashboard also exposes this projection for the Overview. Those
+        // presentation-only notifications must not feed back into its source.
+        if (e.PropertyName is nameof(DashboardViewModel.NetworkHealthView) or
+            nameof(DashboardViewModel.NetworkHealthViewColour))
+        {
+            return;
+        }
+
+        RebuildOnUiThread();
+    }
     private void FreshnessChanged() => RebuildOnUiThread();
     private void VpnChanged(VpnSummaryState _) => RebuildOnUiThread();
+    private void FirmwareChanged(object? sender, PropertyChangedEventArgs e) => RebuildOnUiThread();
 
     private void RebuildOnUiThread()
     {
@@ -62,11 +78,16 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
     {
         if (_disposed) return;
         VpnSummaryState vpn = _vpn.Current;
+        FirmwareUpdateCheck firmware = _firmwareUpdates.Current;
+        FirmwareUpdateCheckStatus firmwareStatus = _firmwareUpdates.IsChecking
+            ? FirmwareUpdateCheckStatus.Pending
+            : firmware.Status;
         Snapshot = NetworkHealthViewProjection.Create(new NetworkHealthViewInput(
             _freshness.Get(RouterSource).State, _freshness.Get(InternetSource).State, _freshness.Get(AdGuardSource).State,
             _freshness.Get(VpnSource).State, _freshness.Get(WifiSource).State, _freshness.Get(DhcpSource).State,
             _dashboard.RouterConnected, _dashboard.InternetConnected, FormatTime(_freshness.Get(RouterSource).LastSuccessUtc),
             _dashboard.WanIp, _dashboard.Gateway, _dashboard.ExternalDns, _dashboard.AdGuardAvailability,
+            _dashboard.IncludeAdGuardHomeInRouterHealth,
             _dashboard.AdGuardProtectionStatusKnown, _dashboard.AdGuardProtectionEnabled, _dashboard.AdGuardProtectionPaused,
             vpn.IsAvailable, vpn.IsConfigured, vpn.State, VpnDetail(vpn), _dashboard.WifiNetworks.Count,
             _dashboard.WifiNetworks.Count(radio => radio.StatusDisplay == RouterPilotStatusPresentation.Active),
@@ -74,7 +95,7 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
             _dashboard.WifiNetworks.Count(radio => radio.StatusDisplay == RouterPilotStatusPresentation.NotAvailable), _dashboard.WifiUniqueClientTotal,
             _dashboard.DhcpLoaded, _dashboard.DhcpLeases.Count, _dashboard.DhcpReservations.Count, _dashboard.CpuUsageDisplay,
             _dashboard.Temperature, _dashboard.MemoryUsage, _dashboard.StorageUsage, _dashboard.Uptime, _dashboard.LoadAverage,
-            _dashboard.RouterFirmwareVersion, _dashboard.FirmwareUpdateStatus, _dataStatistics.HasLoaded, _dataStatistics.Status, _dataStatistics.StatusDetail));
+            firmware.CurrentVersion, firmwareStatus, _dataStatistics.HasLoaded, _dataStatistics.Status, _dataStatistics.StatusDetail));
         OnPropertyChanged(nameof(Checks)); OnPropertyChanged(nameof(OverallStatus)); OnPropertyChanged(nameof(OverallDetail)); OnPropertyChanged(nameof(OverallColour));
     }
 
@@ -89,5 +110,6 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
         _dataStatistics.PropertyChanged -= SourceChanged;
         _freshness.Changed -= FreshnessChanged;
         _vpn.SummaryChanged -= VpnChanged;
+        _firmwareUpdates.PropertyChanged -= FirmwareChanged;
     }
 }

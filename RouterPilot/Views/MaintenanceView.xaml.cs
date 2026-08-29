@@ -15,6 +15,7 @@ public partial class MaintenanceView : UserControl
 {
     private readonly Func<Task> _refreshAll;
     private bool _backupPrivacyWarningAcknowledged;
+    private bool _navigateToFirmwareWhenLoaded;
 
     public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll)
     {
@@ -22,6 +23,27 @@ public partial class MaintenanceView : UserControl
         _refreshAll = refreshAll;
         viewModel.AttachDashboard(dashboard);
         DataContext = viewModel;
+        Loaded += MaintenanceView_Loaded;
+    }
+
+    public void NavigateToFirmware()
+    {
+        if (IsLoaded)
+        {
+            FirmwareSection.BringIntoView();
+            return;
+        }
+
+        _navigateToFirmwareWhenLoaded = true;
+    }
+
+    private void MaintenanceView_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (!_navigateToFirmwareWhenLoaded)
+            return;
+
+        _navigateToFirmwareWhenLoaded = false;
+        FirmwareSection.BringIntoView();
     }
 
     private async void RunAction_Click(object sender, RoutedEventArgs e)
