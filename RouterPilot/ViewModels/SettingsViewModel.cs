@@ -20,6 +20,7 @@ namespace RouterPilot.ViewModels
         private readonly FirmwareUpdateService _firmwareUpdateService;
         private readonly DashboardPreferencesService _dashboardPreferences;
         private readonly DashboardViewModel _dashboard;
+        private readonly IRouterProfileService _profiles;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
         public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
         public ObservableCollection<DashboardCardPreference> DashboardCards => _dashboardPreferences.Cards;
@@ -317,7 +318,8 @@ namespace RouterPilot.ViewModels
             NotificationService notificationService,
             FirmwareUpdateService firmwareUpdateService,
             DashboardPreferencesService dashboardPreferences,
-            DashboardViewModel dashboard)
+            DashboardViewModel dashboard,
+            IRouterProfileService profiles)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
@@ -327,10 +329,12 @@ namespace RouterPilot.ViewModels
             _firmwareUpdateService = firmwareUpdateService;
             _dashboardPreferences = dashboardPreferences;
             _dashboard = dashboard;
+            _profiles = profiles;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
             AdGuardTransportSecurity.PropertyChanged +=
                 (_, _) => RefreshAdGuardTransportStatus();
             _firmwareUpdateService.PropertyChanged += (_, _) => RefreshFirmwareStatus();
+            _profiles.ActiveProfileChanged += (_, _) => ReloadActiveRouterSettingsOnUiThread();
 
             SaveCommand =
                 new RelayCommand(Save);
@@ -343,6 +347,41 @@ namespace RouterPilot.ViewModels
             MoveDashboardCardDownCommand = new RelayCommand<DashboardCardPreference>(_dashboardPreferences.MoveDown);
 
             Load();
+        }
+
+        // The settings view model is long-lived. A profile switch discards any
+        // unsaved router edits and reloads only the active router projection.
+        private void LoadActiveRouterSettings()
+        {
+            _isLoading = true;
+            try
+            {
+                AppSettings settings = _settingsService.Load();
+                RouterIp = settings.RouterHost;
+                Username = settings.Username;
+                RememberPassword = settings.RememberPassword;
+                Password = settings.RememberPassword ? _settingsService.DecryptPassword(settings.EncryptedPassword) : "";
+                SshPort = settings.SshPort;
+                SshAuthenticationMethod = settings.SshAuthenticationMethod;
+                PrivateKeyPath = settings.PrivateKeyPath;
+                PrivateKeyPassphrase = string.IsNullOrWhiteSpace(settings.EncryptedPrivateKeyPassphrase) ? "" : _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase);
+                _useAdGuardHttps = settings.UseAdGuardHttps;
+                OnPropertyChanged(nameof(IsAdGuardHttpConfigured));
+                HasUnsavedChanges = false;
+                StatusMessage = "Router settings reloaded for the active router.";
+            }
+            finally { _isLoading = false; }
+        }
+
+        private void ReloadActiveRouterSettingsOnUiThread()
+        {
+            if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+            {
+                _ = dispatcher.InvokeAsync(LoadActiveRouterSettings);
+                return;
+            }
+
+            LoadActiveRouterSettings();
         }
 
         public void Load()

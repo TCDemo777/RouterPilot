@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Diagnostics;
+using System.ComponentModel;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
@@ -30,6 +31,7 @@ namespace RouterPilot.Views
 
             _viewModel.SettingsSaved +=
                 ViewModel_SettingsSaved;
+            _viewModel.PropertyChanged += ViewModel_PropertyChanged;
         }
 
         private void SettingsView_Loaded(
@@ -132,6 +134,14 @@ namespace RouterPilot.Views
 
             _isUpdatingPassword =
                 false;
+        }
+
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.Password))
+                UpdatePasswordBox();
+            else if (e.PropertyName == nameof(SettingsViewModel.PrivateKeyPassphrase))
+                UpdatePrivateKeyPassphraseBox();
         }
 
         private void UpdatePrivateKeyPassphraseBox()

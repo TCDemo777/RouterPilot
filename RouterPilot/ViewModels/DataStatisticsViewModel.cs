@@ -22,6 +22,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     private readonly DataStatisticsService _dataStatisticsService;
     private readonly ClientInventoryState _clientInventory;
     private readonly ClientProfileService _clientProfiles;
+    private readonly IActiveRouterContext _activeRouter;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly SemaphoreSlim _detailGate = new(1, 1);
     private readonly CancellationTokenSource _disposeCancellation = new();
@@ -85,11 +86,12 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public string DetailBlockState => SelectedDetail?.IsBlocked switch { true => "Blocked", false => "Not blocked", _ => "Status unavailable" };
 
     public DataStatisticsViewModel(DataStatisticsService dataStatisticsService, ClientInventoryState clientInventory,
-        ClientProfileService clientProfiles)
+        ClientProfileService clientProfiles, IActiveRouterContext activeRouter)
     {
         _dataStatisticsService = dataStatisticsService;
         _clientInventory = clientInventory;
         _clientProfiles = clientProfiles;
+        _activeRouter = activeRouter;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsLoading && !_disposed);
         AllApplicationsView = CollectionViewSource.GetDefaultView(AllApplications);
         AllApplicationsView.SortDescriptions.Add(
@@ -145,10 +147,13 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
         try
         {
+            long routerSession = _activeRouter.Version;
             IsLoading = true;
             RefreshCommand.NotifyCanExecuteChanged();
             DataStatisticsReadResult readResult = await _dataStatisticsService
                 .ReadAsync(_disposeCancellation.Token);
+            if (_activeRouter.Version != routerSession)
+                return;
             _loaded = true;
             OnPropertyChanged(nameof(HasLoaded));
             Apply(readResult);

@@ -63,6 +63,8 @@ namespace RouterPilot.Views
         private bool _trafficRefreshInProgress;
         private bool _initialFirmwareCheckScheduled;
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly IActiveRouterContext _activeRouter;
+        private readonly IRouterSwitchCoordinator _routerSwitchCoordinator;
         private bool _routerOnline = true;
         private int _vpnNetworkContextRefreshQueued;
         private bool _healthSourcesReady;
@@ -107,6 +109,11 @@ namespace RouterPilot.Views
                 .Services.GetRequiredService<AdGuardProtectionNotificationTracker>();
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
+            _activeRouter = ((App)Application.Current).Services
+                .GetRequiredService<IActiveRouterContext>();
+            _routerSwitchCoordinator = ((App)Application.Current).Services
+                .GetRequiredService<IRouterSwitchCoordinator>();
+            _routerSwitchCoordinator.Switched += RouterSwitchCoordinator_Switched;
             _scheduleService = ((App)Application.Current).Services
                 .GetRequiredService<AdGuardServiceScheduleService>();
             _vpnScheduleService = ((App)Application.Current).Services
@@ -258,6 +265,7 @@ namespace RouterPilot.Views
             }
 
             _refreshInProgress = true;
+            long routerSession = _activeRouter.Version;
             bool routerCommunicationConfirmed = false;
             bool routerManagerGateEntered = false;
 
@@ -306,6 +314,7 @@ namespace RouterPilot.Views
                     await router.GetRouterInfoAsync();
 
                 cancellationToken.ThrowIfCancellationRequested();
+                ThrowIfRouterSessionChanged(routerSession);
                 routerCommunicationConfirmed = true;
                 _dataFreshnessService.MarkSuccess(RouterFreshnessSource);
 
@@ -321,7 +330,7 @@ namespace RouterPilot.Views
                 _viewModel.FirmwareVersion =
                     info.Firmware;
 
-                ScheduleInitialFirmwareCheck(router);
+                ScheduleInitialFirmwareCheck(router, routerSession);
 
                 _viewModel.Uptime =
                     info.Uptime;
@@ -355,10 +364,10 @@ namespace RouterPilot.Views
 
                 // Router and AdGuard work are independent. Start both groups
                 // together, then apply each successful result separately.
-                Task wifiTask = RefreshWifiNetworksAsync(router, cancellationToken);
-                Task dhcpTask = RefreshDhcpAsync(router, cancellationToken);
+                Task wifiTask = RefreshWifiNetworksAsync(router, cancellationToken, routerSession);
+                Task dhcpTask = RefreshDhcpAsync(router, cancellationToken, forceConfigurationRefresh: false, routerSession: routerSession);
                 Task<NetworkInfo> networkTask = router.GetNetworkInfoAsync();
-                Task adGuardTask = RefreshAdGuardAsync(router, cancellationToken);
+                Task adGuardTask = RefreshAdGuardAsync(router, cancellationToken, routerSession);
 
                 NetworkInfo? network = null;
                 Exception? networkFailure = null;
@@ -374,6 +383,7 @@ namespace RouterPilot.Views
                 // Both independent groups are always observed, even when the
                 // router network request fails.
                 await Task.WhenAll(wifiTask, dhcpTask, adGuardTask);
+                ThrowIfRouterSessionChanged(routerSession);
                 if (networkFailure is not null)
                 {
                     throw networkFailure;
@@ -406,6 +416,7 @@ namespace RouterPilot.Views
                 _dataFreshnessService.MarkSuccess(InternetFreshnessSource);
 
                 await _vpnSummaryService.RefreshAsync(cancellationToken);
+                ThrowIfRouterSessionChanged(routerSession);
                 if (_vpnSummaryService.Current.IsAvailable)
                     _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
                 else
@@ -432,7 +443,7 @@ namespace RouterPilot.Views
                         "dd MMM yyyy HH:mm:ss");
             }
             catch (OperationCanceledException)
-                when (cancellationToken.IsCancellationRequested)
+                when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession))
             {
             }
             catch (SshAuthenticationException)
@@ -466,7 +477,7 @@ namespace RouterPilot.Views
             }
         }
 
-        private void ScheduleInitialFirmwareCheck(RouterManager router)
+        private void ScheduleInitialFirmwareCheck(RouterManager router, long routerSession)
         {
             if (_initialFirmwareCheckScheduled)
                 return;
@@ -475,7 +486,7 @@ namespace RouterPilot.Views
             _ = Dispatcher.InvokeAsync(async () =>
             {
                 await Task.Delay(TimeSpan.FromSeconds(20));
-                if (IsLoaded && _viewModel.RouterConnected)
+                if (IsLoaded && IsCurrentRouterSession(routerSession) && _viewModel.RouterConnected)
                     await _firmwareUpdateService.CheckAutomaticallyAsync(router);
             });
         }
@@ -489,12 +500,14 @@ namespace RouterPilot.Views
 
         private async Task RefreshAdGuardAsync(
             RouterManager router,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            long routerSession)
         {
             try
             {
                 AdGuardStatus serviceStatus = await router.GetAdGuardStatusAsync();
                 cancellationToken.ThrowIfCancellationRequested();
+                ThrowIfRouterSessionChanged(routerSession);
                 _dataFreshnessService.MarkSuccess(AdGuardFreshnessSource);
 
                 _viewModel.AdGuardRunning = serviceStatus.IsRunning;
@@ -517,6 +530,7 @@ namespace RouterPilot.Views
 
                 await Task.WhenAll(statisticsTask, rankingTask, protectionTask);
                 cancellationToken.ThrowIfCancellationRequested();
+                ThrowIfRouterSessionChanged(routerSession);
 
                 AdGuardRefreshResult<AdGuardStatistics> statistics = await statisticsTask;
                 AdGuardRefreshResult<List<QueryLogEntry>> rankings = await rankingTask;
@@ -571,7 +585,7 @@ namespace RouterPilot.Views
 
                 MarkAdGuardUnavailable(ClassifyAdGuardFailure(failure));
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession))
             {
                 throw;
             }
@@ -588,6 +602,29 @@ namespace RouterPilot.Views
             _adGuardAvailabilityService.SetState(state);
             _viewModel.AdGuardRunning = false;
             _viewModel.ClearAdGuardStatistics();
+        }
+
+        private void RouterSwitchCoordinator_Switched(object? sender, RouterProfile profile)
+        {
+            // Switches may originate from a modal saved-router window. Marshal
+            // the UI reset, then wait for any old dashboard operation to leave
+            // its usage gate before starting the normal one-shot refresh path.
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                _healthSourcesReady = false;
+                _initialFirmwareCheckScheduled = false;
+                await ShowConnectionErrorAsync("Connecting to the selected router...", notifyConnectivityChange: false, clearPreviousData: true);
+                await _routerManagerUsageGate.WaitAsync();
+                _routerManagerUsageGate.Release();
+                await _refreshCoordinator.RunNowAsync(DashboardRefreshTask);
+            });
+        }
+
+        private bool IsCurrentRouterSession(long routerSession) => _activeRouter.Version == routerSession;
+
+        private void ThrowIfRouterSessionChanged(long routerSession)
+        {
+            if (!IsCurrentRouterSession(routerSession)) throw new OperationCanceledException("Router session changed.");
         }
 
         private void StartAutomaticUpdateCheck()
@@ -664,7 +701,8 @@ namespace RouterPilot.Views
 
         private async Task RefreshWifiNetworksAsync(
             RouterManager router,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            long routerSession)
         {
             try
             {
@@ -676,6 +714,7 @@ namespace RouterPilot.Views
                     await router.GetWifiRadiosAsync();
 
                 cancellationToken.ThrowIfCancellationRequested();
+                ThrowIfRouterSessionChanged(routerSession);
                 if (wifiRadios.Count == 0)
                 {
                     // An empty discovery result is not an authoritative empty
@@ -697,7 +736,7 @@ namespace RouterPilot.Views
                     $"clients={wifiRadios.Sum(network => network.ClientCount)}");
             }
             catch (OperationCanceledException)
-                when (cancellationToken.IsCancellationRequested)
+                when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession))
             {
                 throw;
             }
@@ -922,12 +961,14 @@ namespace RouterPilot.Views
         private async Task<bool> RefreshDhcpAsync(
             RouterManager router,
             CancellationToken cancellationToken,
-            bool forceConfigurationRefresh = false)
+            bool forceConfigurationRefresh = false,
+            long routerSession = -1)
         {
             try
             {
                 DhcpSnapshot snapshot = await router.GetDhcpSnapshotAsync(forceConfigurationRefresh);
                 cancellationToken.ThrowIfCancellationRequested();
+                if (routerSession >= 0) ThrowIfRouterSessionChanged(routerSession);
                 _viewModel.UpdateDhcpSnapshot(snapshot, _clientProfileService.Load());
                 _dataFreshnessService.MarkSuccess(DhcpFreshnessSource);
                 return true;
@@ -981,12 +1022,13 @@ namespace RouterPilot.Views
 
         private async Task ShowConnectionErrorAsync(
             string message,
-            bool notifyConnectivityChange = true)
+            bool notifyConnectivityChange = true,
+            bool clearPreviousData = false)
         {
             foreach (string source in new[] { RouterFreshnessSource, InternetFreshnessSource, WifiFreshnessSource, DhcpFreshnessSource, AdGuardFreshnessSource, VpnFreshnessSource })
                 _dataFreshnessService.MarkUnavailable(source);
             bool hasPreviousRouterSample = _dataFreshnessService.Get(RouterFreshnessSource).LastSuccessUtc is not null;
-            if (hasPreviousRouterSample)
+            if (hasPreviousRouterSample && !clearPreviousData)
             {
                 _viewModel.StatusMessage = $"Refresh failed: {message} Showing the last successful data.";
                 _dataFreshnessService.Refresh();
