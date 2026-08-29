@@ -2,6 +2,11 @@ namespace RouterPilot.Models;
 
 public sealed class AppSettings
 {
+    // RouterProfiles is authoritative. The legacy fields below remain a
+    // compatibility projection of the selected active profile for services
+    // not yet profile-aware.
+    public List<RouterProfile> RouterProfiles { get; set; } = new();
+    public string ActiveRouterProfileId { get; set; } = string.Empty;
     // Deliberately empty: first-run setup must collect this.
     public string RouterHost { get; set; } = string.Empty;
 

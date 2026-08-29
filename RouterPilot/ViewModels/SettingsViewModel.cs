@@ -517,6 +517,10 @@ namespace RouterPilot.ViewModels
                         DashboardCards = existing.DashboardCards ?? new List<DashboardCardPreference>()
                     };
 
+                settings.RouterProfiles = existing.RouterProfiles.Select(profile => profile.Clone()).ToList();
+                settings.ActiveRouterProfileId = existing.ActiveRouterProfileId;
+                SettingsService.UpdateActiveProfileFromLegacy(settings);
+
                 _settingsService.Save(
                     settings);
                 _dashboard.IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth;

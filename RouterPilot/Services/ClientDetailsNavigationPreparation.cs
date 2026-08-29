@@ -26,8 +26,10 @@ public static class ClientDetailsNavigationPreparation
     }
 
     /// <summary>
-    /// Uses the existing session-level reconciliation only when a current record is
-    /// needed. A saved profile can open the established offline details path directly.
+    /// Ensures one existing session-level reconciliation before a cold deep link is
+    /// resolved. This lets a saved profile become a live client when the inventory
+    /// has not yet been initialized, while a warm inventory still opens an offline
+    /// profile without another refresh.
     /// </summary>
     public static async Task<ClientDetailsNavigationTarget?> ResolveAsync(
         string? deviceIdentity,
@@ -38,10 +40,6 @@ public static class ClientDetailsNavigationPreparation
     {
         string macKey = ClientIdentity.NormalizeMac(deviceIdentity);
         if (!ClientIdentity.IsMacKey(macKey)) return null;
-
-        ClientDetailsNavigationTarget? initial = Resolve(macKey, inventory.Snapshot, profiles);
-        if (initial?.Profile is not null && initial.LiveClient is null)
-            return initial;
 
         if (!coordinator.IsAuthoritativelyLoaded)
             await coordinator.EnsureAuthoritativeInventoryAsync(cancellationToken);

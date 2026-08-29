@@ -56,6 +56,8 @@ namespace RouterPilot
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<IRouterProfileService, RouterProfileService>();
+            serviceCollection.AddSingleton<IActiveRouterContext, ActiveRouterContext>();
             serviceCollection.AddSingleton<IPublicIpService, PublicIpService>();
             serviceCollection.AddSingleton<DashboardPreferencesService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,

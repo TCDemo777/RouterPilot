@@ -305,10 +305,10 @@ namespace RouterPilot.Views
                 await _dataStatistics.OpenApplicationDetailAsync(detail.ApplicationId, detail.ApplicationName);
         }
 
-        private void ViewDetailDeviceClient_Click(object sender, RoutedEventArgs e)
+        private async void ViewDetailDeviceClient_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { Tag: string mac } && Window.GetWindow(this) is DashboardWindow dashboard)
-                dashboard.OpenClientDetailsForDeviceIdentity(mac);
+                await dashboard.OpenClientDetailsForDeviceIdentityAsync(mac);
         }
 
         private void ViewDomainActivity_Click(object sender, RoutedEventArgs e)

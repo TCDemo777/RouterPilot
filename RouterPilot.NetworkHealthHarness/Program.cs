@@ -226,6 +226,57 @@ AppSettings otherSshSettings = new() { SshPort = 2202, SshAuthenticationMethod =
 Require(isolatedSshSettings.SshPort != otherSshSettings.SshPort && isolatedSshSettings.SshAuthenticationMethod != otherSshSettings.SshAuthenticationMethod, "active router settings keep SSH configuration isolated");
 Require(!new InvalidOperationException("SSH private key could not be found or opened.").Message.Contains("fixture-password", StringComparison.Ordinal), "SSH diagnostics do not expose credentials");
 
+string profileSettingsFolder = Path.Combine(Path.GetTempPath(), "RouterPilot-profile-settings-" + Guid.NewGuid().ToString("N"));
+var profileSettingsStorage = new SettingsService(profileSettingsFolder);
+string protectedProfilePassword = profileSettingsStorage.EncryptPassword("profile-password-fixture");
+string protectedProfilePassphrase = profileSettingsStorage.EncryptPassword("profile-passphrase-fixture");
+profileSettingsStorage.Save(new AppSettings
+{
+    RouterHost = "https://router-a.example/",
+    RouterPort = 8443,
+    AdGuardPort = 3001,
+    UseRouterHttps = true,
+    UseAdGuardHttps = true,
+    Username = "router-a-user",
+    RememberPassword = true,
+    EncryptedPassword = protectedProfilePassword,
+    SshPort = 2222,
+    SshAuthenticationMethod = SshAuthenticationMethod.PrivateKey,
+    PrivateKeyPath = "C:\\keys\\router-a",
+    EncryptedPrivateKeyPassphrase = protectedProfilePassphrase,
+    Theme = "Dark"
+});
+AppSettings migratedProfileSettings = profileSettingsStorage.Load();
+Require(migratedProfileSettings.RouterProfiles.Count == 1, "legacy settings migrate to exactly one router profile");
+RouterProfile migratedProfile = migratedProfileSettings.RouterProfiles.Single();
+Require(migratedProfile.Id == migratedProfileSettings.ActiveRouterProfileId, "migration selects the stable router profile as active");
+Require(migratedProfile.RouterHost == "router-a.example" && migratedProfile.RouterPort == 8443 && migratedProfile.AdGuardPort == 3001 && migratedProfile.UseAdGuardHttps, "router and AdGuard settings are preserved in the profile");
+Require(migratedProfile.SshPort == 2222 && migratedProfile.SshAuthenticationMethod == SshAuthenticationMethod.PrivateKey && migratedProfile.PrivateKeyPath == "C:\\keys\\router-a", "SSH settings are preserved in the profile");
+Require(profileSettingsStorage.DecryptPassword(migratedProfile.EncryptedPassword) == "profile-password-fixture" && profileSettingsStorage.DecryptPassword(migratedProfile.EncryptedPrivateKeyPassphrase) == "profile-passphrase-fixture", "protected credentials remain available through the migrated profile");
+Require(migratedProfileSettings.Theme == "Dark", "application-global settings remain outside the profile");
+AppSettings migratedProfileSettingsAgain = profileSettingsStorage.Load();
+Require(migratedProfileSettingsAgain.RouterProfiles.Count == 1 && migratedProfileSettingsAgain.ActiveRouterProfileId == migratedProfile.Id, "profile migration is idempotent and retains its stable ID");
+var profileService = new RouterProfileService(profileSettingsStorage);
+var activeRouterContext = new ActiveRouterContext(profileService);
+Require(activeRouterContext.CurrentProfileId == migratedProfile.Id && activeRouterContext.CurrentProfile.SshPort == 2222, "active router context resolves the migrated profile configuration");
+RouterProfile secondProfile = new()
+{
+    Id = Guid.NewGuid().ToString("N"),
+    DisplayName = "Router B",
+    RouterHost = "router-b.example",
+    Username = "router-b-user",
+    SshPort = 2202,
+    SshAuthenticationMethod = SshAuthenticationMethod.Password,
+    EncryptedPassword = profileSettingsStorage.EncryptPassword("profile-b-password")
+};
+migratedProfileSettingsAgain.RouterProfiles.Add(secondProfile);
+profileSettingsStorage.Save(migratedProfileSettingsAgain);
+AppSettings isolatedProfiles = profileSettingsStorage.Load();
+Require(isolatedProfiles.RouterProfiles.Select(profile => profile.Id).Distinct().Count() == 2 && isolatedProfiles.RouterProfiles.Single(profile => profile.Id == secondProfile.Id).SshPort == 2202, "profiles retain isolated connection configuration");
+string profileSettingsJson = File.ReadAllText(Path.Combine(profileSettingsFolder, "settings.json"));
+Require(!profileSettingsJson.Contains("profile-password-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-passphrase-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-b-password", StringComparison.Ordinal), "profile settings never serialize secrets as plain text");
+Directory.Delete(profileSettingsFolder, recursive: true);
+
 MethodInfo? parseBlocklists = typeof(RouterManager).GetMethod("ParseBlocklists", BindingFlags.Static | BindingFlags.NonPublic);
 Require(parseBlocklists is not null, "blocklist parser is available for deterministic coverage");
 using JsonDocument blocklistDocument = JsonDocument.Parse("""
@@ -242,7 +293,7 @@ using JsonDocument emptyBlocklistDocument = JsonDocument.Parse("{ \"filters\": [
 Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [emptyBlocklistDocument.RootElement])!).Count == 0, "blocklist parser accepts an empty list");
 using JsonDocument malformedBlocklistDocument = JsonDocument.Parse("{ \"filters\": [ { \"name\": \"no URL\" } ] }");
 Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [malformedBlocklistDocument.RootElement])!).Count == 0, "blocklist parser ignores malformed entries");
-Console.WriteLine("Network Health, notification, blocklist and SSH fixtures passed: 74 checks.");
+Console.WriteLine("Network Health, notification, blocklist, SSH and router-profile fixtures passed.");
 
 static void RequireThrows(Action action, string message)
 {

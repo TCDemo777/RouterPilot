@@ -120,6 +120,9 @@ namespace RouterPilot.Views
                     settings.EncryptedPassword = "";
                 }
 
+                settings.RouterProfiles = existing.RouterProfiles.Select(profile => profile.Clone()).ToList();
+                settings.ActiveRouterProfileId = existing.ActiveRouterProfileId;
+                SettingsService.UpdateActiveProfileFromLegacy(settings);
 
 
                 _settingsService.Save(settings);

@@ -22,6 +22,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         int AdGuardPort);
 
     private readonly SettingsService _settingsService;
+    private readonly IActiveRouterContext _activeRouter;
     private readonly ISshHostKeyTrustService _hostKeyTrustService;
     private readonly IRouterCertificateTrustService _certificateTrustService;
     private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
@@ -37,12 +38,14 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
 
     public RouterManagerProvider(
         SettingsService settingsService,
+        IActiveRouterContext activeRouter,
         ISshHostKeyTrustService hostKeyTrustService,
         IRouterCertificateTrustService certificateTrustService,
         AdGuardTransportSecurityService adGuardTransportSecurity,
         ISshConnectionFactory sshConnectionFactory)
     {
         _settingsService = settingsService;
+        _activeRouter = activeRouter;
         _hostKeyTrustService = hostKeyTrustService;
         _certificateTrustService = certificateTrustService;
         _adGuardTransportSecurity = adGuardTransportSecurity;
@@ -59,7 +62,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            AppSettings settings = _settingsService.Load();
+            RouterProfile settings = _activeRouter.CurrentProfile;
             var signature = new ConnectionSignature(
                 settings.RouterHost.Trim(),
                 settings.Username.Trim(),

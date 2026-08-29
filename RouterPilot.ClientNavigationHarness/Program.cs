@@ -79,7 +79,18 @@ var profiles = new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnor
 ClientDetailsNavigationTarget? profileResult = await ResolveColdAsync(
     profileInventory, profileCoordinator, profiles, profileMac);
 Require(profileResult?.Profile is not null && profileResult.LiveClient is null, "Profile-only client did not use the offline target.");
-Require(profileLoadCount == 0, "Profile-only client unnecessarily reconciled live inventory.");
+Require(profileLoadCount == 1, "Cold profile navigation did not perform the shared reconciliation before using the offline target.");
+
+var profiledLiveInventory = new ClientInventoryState();
+var profiledLiveCoordinator = new ClientInventoryCoordinator(profiledLiveInventory, _ =>
+    Task.FromResult<IReadOnlyList<ClientInfo>>(new[] { target }));
+var savedTargetProfile = new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase)
+{
+    [ClientIdentity.NormalizeMac(targetMac)] = Profile(targetMac, "Saved office laptop")
+};
+ClientDetailsNavigationTarget? profiledLiveResult = await ResolveColdAsync(
+    profiledLiveInventory, profiledLiveCoordinator, savedTargetProfile);
+Require(ReferenceEquals(profiledLiveResult?.LiveClient, target), "Cold navigation did not replace a saved profile projection with the current live client.");
 
 var unknownInventory = new ClientInventoryState();
 var unknownCoordinator = new ClientInventoryCoordinator(unknownInventory, _ =>

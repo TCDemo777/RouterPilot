@@ -53,7 +53,8 @@ public sealed class SettingsService
                     JsonOptions)
                 ?? new AppSettings();
 
-            Migrate(settings);
+            if (Migrate(settings))
+                Save(settings);
             return settings;
         }
         catch (Exception ex)
@@ -154,8 +155,53 @@ public sealed class SettingsService
         }
     }
 
-    private static void Migrate(AppSettings settings)
+    internal static void ApplyActiveProfile(AppSettings settings)
     {
+        RouterProfile? profile = settings.RouterProfiles.FirstOrDefault(item => item.Id == settings.ActiveRouterProfileId);
+        if (profile is null)
+            return;
+
+        settings.RouterHost = profile.RouterHost;
+        settings.RouterPort = profile.RouterPort;
+        settings.AdGuardPort = profile.AdGuardPort;
+        settings.UseRouterHttps = profile.UseRouterHttps;
+        settings.UseAdGuardHttps = profile.UseAdGuardHttps;
+        settings.Username = profile.Username;
+        settings.EncryptedPassword = profile.EncryptedPassword;
+        settings.RememberPassword = profile.RememberPassword;
+        settings.SshPort = profile.SshPort;
+        settings.SshAuthenticationMethod = profile.SshAuthenticationMethod;
+        settings.PrivateKeyPath = profile.PrivateKeyPath;
+        settings.EncryptedPrivateKeyPassphrase = profile.EncryptedPrivateKeyPassphrase;
+    }
+
+    /// <summary>
+    /// Keeps the retained legacy projection and its selected profile in sync
+    /// while the existing single-router Settings UI remains in use.
+    /// </summary>
+    internal static void UpdateActiveProfileFromLegacy(AppSettings settings)
+    {
+        RouterProfile? profile = settings.RouterProfiles.FirstOrDefault(item => item.Id == settings.ActiveRouterProfileId);
+        if (profile is null)
+            return;
+
+        profile.RouterHost = settings.RouterHost;
+        profile.RouterPort = settings.RouterPort;
+        profile.AdGuardPort = settings.AdGuardPort;
+        profile.UseRouterHttps = settings.UseRouterHttps;
+        profile.UseAdGuardHttps = settings.UseAdGuardHttps;
+        profile.Username = settings.Username;
+        profile.EncryptedPassword = settings.EncryptedPassword;
+        profile.RememberPassword = settings.RememberPassword;
+        profile.SshPort = settings.SshPort;
+        profile.SshAuthenticationMethod = settings.SshAuthenticationMethod;
+        profile.PrivateKeyPath = settings.PrivateKeyPath;
+        profile.EncryptedPrivateKeyPassphrase = settings.EncryptedPrivateKeyPassphrase;
+    }
+
+    private static bool Migrate(AppSettings settings)
+    {
+        bool changed = false;
         // Migrate settings written by older releases, which used RouterIp.
         if (string.IsNullOrWhiteSpace(settings.RouterHost) &&
             !string.IsNullOrWhiteSpace(settings.RouterIp))
@@ -163,6 +209,7 @@ public sealed class SettingsService
             settings.RouterHost =
                 RouterConnectionOptions.NormaliseHost(
                     settings.RouterIp);
+            changed = true;
         }
         else
         {
@@ -172,7 +219,11 @@ public sealed class SettingsService
         }
 
         // RouterIp remains only as a deserialization migration bridge.
-        settings.RouterIp = null;
+        if (settings.RouterIp is not null)
+        {
+            settings.RouterIp = null;
+            changed = true;
+        }
         settings.RouterPort =
             settings.RouterPort is >= 1 and <= 65535
                 ? settings.RouterPort
@@ -184,10 +235,56 @@ public sealed class SettingsService
         settings.SshPort = settings.SshPort is >= 1 and <= 65535 ? settings.SshPort : 22;
         if (!Enum.IsDefined(settings.SshAuthenticationMethod))
             settings.SshAuthenticationMethod = SshAuthenticationMethod.Password;
+
+        settings.RouterProfiles ??= new List<RouterProfile>();
+        if (settings.RouterProfiles.Count == 0 && !string.IsNullOrWhiteSpace(settings.RouterHost))
+        {
+            settings.RouterProfiles.Add(new RouterProfile
+            {
+                DisplayName = "My Router",
+                RouterHost = settings.RouterHost,
+                RouterPort = settings.RouterPort,
+                AdGuardPort = settings.AdGuardPort,
+                UseRouterHttps = settings.UseRouterHttps,
+                UseAdGuardHttps = settings.UseAdGuardHttps,
+                Username = settings.Username,
+                EncryptedPassword = settings.EncryptedPassword,
+                RememberPassword = settings.RememberPassword,
+                SshPort = settings.SshPort,
+                SshAuthenticationMethod = settings.SshAuthenticationMethod,
+                PrivateKeyPath = settings.PrivateKeyPath,
+                EncryptedPrivateKeyPassphrase = settings.EncryptedPrivateKeyPassphrase
+            });
+            changed = true;
+        }
+        foreach (RouterProfile profile in settings.RouterProfiles)
+        {
+            if (string.IsNullOrWhiteSpace(profile.Id)) { profile.Id = Guid.NewGuid().ToString("N"); changed = true; }
+            if (string.IsNullOrWhiteSpace(profile.DisplayName)) { profile.DisplayName = "My Router"; changed = true; }
+            string normalizedHost = RouterConnectionOptions.NormaliseHost(profile.RouterHost);
+            if (!string.Equals(profile.RouterHost, normalizedHost, StringComparison.Ordinal))
+            {
+                profile.RouterHost = normalizedHost;
+                changed = true;
+            }
+            if (profile.SshPort is < 1 or > 65535)
+            {
+                profile.SshPort = 22;
+                changed = true;
+            }
+            if (!Enum.IsDefined(profile.SshAuthenticationMethod)) { profile.SshAuthenticationMethod = SshAuthenticationMethod.Password; changed = true; }
+        }
+        if (settings.RouterProfiles.Count > 0 && !settings.RouterProfiles.Any(profile => profile.Id == settings.ActiveRouterProfileId))
+        {
+            settings.ActiveRouterProfileId = settings.RouterProfiles[0].Id;
+            changed = true;
+        }
+        ApplyActiveProfile(settings);
         settings.RefreshIntervalSeconds =
             Math.Clamp(
                 settings.RefreshIntervalSeconds,
                 5,
                 3600);
+        return changed;
     }
 }
