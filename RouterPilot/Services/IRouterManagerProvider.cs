@@ -9,4 +9,5 @@ public interface IRouterManagerProvider : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     void Invalidate();
+    Task ResetAsync(CancellationToken cancellationToken = default);
 }

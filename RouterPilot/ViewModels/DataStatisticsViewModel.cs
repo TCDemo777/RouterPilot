@@ -121,6 +121,23 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
     public Task EnsureLoadedAsync() => _loaded ? Task.CompletedTask : RefreshAsync();
 
+    public void ResetForRouterSession()
+    {
+        _loaded = false;
+        TopApps.Clear();
+        TrafficSeries = [];
+        ClearFullTable();
+        DetailDevices.Clear();
+        DetailTrafficSeries = [];
+        SelectedDetail = null;
+        Status = RouterPilotStatus.Pending;
+        StatusTitle = "Data Statistics";
+        StatusDetail = "Loading statistics for the selected router.";
+        CurrentPeriod = "Current period unavailable";
+        NotifyPresentationChanged();
+        NotifyDetailPresentationChanged();
+    }
+
     private async Task RefreshAsync()
     {
         if (_disposed || !await _refreshGate.WaitAsync(0))

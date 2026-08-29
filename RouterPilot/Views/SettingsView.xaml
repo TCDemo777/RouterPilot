@@ -44,6 +44,8 @@
             <TextBlock Margin="0,5,0,0"
                        Style="{DynamicResource Text.Secondary}"
                        Text="Application behaviour, router credentials and AdGuard Home defaults."/>
+            <Button Margin="0,14,0,0" HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}"
+                    Content="Manage saved routers" Click="ManageRouters_Click"/>
         </StackPanel>
 
         <ScrollViewer Grid.Row="2"

@@ -89,6 +89,7 @@ public sealed class ClientInventoryCoordinator
     }
 
     public void MarkAuthoritativelyLoaded() => _loaded = true;
+    public void ResetForRouterSession() => _loaded = false;
 
     private static ClientInfo ToClient(WifiClientInfo source, IReadOnlyList<ClientInfo> adGuard,
         IReadOnlyDictionary<string, ClientProfile> profiles)

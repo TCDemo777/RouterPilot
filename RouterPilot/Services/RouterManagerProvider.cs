@@ -142,6 +142,21 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         Interlocked.Increment(ref _invalidationVersion);
     }
 
+    public async Task ResetAsync(CancellationToken cancellationToken = default)
+    {
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            RouterManager? oldManager = _manager;
+            _manager = null;
+            _signature = null;
+            Interlocked.Increment(ref _invalidationVersion);
+            if (oldManager is not null)
+                await DisposeManagerAsync(oldManager).ConfigureAwait(false);
+        }
+        finally { _lifecycleGate.Release(); }
+    }
+
     public ValueTask DisposeAsync()
     {
         lock (_disposeLock)

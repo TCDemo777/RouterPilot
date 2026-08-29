@@ -20,6 +20,17 @@ public sealed class NetworkHealthService : INetworkHealthService
     public NetworkHealthSnapshot Current { get { lock (_sync) return _current; } }
     public event Action<NetworkHealthSnapshot>? SnapshotChanged;
 
+    public void ResetForRouterSession()
+    {
+        lock (_sync)
+        {
+            _active.Clear();
+            _monitoredDeviceIssues = [];
+            _dataFreshnessIssues = [];
+            Publish(NetworkHealthSnapshot.Loading);
+        }
+    }
+
     public void SetMonitoredDeviceIssues(IReadOnlyList<NetworkHealthIssue> issues)
     {
         lock (_sync) _monitoredDeviceIssues = issues;

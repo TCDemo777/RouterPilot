@@ -58,6 +58,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<SettingsService>();
             serviceCollection.AddSingleton<IRouterProfileService, RouterProfileService>();
             serviceCollection.AddSingleton<IActiveRouterContext, ActiveRouterContext>();
+            serviceCollection.AddSingleton<IRouterSwitchCoordinator, RouterSwitchCoordinator>();
             serviceCollection.AddSingleton<IPublicIpService, PublicIpService>();
             serviceCollection.AddSingleton<DashboardPreferencesService>();
             serviceCollection.AddSingleton<ISshHostKeyTrustService,

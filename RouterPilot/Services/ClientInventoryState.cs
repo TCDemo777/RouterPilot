@@ -22,6 +22,13 @@ public sealed class ClientInventoryState
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    public void Clear()
+    {
+        if (_clients.Count == 0) return;
+        _clients.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Adds clients observed by an existing application-level router snapshot
     /// without replacing the richer Clients-page reconciliation when it exists.

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using RouterPilot.Services;
 
 namespace RouterPilot.Views
 {
@@ -152,6 +153,11 @@ namespace RouterPilot.Views
             {
                 _viewModel.ResetDashboard();
             }
+        }
+
+        private void ManageRouters_Click(object sender, RoutedEventArgs e)
+        {
+            new RouterProfilesWindow { Owner = Window.GetWindow(this) }.ShowDialog();
         }
 
         private void OpenFirmwareReleaseNotes_Click(
