@@ -49,6 +49,7 @@ namespace RouterPilot.Views
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly FirmwareUpdateService _firmwareUpdateService;
+        private readonly UpdateService _updateService;
         private readonly IVpnSummaryService _vpnSummaryService;
         private readonly IPublicIpService _publicIpService;
         private readonly INetworkHealthService _networkHealthService;
@@ -67,6 +68,7 @@ namespace RouterPilot.Views
         private bool _healthSourcesReady;
         private bool? _observedInternetState;
         private bool _vpnStateObserved;
+        private bool _automaticUpdateCheckStarted;
 
         private readonly NetworkTrafficAccumulator _trafficAccumulator = new();
 
@@ -115,6 +117,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<AdGuardMaintenanceStateService>();
             _firmwareUpdateService = ((App)Application.Current).Services
                 .GetRequiredService<FirmwareUpdateService>();
+            _updateService = ((App)Application.Current).Services
+                .GetRequiredService<UpdateService>();
             _vpnSummaryService = ((App)Application.Current).Services
                 .GetRequiredService<IVpnSummaryService>();
             _publicIpService = ((App)Application.Current).Services
@@ -380,6 +384,10 @@ namespace RouterPilot.Views
                 cancellationToken.ThrowIfCancellationRequested();
                 _viewModel.InternetConnected =
                     network!.Connected;
+                if (_viewModel.InternetConnected)
+                {
+                    StartAutomaticUpdateCheck();
+                }
 
                 _viewModel.WanIp =
                     network.WanIp;
@@ -580,6 +588,30 @@ namespace RouterPilot.Views
             _adGuardAvailabilityService.SetState(state);
             _viewModel.AdGuardRunning = false;
             _viewModel.ClearAdGuardStatistics();
+        }
+
+        private void StartAutomaticUpdateCheck()
+        {
+            if (_automaticUpdateCheckStarted)
+            {
+                return;
+            }
+
+            _automaticUpdateCheckStarted = true;
+            _ = CheckForUpdatesAutomaticallyAsync();
+        }
+
+        private async Task CheckForUpdatesAutomaticallyAsync()
+        {
+            try
+            {
+                await _updateService.CheckForUpdatesAsync(manual: false);
+            }
+            catch (Exception exception)
+            {
+                // Automatic update checks are intentionally silent on failure.
+                Debug.WriteLine($"Automatic update check failed: {exception.GetType().Name}");
+            }
         }
 
         private void ResolveInitialAdGuardHealthPreference()

@@ -13,6 +13,7 @@ public sealed class UpdateService : IDisposable
 {
     public const string ReleasesPageUrl = "https://github.com/TCDemo777/RouterPilot/releases";
     private const string ReleasesApiUrl = "https://api.github.com/repos/TCDemo777/RouterPilot/releases?per_page=20";
+    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
     private readonly SettingsService _settingsService;
     private readonly NotificationService _notificationService;
     private readonly HttpClient _httpClient;
@@ -40,12 +41,17 @@ public sealed class UpdateService : IDisposable
         try
         {
             AppSettings settings = _settingsService.Load();
+            if (!manual && !IsAutomaticCheckDue(settings, DateTimeOffset.UtcNow))
+            {
+                return Result(UpdateCheckStatus.Skipped, "Automatic update check is not due yet.");
+            }
+
             try
             {
                 using HttpResponseMessage response = await _httpClient.GetAsync(
                     ReleasesApiUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
-                    return Result(UpdateCheckStatus.Unavailable, "GitHub rate limiting prevented the update check.");
+                    return await PresentResultAsync(Result(UpdateCheckStatus.Unavailable, "GitHub rate limiting prevented the update check."), manual);
                 response.EnsureSuccessStatusCode();
                 await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
                 using JsonDocument document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -63,35 +69,82 @@ public sealed class UpdateService : IDisposable
                 _settingsService.Save(settings);
 
                 if (LatestRelease is null || SemanticVersion.Parse(LatestRelease.Version) <= SemanticVersion.Parse(CurrentVersion))
-                    return Result(UpdateCheckStatus.UpToDate, "RouterPilot is up to date.", now);
+                    return await PresentResultAsync(Result(UpdateCheckStatus.UpToDate, "RouterPilot is up to date.", now), manual);
 
-                if (!string.Equals(settings.LastNotifiedUpdateVersion, LatestRelease.Version, StringComparison.OrdinalIgnoreCase))
-                {
-                    bool added = await _notificationService.AddAsync(new AppNotification
-                    {
-                        Title = $"RouterPilot {LatestRelease.Version} is available.",
-                        Message = "Open GitHub Releases to view the release notes and downloads.",
-                        Severity = NotificationSeverity.Information,
-                        Category = NotificationCategory.System,
-                        ActionTarget = LatestRelease.ReleaseNotesUrl?.AbsoluteUri ?? ReleasesPageUrl,
-                        DeduplicationKey = "RouterPilotUpdate-" + LatestRelease.Version
-                    });
-                    if (added)
-                    {
-                        settings.LastNotifiedUpdateVersion = LatestRelease.Version;
-                        _settingsService.Save(settings);
-                    }
-                }
-                return Result(UpdateCheckStatus.UpdateAvailable, $"RouterPilot {LatestRelease.Version} is available.", now);
+                UpdateCheckResult available = Result(UpdateCheckStatus.UpdateAvailable, $"RouterPilot {LatestRelease.Version} is available.", now);
+                await NotifyUpdateAvailableAsync(LatestRelease, manual, settings);
+                return available;
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            { return Result(UpdateCheckStatus.Unavailable, "The GitHub update check timed out."); }
+            { return await PresentResultAsync(Result(UpdateCheckStatus.Unavailable, "The GitHub update check timed out."), manual); }
             catch (HttpRequestException)
-            { return Result(UpdateCheckStatus.Unavailable, "GitHub Releases is currently unavailable."); }
+            { return await PresentResultAsync(Result(UpdateCheckStatus.Unavailable, "GitHub Releases is currently unavailable."), manual); }
             catch (JsonException)
-            { return Result(UpdateCheckStatus.Unavailable, "GitHub returned an unreadable release response."); }
+            { return await PresentResultAsync(Result(UpdateCheckStatus.Unavailable, "GitHub returned an unreadable release response."), manual); }
         }
         finally { _gate.Release(); }
+    }
+
+    private static bool IsAutomaticCheckDue(AppSettings settings, DateTimeOffset now) =>
+        settings.LastSuccessfulUpdateCheckUtc is not { } last || now - last >= AutomaticCheckInterval;
+
+    private async Task NotifyUpdateAvailableAsync(ReleaseInfo release, bool manual, AppSettings settings)
+    {
+        if (!manual && string.Equals(settings.LastNotifiedUpdateVersion, release.Version, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        bool added = await _notificationService.AddAsync(new AppNotification
+        {
+            Title = "RouterPilot update available",
+            Message = $"RouterPilot v{release.Version} is available. You are currently running v{CurrentVersion}.",
+            Severity = NotificationSeverity.Information,
+            Category = NotificationCategory.System,
+            ActionTarget = release.ReleaseNotesUrl?.AbsoluteUri ?? ReleasesPageUrl,
+            DeduplicationKey = (manual ? "RouterPilotUpdateManual-" : "RouterPilotUpdate-") + release.Version
+        });
+        if (added)
+        {
+            settings.LastNotifiedUpdateVersion = release.Version;
+            _settingsService.Save(settings);
+        }
+    }
+
+    private async Task<UpdateCheckResult> PresentResultAsync(UpdateCheckResult result, bool manual)
+    {
+        if (!manual)
+        {
+            return result;
+        }
+
+        AppNotification? notification = result.Status switch
+        {
+            UpdateCheckStatus.UpToDate => new AppNotification
+            {
+                Title = "RouterPilot is up to date",
+                Message = $"You are running RouterPilot v{CurrentVersion}.",
+                Severity = NotificationSeverity.Information,
+                Category = NotificationCategory.System,
+                DeduplicationKey = "RouterPilotUpdateManualCurrent-" + CurrentVersion
+            },
+            UpdateCheckStatus.Unavailable => new AppNotification
+            {
+                Title = "Update check unavailable",
+                Message = result.Message,
+                Severity = NotificationSeverity.Information,
+                Category = NotificationCategory.System,
+                DeduplicationKey = "RouterPilotUpdateManualUnavailable-" + result.Message
+            },
+            _ => null
+        };
+
+        if (notification is not null)
+        {
+            await _notificationService.AddAsync(notification);
+        }
+
+        return result;
     }
 
     private UpdateCheckResult Result(UpdateCheckStatus status, string message, DateTimeOffset? checkedAt = null) => new()

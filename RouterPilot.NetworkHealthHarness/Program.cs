@@ -66,4 +66,11 @@ Require(publicIpEvents.Count == 0, "unavailable then unchanged public IP does no
 publish.Invoke(publicIp, [new PublicIpResult("5.6.7.8", DateTimeOffset.UtcNow, PublicIpStatus.Available, null)]);
 Require(publicIpEvents.Count == 1, "a confirmed public IP transition raises one event");
 Require(publicIpEvents[0] == ("1.2.3.4", "5.6.7.8"), "public IP event compares confirmed normalized values");
-Console.WriteLine("Network Health projection fixtures passed: 40/40.");
+
+MethodInfo? automaticUpdateDue = typeof(UpdateService).GetMethod("IsAutomaticCheckDue", BindingFlags.Static | BindingFlags.NonPublic);
+Require(automaticUpdateDue is not null, "automatic update due policy is available for deterministic coverage");
+DateTimeOffset updateNow = DateTimeOffset.UtcNow;
+Require((bool)automaticUpdateDue!.Invoke(null, [new AppSettings(), updateNow])!, "first automatic update check is due");
+Require(!(bool)automaticUpdateDue.Invoke(null, [new AppSettings { LastSuccessfulUpdateCheckUtc = updateNow - TimeSpan.FromHours(23) }, updateNow])!, "automatic update check is skipped before 24 hours");
+Require((bool)automaticUpdateDue.Invoke(null, [new AppSettings { LastSuccessfulUpdateCheckUtc = updateNow - TimeSpan.FromHours(25) }, updateNow])!, "automatic update check is due after 24 hours");
+Console.WriteLine("Network Health projection fixtures passed: 43/43.");
