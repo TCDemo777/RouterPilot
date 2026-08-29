@@ -17,6 +17,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     private readonly SemaphoreSlim _checkGate = new(1, 1);
     private FirmwareUpdateCheck _current;
     private bool _isChecking;
+    private bool _hasAuthoritativeCurrentVersion;
 
     public FirmwareUpdateService(SettingsService settingsService,
         IRouterManagerProvider routerManagerProvider,
@@ -34,26 +35,18 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     public bool IsChecking => _isChecking;
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public Task CheckAutomaticallyAsync(RouterManager router, string knownCurrentVersion,
+    public Task CheckAutomaticallyAsync(RouterManager router,
         CancellationToken cancellationToken = default)
     {
-        // A router may have been updated while RouterPilot was closed. A changed
-        // installed version invalidates the cached availability result, even when
-        // its normal 12-hour validity window has not elapsed.
-        if (!string.IsNullOrWhiteSpace(knownCurrentVersion) &&
-            !string.Equals(_current.CurrentVersion, knownCurrentVersion,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return CheckAsync(router, knownCurrentVersion, cancellationToken);
-        }
-
         if (_current.LastChecked is { } checkedAt &&
             DateTimeOffset.UtcNow - checkedAt < AutomaticCheckInterval)
         {
             return Task.CompletedTask;
         }
 
-        return CheckAsync(router, knownCurrentVersion, cancellationToken);
+        // CheckFirmwareUpdateAsync is the authoritative GL.iNet firmware source.
+        // Do not compare its version against LuCI/OpenWrt release information.
+        return CheckAsync(router, null, cancellationToken);
     }
 
     public async Task CheckManuallyAsync(CancellationToken cancellationToken = default)
@@ -97,9 +90,19 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
             FirmwareUpdateCheck previous = _current;
             await PersistAsync(result);
 
-            if (!string.IsNullOrWhiteSpace(previous.CurrentVersion) &&
+            // A persisted value may predate the authoritative GL.iNet firmware
+            // source. The first successful result establishes this session's
+            // baseline; only later GL.iNet A → B transitions are changes.
+            bool recordFirmwareChange = _hasAuthoritativeCurrentVersion &&
+                !string.IsNullOrWhiteSpace(previous.CurrentVersion) &&
                 !string.IsNullOrWhiteSpace(result.CurrentVersion) &&
-                !string.Equals(previous.CurrentVersion, result.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(previous.CurrentVersion, result.CurrentVersion, StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(result.CurrentVersion))
+            {
+                _hasAuthoritativeCurrentVersion = true;
+            }
+
+            if (recordFirmwareChange)
             {
                 bool completedAdvertisedUpdate = string.Equals(previous.LatestVersion, result.CurrentVersion,
                     StringComparison.OrdinalIgnoreCase);

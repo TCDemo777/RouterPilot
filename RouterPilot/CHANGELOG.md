@@ -1,5 +1,23 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.0.3
+
+## Fixed
+- Fixed inconsistent Network Health status between the Dashboard and Network → Health.
+- Fixed a startup recursion issue that could terminate RouterPilot with a System.StackOverflowException.
+- Fixed Firmware health remaining on “Checking...” and its View action so it opens Maintenance → Firmware directly.
+- Improved Dashboard Network Health navigation and removed the redundant navigation action.
+- Fixed misleading data-refresh logging during normal transient or optional-service conditions.
+- Fixed false “Router firmware changed” events caused by comparing LuCI/OpenWrt release information with the GL.iNet firmware state.
+- Fixed false “Public IP changed” events during startup and VPN state changes when the confirmed public IP had not changed.
+
+## Changed
+- Added an explicit preference controlling whether AdGuard Home participates in overall Router Health.
+- Excluded optional AdGuard Home from Router Health percentage and attention status when the preference is off, with clearer not-in-use and unavailable explanations.
+
+## Thanks
+- Thank you to Lastimosa for highlighting the Network Health issue and the misleading data refresh delayed log entry addressed in this release.
+
 # RouterPilot v2.0.2
 
 ## Security

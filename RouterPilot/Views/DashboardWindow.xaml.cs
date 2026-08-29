@@ -317,17 +317,7 @@ namespace RouterPilot.Views
                 _viewModel.FirmwareVersion =
                     info.Firmware;
 
-                // A changed installed version makes the old cached availability
-                // result unresolved until the single startup check completes.
-                if (!string.IsNullOrWhiteSpace(info.Firmware) &&
-                    !string.Equals(_firmwareUpdateService.Current.CurrentVersion, info.Firmware,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    _viewModel.FirmwareUpdateStatus = FirmwareUpdateCheckStatus.Pending;
-                    _viewModel.FirmwareLatestVersion = string.Empty;
-                }
-
-                ScheduleInitialFirmwareCheck(router, info.Firmware);
+                ScheduleInitialFirmwareCheck(router);
 
                 _viewModel.Uptime =
                     info.Uptime;
@@ -468,7 +458,7 @@ namespace RouterPilot.Views
             }
         }
 
-        private void ScheduleInitialFirmwareCheck(RouterManager router, string currentVersion)
+        private void ScheduleInitialFirmwareCheck(RouterManager router)
         {
             if (_initialFirmwareCheckScheduled)
                 return;
@@ -478,7 +468,7 @@ namespace RouterPilot.Views
             {
                 await Task.Delay(TimeSpan.FromSeconds(20));
                 if (IsLoaded && _viewModel.RouterConnected)
-                    await _firmwareUpdateService.CheckAutomaticallyAsync(router, currentVersion);
+                    await _firmwareUpdateService.CheckAutomaticallyAsync(router);
             });
         }
 
