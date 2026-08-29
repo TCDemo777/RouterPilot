@@ -977,6 +977,10 @@ namespace RouterPilot.Views
             {
                 throw;
             }
+            catch (OperationCanceledException) when (routerSession >= 0 && !IsCurrentRouterSession(routerSession))
+            {
+                return false;
+            }
             catch (Exception ex)
             {
                 _dataFreshnessService.MarkUnavailable(DhcpFreshnessSource);

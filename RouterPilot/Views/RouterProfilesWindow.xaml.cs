@@ -15,6 +15,7 @@ public partial class RouterProfilesWindow : Window
     {
         if (Dispatcher.CheckAccess()) Reload(); else _ = Dispatcher.InvokeAsync(Reload);
     }
+    protected override void OnClosed(EventArgs e) { _switcher.Switched -= Switcher_Switched; base.OnClosed(e); }
     private void Reload() { Items.Clear(); string active = _profiles.GetActiveProfile()?.Id ?? ""; int count = _profiles.GetProfiles().Count; foreach (var p in _profiles.GetProfiles()) Items.Add(new Row(p, p.Id == active, count > 1)); }
     private async void Switch_Click(object s, RoutedEventArgs e) { if (s is FrameworkElement { Tag: Row row }) { await _switcher.SwitchAsync(row.Profile.Id); Reload(); } }
     private void Add_Click(object s, RoutedEventArgs e) { var dialog = new RouterProfileEditorWindow(); if (dialog.ShowDialog() == true) _profiles.SaveProfile(dialog.Profile!); Reload(); }

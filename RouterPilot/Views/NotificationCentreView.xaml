@@ -36,16 +36,16 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <ComboBox Width="130"
+                <ComboBox Width="130" Height="38"
                           Style="{StaticResource RouterPilot.ComboBox}"
                           Margin="0,0,10,0"
                           ItemsSource="{Binding Filters}"
                           SelectedItem="{Binding SelectedFilter}"/>
-                <Button Margin="0,0,8,0"
+                <Button Height="38" Margin="0,0,8,0"
                         Style="{DynamicResource Button.Secondary}"
                         Command="{Binding MarkAllReadCommand}"
                         Content="Mark all read"/>
-                <Button Style="{DynamicResource Button.Secondary}"
+                <Button Height="38" Style="{DynamicResource Button.Secondary}"
                         Command="{Binding ClearAllCommand}"
                         Content="Clear all"/>
             </StackPanel>

@@ -7,6 +7,7 @@ public interface IActiveRouterContext
     RouterProfile CurrentProfile { get; }
     string CurrentProfileId { get; }
     long Version { get; }
+    void InvalidateSession();
 }
 
 /// <summary>
@@ -28,4 +29,5 @@ public sealed class ActiveRouterContext : IActiveRouterContext
         ?? throw new InvalidOperationException("No active router profile is configured.");
     public string CurrentProfileId => CurrentProfile.Id;
     public long Version => Interlocked.Read(ref _version);
+    public void InvalidateSession() => Interlocked.Increment(ref _version);
 }

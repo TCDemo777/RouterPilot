@@ -816,7 +816,7 @@
                             <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}"
                                        Text="Read-only context reported by AdGuard Home."/>
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Style="{DynamicResource Text.CardCaption}" Text="FILTERING"/>
                                     <Grid Margin="0,6,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -845,15 +845,15 @@
                                     <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Parental protection"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding ParentalStateDisplay}"/></Grid>
                                     <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Safe Search"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchStateDisplay}"/></Grid>
                                     <TextBlock Style="{DynamicResource Text.CardCaption}" Text="SAFE SEARCH SERVICES"/>
-                                    <UniformGrid Columns="2" Margin="0,6,0,0">
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Bing"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchBingDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="DuckDuckGo"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchDuckDuckGoDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Ecosia"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchEcosiaDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Google"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchGoogleDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Pixabay"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchPixabayDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Yandex"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchYandexDisplay}"/>
-                                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="YouTube"/><TextBlock FontWeight="SemiBold" Text="{Binding SafeSearchYouTubeDisplay}"/>
-                                    </UniformGrid>
+                                    <StackPanel Margin="0,6,0,0">
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Bing"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchBingDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="DuckDuckGo"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchDuckDuckGoDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Ecosia"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchEcosiaDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Google"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchGoogleDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Pixabay"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchPixabayDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="Yandex"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchYandexDisplay}"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.Secondary}" Text="YouTube"/><TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding SafeSearchYouTubeDisplay}"/></Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </StackPanel>

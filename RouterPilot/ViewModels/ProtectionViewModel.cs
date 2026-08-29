@@ -130,6 +130,7 @@ namespace RouterPilot.ViewModels
             FilteringRules.CollectionChanged += FilteringRules_CollectionChanged;
             BlocklistsView = CollectionViewSource.GetDefaultView(Blocklists);
             BlocklistsView.Filter = FilterBlocklist;
+            BlocklistsView.SortDescriptions.Add(new SortDescription(nameof(AdGuardBlocklist.Enabled), ListSortDirection.Descending));
             BlocklistsView.SortDescriptions.Add(new SortDescription(nameof(AdGuardBlocklist.Name), ListSortDirection.Ascending));
             QueryLogView = CollectionViewSource.GetDefaultView(QueryLogEntries);
             QueryLogView.Filter = FilterQueryLogEntry;
@@ -224,7 +225,9 @@ namespace RouterPilot.ViewModels
         public int AllowFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Allow");
         public int CustomFilteringRuleCount => FilteringRules.Count(rule => rule.Type == "Custom");
         public string FilteringUpdateIntervalDisplay => FormatHours(_options.FilteringIntervalHours);
-        public string QueryLogRetentionDisplay => FormatHours(_options.QueryLogInterval);
+        // AdGuard Home reports query-log interval in milliseconds, unlike the
+        // filtering interval which is already supplied in hours.
+        public string QueryLogRetentionDisplay => FormatMilliseconds(_options.QueryLogInterval);
         public int IgnoredQueryLogEntryCount => _options.QueryLogIgnored.Length;
         public bool QueryLogAnonymizeClientIp => _options.QueryLogAnonymizeClientIp;
         public bool SafeSearchBing => _options.SafeSearch.Bing;
@@ -1055,6 +1058,8 @@ namespace RouterPilot.ViewModels
         private static string FormatHours(double hours) => hours <= 0 ? "Not reported" :
             hours % 24 == 0 ? (hours / 24 == 1 ? "1 day" : $"{hours / 24:0.#} days") :
             (hours == 1 ? "1 hour" : $"{hours:0.#} hours");
+        private static string FormatMilliseconds(double milliseconds) => milliseconds <= 0 ? "Not reported" :
+            FormatDuration(TimeSpan.FromMilliseconds(milliseconds));
         private static string FormatOnOff(bool enabled) => enabled ? "On" : "Off";
     }
 }
