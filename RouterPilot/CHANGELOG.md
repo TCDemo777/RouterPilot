@@ -1,5 +1,18 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.1.0
+
+## Added
+- Added Saved Routers for keeping multiple router configurations while monitoring one active router at a time.
+
+## Changed
+- Improved active-router switching, profile-aware Settings, and credential isolation when changing routers.
+- Improved Protection configuration presentation, blocklist ordering, Notification Centre control sizing, and general UI consistency.
+
+## Fixed
+- Prevented stale router-session results from appearing after a router switch or reconnect.
+- Corrected AdGuard Home Query Log retention display.
+
 # RouterPilot v2.0.3
 
 ## Fixed

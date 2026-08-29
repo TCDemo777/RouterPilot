@@ -4,7 +4,7 @@
 
 | Version | Support status |
 | --- | --- |
-| 2.0.3 | Supported |
+| 2.1.0 | Supported |
 | 1.8.1 | Update recommended |
 | Older releases | Update recommended |
 
