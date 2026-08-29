@@ -1,5 +1,12 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.0.2
+
+## Security
+- Proactively updated SSH.NET from 2025.1.0 to 2026.0.0 as dependency security maintenance.
+- Updated the resolved System.Drawing.Common dependency from vulnerable 4.7.0 to patched 4.7.2.
+- NuGet security audit now reports no known package security advisories.
+
 # RouterPilot v2.0.1
 
 ## Fixed
