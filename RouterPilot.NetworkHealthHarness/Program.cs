@@ -18,6 +18,12 @@ Require(ClientIdentity.EndpointEquals("192.168.1.20", "192.168.1.20"), "IPv4 end
 Require(ClientIdentity.EndpointEquals("::ffff:192.168.1.20", "192.168.1.20"), "IPv4-mapped IPv6 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("[2001:db8::20]:53", "2001:DB8::20"), "bracketed IPv6 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("client.example.", "CLIENT.EXAMPLE"), "hostname endpoint correlation");
+TailscaleStatus tailscale = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Self\":{\"HostName\":\"router\",\"DNSName\":\"router.example.ts.net.\",\"TailscaleIPs\":[\"100.64.0.1\",\"fd7a::1\"]},\"Peer\":{\"nodekey:secret\":{\"HostName\":\"laptop\",\"TailscaleIPs\":[\"100.64.0.2\"],\"Online\":true}}}", "1.2.3");
+Require(tailscale.State == TailscaleState.Connected && tailscale.DnsName == "router.example.ts.net" && tailscale.Addresses.Count == 2, "Tailscale connected parsing");
+Require(tailscale.Peers.Count == 1 && tailscale.Peers[0].Name == "laptop" && tailscale.OnlinePeerCount == 1, "Tailscale peer parsing without exposing key");
+Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"NeedsLogin\"}").State == TailscaleState.NeedsLogin, "Tailscale login state");
+Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Unknown\":true}").State == TailscaleState.Connected, "Tailscale unknown fields");
+Require(TailscaleStatusService.ParseStatus("not-json").State == TailscaleState.Incompatible, "Tailscale malformed JSON");
 Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
 Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");

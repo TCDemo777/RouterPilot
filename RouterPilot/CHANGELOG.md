@@ -1,6 +1,6 @@
 # RouterPilot Changelog
 
-# RouterPilot v2.1.2
+# RouterPilot v2.2.0 (Unreleased)
 
 ## Fixed
 - Improved Clients-page DNS attribution for canonical IPv4, IPv6 and IPv4-mapped IPv6 endpoint formats returned by AdGuard Home.

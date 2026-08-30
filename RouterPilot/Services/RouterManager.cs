@@ -146,6 +146,9 @@ namespace RouterPilot.Services
                 .GetRouterInfoAsync();
         }
 
+        internal Task<string> RunReadOnlySshCommandAsync(string command, CancellationToken cancellationToken = default) =>
+            _ssh.RunCommandAsync(command, cancellationToken);
+
         /// <summary>
         /// Performs a read-only inventory of known speed-test executables. The
         /// result is intentionally conservative: RouterPilot does not execute a

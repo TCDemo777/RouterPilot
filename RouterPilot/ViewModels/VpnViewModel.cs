@@ -13,6 +13,15 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool vpnInventoryLoadCompleted;
     [ObservableProperty] private string vpnStatus = string.Empty;
     [ObservableProperty] private bool vpnSupported;
+    [ObservableProperty] private TailscaleStatus? tailscaleStatus;
+    [ObservableProperty] private bool tailscaleIsLoading;
+    public string TailscaleStateDisplay => TailscaleStatus?.State switch { TailscaleState.Connected => "Connected", TailscaleState.NeedsLogin => "Needs login", TailscaleState.Stopped => "Stopped", TailscaleState.NotInstalled => "Not installed", TailscaleState.Incompatible => "Incompatible", _ => "Unavailable" };
+    public string TailscaleAddressDisplay => TailscaleStatus is { Addresses.Count: > 0 } status ? string.Join("\n", status.Addresses) : "—";
+    public string TailscalePeerCountDisplay => TailscaleStatus?.PeerCount?.ToString() ?? "—";
+    public string TailscaleOnlinePeerCountDisplay => TailscaleStatus?.OnlinePeerCount?.ToString() ?? "—";
+    public string TailscalePeerSummaryDisplay => TailscaleStatus is { PeerCount: int total, OnlinePeerCount: int online } ? $"{total} / {online}" : "—";
+    public void ApplyTailscaleStatus(TailscaleStatus status) { TailscaleStatus = status; OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); }
+    public void ResetTailscale() { TailscaleStatus = null; OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); }
     [ObservableProperty] private int vpnOperationTunnelId;
     private int? _connectionAttemptTunnelId;
     private int? _connectionAttemptGroupId;

@@ -23,6 +23,7 @@ public sealed class RouterSwitchCoordinator : IRouterSwitchCoordinator
     private readonly IVpnLiveStatusService _vpn;
     private readonly AdGuardAvailabilityService _adGuard;
     private readonly DataStatisticsViewModel _statistics;
+    private readonly VpnViewModel _vpnViewModel;
     private readonly SemaphoreSlim _gate = new(1, 1);
     public bool IsSwitching { get; private set; }
     public event EventHandler<RouterProfile>? Switched;
@@ -30,8 +31,8 @@ public sealed class RouterSwitchCoordinator : IRouterSwitchCoordinator
     public RouterSwitchCoordinator(IRouterProfileService profiles, IRouterManagerProvider router, IActiveRouterContext activeRouter,
         ClientInventoryState inventory, ClientInventoryCoordinator inventoryCoordinator,
         INetworkHealthService health, IVpnLiveStatusService vpn, AdGuardAvailabilityService adGuard,
-        DataStatisticsViewModel statistics)
-    { _profiles = profiles; _router = router; _activeRouter = activeRouter; _inventory = inventory; _inventoryCoordinator = inventoryCoordinator; _health = health; _vpn = vpn; _adGuard = adGuard; _statistics = statistics; }
+        DataStatisticsViewModel statistics, VpnViewModel vpnViewModel)
+    { _profiles = profiles; _router = router; _activeRouter = activeRouter; _inventory = inventory; _inventoryCoordinator = inventoryCoordinator; _health = health; _vpn = vpn; _adGuard = adGuard; _statistics = statistics; _vpnViewModel = vpnViewModel; }
 
     public Task ReconnectActiveAsync(CancellationToken cancellationToken = default) => SwitchCoreAsync(null, cancellationToken);
     public Task<bool> SwitchAsync(string profileId, CancellationToken cancellationToken = default) => SwitchCoreAsync(profileId, cancellationToken);
@@ -45,7 +46,7 @@ public sealed class RouterSwitchCoordinator : IRouterSwitchCoordinator
             IsSwitching = true;
             _activeRouter.InvalidateSession();
             _inventory.Clear(); _inventoryCoordinator.ResetForRouterSession();
-            _statistics.ResetForRouterSession(); _vpn.Clear(); _adGuard.SetState(AdGuardAvailabilityState.Unavailable);
+            _statistics.ResetForRouterSession(); _vpn.Clear(); _adGuard.SetState(AdGuardAvailabilityState.Unavailable); _vpnViewModel.ResetTailscale();
             if (_health is NetworkHealthService concreteHealth) concreteHealth.ResetForRouterSession();
             await _router.ResetAsync(token).ConfigureAwait(false);
             if (profileId is not null && !_profiles.SetActiveProfile(profileId)) return false;

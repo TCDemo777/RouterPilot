@@ -3,7 +3,7 @@
     <OutputType>Package</OutputType>
     <Platform>x64</Platform>
     <AcceptEula>wix7</AcceptEula>
-    <OutputName>RouterPilot-2.1.2-x64</OutputName>
+    <OutputName>RouterPilot-2.2.0-x64</OutputName>
     <InstallerPublishDir>$(MSBuildThisFileDirectory)obj\publish\win-x64\</InstallerPublishDir>
   </PropertyGroup>
 
