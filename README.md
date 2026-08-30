@@ -84,6 +84,17 @@ The About page includes system information, redacted diagnostics, support logs a
 
 Report issues through the [GitHub issue tracker](https://github.com/TCDemo777/RouterPilot/issues).
 
+## ❤️ Support Development
+
+RouterPilot is free and open source.
+
+If you find RouterPilot useful and would like to support its continued development, bug fixes and new features, you can support the project through:
+
+- ❤️ [GitHub Sponsors](https://github.com/sponsors/TCDemo777)
+- ☕ [Buy Me a Coffee](https://buymeacoffee.com/tcdemo777)
+
+Support is completely optional. Using RouterPilot, reporting bugs, suggesting improvements and contributing to the project are all greatly appreciated ways to help.
+
 ## Licence
 
 RouterPilot is released under the MIT Licence. See `LICENSE` and `THIRD_PARTY_NOTICES.txt` for details.
