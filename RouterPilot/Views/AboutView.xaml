@@ -65,6 +65,8 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Border Width="136" Height="136" Padding="8"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
                                         Background="{DynamicResource Brush.SurfaceMuted}"
                                         BorderBrush="{DynamicResource Brush.Border}"
                                         BorderThickness="1" CornerRadius="26">
@@ -115,70 +117,6 @@
                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                Text="Released under the MIT Licence."/>
 
-                                    <WrapPanel Margin="0,14,0,0">
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6">
-                                            <TextBlock>
-                                                <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot"
-                                                           RequestNavigate="GitHubLink_RequestNavigate">GitHub</Hyperlink>
-                                            </TextBlock>
-                                        </Button>
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6">
-                                            <TextBlock>
-                                                <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot#readme"
-                                                           RequestNavigate="GitHubLink_RequestNavigate">Documentation</Hyperlink>
-                                            </TextBlock>
-                                        </Button>
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6">
-                                            <TextBlock>
-                                                <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot/issues/new"
-                                                           RequestNavigate="GitHubLink_RequestNavigate">Report an issue</Hyperlink>
-                                            </TextBlock>
-                                        </Button>
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6"
-                                                Click="SupportDevelopment_Click"
-                                                Content="★ Support Development"/>
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6"
-                                                Click="OpenLicense_Click"
-                                                Content="Licence"/>
-                                        <Button Margin="0,0,8,8"
-                                                Padding="14,6"
-                                                Click="OpenThirdPartyNotices_Click"
-                                                Content="Third-Party Notices"/>
-                                    </WrapPanel>
-
-                                    <Border Margin="0,12,0,0" Padding="14"
-                                            Background="{DynamicResource Brush.SurfaceMuted}"
-                                            BorderBrush="{DynamicResource Brush.Border}"
-                                            BorderThickness="1" CornerRadius="8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel>
-                                                <TextBlock FontWeight="SemiBold" Text="Updates"/>
-                                                <TextBlock x:Name="CurrentUpdateVersionTextBlock" Margin="0,4,0,0"
-                                                           Style="{DynamicResource Text.Secondary}"/>
-                                                <TextBlock x:Name="LatestVersionTextBlock" Margin="0,3,0,0"
-                                                           Style="{DynamicResource Text.Secondary}"/>
-                                                <TextBlock x:Name="LastUpdateCheckTextBlock" Margin="0,3,0,0"
-                                                           Style="{DynamicResource Text.Muted}"/>
-                                            </StackPanel>
-                                            <WrapPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                                                <Button x:Name="OpenReleaseNotesButton" MinWidth="142" Margin="0,0,8,0"
-                                                        Style="{DynamicResource Button.Secondary}"
-                                                        Click="OpenReleaseNotes_Click" Content="Open Release Notes" IsEnabled="False"/>
-                                                <Button x:Name="CheckForUpdatesButton" MinWidth="142"
-                                                        Style="{DynamicResource Button.Primary}"
-                                                        Click="CheckForUpdates_Click" Content="Check for Updates"/>
-                                            </WrapPanel>
-                                        </Grid>
-                                    </Border>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -210,13 +148,87 @@
                                                Text="Thank you for using RouterPilot."/>
                                 </StackPanel>
 
-                                <Button Grid.Column="1"
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button
                                         MinWidth="178"
                                         Height="40"
                                         Padding="16,7"
                                         VerticalAlignment="Center"
                                         Click="SupportDevelopment_Click"
                                         Content="★ Support Development"/>
+                                    <Button MinWidth="170"
+                                            Height="40"
+                                            Margin="8,0,0,0"
+                                            Padding="16,7"
+                                            Click="BuyMeACoffee_Click"
+                                            Content="☕ Buy Me a Coffee"
+                                            ToolTip="Support RouterPilot development"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}"
+                                           Text="Resources"/>
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button Margin="0,0,8,8" Padding="14,6">
+                                        <TextBlock>
+                                            <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot"
+                                                       RequestNavigate="GitHubLink_RequestNavigate">GitHub</Hyperlink>
+                                        </TextBlock>
+                                    </Button>
+                                    <Button Margin="0,0,8,8" Padding="14,6">
+                                        <TextBlock>
+                                            <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot#readme"
+                                                       RequestNavigate="GitHubLink_RequestNavigate">Documentation</Hyperlink>
+                                        </TextBlock>
+                                    </Button>
+                                    <Button Margin="0,0,8,8" Padding="14,6">
+                                        <TextBlock>
+                                            <Hyperlink NavigateUri="https://github.com/TCDemo777/RouterPilot/issues/new"
+                                                       RequestNavigate="GitHubLink_RequestNavigate">Report an issue</Hyperlink>
+                                        </TextBlock>
+                                    </Button>
+                                    <Button Margin="0,0,8,8"
+                                            Padding="14,6"
+                                            Click="OpenLicense_Click"
+                                            Content="Licence"/>
+                                    <Button Margin="0,0,8,8"
+                                            Padding="14,6"
+                                            Click="OpenThirdPartyNotices_Click"
+                                            Content="Third-Party Notices"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0" Padding="14"
+                                Background="{DynamicResource Brush.SurfaceMuted}"
+                                BorderBrush="{DynamicResource Brush.Border}"
+                                BorderThickness="1" CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="Updates"/>
+                                    <TextBlock x:Name="CurrentUpdateVersionTextBlock" Margin="0,4,0,0"
+                                               Style="{DynamicResource Text.Secondary}"/>
+                                    <TextBlock x:Name="LatestVersionTextBlock" Margin="0,3,0,0"
+                                               Style="{DynamicResource Text.Secondary}"/>
+                                    <TextBlock x:Name="LastUpdateCheckTextBlock" Margin="0,3,0,0"
+                                               Style="{DynamicResource Text.Muted}"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                    <Button x:Name="OpenReleaseNotesButton" MinWidth="142" Margin="0,0,8,0"
+                                            Style="{DynamicResource Button.Secondary}"
+                                            Click="OpenReleaseNotes_Click" Content="Open Release Notes" IsEnabled="False"/>
+                                    <Button x:Name="CheckForUpdatesButton" MinWidth="142"
+                                            Style="{DynamicResource Button.Primary}"
+                                            Click="CheckForUpdates_Click" Content="Check for Updates"/>
+                                </WrapPanel>
                             </Grid>
                         </Border>
 

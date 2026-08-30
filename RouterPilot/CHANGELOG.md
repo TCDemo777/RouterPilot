@@ -2,6 +2,10 @@
 
 # RouterPilot v2.1.1
 
+## Changed
+- Reorganized the About page to keep Support Development easy to find while grouping project, help and legal links in a dedicated Resources area and moving Updates into the lower utility area.
+- Added an optional Buy Me a Coffee support link to the About page.
+
 ## Fixed
 - Fixed missing magnifying-glass icons and the missing empty-state placeholder on Protection Blocklists, Protection Blocked Services, Clients, Global Search, and Logs search fields.
 - Standardized these search controls with the DNS Activity search presentation while preserving the existing Search placeholder and filtering behavior.

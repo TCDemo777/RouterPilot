@@ -772,9 +772,26 @@ namespace RouterPilot.Views
             AppendLog(
                 "Opening GitHub Sponsors page...");
 
+            OpenExternalUrl(sponsorsUrl);
+        }
+
+        private void BuyMeACoffee_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            const string buyMeACoffeeUrl =
+                "https://buymeacoffee.com/tcdemo777";
+
+            AppendLog(
+                "Opening Buy Me a Coffee page...");
+
+            OpenExternalUrl(buyMeACoffeeUrl);
+        }
+
+        private static void OpenExternalUrl(string url)
+        {
             Process.Start(
-                new ProcessStartInfo(
-                    sponsorsUrl)
+                new ProcessStartInfo(url)
                 {
                     UseShellExecute = true
                 });
@@ -784,12 +801,7 @@ namespace RouterPilot.Views
             object sender,
             RequestNavigateEventArgs e)
         {
-            Process.Start(
-                new ProcessStartInfo(
-                    e.Uri.AbsoluteUri)
-                {
-                    UseShellExecute = true
-                });
+            OpenExternalUrl(e.Uri.AbsoluteUri);
 
             e.Handled = true;
         }
