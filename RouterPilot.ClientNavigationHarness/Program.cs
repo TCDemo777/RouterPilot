@@ -57,6 +57,42 @@ Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-"
 Require(identityResolver.ClassifyDeviceNameCandidate("Android") == DeviceNameCandidateKind.OperatingSystem, "Android is classified as operating system");
 Require(identityResolver.ResolveOperatingSystem("Windows") == "Windows", "operating system remains available separately");
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals("Windows", "Android", null, null, null, null, "192.168.1.20")) == "Windows", "explicit user nickname is preserved");
+ClientInfo unavailableDnsClient = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable, TotalQueries = 17, BlockedQueries = 4 };
+Require(unavailableDnsClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    unavailableDnsClient.BlockedQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    unavailableDnsClient.BlockRateDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "unavailable DNS metrics never become numeric zeros");
+Require(unavailableDnsClient.ActivityAvailabilityToolTip.Contains("policy-based VPN", StringComparison.OrdinalIgnoreCase) &&
+    unavailableDnsClient.ActivityAvailabilityToolTip.Contains("control DNS", StringComparison.OrdinalIgnoreCase), "DNS unavailable tooltip explains policy-based VPN configuration");
+// DNS observability regression: global AdGuard availability does not imply
+// per-client attribution. The same live client must transition from
+// unavailable -> correlated activity/zero without being replaced or duplicated.
+ClientInfo bypassedClient = new()
+{
+    Name = "Office laptop",
+    Manufacturer = "Dell",
+    MacAddress = "00:24:E8:AA:BB:CC",
+    IpAddress = "192.168.1.42",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable
+};
+List<ClientInfo> visibleClients = [bypassedClient];
+Require(visibleClients.Count == 1 &&
+    bypassedClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    bypassedClient.BlockedQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    bypassedClient.BlockRateDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "AdGuard-available-but-unmatched client remains visible with unavailable DNS metrics");
+bypassedClient.AdGuardDataAvailability = AdGuardAvailabilityState.Available;
+bypassedClient.TotalQueries = 12;
+bypassedClient.BlockedQueries = 3;
+Require(visibleClients.Count == 1 && bypassedClient.TotalQueriesDisplay == "12" &&
+    bypassedClient.BlockedQueriesDisplay == "3" && bypassedClient.BlockRateDisplay == "25.0%" &&
+    bypassedClient.Name == "Office laptop" && bypassedClient.Manufacturer == "Dell",
+    "later AdGuard correlation updates the existing client without duplication or identity loss");
+bypassedClient.TotalQueries = 0;
+bypassedClient.BlockedQueries = 0;
+Require(bypassedClient.TotalQueriesDisplay == "0" && bypassedClient.BlockedQueriesDisplay == "0" &&
+    bypassedClient.BlockRateDisplay == "0.0%",
+    "correlated genuine zero activity remains distinct from unavailable DNS");
 MethodInfo? cleanMdns = typeof(MdnsIdentityService).GetMethod("CleanHostnameForDisplay", BindingFlags.Static | BindingFlags.NonPublic);
 Require(cleanMdns is not null, "mDNS hostname cleanup helper is available");
 string? CleanMdns(string value) => (string?)cleanMdns!.Invoke(null, new object?[] { value });
