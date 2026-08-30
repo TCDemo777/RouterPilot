@@ -3,6 +3,10 @@ RouterPilot — Third-Party Notices
 RouterPilot is an independent project and is not affiliated with, endorsed by,
 or sponsored by GL Technologies (Hong Kong) Limited or AdGuard Software Limited.
 
+RouterPilot itself is licensed under the GNU General Public License v3.0 only
+(GPL-3.0-only). The repository LICENSE file is installed as LICENSE beside the
+application. Third-party components below remain under their own licences.
+
 Platforms and services
 ----------------------
 GL.iNet
@@ -60,16 +64,91 @@ Purpose: debug logging provider.
 Licence: MIT
 https://www.nuget.org/packages/Microsoft.Extensions.Logging.Debug/10.0.10
 
-SSH.NET 2025.1.0
+SSH.NET 2026.0.0
 Purpose: SSH connectivity to supported routers.
 Licence: MIT
-https://www.nuget.org/packages/SSH.NET/2025.1.0
+https://www.nuget.org/packages/SSH.NET/2026.0.0
 
-Transitive dependencies
------------------------
-The packages above may bring in additional transitive components. Their notices
-and licence information are available from the corresponding NuGet package
-pages and restored package metadata.
+CommunityToolkit.WinUI.Notifications 7.1.2
+Purpose: Windows toast notifications.
+Licence: MIT. Copyright Microsoft / .NET Foundation.
+https://www.nuget.org/packages/CommunityToolkit.WinUI.Notifications/7.1.2
+
+System.Drawing.Common 4.7.2
+Purpose: Windows drawing and tray integration support.
+Licence: MIT. Copyright Microsoft.
+https://www.nuget.org/packages/System.Drawing.Common/4.7.2
+
+OpenTK 3.3.1 and OpenTK.GLWpfControl 3.3.0
+Licence: MIT/X11 (OpenTK) and MIT (GLWpfControl).
+Copyright Open Toolkit project and GLWpfControl contributors.
+https://github.com/opentk/opentk/blob/master/LICENSE.md
+https://github.com/opentk/GLWpfControl
+
+SkiaSharp 3.119.0, SkiaSharp.Views.WPF 3.119.0 and SkiaSharp.HarfBuzz 3.119.0
+Licence: MIT. Copyright Xamarin, Inc. and Microsoft Corporation as stated in
+the distributed package notices.
+https://github.com/mono/SkiaSharp
+
+HarfBuzzSharp 8.3.1.1 and native assets
+Licence: MIT-style managed-package notice; native components retain upstream
+notices. Copyright Xamarin, Inc. and Microsoft Corporation for the managed
+package.
+https://github.com/mono/SkiaSharp
+
+BouncyCastle.Cryptography 2.7.0
+Purpose: cryptographic support used by SSH.NET.
+Licence: MIT. Copyright The Legion of the Bouncy Castle Inc. (2000-2026).
+https://www.bouncycastle.org/csharp/
+
+Microsoft .NET and Windows Presentation Foundation
+The self-contained distribution includes Microsoft .NET/WPF runtime files,
+which remain under Microsoft runtime licences and notices.
+https://dotnet.microsoft.com/platform/free
+
+The resolved dependency graph may include additional framework-support
+assemblies. No GPL, LGPL or AGPL runtime component is intentionally included.
+
+Licence texts
+-------------
+The MIT-licensed components listed above use their original MIT licence. The
+RouterPilot project licence is GPL-3.0-only and does not change these terms.
+Copyright
+holders are identified in their component entries.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+CryptSharpOfficial uses its ISC-style permissive licence:
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 Special thanks
 --------------
