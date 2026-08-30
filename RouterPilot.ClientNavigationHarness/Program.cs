@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
@@ -11,6 +12,15 @@ static void Require(bool condition, string message)
     if (!condition)
         throw new InvalidOperationException(message);
 }
+
+MethodInfo? hasUsableIp = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "HasUsableClientIp", BindingFlags.Static | BindingFlags.NonPublic);
+Require(hasUsableIp is not null, "Clients IP filter helper is available");
+bool UsableIp(string? value) => (bool)hasUsableIp!.Invoke(null, new object?[] { value })!;
+Require(UsableIp("192.168.1.103") && UsableIp("2001:db8::103"), "IP filter accepts IPv4 and IPv6");
+Require(!UsableIp(null) && !UsableIp(string.Empty) && !UsableIp(" ") && !UsableIp("-") && !UsableIp("—") && !UsableIp("N/A"), "IP filter rejects unavailable values");
+Require(!UsableIp("1921681103"), "IP filter rejects internal stripped-IP identity keys");
+Require(UsableIp("[2001:db8::103]:53"), "IP filter accepts bracketed IPv6 endpoints");
 
 static ClientInfo Client(string mac, string name, string ip) => new()
 {
@@ -108,6 +118,8 @@ ClientDetailsNavigationTarget? normalized = await ResolveColdAsync(
     identityInventory, identityCoordinator, identity: "aa:bb:cc:dd:ee:04");
 Require(ReferenceEquals(normalized?.LiveClient, sameNameA), "MAC normalization or duplicate-name resolution selected the wrong client.");
 Require(normalized?.LiveClient?.IpAddress == "192.168.8.50", "A stale or unrelated IP changed MAC-backed resolution.");
+Require(normalized?.LiveClient is ClientInfo normalizedClient && normalizedClient.Name == sameNameA.Name && normalizedClient.RouterName == sameNameA.RouterName,
+    "Known Device navigation did not preserve the authoritative current-client record.");
 
 var warmInventory = new ClientInventoryState();
 int warmLoadCount = 0;

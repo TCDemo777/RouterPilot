@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -41,6 +42,21 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<ClientActivityItem> SelectedClientActivity { get; } = new();
         public bool HasNewDevices => NewDevices.Count > 0;
         public bool HasSelectedClientActivity => SelectedClientActivity.Count > 0;
+
+        [ObservableProperty] private bool isKnownDevicesMode;
+        public string KnownDevicesButtonText => IsKnownDevicesMode ? "All Clients" : "Known Clients";
+        public string ClientModeLabel => IsKnownDevicesMode ? "Known Clients" : "All Clients";
+        public void ToggleKnownDevicesMode()
+        {
+            IsKnownDevicesMode = !IsKnownDevicesMode;
+            SelectedClient = null;
+            ApplyFilterAndSort();
+        }
+        partial void OnIsKnownDevicesModeChanged(bool value)
+        {
+            OnPropertyChanged(nameof(KnownDevicesButtonText));
+            OnPropertyChanged(nameof(ClientModeLabel));
+        }
 
         public void ReloadProfileState()
         {
@@ -83,6 +99,9 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private bool showFavoritesOnly;
+
+        [ObservableProperty]
+        private bool hideClientsWithoutIp;
 
         [ObservableProperty]
         private ClientInfo? selectedClient;
@@ -891,6 +910,11 @@ namespace RouterPilot.ViewModels
             ApplyFilterAndSort();
         }
 
+        partial void OnHideClientsWithoutIpChanged(bool value)
+        {
+            ApplyFilterAndSort();
+        }
+
         partial void OnSortDescendingChanged(bool value)
         {
             OnPropertyChanged(nameof(SortDirectionText));
@@ -902,11 +926,25 @@ namespace RouterPilot.ViewModels
                 (SelectedClient is null ? null : ClientKey(SelectedClient));
             string search = SearchText.Trim();
 
-            IEnumerable<ClientInfo> query = _allClients;
+            IEnumerable<ClientInfo> query = IsKnownDevicesMode
+                ? _clientProfiles.Values.Where(profile => profile.IsKnown)
+                    .Select(profile => new KnownDeviceInfo
+                    {
+                        Profile = profile,
+                        CurrentClient = _clientInventoryState.Snapshot.TryGetValue(
+                            ClientIdentity.NormalizeMac(profile.Key), out ClientInfo? live) ? live : null
+                    })
+                    .Select(device => device.ToClientInfo())
+                : _allClients;
 
             if (ShowFavoritesOnly)
             {
                 query = query.Where(client => client.IsFavorite);
+            }
+
+            if (HideClientsWithoutIp)
+            {
+                query = query.Where(client => HasUsableClientIp(client.IpAddress));
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -1577,6 +1615,16 @@ namespace RouterPilot.ViewModels
             value.Contains(
                 search,
                 StringComparison.OrdinalIgnoreCase);
+
+        private static bool HasUsableClientIp(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            // Require normal dotted IPv4 or colon-delimited IPv6 notation;
+            // IPAddress.TryParse also accepts punctuation-free integer forms,
+            // which can be internal stripped-IP correlation keys.
+            if (!value.Contains('.', StringComparison.Ordinal) && !value.Contains(':', StringComparison.Ordinal)) return false;
+            return IPAddress.TryParse(ClientIdentity.NormalizeEndpoint(value), out _);
+        }
 
         private static long IpSortKey(string? value)
         {

@@ -67,7 +67,7 @@ namespace RouterPilot.ViewModels
 
         public string ClientName =>
             string.IsNullOrWhiteSpace(ProfileNickname)
-                ? _client.Name
+                ? LiveClient?.Name ?? _client.Name
                 : ProfileNickname;
         private ClientInfo? LiveClient =>
             ClientIdentity.IsMacKey(_client.MacAddress) &&
@@ -86,10 +86,11 @@ namespace RouterPilot.ViewModels
             ? IpAddress
             : "Last IP address reported before this device went offline.";
         public string MacAddress => _client.MacAddress;
-        public string LastSeen => _client.LastSeen;
-        public string TotalQueriesDisplay => _client.TotalQueriesDisplay;
-        public string BlockedQueriesDisplay => _client.BlockedQueriesDisplay;
-        public string BlockRateDisplay => _client.BlockRateDisplay;
+        private ClientInfo CurrentClientOrSnapshot => LiveClient ?? _client;
+        public string LastSeen => CurrentClientOrSnapshot.LastSeen;
+        public string TotalQueriesDisplay => CurrentClientOrSnapshot.TotalQueriesDisplay;
+        public string BlockedQueriesDisplay => CurrentClientOrSnapshot.BlockedQueriesDisplay;
+        public string BlockRateDisplay => CurrentClientOrSnapshot.BlockRateDisplay;
         public bool IsEthernetConnection => LiveClient?.IsEthernetConnection == true;
         public bool IsWifiConnection => LiveClient?.IsWifiConnection == true;
         public string ConnectionType => IsEthernetConnection ? "Ethernet" : "Wi-Fi";
@@ -391,6 +392,7 @@ namespace RouterPilot.ViewModels
             if (_disposed) return;
 
             OnPropertyChanged(nameof(IsCurrentlyObserved));
+            OnPropertyChanged(nameof(ClientName));
             OnPropertyChanged(nameof(IpAddress));
             OnPropertyChanged(nameof(IpAddressLabel));
             OnPropertyChanged(nameof(IpAddressToolTip));
@@ -409,6 +411,10 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(SignalSummary));
             OnPropertyChanged(nameof(HealthText));
             OnPropertyChanged(nameof(HealthColour));
+            OnPropertyChanged(nameof(LastSeen));
+            OnPropertyChanged(nameof(TotalQueriesDisplay));
+            OnPropertyChanged(nameof(BlockedQueriesDisplay));
+            OnPropertyChanged(nameof(BlockRateDisplay));
             OnPropertyChanged(nameof(HasDhcpLease));
             OnPropertyChanged(nameof(HasDhcpDetails));
             OnPropertyChanged(nameof(DhcpIpAddress));

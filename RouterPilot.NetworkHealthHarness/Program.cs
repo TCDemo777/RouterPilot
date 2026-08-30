@@ -48,6 +48,68 @@ object? genuineZeroResult = applyStatistics.Invoke(null, new object[] { new List
 Require((int)genuineZeroResult! == 1 && genuineZeroClient.TotalQueriesDisplay == "0" && genuineZeroClient.BlockedQueriesDisplay == "0", "AdGuard correlated zero activity remains numeric zero");
 var correlationFailureClient = new ClientInfo { IpAddress = "192.168.1.21", AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
 Require(correlationFailureClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "AdGuard correlation failure remains unavailable");
+ClientInfo discoveredClient = new()
+{
+    Name = "Living Room TV",
+    RouterName = "tv-host",
+    IpAddress = "192.168.1.40",
+    MacAddress = "AA:BB:CC:DD:EE:40",
+    Manufacturer = "Example Vendor",
+    DeviceType = "Television",
+    ConnectionType = "5 GHz",
+    WifiNetwork = "Home",
+    LiveInterface = "wlan0",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable
+};
+var knownProjection = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = discoveredClient.MacAddress, LastKnownName = discoveredClient.Name },
+    CurrentClient = discoveredClient
+};
+ClientInfo knownDetails = knownProjection.ToClientInfo();
+Require(knownProjection.IsOnline && knownProjection.Secondary == discoveredClient.IpAddress, "Known Devices projects discovered router identity");
+Require(knownDetails.Manufacturer == discoveredClient.Manufacturer && knownDetails.ConnectionType == discoveredClient.ConnectionType &&
+    knownDetails.LiveInterface == discoveredClient.LiveInterface, "Known Device details retain router-derived enrichment independently of AdGuard");
+Require(knownDetails.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "Known Device DNS fields remain unavailable when AdGuard enrichment is absent");
+var generatedIpName = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:42", LastKnownName = "1921681103", LastKnownIpAddress = "192.168.1.103" }
+};
+Require(generatedIpName.Name == "Unknown device" && generatedIpName.IpAddress == "192.168.1.103" && generatedIpName.ToClientInfo().Name == "Unknown device",
+    "stripped-IP identity does not leak into Known Device display name");
+var generatedIpWithPort = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:44", LastKnownName = "1921681103", LastKnownIpAddress = "192.168.1.103:5353" }
+};
+Require(generatedIpWithPort.Name == "Unknown device", "stripped-IP identity is detected with an endpoint port");
+var numericNickname = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:43", Nickname = "1921681103", LastKnownIpAddress = "192.168.1.103" }
+};
+Require(numericNickname.Name == "1921681103", "legitimate numeric Known Device nickname is preserved");
+var rememberedProfile = new ClientProfile
+{
+    Key = "AA:BB:CC:DD:EE:41",
+    LastKnownName = "Office Laptop",
+    LastKnownIpAddress = "192.168.1.41",
+    LastKnownConnectionSummary = "Wi-Fi 5 GHz"
+};
+var offlineKnown = new KnownDeviceInfo { Profile = rememberedProfile };
+Require(!offlineKnown.IsOnline && offlineKnown.Name == "Office Laptop" && offlineKnown.IpAddress == "192.168.1.41" &&
+    offlineKnown.ConnectionSummary == "Wi-Fi 5 GHz" && offlineKnown.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "offline Known Device retains persisted identity without fabricating live or DNS data");
+ClientInfo movedClient = new()
+{
+    Name = "Office Laptop",
+    MacAddress = rememberedProfile.Key,
+    IpAddress = "192.168.1.99",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Available,
+    TotalQueries = 0,
+    BlockedQueries = 0
+};
+var movedKnown = new KnownDeviceInfo { Profile = rememberedProfile, CurrentClient = movedClient };
+Require(movedKnown.IsOnline && movedKnown.IpAddress == "192.168.1.99" && movedKnown.TotalQueriesDisplay == "0" &&
+    movedKnown.BlockRateDisplay == "0.0%", "Known Device follows current MAC identity when IP changes and preserves genuine DNS zero");
 Require(RouterTemperatureHealth.IsFlint2("GL-MT6000"), "Flint 2 model identification");
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "50 °C") == TemperatureHealthState.Normal, "50 C is normal");
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "60 °C") == TemperatureHealthState.Normal, "60 C is normal");

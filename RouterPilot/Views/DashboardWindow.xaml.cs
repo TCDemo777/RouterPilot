@@ -1453,7 +1453,7 @@ namespace RouterPilot.Views
 
         public void ShowKnownDevices()
         {
-            PageContent.Content = new KnownDevicesView();
+            PageContent.Content = new ClientsView(knownDevicesMode: true);
             SelectNavigationButton(ClientsButton);
         }
 

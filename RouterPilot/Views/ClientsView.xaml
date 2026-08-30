@@ -2,33 +2,9 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:RouterPilot.Converters"
-             xmlns:models="clr-namespace:RouterPilot.Models">
+             >
     <UserControl.Resources>
         <local:WidthBelowConverter x:Key="WidthBelowConverter"/>
-        <Style x:Key="ClientDnsValueText"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource Text.NotAvailable}">
-            <Setter Property="MinHeight" Value="20"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding AdGuardDataAvailability}" Value="{x:Static models:AdGuardAvailabilityState.Available}">
-                    <Setter Property="FontSize" Value="17"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="ClientBlockedDnsValueText"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource Text.NotAvailable}">
-            <Setter Property="MinHeight" Value="20"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding AdGuardDataAvailability}" Value="{x:Static models:AdGuardAvailabilityState.Available}">
-                    <Setter Property="FontSize" Value="17"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
     </UserControl.Resources>
     <ScrollViewer x:Name="ClientsPageScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Style="{StaticResource Page.Content}">
@@ -44,7 +20,11 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Clients"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Clients"/>
+                <TextBlock Margin="12,5,0,0" Style="{DynamicResource Text.Secondary}"
+                           Text="{Binding ClientModeLabel}"/>
+            </StackPanel>
             <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}"
                        Text="Connected devices, identity and DNS activity"/>
         </StackPanel>
@@ -107,36 +87,42 @@
                             Content="{Binding SortDirectionText}"/>
                 </Grid>
 
-                <WrapPanel Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Center">
-                    <StackPanel Margin="0,0,18,8">
-                        <CheckBox
-                            VerticalAlignment="Center"
-                            FontWeight="SemiBold"
-                            IsChecked="{Binding ShowFavoritesOnly}"
-                            Content="Favourites only"/>
-                    </StackPanel>
-
-                    <Button MinWidth="100" Height="36" Margin="0,0,10,8"
-                            Style="{DynamicResource Button.Secondary}"
-                            Command="{Binding LoadClientsCommand}"
-                            Content="Refresh"/>
-                    <Button MinWidth="110" Height="36" Margin="0,0,10,8"
-                            Style="{DynamicResource Button.Secondary}"
-                            Command="{Binding PingSelectedClientCommand}"
-                            Content="Ping Client"/>
-                    <Button MinWidth="115" Height="36" Margin="0,0,10,8"
-                            Style="{DynamicResource Button.Secondary}"
-                            Command="{Binding WakeSelectedClientCommand}"
-                            Content="Wake Client"/>
-                    <Button MinWidth="115" Height="36" Margin="0,0,0,8"
-                             Style="{DynamicResource Button.Primary}"
-                             Click="ViewDetailsButton_Click"
-                             Content="Open / Personalise"/>
-                    <Button MinWidth="120" Height="36" Margin="10,0,0,8"
-                             Style="{DynamicResource Button.Secondary}"
-                             Click="KnownDevices_Click"
-                             Content="Known Devices"/>
-                </WrapPanel>
+                <StackPanel Grid.Row="2" HorizontalAlignment="Left">
+                    <WrapPanel VerticalAlignment="Center">
+                        <Button MinWidth="100" Height="36" Margin="0,0,10,8"
+                                Style="{DynamicResource Button.Secondary}"
+                                Command="{Binding LoadClientsCommand}"
+                                Content="Refresh"/>
+                        <Button MinWidth="110" Height="36" Margin="0,0,10,8"
+                                Style="{DynamicResource Button.Secondary}"
+                                Command="{Binding PingSelectedClientCommand}"
+                                Content="Ping Client"/>
+                        <Button MinWidth="115" Height="36" Margin="0,0,10,8"
+                                Style="{DynamicResource Button.Secondary}"
+                                Command="{Binding WakeSelectedClientCommand}"
+                                Content="Wake Client"/>
+                        <Button MinWidth="115" Height="36" Margin="0,0,10,8"
+                                Style="{DynamicResource Button.Primary}"
+                                Click="ViewDetailsButton_Click"
+                                Content="Open / Personalise"/>
+                        <Button MinWidth="120" Height="36" Margin="0,0,10,8"
+                                Style="{DynamicResource Button.Secondary}"
+                                Click="KnownDevices_Click"
+                                Content="{Binding KnownDevicesButtonText}"/>
+                    </WrapPanel>
+                    <WrapPanel Margin="0,2,0,0" VerticalAlignment="Center">
+                        <CheckBox Margin="0,0,18,6"
+                                  VerticalAlignment="Center"
+                                  FontWeight="SemiBold"
+                                  IsChecked="{Binding ShowFavoritesOnly}"
+                                  Content="Favourites only"/>
+                        <CheckBox Margin="0,0,18,6"
+                                  VerticalAlignment="Center"
+                                  FontWeight="SemiBold"
+                                  IsChecked="{Binding HideClientsWithoutIp}"
+                                  Content="Hide clients without IP"/>
+                    </WrapPanel>
+                </StackPanel>
             </Grid>
         </Border>
 

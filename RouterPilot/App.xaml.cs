@@ -141,7 +141,7 @@ namespace RouterPilot
             // The dashboard window and read-only projections share this single
             // application state instance.
             serviceCollection.AddSingleton<DashboardViewModel>();
-            serviceCollection.AddTransient<ClientsViewModel>();
+            serviceCollection.AddSingleton<ClientsViewModel>();
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
             // This is existing Analytics state, retained so read-only surfaces can project it.
