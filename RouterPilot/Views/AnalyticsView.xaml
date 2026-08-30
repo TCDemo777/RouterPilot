@@ -222,15 +222,16 @@
                               Visibility="{Binding HasApplicationSearch, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBox x:Name="AllApplicationsSearchBox"
                                      Height="34"
-                                     Padding="9,5"
+                                     Padding="36,5,10,5"
                                      VerticalContentAlignment="Center"
                                      Background="{DynamicResource Brush.SurfaceMuted}"
                                      BorderBrush="{DynamicResource Brush.Border}"
                                      Foreground="{DynamicResource Brush.TextPrimary}"
                                      ToolTip="Search applications"
                                      Text="{Binding AllApplicationsSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource Search.Icon}" />
                             <TextBlock Panel.ZIndex="1"
-                                       Margin="10,0"
+                                       Margin="36,0,10,0"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"
                                        Foreground="{DynamicResource Brush.TextSecondary}"

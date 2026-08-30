@@ -47,7 +47,11 @@
                     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox Style="{StaticResource Timeline.FilterTextBox}" Height="36" Padding="10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
+                <TextBox x:Name="TimelineSearchBox" Style="{StaticResource Timeline.FilterTextBox}" Height="36" Padding="36,6,10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
+                <TextBlock Style="{StaticResource Search.Icon}" />
+                <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=TimelineSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=TimelineSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
                 <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="2" Width="128" Height="36" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
                 <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="4" Width="120" Height="36" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
                 <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="6" Width="128" Height="36" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>

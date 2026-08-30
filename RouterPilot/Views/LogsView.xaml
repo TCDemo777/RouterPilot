@@ -203,12 +203,12 @@
                             </Grid.ColumnDefinitions>
 
                             <Grid>
-                                <TextBox Style="{StaticResource Logs.SearchBox}"
+                                <TextBox x:Name="LogsSearchBox" Style="{StaticResource Logs.SearchBox}"
                                          Text="{Binding SearchText,
                                                         UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="Search by client, domain or status"/>
 
-                                <TextBlock Margin="12,0,0,0"
+                                <TextBlock Style="{StaticResource Search.Icon}" Margin="10,0,0,0"
                                            HorizontalAlignment="Left"
                                            VerticalAlignment="Center"
                                            FontSize="16"
@@ -216,6 +216,24 @@
                                            IsHitTestVisible="False"
                                            Text="⌕"/>
                             </Grid>
+
+                                <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                           Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Text, ElementName=LogsSearchBox}" Value=""/>
+                                                        <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=LogsSearchBox}" Value="False"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                             <Button Grid.Column="2"
                                     MinWidth="112"

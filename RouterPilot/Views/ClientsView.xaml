@@ -66,11 +66,30 @@
                         <ColumnDefinition Width="120"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBox Height="36"
+                    <TextBox x:Name="ClientsSearchBox" Height="36"
                              MinWidth="220"
+                             Padding="36,7,10,7"
                              VerticalContentAlignment="Center"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Search name, address, manufacturer, device type or health"/>
+                    <TextBlock Style="{StaticResource Search.Icon}" />
+                    <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Text, ElementName=ClientsSearchBox}" Value=""/>
+                                            <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=ClientsSearchBox}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                     <ComboBox x:Name="SortOptionComboBox"
                               Style="{StaticResource RouterPilot.ComboBox}"

@@ -1,5 +1,11 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.1.1
+
+## Fixed
+- Fixed missing magnifying-glass icons and the missing empty-state placeholder on Protection Blocklists, Protection Blocked Services, Clients, Global Search, and Logs search fields.
+- Standardized these search controls with the DNS Activity search presentation while preserving the existing Search placeholder and filtering behavior.
+
 # RouterPilot v2.1.0
 
 ## Added

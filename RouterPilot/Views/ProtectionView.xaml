@@ -130,9 +130,28 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
                     <TextBlock VerticalAlignment="Center" Style="{StaticResource Schedule.FieldLabel}" Text="SERVICES"/>
                     <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="{Binding SelectedServicesSummary}"/>
-                    <TextBox Grid.Column="2" Style="{StaticResource Protection.Input}"
+                    <TextBox x:Name="WindowServicesSearchBox" Grid.Column="2" Style="{StaticResource Protection.Input}"
+                             Padding="36,7,10,7"
                              Text="{Binding WindowServiceSearch, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Search all services by name, category or ID"/>
+                    <TextBlock Grid.Column="2" Style="{StaticResource Search.Icon}" />
+                    <TextBlock Grid.Column="2" Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Text, ElementName=WindowServicesSearchBox}" Value=""/>
+                                            <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=WindowServicesSearchBox}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
                 <Border Grid.Row="2" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}"
                         BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
@@ -505,9 +524,28 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBox Style="{StaticResource Protection.Input}"
+                            <TextBox x:Name="BlockedServicesSearchBox" Style="{StaticResource Protection.Input}"
+                                     Padding="36,7,10,7"
                                      Text="{Binding BlockedServicesSearch, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="Search services by name, ID or category"/>
+                            <TextBlock Style="{StaticResource Search.Icon}" />
+                            <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                       Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Text, ElementName=BlockedServicesSearchBox}" Value=""/>
+                                                    <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=BlockedServicesSearchBox}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
 
                             <ComboBox Grid.Column="2"
                                       Height="36"
@@ -1120,12 +1158,14 @@
                                         <ComboBoxItem Content="All"/><ComboBoxItem Content="Block"/><ComboBoxItem Content="Allow"/><ComboBoxItem Content="Custom"/>
                                     </ComboBox>
                                     <Grid Grid.Column="4">
+                                        <TextBlock Style="{StaticResource Search.Icon}" />
                                         <TextBox x:Name="FilterRulesSearchBox"
                                                  Style="{StaticResource Protection.Input}"
+                                                 Padding="36,7,10,7"
                                                  Text="{Binding FilterRulesSearch, UpdateSourceTrigger=PropertyChanged}"
                                                  ToolTip="Search rules"/>
                                         <TextBlock Panel.ZIndex="1"
-                                                   Margin="10,0"
+                                                   Margin="36,0,10,0"
                                                    VerticalAlignment="Center"
                                                    IsHitTestVisible="False"
                                                    Foreground="{DynamicResource Brush.TextSecondary}"
@@ -1188,8 +1228,10 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <TextBox x:Name="BlocklistSearchBox" Grid.Column="0" Width="280" HorizontalAlignment="Left"
                                      Style="{StaticResource Protection.Input}"
+                                     Padding="36,7,10,7"
                                      Text="{Binding BlocklistSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search blocklists by name or URL"/>
-                            <TextBlock Panel.ZIndex="1" Margin="10,0" VerticalAlignment="Center" HorizontalAlignment="Left"
+                            <TextBlock Grid.Column="0" Style="{StaticResource Search.Icon}" />
+                            <TextBlock Panel.ZIndex="1" Margin="36,0,10,0" VerticalAlignment="Center" HorizontalAlignment="Left"
                                        IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
                                 <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=BlocklistSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=BlocklistSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>

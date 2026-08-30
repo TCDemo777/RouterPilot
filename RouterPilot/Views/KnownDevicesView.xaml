@@ -16,7 +16,11 @@
     <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="MONITORED"/><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding MonitoredCount}"/></StackPanel>
    </WrapPanel></Border>
    <Border Grid.Row="4" Style="{DynamicResource Card.Compact}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="150"/><ColumnDefinition Width="12"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
-    <TextBox Height="36" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search name, hostname, IP, MAC or category"/>
+    <TextBox x:Name="KnownDevicesSearchBox" Height="36" Padding="36,7,10,7" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search name, hostname, IP, MAC or category"/>
+    <TextBlock Style="{StaticResource Search.Icon}" />
+    <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=KnownDevicesSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=KnownDevicesSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+    </TextBlock>
     <ComboBox Grid.Column="2" Height="36" Style="{StaticResource RouterPilot.ComboBox}" ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}"/>
     <ComboBox Grid.Column="4" Height="36" Style="{StaticResource RouterPilot.ComboBox}" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}"/>
    </Grid></Border>

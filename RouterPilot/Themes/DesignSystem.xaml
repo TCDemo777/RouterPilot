@@ -374,6 +374,16 @@
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.TextPrimary}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Primary}" />
     </Style>
+    <Style x:Key="Search.Icon" TargetType="TextBlock">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Margin" Value="10,0,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Text" Value="&#x2315;" />
+    </Style>
     <Style TargetType="PasswordBox">
         <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />

@@ -33,7 +33,7 @@ RouterPilot 2.0 adds deeper network visibility and management while keeping rout
 - Improved freshness, loading, unavailable and recovery states across dashboard, clients, Network, VPN, Protection and Analytics.
 - Made the Dashboard more adaptable with configurable cards and a compact five-action Quick Actions row.
 
-RouterPilot v2.1.0 adds saved-router management with more reliable active-router switching, profile-aware settings, and focused UI polish. The v2.0.2 audited SSH.NET and System.Drawing.Common security maintenance remains included.
+RouterPilot v2.1.1 fixes missing magnifying-glass icons across several search fields while retaining the v2.1.0 saved-router management, reliable active-router switching, profile-aware settings, and focused UI polish.
 
 ## Security
 
@@ -60,7 +60,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.1.0-x64.msi` and `RouterPilot-2.1.0-win-x64.zip`.
+Release assets will be published as `RouterPilot-2.1.1-x64.msi` and `RouterPilot-2.1.1-win-x64.zip`.
 
 ## Upgrading to 2.0
 

@@ -33,7 +33,6 @@ namespace RouterPilot.Views
             Loaded -= GlobalSearchView_Loaded;
             if (Application.Current.MainWindow?.DataContext is DashboardViewModel dashboard) _viewModel.Attach(dashboard);
             ClientRefreshNotifier.ProfileStateChanged += ClientRefreshNotifier_ProfileStateChanged;
-            SearchBox.Focus();
         }
 
         private void GlobalSearchView_Unloaded(object sender, RoutedEventArgs e) =>

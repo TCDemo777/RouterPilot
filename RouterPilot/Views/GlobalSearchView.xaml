@@ -37,11 +37,30 @@
                     <ColumnDefinition Width="130"/>
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="SearchBox" Height="38"
+                         Padding="36,7,10,7"
                          VerticalContentAlignment="Center"
                          Text="{Binding SearchText,
                                         UpdateSourceTrigger=PropertyChanged}"
                          KeyDown="SearchBox_KeyDown"
                          ToolTip="Search clients, IP, MAC address, ports, reservations, Wi-Fi, or pages"/>
+                <TextBlock Style="{StaticResource Search.Icon}" />
+                <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                           Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Text, ElementName=SearchBox}" Value=""/>
+                                        <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="Local results"/>
             </Grid>
         </Border>
