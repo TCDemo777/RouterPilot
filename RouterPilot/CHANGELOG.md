@@ -1,6 +1,6 @@
 # RouterPilot Changelog
 
-# RouterPilot v2.2.0 (RC2 / Test Build)
+# RouterPilot v2.2.0
 
 ## Clients
 - Improved device identification using router, DHCP and mDNS information.
