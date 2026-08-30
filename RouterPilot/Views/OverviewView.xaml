@@ -149,6 +149,17 @@
                     Title="MEMORY"
                     ValueForeground="{Binding MemoryHealthColour}"
                     Value="{Binding MemoryUsage}" />
+
+                <controls:StatisticCard
+                    Margin="0,0,0,12"
+                    Height="146"
+                    AccentBrush="{DynamicResource Brush.Primary}"
+                    IconBackground="{DynamicResource Brush.WarningSubtle}"
+                    IconGlyph="&#xE9CA;"
+                    Subtitle="Router sensor"
+                    Title="ROUTER TEMPERATURE"
+                    ValueForeground="{DynamicResource Brush.TextPrimary}"
+                    Value="{Binding Temperature}" />
             </UniformGrid>
             </StackPanel>
             </Border>

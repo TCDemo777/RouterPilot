@@ -50,13 +50,9 @@ namespace RouterPilot.Views
 
         private void OverviewView_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            // Five 150px cards plus the 12px gaps need approximately 810px of
-            // usable content width. The page also has 24px margins on both
-            // sides, so switch before the Overview control reaches 860px.
-            // Below that point, use a balanced 3 + 2 grid
-            // rather than allowing the cards' MinWidth to overflow the clipped
-            // horizontal ScrollViewer.
-            SystemHealthCards.Columns = e.NewSize.Width >= 860 ? 5 : 3;
+            // Six cards remain balanced as two rows of three at the available
+            // Overview width, including narrower Settings-window layouts.
+            SystemHealthCards.Columns = 3;
         }
 
         private void ApplyDashboardPreferences()
