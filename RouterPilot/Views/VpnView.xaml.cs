@@ -25,6 +25,7 @@ public partial class VpnView : UserControl
     private readonly VpnScheduleService _vpnScheduleService;
     private readonly IDataFreshnessService _dataFreshnessService;
     private readonly ITailscaleStatusService _tailscale;
+    private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -112,8 +113,10 @@ public partial class VpnView : UserControl
 
     private async Task LoadTailscaleAsync()
     {
+        if (!await _tailscaleRefreshGate.WaitAsync(0).ConfigureAwait(true)) return;
         try { _viewModel.ApplyTailscaleStatus(await _tailscale.GetStatusAsync(CancellationToken.None)); }
-        catch (Exception exception) { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable(exception.Message)); }
+        catch { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); }
+        finally { _tailscaleRefreshGate.Release(); }
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();

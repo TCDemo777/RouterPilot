@@ -68,9 +68,11 @@ public sealed class TailscaleStatusService : ITailscaleStatusService
                 _ => string.IsNullOrWhiteSpace(backend) ? TailscaleState.Incompatible : TailscaleState.Unavailable
             };
             JsonElement self = root.TryGetProperty("Self", out JsonElement selfValue) ? selfValue : default;
-            var addresses = Strings(self, "TailscaleIPs");
+            var addresses = state == TailscaleState.Connected ? Strings(self, "TailscaleIPs") : (IReadOnlyList<string>)[];
             var peers = new List<TailscalePeer>();
-            if (root.TryGetProperty("Peer", out JsonElement peerMap) && peerMap.ValueKind == JsonValueKind.Object)
+            JsonElement peerMap = default;
+            bool peerDataAvailable = state == TailscaleState.Connected && root.TryGetProperty("Peer", out peerMap) && peerMap.ValueKind == JsonValueKind.Object;
+            if (peerDataAvailable)
                 foreach (JsonProperty property in peerMap.EnumerateObject())
                 {
                     JsonElement peer = property.Value;
@@ -84,7 +86,7 @@ public sealed class TailscaleStatusService : ITailscaleStatusService
                 TailscaleState.Stopped => "The Tailscale service is not running.",
                 _ => "Tailscale status is currently unavailable."
             };
-            return new(state, detail, version, String(self, "HostName"), CleanDns(String(self, "DNSName")), addresses, peers);
+            return new(state, detail, version, state == TailscaleState.Connected ? String(self, "HostName") : string.Empty, state == TailscaleState.Connected ? CleanDns(String(self, "DNSName")) : string.Empty, addresses, peers) { PeerDataAvailable = peerDataAvailable };
         }
         catch (JsonException) { return new(TailscaleState.Incompatible, "This Tailscale version does not provide compatible status information.", version, string.Empty, string.Empty, [], []); }
     }

@@ -54,7 +54,7 @@ namespace RouterPilot.Models
             AdGuardDataAvailability != AdGuardAvailabilityState.Available
                 ? "DNS activity is unavailable; router connection details remain available."
                 : QueryLogAvailable
-                ? "Values observed by AdGuard Home; DNS that bypasses AdGuard (including external encrypted DNS) is not observable."
+                ? "Values observed by AdGuard Home; encrypted upstream DNS used by AdGuard remains observable. Clients that bypass AdGuard directly (including external DoH, DoT or DoQ) are not observable."
                 : "AdGuard query logging is disabled; router connection details remain available.";
 
         // Presentation metadata populated by ClientsViewModel.
