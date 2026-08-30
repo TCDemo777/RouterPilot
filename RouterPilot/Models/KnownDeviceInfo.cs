@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Net;
 using RouterPilot.Presentation;
+using RouterPilot.Services;
 
 namespace RouterPilot.Models;
 
@@ -8,9 +9,14 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
 {
     public required ClientProfile Profile { get; init; }
     public ClientInfo? CurrentClient { get; init; }
+    public IDeviceIdentityResolver? IdentityResolver { get; init; }
     public string MacKey => ClientIdentity.NormalizeHexMac(Profile.Key);
     public bool IsOnline => CurrentClient is not null;
-    public string Name => FirstFriendlyName();
+    public string Name => IdentityResolver?.ResolveFriendlyName(
+        Profile.Nickname,
+        CurrentClient?.Name ?? CurrentClient?.RouterName,
+        Profile.LastKnownName,
+        CurrentClient?.IpAddress ?? Profile.LastKnownIpAddress) ?? FirstFriendlyName();
     public string Secondary => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
         Useful(Profile.LastKnownIpAddress) ? $"Last known IP: {Profile.LastKnownIpAddress}" : string.Empty;
     public string IpAddress => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
@@ -20,7 +26,8 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
     public string Category => !string.IsNullOrWhiteSpace(Profile.Category) ? Profile.Category :
         !string.IsNullOrWhiteSpace(CurrentClient?.DeviceType) ? CurrentClient.DeviceType : "Unknown";
     public string DeviceType => CurrentClient?.DeviceType ?? (Useful(Profile.Category) ? Profile.Category : "Unknown device");
-    public string Manufacturer => CurrentClient?.Manufacturer ?? "Unknown manufacturer";
+    public string Manufacturer => CurrentClient?.Manufacturer ??
+        IdentityResolver?.ResolveManufacturer(Profile.Key, Profile.LastKnownName) ?? "Unknown manufacturer";
     public string ConnectionSummary => CurrentClient?.ConnectionSummary ?? Profile.LastKnownConnectionSummary;
     public bool HasConnectionSummary => !string.IsNullOrWhiteSpace(ConnectionSummary);
     public string SignalSummary => CurrentClient?.SignalSummary ?? string.Empty;
@@ -42,6 +49,7 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
         Name = Name, RouterName = SafePersistedName(), MacAddress = FormatMac(MacKey),
         IpAddress = Useful(Profile.LastKnownIpAddress) ? Profile.LastKnownIpAddress : "-",
         Notes = Profile.Notes, CustomCategory = Profile.Category, DeviceType = Category,
+        Manufacturer = Manufacturer,
         IsFavorite = Profile.IsFavorite, MonitorAvailability = Profile.MonitorAvailability,
         NeedsReview = Profile.NeedsReview, FirstSeenUtc = Profile.FirstSeenUtc,
         LastObservedUtc = Profile.LastSeenUtc, HealthText = "Offline", HealthColour = "#687386"

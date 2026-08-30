@@ -12,6 +12,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     private readonly ClientProfileService _profiles = new();
     private readonly ClientInventoryState _inventory;
     private readonly ClientsViewModel _clients;
+    private readonly IDeviceIdentityResolver _deviceIdentityResolver;
     private readonly DispatcherTimer _relativeTimeTimer;
     private Dictionary<string, ClientProfile> _profileMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
@@ -37,10 +38,11 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     public bool HasSelectedClientActivity => _clients.HasSelectedClientActivity;
     public bool ShowNoSelectedClientActivity => !HasSelectedClientActivity;
 
-    public KnownDevicesViewModel(ClientInventoryState inventory, ClientsViewModel clients)
+    public KnownDevicesViewModel(ClientInventoryState inventory, ClientsViewModel clients, IDeviceIdentityResolver deviceIdentityResolver)
     {
         _inventory = inventory;
         _clients = clients;
+        _deviceIdentityResolver = deviceIdentityResolver;
         _inventory.Changed += Inventory_Changed;
         _clients.PropertyChanged += Clients_PropertyChanged;
         _clients.SelectedClientActivity.CollectionChanged += SelectedClientActivity_CollectionChanged;
@@ -134,7 +136,8 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         IEnumerable<KnownDeviceInfo> query = _profileMap.Select(pair => new KnownDeviceInfo
         {
             Profile = pair.Value,
-            CurrentClient = _inventory.Snapshot.TryGetValue(pair.Key, out ClientInfo? client) ? client : null
+            CurrentClient = _inventory.Snapshot.TryGetValue(pair.Key, out ClientInfo? client) ? client : null,
+            IdentityResolver = _deviceIdentityResolver
         });
         string text = SearchText.Trim();
         if (text.Length > 0) query = query.Where(device => Matches(device, text));

@@ -19,15 +19,26 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Clients"/>
-                <TextBlock Margin="12,5,0,0" Style="{DynamicResource Text.Secondary}"
-                           Text="{Binding ClientModeLabel}"/>
-            </StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Clients"/>
+                    <TextBlock Margin="12,5,0,0" Style="{DynamicResource Text.Secondary}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Text="{Binding ClientModeLabel}"/>
+                </StackPanel>
             <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}"
                        Text="Connected devices, identity and DNS activity"/>
-        </StackPanel>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Margin="16,5,0,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Style="{DynamicResource Text.Secondary}"
+                       Text="{Binding ClientCountText}"/>
+        </Grid>
 
         <Border Grid.Row="2" Style="{DynamicResource Card.Compact}">
             <Grid>
@@ -121,6 +132,16 @@
                                   FontWeight="SemiBold"
                                   IsChecked="{Binding HideClientsWithoutIp}"
                                   Content="Hide clients without IP"/>
+                        <CheckBox Margin="0,0,18,6"
+                                  VerticalAlignment="Center"
+                                  FontWeight="SemiBold"
+                                  IsChecked="{Binding HideUnknownDevices}"
+                                  Content="Hide unknown devices"/>
+                        <CheckBox Margin="0,0,18,6"
+                                  VerticalAlignment="Center"
+                                  FontWeight="SemiBold"
+                                  IsChecked="{Binding OnlineDevicesOnly}"
+                                  Content="Online devices only"/>
                     </WrapPanel>
                 </StackPanel>
             </Grid>

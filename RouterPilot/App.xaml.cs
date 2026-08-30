@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Windows;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -89,6 +90,8 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IDataFreshnessService, DataFreshnessService>();
             serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
             serviceCollection.AddSingleton<ClientProfileService>();
+            serviceCollection.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = TimeSpan.FromSeconds(3) });
+            serviceCollection.AddSingleton<IDeviceIdentityResolver, DeviceIdentityResolver>();
             serviceCollection.AddSingleton<ClientInventoryState>();
             serviceCollection.AddSingleton<ClientInventoryCoordinator>();
             serviceCollection.AddSingleton<KnownDeviceForgetService>();

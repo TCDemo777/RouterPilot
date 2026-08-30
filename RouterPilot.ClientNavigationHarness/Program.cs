@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
@@ -21,6 +23,53 @@ Require(UsableIp("192.168.1.103") && UsableIp("2001:db8::103"), "IP filter accep
 Require(!UsableIp(null) && !UsableIp(string.Empty) && !UsableIp(" ") && !UsableIp("-") && !UsableIp("—") && !UsableIp("N/A"), "IP filter rejects unavailable values");
 Require(!UsableIp("1921681103"), "IP filter rejects internal stripped-IP identity keys");
 Require(UsableIp("[2001:db8::103]:53"), "IP filter accepts bracketed IPv6 endpoints");
+
+// Shared identity resolver: strict EUI-48 parsing, address classification,
+// consistent vendor precedence, and safe handling of non-MAC identifiers.
+IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();
+foreach (string macForm in new[] { "00:BB:CC:DD:EE:FF", "00-BB-CC-DD-EE-FF", "00bb.ccdd.eeff", "00BBCCDDEEFF", "00bbccddeeff" })
+{
+    Require(identityResolver.TryParseMac(macForm, out ParsedMacAddress? parsed) &&
+        parsed is not null && parsed.Canonical == "00BBCCDDEEFF" && parsed.Kind == MacAddressKind.Universal,
+        $"strict MAC parser accepts {macForm}");
+}
+foreach (string invalidMac in new[] { "192.168.1.1", "2001:db8::1", "1921681103", "living-room", "AA:BB:CC:DD:EE" })
+    Require(!identityResolver.TryParseMac(invalidMac, out _), $"strict MAC parser rejects {invalidMac}");
+Require(identityResolver.ResolveManufacturer("00:1B:63:DD:EE:FF") == "Apple", "existing vendor mapping preserved");
+Require(identityResolver.ResolveManufacturer("02:1B:63:DD:EE:FF") == "Private/local MAC", "locally administered MAC is classified factually");
+Require(identityResolver.ResolveManufacturer("01:1B:63:DD:EE:FF") == "Unknown manufacturer", "multicast MAC has no IEEE attribution");
+Require(identityResolver.ResolveManufacturer("00:BB:CC:DD:EE:FF", "Living Room TV") == "Unknown manufacturer", "unknown vendor does not fabricate from friendly name");
+Require(identityResolver.ResolveManufacturer("00:BB:CC:DD:EE:FF", authoritativeManufacturer: "Trusted Vendor") == "Trusted Vendor", "trusted manufacturer takes precedence");
+Require(identityResolver.ResolveManufacturer("00:1B:63:DD:EE:FF") == "Apple", "duplicate vendor lookup reuses consistent result");
+var onlineStub = new StubMacLookupHandler();
+var onlineResolver = new DeviceIdentityResolver(new HttpClient(onlineStub));
+Require(await onlineResolver.ResolveManufacturerAsync("00:BB:CC:DD:EE:FF") == "Example Vendor", "online MACLookup result is used");
+Require(await onlineResolver.ResolveManufacturerAsync("00:BB:CC:11:22:33") == "Example Vendor" && onlineStub.RequestCount == 1, "same prefix uses the online cache and request de-duplication");
+var fallbackStub = new StubMacLookupHandler { StatusCode = HttpStatusCode.InternalServerError };
+var fallbackResolver = new DeviceIdentityResolver(new HttpClient(fallbackStub));
+Require(await fallbackResolver.ResolveManufacturerAsync("00:1B:63:DD:EE:FF") == "Apple", "HTTP failure falls back to local vendor data");
+var privateStub = new StubMacLookupHandler();
+var privateResolver = new DeviceIdentityResolver(new HttpClient(privateStub));
+Require(await privateResolver.ResolveManufacturerAsync("02:1B:63:DD:EE:FF") == "Private/local MAC" && privateStub.RequestCount == 0, "private MAC skips online lookup");
+var offlineKnown = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "001B63DDEEFF", LastKnownName = "Offline laptop" },
+    IdentityResolver = identityResolver
+};
+Require(offlineKnown.Manufacturer == "Apple" && offlineKnown.ToClientInfo().Manufacturer == "Apple", "offline known client resolves persisted MAC manufacturer");
+MethodInfo? isUnknownName = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "IsUnknownDeviceName", BindingFlags.Static | BindingFlags.NonPublic);
+Require(isUnknownName is not null, "Known-device name filter helper is available");
+bool UnknownName(string? value) => (bool)isUnknownName!.Invoke(null, new object?[] { value })!;
+Require(UnknownName("Unknown device") && UnknownName("Unknown") && UnknownName("—"), "unknown device display states are filterable");
+Require(!UnknownName("Living Room TV") && !UnknownName("Unknown manufacturer"), "friendly names remain visible despite unknown metadata");
+MethodInfo? isOnline = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "IsOnlineStatus", BindingFlags.Static | BindingFlags.NonPublic);
+Require(isOnline is not null, "online status presentation helper is available");
+bool Online(string value) => (bool)isOnline!.Invoke(null, new object?[] { value })!;
+Require(Online("Online") && Online("Active") && Online("Recently active"), "live status values are online");
+Require(!Online("Offline") && !Online("Unknown"), "offline and unknown status values are not online");
+Require(Online("Online"), "online classification is independent of manufacturer lookup");
 
 static ClientInfo Client(string mac, string name, string ip) => new()
 {
@@ -148,3 +197,18 @@ Require(concurrentLoadCount == 1 && concurrent.All(result => ReferenceEquals(res
     "Concurrent deep links did not coalesce authoritative reconciliation.");
 
 Console.WriteLine("Client Details deep-link regression fixtures passed: 8/8.");
+
+sealed class StubMacLookupHandler : HttpMessageHandler
+{
+    public int RequestCount { get; private set; }
+    public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.OK;
+    public string Body { get; init; } = "{\"success\":true,\"found\":true,\"company\":\"Example Vendor\"}";
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        RequestCount++;
+        return Task.FromResult(new HttpResponseMessage(StatusCode)
+        {
+            Content = new StringContent(Body, System.Text.Encoding.UTF8, "application/json")
+        });
+    }
+}
