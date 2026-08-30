@@ -3,7 +3,7 @@
     Id="TCDemo777.RouterPilot.V1_7_0"
     Name="RouterPilot"
     Manufacturer="Tristan"
-    Version="2.1.1"
+      Version="2.1.2"
     UpgradeCode="{A8CB381D-E4EB-5521-B4D1-064F5EB4BDC6}"
     Scope="perMachine"
     Compressed="yes">

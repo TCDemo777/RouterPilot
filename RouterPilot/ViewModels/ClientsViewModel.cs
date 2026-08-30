@@ -384,7 +384,7 @@ namespace RouterPilot.ViewModels
                 {
                     enrichment = adGuardClients.FirstOrDefault(client =>
                         HasUsefulValue(client.IpAddress) &&
-                        client.IpAddress.Equals(routerClient.IpAddress, StringComparison.OrdinalIgnoreCase));
+                        ClientIdentity.EndpointEquals(client.IpAddress, routerClient.IpAddress));
                 }
 
                 routerClient.AdGuardDataAvailability =

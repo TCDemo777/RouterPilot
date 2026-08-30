@@ -96,7 +96,8 @@ public sealed class ClientInventoryCoordinator
     {
         string key = ClientIdentity.NormalizeMac(source.MacAddress);
         ClientInfo? dns = adGuard.FirstOrDefault(client => ClientIdentity.NormalizeMac(client.MacAddress) == key) ??
-            adGuard.FirstOrDefault(client => WifiClientInfo.Useful(source.IpAddress) && source.IpAddress == client.IpAddress);
+            adGuard.FirstOrDefault(client => WifiClientInfo.Useful(source.IpAddress) &&
+                ClientIdentity.EndpointEquals(source.IpAddress, client.IpAddress));
         profiles.TryGetValue(key, out ClientProfile? profile);
         return new ClientInfo
         {
