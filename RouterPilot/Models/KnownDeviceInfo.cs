@@ -12,11 +12,14 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
     public IDeviceIdentityResolver? IdentityResolver { get; init; }
     public string MacKey => ClientIdentity.NormalizeHexMac(Profile.Key);
     public bool IsOnline => CurrentClient is not null;
-    public string Name => IdentityResolver?.ResolveFriendlyName(
+    public string Name => IdentityResolver?.ResolveFriendlyName(new DeviceIdentitySignals(
         Profile.Nickname,
-        CurrentClient?.Name ?? CurrentClient?.RouterName,
+        CurrentClient?.RouterName ?? CurrentClient?.Name,
+        null,
+        null,
+        CurrentClient?.AdGuardName,
         Profile.LastKnownName,
-        CurrentClient?.IpAddress ?? Profile.LastKnownIpAddress) ?? FirstFriendlyName();
+        CurrentClient?.IpAddress ?? Profile.LastKnownIpAddress)) ?? FirstFriendlyName();
     public string Secondary => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
         Useful(Profile.LastKnownIpAddress) ? $"Last known IP: {Profile.LastKnownIpAddress}" : string.Empty;
     public string IpAddress => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :

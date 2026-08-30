@@ -145,6 +145,92 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
         return "Unknown device";
     }
 
+    public string ResolveFriendlyName(DeviceIdentitySignals signals)
+    {
+        // Router/DHCP names are preferred over opportunistic discovery names;
+        // all candidates are still validated against generated IP labels.
+        return ResolveFriendlyName(
+            signals.PersonalisedName,
+            signals.RouterName,
+            signals.DhcpHostname,
+            signals.MdnsName,
+            signals.AdGuardName,
+            signals.PersistedName,
+            signals.AssociatedIp);
+    }
+
+    private string ResolveFriendlyName(
+        string? personalisedName, string? routerName, string? dhcpHostname,
+        string? mdnsName, string? adGuardName, string? persistedName, string? associatedIp)
+    {
+        string?[] candidates = { personalisedName, routerName, dhcpHostname, mdnsName, adGuardName, persistedName };
+        for (int index = 0; index < candidates.Length; index++)
+        {
+            string? clean = CleanDiscoveredName(candidates[index]);
+            // An explicit user nickname is authoritative even when it happens
+            // to be a platform word (for example, a nickname named "Windows").
+            if (index == 0 && IsUsefulName(clean) && !IsGeneratedIpLabel(clean, associatedIp))
+                return clean!;
+            if (index > 0 && ClassifyDeviceNameCandidate(clean) == DeviceNameCandidateKind.SpecificDeviceName &&
+                !IsGeneratedIpLabel(clean, associatedIp)) return clean!;
+        }
+        return "Unknown device";
+    }
+
+    public DeviceNameCandidateKind ClassifyDeviceNameCandidate(string? candidate)
+    {
+        string? value = CleanDiscoveredName(candidate);
+        if (value is null || !IsUsefulName(value)) return DeviceNameCandidateKind.Unavailable;
+        if (TryClassifyOperatingSystem(value, out _)) return DeviceNameCandidateKind.OperatingSystem;
+        if (value.Equals("Phone", StringComparison.OrdinalIgnoreCase) || value.Equals("Tablet", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Computer", StringComparison.OrdinalIgnoreCase) || value.Equals("Laptop", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Desktop", StringComparison.OrdinalIgnoreCase) || value.Equals("Printer", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Smart Device", StringComparison.OrdinalIgnoreCase) || value.Equals("Device", StringComparison.OrdinalIgnoreCase))
+            return DeviceNameCandidateKind.GenericDeviceType;
+        if (value.Equals("Apple", StringComparison.OrdinalIgnoreCase) || value.Equals("Samsung", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Espressif", StringComparison.OrdinalIgnoreCase) || value.Equals("Espressif Systems", StringComparison.OrdinalIgnoreCase))
+            return DeviceNameCandidateKind.Manufacturer;
+        if (value.Equals("AirPlay", StringComparison.OrdinalIgnoreCase) || value.Equals("Google Cast", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Workstation", StringComparison.OrdinalIgnoreCase) || value.Equals("HTTP", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Printer", StringComparison.OrdinalIgnoreCase) || value.Equals("Device Info", StringComparison.OrdinalIgnoreCase))
+            return DeviceNameCandidateKind.ServiceType;
+        if (IsInternalIdentifier(value)) return DeviceNameCandidateKind.InternalIdentifier;
+        return DeviceNameCandidateKind.SpecificDeviceName;
+    }
+
+    public string? ResolveOperatingSystem(params string?[] candidates)
+    {
+        foreach (string? candidate in candidates)
+        {
+            if (TryClassifyOperatingSystem(candidate, out string? operatingSystem)) return operatingSystem;
+        }
+        return null;
+    }
+
+    private static bool TryClassifyOperatingSystem(string? candidate, out string? operatingSystem)
+    {
+        operatingSystem = null;
+        string value = candidate?.Trim() ?? string.Empty;
+        string[] platforms = { "Windows", "Windows 10", "Windows 11", "Android", "Android Phone", "iOS", "iPhone OS", "macOS", "Mac OS", "Linux", "OpenWrt", "Unix", "ChromeOS", "Chrome OS", "Tizen", "webOS" };
+        string? match = platforms.FirstOrDefault(platform => value.Equals(platform, StringComparison.OrdinalIgnoreCase));
+        if (match is null) return false;
+        operatingSystem = match;
+        return true;
+    }
+
+    private static bool IsInternalIdentifier(string value) =>
+        value.All(char.IsDigit) && value.Length >= 8 ||
+        value.StartsWith("mac:", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("ip:", StringComparison.OrdinalIgnoreCase);
+
+    private static string? CleanDiscoveredName(string? value)
+    {
+        string? clean = value?.Trim().TrimEnd('.');
+        if (clean is not null && clean.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+            clean = clean[..^6];
+        return clean;
+    }
+
     private static bool IsUsefulManufacturer(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
         !value.Equals("Unknown manufacturer", StringComparison.OrdinalIgnoreCase) &&

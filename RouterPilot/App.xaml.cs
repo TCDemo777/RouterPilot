@@ -92,6 +92,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<ClientProfileService>();
             serviceCollection.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = TimeSpan.FromSeconds(3) });
             serviceCollection.AddSingleton<IDeviceIdentityResolver, DeviceIdentityResolver>();
+            serviceCollection.AddSingleton<IMdnsIdentityService, MdnsIdentityService>();
             serviceCollection.AddSingleton<ClientInventoryState>();
             serviceCollection.AddSingleton<ClientInventoryCoordinator>();
             serviceCollection.AddSingleton<KnownDeviceForgetService>();

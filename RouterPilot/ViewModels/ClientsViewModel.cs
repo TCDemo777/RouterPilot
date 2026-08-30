@@ -25,6 +25,7 @@ namespace RouterPilot.ViewModels
         private readonly ClientInventoryState _clientInventoryState;
         private readonly ClientInventoryCoordinator _clientInventoryCoordinator;
         private readonly IDeviceIdentityResolver _deviceIdentityResolver;
+        private readonly IMdnsIdentityService _mdnsIdentityService;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -162,7 +163,8 @@ namespace RouterPilot.ViewModels
             IDataFreshnessService dataFreshnessService,
             ClientInventoryState clientInventoryState,
             ClientInventoryCoordinator clientInventoryCoordinator,
-            IDeviceIdentityResolver deviceIdentityResolver)
+            IDeviceIdentityResolver deviceIdentityResolver,
+            IMdnsIdentityService mdnsIdentityService)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
@@ -174,6 +176,7 @@ namespace RouterPilot.ViewModels
             _clientInventoryState = clientInventoryState;
             _clientInventoryCoordinator = clientInventoryCoordinator;
             _deviceIdentityResolver = deviceIdentityResolver;
+            _mdnsIdentityService = mdnsIdentityService;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -206,6 +209,7 @@ namespace RouterPilot.ViewModels
                     _allClients.AddRange(_clientInventoryState.Snapshot.Values);
                     ApplyFilterAndSort(sharedSelectedKey);
                     _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
+                    _ = EnrichMdnsAsync(_allClients.ToList());
                     AdGuardDataAvailability = _adGuardAvailabilityService.State;
                     _dataFreshnessService.MarkSuccess("Clients");
                     StatusMessage = string.Empty;
@@ -306,6 +310,7 @@ namespace RouterPilot.ViewModels
 
                 ApplyFilterAndSort(selectedKey);
                 _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
+                _ = EnrichMdnsAsync(_allClients.ToList());
                 SaveProfiles();
                 _presenceHistory.Observe(clients);
                 _favouriteDeviceMonitoring.Observe(clients);
@@ -432,6 +437,8 @@ namespace RouterPilot.ViewModels
                 routerClient.BlockedQueries = enrichment.BlockedQueries;
                 routerClient.LastSeen = enrichment.LastSeen;
                 routerClient.QueryLogAvailable = enrichment.QueryLogAvailable;
+                if (HasUsefulValue(enrichment.Name))
+                    routerClient.AdGuardName = enrichment.Name;
             }
         }
 
@@ -1362,6 +1369,18 @@ namespace RouterPilot.ViewModels
             }
 
             ClientProfile profile = GetOrCreateProfile(client);
+            client.OperatingSystem = _deviceIdentityResolver.ResolveOperatingSystem(
+                client.RouterName, client.AdGuardName, client.MdnsName, profile.LastKnownName) ?? string.Empty;
+            string resolvedName = _deviceIdentityResolver.ResolveFriendlyName(new DeviceIdentitySignals(
+                profile.Nickname,
+                client.RouterName,
+                null,
+                null,
+                client.AdGuardName,
+                profile.LastKnownName,
+                client.IpAddress));
+            if (!string.Equals(resolvedName, "Unknown device", StringComparison.OrdinalIgnoreCase))
+                client.Name = resolvedName;
             profile.LastSeenUtc = DateTime.UtcNow;
             UpdateProfileObservation(profile, client);
             ApplyProfile(client, profile);
@@ -1610,6 +1629,56 @@ namespace RouterPilot.ViewModels
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"MAC vendor enrichment unavailable: {ex.GetType().Name}");
+            }
+        }
+
+        private async Task EnrichMdnsAsync(IReadOnlyList<ClientInfo> clients)
+        {
+            using SemaphoreSlim gate = new(4, 4);
+            try
+            {
+                List<(ClientInfo Client, string Hostname)> results = (await Task.WhenAll(clients.Select(async client =>
+                {
+                    if (!HasUsableClientIp(client.IpAddress)) return (client, string.Empty);
+                    await gate.WaitAsync().ConfigureAwait(false);
+                    try { return (client, await _mdnsIdentityService.ResolveHostnameAsync(client.IpAddress).ConfigureAwait(false) ?? string.Empty); }
+                    finally { gate.Release(); }
+                }))).Where(item => !string.IsNullOrWhiteSpace(item.Item2)).ToList();
+                if (results.Count == 0) return;
+
+                void ApplyResults()
+                {
+                    bool changed = false;
+                    foreach ((ClientInfo client, string hostname) in results)
+                    {
+                        if (!_allClients.Contains(client)) continue;
+                        if (string.Equals(client.MdnsName, hostname, StringComparison.OrdinalIgnoreCase)) continue;
+                        client.MdnsName = hostname;
+                        ClientProfile profile = GetOrCreateProfile(client);
+                        string resolved = _deviceIdentityResolver.ResolveFriendlyName(new DeviceIdentitySignals(
+                            profile.Nickname, client.RouterName, null, hostname, client.AdGuardName,
+                            profile.LastKnownName, client.IpAddress));
+                        client.OperatingSystem = _deviceIdentityResolver.ResolveOperatingSystem(
+                            client.RouterName, client.AdGuardName, hostname, profile.LastKnownName) ?? client.OperatingSystem;
+                        if (!string.Equals(resolved, "Unknown device", StringComparison.OrdinalIgnoreCase))
+                            client.Name = resolved;
+                        UpdateProfileObservation(profile, client);
+                        changed = true;
+                    }
+                    if (changed)
+                    {
+                        SaveProfiles();
+                        ApplyFilterAndSort(SelectedClient is null ? null : ClientKey(SelectedClient));
+                    }
+                }
+                if (System.Windows.Application.Current is { } app)
+                    app.Dispatcher.Invoke(ApplyResults);
+                else
+                    ApplyResults();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"mDNS enrichment unavailable: {ex.GetType().Name}");
             }
         }
 

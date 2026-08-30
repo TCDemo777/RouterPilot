@@ -60,7 +60,12 @@ namespace RouterPilot.Models
         // Presentation metadata populated by ClientsViewModel.
         public string DeviceIcon { get; set; } = "●";
         public string DeviceType { get; set; } = "Unknown device";
+        public string OperatingSystem { get; set; } = string.Empty;
         public string Manufacturer { get; set; } = "Unknown manufacturer";
+        // Optional identity supplied by an associated AdGuard client record;
+        // never required for router-derived naming.
+        public string AdGuardName { get; set; } = string.Empty;
+        public string MdnsName { get; set; } = string.Empty;
         public string HealthText { get; set; } = "Unknown";
         public string HealthColour { get; set; } = "#687386";
         public bool IsFavorite { get; set; }
