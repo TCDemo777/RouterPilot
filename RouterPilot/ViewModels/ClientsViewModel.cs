@@ -207,6 +207,15 @@ namespace RouterPilot.ViewModels
                     string? sharedSelectedKey = SelectedClient is null ? null : ClientKey(SelectedClient);
                     _allClients.Clear();
                     _allClients.AddRange(_clientInventoryState.Snapshot.Values);
+                    // The shared inventory is the authoritative router snapshot,
+                    // but it is intentionally transport-only.  Run the same
+                    // identity projection used by the direct refresh path before
+                    // exposing it to cards; otherwise router-provided values such
+                    // as an OS label can leak through as the visible device name.
+                    foreach (ClientInfo client in _allClients)
+                    {
+                        EnrichClient(client);
+                    }
                     ApplyFilterAndSort(sharedSelectedKey);
                     _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
                     _ = EnrichMdnsAsync(_allClients.ToList());
@@ -1379,8 +1388,11 @@ namespace RouterPilot.ViewModels
                 client.AdGuardName,
                 profile.LastKnownName,
                 client.IpAddress));
-            if (!string.Equals(resolvedName, "Unknown device", StringComparison.OrdinalIgnoreCase))
-                client.Name = resolvedName;
+            // Always apply the shared resolution result.  Keeping the raw router
+            // value when resolution returns Unknown device is what allowed
+            // platform labels such as "Windows" to remain visible as names.
+            client.Name = resolvedName;
+            LogIdentityResolution(client, profile, resolvedName);
             profile.LastSeenUtc = DateTime.UtcNow;
             UpdateProfileObservation(profile, client);
             ApplyProfile(client, profile);
@@ -1599,6 +1611,21 @@ namespace RouterPilot.ViewModels
             // which can be internal stripped-IP correlation keys.
             if (!value.Contains('.', StringComparison.Ordinal) && !value.Contains(':', StringComparison.Ordinal)) return false;
             return IPAddress.TryParse(ClientIdentity.NormalizeEndpoint(value), out _);
+        }
+
+        private void LogIdentityResolution(ClientInfo client, ClientProfile profile, string resolvedName)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Identity resolution: mac={MaskMac(client.MacAddress)} ip={client.IpAddress} " +
+                $"router={client.RouterName ?? string.Empty} adguard={client.AdGuardName ?? string.Empty} " +
+                $"persisted={profile.LastKnownName} final={resolvedName}");
+        }
+
+        private string MaskMac(string? mac)
+        {
+            if (!_deviceIdentityResolver.TryParseMac(mac, out ParsedMacAddress? parsed) || parsed is null)
+                return "(invalid)";
+            return parsed.Canonical[..6] + "******";
         }
 
         private async Task EnrichOnlineManufacturersAsync(IReadOnlyList<ClientInfo> clients)

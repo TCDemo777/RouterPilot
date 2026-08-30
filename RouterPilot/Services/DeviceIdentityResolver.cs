@@ -136,14 +136,8 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
     }
 
     public string ResolveFriendlyName(string? personalisedName, string? authoritativeName, string? persistedName, string? associatedIp = null)
-    {
-        foreach (string? candidate in new[] { personalisedName, authoritativeName, persistedName })
-        {
-            if (IsUsefulName(candidate) && !IsGeneratedIpLabel(candidate, associatedIp))
-                return candidate!.Trim();
-        }
-        return "Unknown device";
-    }
+        => ResolveFriendlyName(new DeviceIdentitySignals(
+            personalisedName, authoritativeName, null, null, null, persistedName, associatedIp));
 
     public string ResolveFriendlyName(DeviceIdentitySignals signals)
     {
@@ -163,25 +157,55 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
         string? personalisedName, string? routerName, string? dhcpHostname,
         string? mdnsName, string? adGuardName, string? persistedName, string? associatedIp)
     {
-        string?[] candidates = { personalisedName, routerName, dhcpHostname, mdnsName, adGuardName, persistedName };
+        (string Source, string? Value)[] candidates =
+        {
+            ("UserNickname", personalisedName),
+            ("RouterName", routerName),
+            ("DhcpHostname", dhcpHostname),
+            ("MdnsHostname", mdnsName),
+            ("AdGuardClient", adGuardName),
+            ("PersistedName", persistedName)
+        };
         for (int index = 0; index < candidates.Length; index++)
         {
-            string? clean = CleanDiscoveredName(candidates[index]);
+            string? clean = CleanDiscoveredName(candidates[index].Value);
+            DeviceNameCandidateKind classification = ClassifyDeviceNameCandidate(clean);
             // An explicit user nickname is authoritative even when it happens
             // to be a platform word (for example, a nickname named "Windows").
             if (index == 0 && IsUsefulName(clean) && !IsGeneratedIpLabel(clean, associatedIp))
+            {
+                LogCandidate(candidates[index].Source, clean, classification, true);
+                LogFinal(clean!, candidates[index].Source);
                 return clean!;
-            if (index > 0 && ClassifyDeviceNameCandidate(clean) == DeviceNameCandidateKind.SpecificDeviceName &&
-                !IsGeneratedIpLabel(clean, associatedIp)) return clean!;
+            }
+            bool accepted = index > 0 && classification == DeviceNameCandidateKind.SpecificDeviceName &&
+                !IsGeneratedIpLabel(clean, associatedIp);
+            LogCandidate(candidates[index].Source, clean, classification, accepted);
+            if (accepted)
+            {
+                LogFinal(clean!, candidates[index].Source);
+                return clean!;
+            }
         }
+        System.Diagnostics.Debug.WriteLine("Identity resolution final: DisplayName=Unknown device Source=Fallback");
         return "Unknown device";
     }
+
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void LogCandidate(string source, string? value, DeviceNameCandidateKind classification, bool accepted) =>
+        System.Diagnostics.Debug.WriteLine($"Identity candidate: Source={source} Value=\"{value ?? string.Empty}\" Classification={classification} Accepted={accepted}");
+
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void LogFinal(string value, string source) =>
+        System.Diagnostics.Debug.WriteLine($"Identity resolution final: DisplayName=\"{value}\" Source={source}");
 
     public DeviceNameCandidateKind ClassifyDeviceNameCandidate(string? candidate)
     {
         string? value = CleanDiscoveredName(candidate);
         if (value is null || !IsUsefulName(value)) return DeviceNameCandidateKind.Unavailable;
         if (TryClassifyOperatingSystem(value, out _)) return DeviceNameCandidateKind.OperatingSystem;
+        if (IPAddress.TryParse(value, out _)) return DeviceNameCandidateKind.IpAddress;
+        if (TryParseMac(value, out _)) return DeviceNameCandidateKind.MacAddress;
         if (value.Equals("Phone", StringComparison.OrdinalIgnoreCase) || value.Equals("Tablet", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("Computer", StringComparison.OrdinalIgnoreCase) || value.Equals("Laptop", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("Desktop", StringComparison.OrdinalIgnoreCase) || value.Equals("Printer", StringComparison.OrdinalIgnoreCase) ||

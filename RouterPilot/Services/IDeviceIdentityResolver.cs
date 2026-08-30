@@ -27,6 +27,9 @@ public enum DeviceNameCandidateKind
     GenericDeviceType,
     Manufacturer,
     ServiceType,
+    ServiceName,
+    IpAddress,
+    MacAddress,
     InternalIdentifier,
     Unavailable
 }

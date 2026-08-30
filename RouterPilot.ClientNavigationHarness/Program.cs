@@ -49,6 +49,9 @@ Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-"
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, null, null, "saved-name", "192.168.1.20")) == "saved-name", "persisted name is retained");
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "1921681103", null, null, null, null, "192.168.1.103")) == "Unknown device", "generated IP identity does not become a friendly name");
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "Windows", null, null, null, null, "192.168.1.20")) == "Unknown device", "operating system is not promoted to device name");
+Require(identityResolver.ResolveFriendlyName(null, "Windows", null, "192.168.1.20") == "Unknown device", "legacy resolver overload also rejects operating-system names");
+Require(identityResolver.ClassifyDeviceNameCandidate("192.168.1.20") == DeviceNameCandidateKind.IpAddress, "raw IP is not a device name");
+Require(identityResolver.ClassifyDeviceNameCandidate("AA:BB:CC:DD:EE:FF") == DeviceNameCandidateKind.MacAddress, "raw MAC is not a device name");
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "DESKTOP-A1B2C3", null, null, null, null, "192.168.1.20")) == "DESKTOP-A1B2C3", "specific machine hostname is retained");
 Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, "AirPlay", null, null, "192.168.1.20")) == "Unknown device", "service type is not promoted to device name");
 Require(identityResolver.ClassifyDeviceNameCandidate("Android") == DeviceNameCandidateKind.OperatingSystem, "Android is classified as operating system");
