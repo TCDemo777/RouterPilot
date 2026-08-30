@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
@@ -11,6 +14,119 @@ static void Require(bool condition, string message)
     if (!condition)
         throw new InvalidOperationException(message);
 }
+
+MethodInfo? hasUsableIp = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "HasUsableClientIp", BindingFlags.Static | BindingFlags.NonPublic);
+Require(hasUsableIp is not null, "Clients IP filter helper is available");
+bool UsableIp(string? value) => (bool)hasUsableIp!.Invoke(null, new object?[] { value })!;
+Require(UsableIp("192.168.1.103") && UsableIp("2001:db8::103"), "IP filter accepts IPv4 and IPv6");
+Require(!UsableIp(null) && !UsableIp(string.Empty) && !UsableIp(" ") && !UsableIp("-") && !UsableIp("—") && !UsableIp("N/A"), "IP filter rejects unavailable values");
+Require(!UsableIp("1921681103"), "IP filter rejects internal stripped-IP identity keys");
+Require(UsableIp("[2001:db8::103]:53"), "IP filter accepts bracketed IPv6 endpoints");
+
+// Shared identity resolver: strict EUI-48 parsing, address classification,
+// consistent vendor precedence, and safe handling of non-MAC identifiers.
+IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();
+foreach (string macForm in new[] { "00:BB:CC:DD:EE:FF", "00-BB-CC-DD-EE-FF", "00bb.ccdd.eeff", "00BBCCDDEEFF", "00bbccddeeff" })
+{
+    Require(identityResolver.TryParseMac(macForm, out ParsedMacAddress? parsed) &&
+        parsed is not null && parsed.Canonical == "00BBCCDDEEFF" && parsed.Kind == MacAddressKind.Universal,
+        $"strict MAC parser accepts {macForm}");
+}
+foreach (string invalidMac in new[] { "192.168.1.1", "2001:db8::1", "1921681103", "living-room", "AA:BB:CC:DD:EE" })
+    Require(!identityResolver.TryParseMac(invalidMac, out _), $"strict MAC parser rejects {invalidMac}");
+Require(identityResolver.ResolveManufacturer("00:1B:63:DD:EE:FF") == "Apple", "existing vendor mapping preserved");
+Require(identityResolver.ResolveManufacturer("02:1B:63:DD:EE:FF") == "Private/local MAC", "locally administered MAC is classified factually");
+Require(identityResolver.ResolveManufacturer("01:1B:63:DD:EE:FF") == "Unknown manufacturer", "multicast MAC has no IEEE attribution");
+Require(identityResolver.ResolveManufacturer("00:BB:CC:DD:EE:FF", "Living Room TV") == "Unknown manufacturer", "unknown vendor does not fabricate from friendly name");
+Require(identityResolver.ResolveManufacturer("00:BB:CC:DD:EE:FF", authoritativeManufacturer: "Trusted Vendor") == "Trusted Vendor", "trusted manufacturer takes precedence");
+Require(identityResolver.ResolveManufacturer("00:1B:63:DD:EE:FF") == "Apple", "duplicate vendor lookup reuses consistent result");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals("My iPhone", "router-name", "dhcp-name", "mdns-name", "adguard-name", "saved-name", "192.168.1.20")) == "My iPhone", "personalised name wins");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "router-name", "dhcp-name", "mdns-name", "adguard-name", "saved-name", "192.168.1.20")) == "router-name", "router name wins over lower-priority sources");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", "dhcp-name", "mdns-name", "adguard-name", "saved-name", "192.168.1.20")) == "dhcp-name", "DHCP name fills missing router name");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, "Living-Room-TV.local", "adguard-name", "saved-name", "192.168.1.20")) == "Living-Room-TV", "mDNS name is normalized");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, null, "adguard-name", "saved-name", "192.168.1.20")) == "adguard-name", "AdGuard name is used only as a correlated fallback");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, null, null, "saved-name", "192.168.1.20")) == "saved-name", "persisted name is retained");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "1921681103", null, null, null, null, "192.168.1.103")) == "Unknown device", "generated IP identity does not become a friendly name");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "Windows", null, null, null, null, "192.168.1.20")) == "Unknown device", "operating system is not promoted to device name");
+Require(identityResolver.ResolveFriendlyName(null, "Windows", null, "192.168.1.20") == "Unknown device", "legacy resolver overload also rejects operating-system names");
+Require(identityResolver.ClassifyDeviceNameCandidate("192.168.1.20") == DeviceNameCandidateKind.IpAddress, "raw IP is not a device name");
+Require(identityResolver.ClassifyDeviceNameCandidate("AA:BB:CC:DD:EE:FF") == DeviceNameCandidateKind.MacAddress, "raw MAC is not a device name");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "DESKTOP-A1B2C3", null, null, null, null, "192.168.1.20")) == "DESKTOP-A1B2C3", "specific machine hostname is retained");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals(null, "-", null, "AirPlay", null, null, "192.168.1.20")) == "Unknown device", "service type is not promoted to device name");
+Require(identityResolver.ClassifyDeviceNameCandidate("Android") == DeviceNameCandidateKind.OperatingSystem, "Android is classified as operating system");
+Require(identityResolver.ResolveOperatingSystem("Windows") == "Windows", "operating system remains available separately");
+Require(identityResolver.ResolveFriendlyName(new DeviceIdentitySignals("Windows", "Android", null, null, null, null, "192.168.1.20")) == "Windows", "explicit user nickname is preserved");
+ClientInfo unavailableDnsClient = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable, TotalQueries = 17, BlockedQueries = 4 };
+Require(unavailableDnsClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    unavailableDnsClient.BlockedQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    unavailableDnsClient.BlockRateDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "unavailable DNS metrics never become numeric zeros");
+Require(unavailableDnsClient.ActivityAvailabilityToolTip.Contains("policy-based VPN", StringComparison.OrdinalIgnoreCase) &&
+    unavailableDnsClient.ActivityAvailabilityToolTip.Contains("control DNS", StringComparison.OrdinalIgnoreCase), "DNS unavailable tooltip explains policy-based VPN configuration");
+// DNS observability regression: global AdGuard availability does not imply
+// per-client attribution. The same live client must transition from
+// unavailable -> correlated activity/zero without being replaced or duplicated.
+ClientInfo bypassedClient = new()
+{
+    Name = "Office laptop",
+    Manufacturer = "Dell",
+    MacAddress = "00:24:E8:AA:BB:CC",
+    IpAddress = "192.168.1.42",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable
+};
+List<ClientInfo> visibleClients = [bypassedClient];
+Require(visibleClients.Count == 1 &&
+    bypassedClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    bypassedClient.BlockedQueriesDisplay == RouterPilotStatusPresentation.NotAvailable &&
+    bypassedClient.BlockRateDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "AdGuard-available-but-unmatched client remains visible with unavailable DNS metrics");
+bypassedClient.AdGuardDataAvailability = AdGuardAvailabilityState.Available;
+bypassedClient.TotalQueries = 12;
+bypassedClient.BlockedQueries = 3;
+Require(visibleClients.Count == 1 && bypassedClient.TotalQueriesDisplay == "12" &&
+    bypassedClient.BlockedQueriesDisplay == "3" && bypassedClient.BlockRateDisplay == "25.0%" &&
+    bypassedClient.Name == "Office laptop" && bypassedClient.Manufacturer == "Dell",
+    "later AdGuard correlation updates the existing client without duplication or identity loss");
+bypassedClient.TotalQueries = 0;
+bypassedClient.BlockedQueries = 0;
+Require(bypassedClient.TotalQueriesDisplay == "0" && bypassedClient.BlockedQueriesDisplay == "0" &&
+    bypassedClient.BlockRateDisplay == "0.0%",
+    "correlated genuine zero activity remains distinct from unavailable DNS");
+MethodInfo? cleanMdns = typeof(MdnsIdentityService).GetMethod("CleanHostnameForDisplay", BindingFlags.Static | BindingFlags.NonPublic);
+Require(cleanMdns is not null, "mDNS hostname cleanup helper is available");
+string? CleanMdns(string value) => (string?)cleanMdns!.Invoke(null, new object?[] { value });
+Require(CleanMdns("Aaron-iPhone.local.") == "Aaron-iPhone", "mDNS local suffix and trailing dot are removed");
+Require(CleanMdns("localhost") is null && CleanMdns("192.168.1.10") is null, "unusable mDNS names are rejected");
+var onlineStub = new StubMacLookupHandler();
+var onlineResolver = new DeviceIdentityResolver(new HttpClient(onlineStub));
+Require(await onlineResolver.ResolveManufacturerAsync("00:BB:CC:DD:EE:FF") == "Example Vendor", "online MACLookup result is used");
+Require(await onlineResolver.ResolveManufacturerAsync("00:BB:CC:11:22:33") == "Example Vendor" && onlineStub.RequestCount == 1, "same prefix uses the online cache and request de-duplication");
+var fallbackStub = new StubMacLookupHandler { StatusCode = HttpStatusCode.InternalServerError };
+var fallbackResolver = new DeviceIdentityResolver(new HttpClient(fallbackStub));
+Require(await fallbackResolver.ResolveManufacturerAsync("00:1B:63:DD:EE:FF") == "Apple", "HTTP failure falls back to local vendor data");
+var privateStub = new StubMacLookupHandler();
+var privateResolver = new DeviceIdentityResolver(new HttpClient(privateStub));
+Require(await privateResolver.ResolveManufacturerAsync("02:1B:63:DD:EE:FF") == "Private/local MAC" && privateStub.RequestCount == 0, "private MAC skips online lookup");
+var offlineKnown = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "001B63DDEEFF", LastKnownName = "Offline laptop" },
+    IdentityResolver = identityResolver
+};
+Require(offlineKnown.Manufacturer == "Apple" && offlineKnown.ToClientInfo().Manufacturer == "Apple", "offline known client resolves persisted MAC manufacturer");
+MethodInfo? isUnknownName = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "IsUnknownDeviceName", BindingFlags.Static | BindingFlags.NonPublic);
+Require(isUnknownName is not null, "Known-device name filter helper is available");
+bool UnknownName(string? value) => (bool)isUnknownName!.Invoke(null, new object?[] { value })!;
+Require(UnknownName("Unknown device") && UnknownName("Unknown") && UnknownName("—"), "unknown device display states are filterable");
+Require(!UnknownName("Living Room TV") && !UnknownName("Unknown manufacturer"), "friendly names remain visible despite unknown metadata");
+MethodInfo? isOnline = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "IsOnlineStatus", BindingFlags.Static | BindingFlags.NonPublic);
+Require(isOnline is not null, "online status presentation helper is available");
+bool Online(string value) => (bool)isOnline!.Invoke(null, new object?[] { value })!;
+Require(Online("Online") && Online("Active") && Online("Recently active"), "live status values are online");
+Require(!Online("Offline") && !Online("Unknown"), "offline and unknown status values are not online");
+Require(Online("Online"), "online classification is independent of manufacturer lookup");
 
 static ClientInfo Client(string mac, string name, string ip) => new()
 {
@@ -108,6 +224,8 @@ ClientDetailsNavigationTarget? normalized = await ResolveColdAsync(
     identityInventory, identityCoordinator, identity: "aa:bb:cc:dd:ee:04");
 Require(ReferenceEquals(normalized?.LiveClient, sameNameA), "MAC normalization or duplicate-name resolution selected the wrong client.");
 Require(normalized?.LiveClient?.IpAddress == "192.168.8.50", "A stale or unrelated IP changed MAC-backed resolution.");
+Require(normalized?.LiveClient is ClientInfo normalizedClient && normalizedClient.Name == sameNameA.Name && normalizedClient.RouterName == sameNameA.RouterName,
+    "Known Device navigation did not preserve the authoritative current-client record.");
 
 var warmInventory = new ClientInventoryState();
 int warmLoadCount = 0;
@@ -136,3 +254,18 @@ Require(concurrentLoadCount == 1 && concurrent.All(result => ReferenceEquals(res
     "Concurrent deep links did not coalesce authoritative reconciliation.");
 
 Console.WriteLine("Client Details deep-link regression fixtures passed: 8/8.");
+
+sealed class StubMacLookupHandler : HttpMessageHandler
+{
+    public int RequestCount { get; private set; }
+    public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.OK;
+    public string Body { get; init; } = "{\"success\":true,\"found\":true,\"company\":\"Example Vendor\"}";
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        RequestCount++;
+        return Task.FromResult(new HttpResponseMessage(StatusCode)
+        {
+            Content = new StringContent(Body, System.Text.Encoding.UTF8, "application/json")
+        });
+    }
+}

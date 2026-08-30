@@ -50,7 +50,10 @@ public sealed class ClientInventoryCoordinator
             }
 
             RouterManager router = await _provider.GetRouterManagerAsync(token);
-            Task<List<ClientInfo>> adGuardTask = router.GetAdGuardClientsAsync();
+            // AdGuard is enrichment only.  A failure here must not prevent the
+            // router's authoritative LAN inventory from reaching read-only
+            // client surfaces such as Known Devices.
+            Task<List<ClientInfo>> adGuardTask = CaptureAdGuardAsync(router, token);
             Task<List<WifiRadioInfo>> radiosTask = router.GetWifiRadiosAsync();
             Task<List<WifiClientInfo>> inventoryTask = router.GetGlClientInventoryAsync();
             await Task.WhenAll(adGuardTask, radiosTask, inventoryTask);
@@ -91,12 +94,29 @@ public sealed class ClientInventoryCoordinator
     public void MarkAuthoritativelyLoaded() => _loaded = true;
     public void ResetForRouterSession() => _loaded = false;
 
+    private static async Task<List<ClientInfo>> CaptureAdGuardAsync(RouterManager router, CancellationToken token)
+    {
+        try
+        {
+            return await router.GetAdGuardClientsAsync();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     private static ClientInfo ToClient(WifiClientInfo source, IReadOnlyList<ClientInfo> adGuard,
         IReadOnlyDictionary<string, ClientProfile> profiles)
     {
         string key = ClientIdentity.NormalizeMac(source.MacAddress);
         ClientInfo? dns = adGuard.FirstOrDefault(client => ClientIdentity.NormalizeMac(client.MacAddress) == key) ??
-            adGuard.FirstOrDefault(client => WifiClientInfo.Useful(source.IpAddress) && source.IpAddress == client.IpAddress);
+            adGuard.FirstOrDefault(client => WifiClientInfo.Useful(source.IpAddress) &&
+                ClientIdentity.EndpointEquals(source.IpAddress, client.IpAddress));
         profiles.TryGetValue(key, out ClientProfile? profile);
         return new ClientInfo
         {

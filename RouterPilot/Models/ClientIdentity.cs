@@ -1,3 +1,6 @@
+using System.Linq;
+using System.Net;
+
 namespace RouterPilot.Models;
 
 /// <summary>Pure normalization and comparison rules for RouterPilot client identities.</summary>
@@ -13,6 +16,37 @@ public static class ClientIdentity
         string.Equals(NormalizeMac(left), NormalizeMac(right), StringComparison.Ordinal);
 
     public static bool IsMacKey(string? value) => NormalizeMac(value).Length == 12;
+
+    /// <summary>Canonicalizes an AdGuard/router client endpoint for correlation.</summary>
+    public static string NormalizeEndpoint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        string candidate = value.Trim();
+        if (candidate.StartsWith("[", StringComparison.Ordinal) &&
+            candidate.IndexOf(']') is int closingBracket && closingBracket > 0)
+        {
+            candidate = candidate[1..closingBracket];
+        }
+        else if (candidate.Count(character => character == ':') == 1 &&
+                 candidate.LastIndexOf(':') is int separator &&
+                 int.TryParse(candidate[(separator + 1)..], out _))
+        {
+            candidate = candidate[..separator];
+        }
+
+        if (IPAddress.TryParse(candidate, out IPAddress? address))
+        {
+            if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+            return address.ToString().ToLowerInvariant();
+        }
+
+        return candidate.TrimEnd('.').ToLowerInvariant();
+    }
+
+    public static bool EndpointEquals(string? left, string? right) =>
+        string.Equals(NormalizeEndpoint(left), NormalizeEndpoint(right), StringComparison.OrdinalIgnoreCase) &&
+        NormalizeEndpoint(left).Length > 0;
 
     private static string Normalize(string? value, bool hexadecimalOnly)
     {

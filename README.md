@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/TCDemo777/RouterPilot)](https://github.com/TCDemo777/RouterPilot/releases)
 [![Build](https://github.com/TCDemo777/RouterPilot/actions/workflows/build.yml/badge.svg)](https://github.com/TCDemo777/RouterPilot/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 Companion for GL.iNet Routers & AdGuard Home
 
@@ -86,7 +86,7 @@ Report issues through the [GitHub issue tracker](https://github.com/TCDemo777/Ro
 
 ## ❤️ Support Development
 
-RouterPilot is free and open source.
+RouterPilot is free and open source under the GNU General Public License v3.0 only (GPL-3.0-only).
 
 If you find RouterPilot useful and would like to support its continued development, bug fixes and new features, you can support the project through:
 
@@ -97,4 +97,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot is released under the MIT Licence. See `LICENSE` and `THIRD_PARTY_NOTICES.txt` for details.
+Current RouterPilot development leading to v2.2.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.

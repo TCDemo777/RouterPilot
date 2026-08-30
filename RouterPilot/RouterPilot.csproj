@@ -12,14 +12,16 @@
     <Company>Tristan</Company>
     <Copyright>Copyright © Tristan</Copyright>
     <Description>Companion for GL.iNet Routers &amp; AdGuard Home</Description>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
 
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
 
-    <Version>2.1.1</Version>
-    <AssemblyVersion>2.1.1.0</AssemblyVersion>
-    <FileVersion>2.1.1.0</FileVersion>
-    <InformationalVersion>2.1.1</InformationalVersion>
+    <Version>2.2.0</Version>
+    <AssemblyVersion>2.2.0.0</AssemblyVersion>
+    <FileVersion>2.2.0.0</FileVersion>
+    <InformationalVersion>2.2.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <ApplicationIcon>Assets\RouterPilot.ico</ApplicationIcon>
     <RootNamespace>RouterPilot</RootNamespace>
@@ -41,7 +43,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
-    <Content Include="LICENSE">
+    <Content Include="..\LICENSE" Link="LICENSE">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 

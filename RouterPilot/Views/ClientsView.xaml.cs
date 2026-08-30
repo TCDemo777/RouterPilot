@@ -24,7 +24,7 @@ namespace RouterPilot.Views
         private bool _isActivityFeedSubscribed;
         private bool _isActive;
 
-        public ClientsView()
+    public ClientsView(bool knownDevicesMode = false)
         {
             InitializeComponent();
 
@@ -32,7 +32,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<ClientsViewModel>();
             _dhcpReservationService = ((App)Application.Current).Services.GetRequiredService<IDhcpReservationService>();
             _dhcpReservationValidator = ((App)Application.Current).Services.GetRequiredService<DhcpReservationValidator>();
-            DataContext = _viewModel;
+        DataContext = _viewModel;
+        _viewModel.IsKnownDevicesMode = knownDevicesMode;
 
             _refreshTimer =
                 new DispatcherTimer
@@ -505,7 +506,7 @@ namespace RouterPilot.Views
             }
         }
 
-        private void KnownDevices_Click(object sender, RoutedEventArgs e) =>
-            (Application.Current.MainWindow as DashboardWindow)?.ShowKnownDevices();
+    private void KnownDevices_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.ToggleKnownDevicesMode();
     }
 }

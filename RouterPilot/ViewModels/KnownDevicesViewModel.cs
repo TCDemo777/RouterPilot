@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RouterPilot.Models;
@@ -10,6 +11,8 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
 {
     private readonly ClientProfileService _profiles = new();
     private readonly ClientInventoryState _inventory;
+    private readonly ClientsViewModel _clients;
+    private readonly IDeviceIdentityResolver _deviceIdentityResolver;
     private readonly DispatcherTimer _relativeTimeTimer;
     private Dictionary<string, ClientProfile> _profileMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
@@ -30,20 +33,35 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     public int MonitoredCount => _profileMap.Values.Count(profile => profile.MonitorAvailability);
     public bool HasDevices => TotalCount > 0;
 
-    public KnownDevicesViewModel(ClientInventoryState inventory)
+    public ClientInfo? SelectedClient => _clients.SelectedClient;
+    public ObservableCollection<ClientActivityItem> SelectedClientActivity => _clients.SelectedClientActivity;
+    public bool HasSelectedClientActivity => _clients.HasSelectedClientActivity;
+    public bool ShowNoSelectedClientActivity => !HasSelectedClientActivity;
+
+    public KnownDevicesViewModel(ClientInventoryState inventory, ClientsViewModel clients, IDeviceIdentityResolver deviceIdentityResolver)
     {
         _inventory = inventory;
+        _clients = clients;
+        _deviceIdentityResolver = deviceIdentityResolver;
         _inventory.Changed += Inventory_Changed;
+        _clients.PropertyChanged += Clients_PropertyChanged;
+        _clients.SelectedClientActivity.CollectionChanged += SelectedClientActivity_CollectionChanged;
         ClientRefreshNotifier.ProfileStateChanged += ProfileStateChanged;
         _relativeTimeTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _relativeTimeTimer.Tick += RelativeTimeTimer_Tick;
         ReloadProfiles();
     }
 
-    public void Start()
+    public async Task StartAsync()
     {
         if (_disposed) return;
 
+        // Known Devices is a projection of the shared authoritative inventory.
+        // Ensure that inventory is initialized when this page is opened directly;
+        // this reuses the existing session-scoped discovery path and never adds
+        // a second polling loop.
+        await _clients.LoadClientsAsync();
+        if (_disposed) return;
         RefreshRelativeTimePresentation();
         if (!_relativeTimeTimer.IsEnabled)
             _relativeTimeTimer.Start();
@@ -64,6 +82,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     partial void OnSearchTextChanged(string value) => Rebuild();
     partial void OnSelectedFilterChanged(string value) => Rebuild();
     partial void OnSelectedSortChanged(string value) => Rebuild();
+    partial void OnSelectedDeviceChanged(KnownDeviceInfo? value) => _clients.SelectedClient = value?.ToClientInfo();
 
     public void Dispose()
     {
@@ -72,10 +91,27 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         _relativeTimeTimer.Stop();
         _relativeTimeTimer.Tick -= RelativeTimeTimer_Tick;
         _inventory.Changed -= Inventory_Changed;
+        _clients.PropertyChanged -= Clients_PropertyChanged;
+        _clients.SelectedClientActivity.CollectionChanged -= SelectedClientActivity_CollectionChanged;
         ClientRefreshNotifier.ProfileStateChanged -= ProfileStateChanged;
     }
 
     private void Inventory_Changed(object? sender, EventArgs e) => Rebuild();
+    private void Clients_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ClientsViewModel.SelectedClient) or nameof(ClientsViewModel.HasSelectedClientActivity))
+        {
+            OnPropertyChanged(nameof(SelectedClient));
+            OnPropertyChanged(nameof(HasSelectedClientActivity));
+            OnPropertyChanged(nameof(ShowNoSelectedClientActivity));
+        }
+    }
+
+    private void SelectedClientActivity_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasSelectedClientActivity));
+        OnPropertyChanged(nameof(ShowNoSelectedClientActivity));
+    }
     private void ProfileStateChanged(object? sender, EventArgs e) => ReloadProfiles();
 
     private void RelativeTimeTimer_Tick(object? sender, EventArgs e)
@@ -100,7 +136,8 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         IEnumerable<KnownDeviceInfo> query = _profileMap.Select(pair => new KnownDeviceInfo
         {
             Profile = pair.Value,
-            CurrentClient = _inventory.Snapshot.TryGetValue(pair.Key, out ClientInfo? client) ? client : null
+            CurrentClient = _inventory.Snapshot.TryGetValue(pair.Key, out ClientInfo? client) ? client : null,
+            IdentityResolver = _deviceIdentityResolver
         });
         string text = SearchText.Trim();
         if (text.Length > 0) query = query.Where(device => Matches(device, text));
@@ -124,6 +161,8 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         Devices.Clear();
         foreach (KnownDeviceInfo device in query) Devices.Add(device);
         SelectedDevice = selectedMac is null ? null : Devices.FirstOrDefault(device => device.MacKey == selectedMac);
+        if (SelectedDevice is not null)
+            _clients.SelectedClient = SelectedDevice.ToClientInfo();
         OnPropertyChanged(nameof(TotalCount)); OnPropertyChanged(nameof(OnlineCount)); OnPropertyChanged(nameof(OfflineCount));
         OnPropertyChanged(nameof(NeedsReviewCount)); OnPropertyChanged(nameof(MonitoredCount)); OnPropertyChanged(nameof(HasDevices));
     }

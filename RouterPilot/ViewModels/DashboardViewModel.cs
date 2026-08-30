@@ -259,6 +259,15 @@ namespace RouterPilot.ViewModels
                         ? "#16803C"
                         : "#687386";
 
+        public string TemperatureHealthText =>
+            RouterTemperatureHealth.Text(RouterModel, Temperature);
+
+        public string TemperatureHealthColour =>
+            RouterTemperatureHealth.Colour(RouterModel, Temperature);
+
+        public string TemperatureHealthToolTip =>
+            RouterTemperatureHealth.ToolTip(RouterModel, Temperature);
+
 
         //
         // AdGuard summary
@@ -1982,6 +1991,9 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(MemoryHealthColour));
             OnPropertyChanged(nameof(StorageHealthText));
             OnPropertyChanged(nameof(StorageHealthColour));
+            OnPropertyChanged(nameof(TemperatureHealthText));
+            OnPropertyChanged(nameof(TemperatureHealthColour));
+            OnPropertyChanged(nameof(TemperatureHealthToolTip));
             NotifyRouterHealthChanged();
         }
 

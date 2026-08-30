@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -23,6 +24,8 @@ namespace RouterPilot.ViewModels
         private readonly IDataFreshnessService _dataFreshnessService;
         private readonly ClientInventoryState _clientInventoryState;
         private readonly ClientInventoryCoordinator _clientInventoryCoordinator;
+        private readonly IDeviceIdentityResolver _deviceIdentityResolver;
+        private readonly IMdnsIdentityService _mdnsIdentityService;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -41,6 +44,21 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<ClientActivityItem> SelectedClientActivity { get; } = new();
         public bool HasNewDevices => NewDevices.Count > 0;
         public bool HasSelectedClientActivity => SelectedClientActivity.Count > 0;
+
+        [ObservableProperty] private bool isKnownDevicesMode;
+        public string KnownDevicesButtonText => IsKnownDevicesMode ? "All Clients" : "Known Clients";
+        public string ClientModeLabel => IsKnownDevicesMode ? "Known Clients" : "All Clients";
+        public void ToggleKnownDevicesMode()
+        {
+            IsKnownDevicesMode = !IsKnownDevicesMode;
+            SelectedClient = null;
+            ApplyFilterAndSort();
+        }
+        partial void OnIsKnownDevicesModeChanged(bool value)
+        {
+            OnPropertyChanged(nameof(KnownDevicesButtonText));
+            OnPropertyChanged(nameof(ClientModeLabel));
+        }
 
         public void ReloadProfileState()
         {
@@ -83,6 +101,21 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private bool showFavoritesOnly;
+
+        [ObservableProperty]
+        private bool hideClientsWithoutIp;
+
+        [ObservableProperty]
+        private bool hideUnknownDevices;
+
+        [ObservableProperty]
+        private bool onlineDevicesOnly;
+
+        private int totalClientCount;
+        private int visibleClientCount;
+        public int TotalClientCount => totalClientCount;
+        public int VisibleClientCount => visibleClientCount;
+        public string ClientCountText => $"Showing {VisibleClientCount:N0} of {TotalClientCount:N0} {(TotalClientCount == 1 ? "client" : "clients")}";
 
         [ObservableProperty]
         private ClientInfo? selectedClient;
@@ -129,7 +162,9 @@ namespace RouterPilot.ViewModels
             IClientPresenceHistoryService presenceHistory,
             IDataFreshnessService dataFreshnessService,
             ClientInventoryState clientInventoryState,
-            ClientInventoryCoordinator clientInventoryCoordinator)
+            ClientInventoryCoordinator clientInventoryCoordinator,
+            IDeviceIdentityResolver deviceIdentityResolver,
+            IMdnsIdentityService mdnsIdentityService)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
@@ -140,6 +175,8 @@ namespace RouterPilot.ViewModels
             _dataFreshnessService = dataFreshnessService;
             _clientInventoryState = clientInventoryState;
             _clientInventoryCoordinator = clientInventoryCoordinator;
+            _deviceIdentityResolver = deviceIdentityResolver;
+            _mdnsIdentityService = mdnsIdentityService;
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -170,7 +207,18 @@ namespace RouterPilot.ViewModels
                     string? sharedSelectedKey = SelectedClient is null ? null : ClientKey(SelectedClient);
                     _allClients.Clear();
                     _allClients.AddRange(_clientInventoryState.Snapshot.Values);
+                    // The shared inventory is the authoritative router snapshot,
+                    // but it is intentionally transport-only.  Run the same
+                    // identity projection used by the direct refresh path before
+                    // exposing it to cards; otherwise router-provided values such
+                    // as an OS label can leak through as the visible device name.
+                    foreach (ClientInfo client in _allClients)
+                    {
+                        EnrichClient(client);
+                    }
                     ApplyFilterAndSort(sharedSelectedKey);
+                    _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
+                    _ = EnrichMdnsAsync(_allClients.ToList());
                     AdGuardDataAvailability = _adGuardAvailabilityService.State;
                     _dataFreshnessService.MarkSuccess("Clients");
                     StatusMessage = string.Empty;
@@ -270,6 +318,8 @@ namespace RouterPilot.ViewModels
                 _clientInventoryCoordinator.MarkAuthoritativelyLoaded();
 
                 ApplyFilterAndSort(selectedKey);
+                _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
+                _ = EnrichMdnsAsync(_allClients.ToList());
                 SaveProfiles();
                 _presenceHistory.Observe(clients);
                 _favouriteDeviceMonitoring.Observe(clients);
@@ -384,7 +434,7 @@ namespace RouterPilot.ViewModels
                 {
                     enrichment = adGuardClients.FirstOrDefault(client =>
                         HasUsefulValue(client.IpAddress) &&
-                        client.IpAddress.Equals(routerClient.IpAddress, StringComparison.OrdinalIgnoreCase));
+                        ClientIdentity.EndpointEquals(client.IpAddress, routerClient.IpAddress));
                 }
 
                 routerClient.AdGuardDataAvailability =
@@ -396,6 +446,8 @@ namespace RouterPilot.ViewModels
                 routerClient.BlockedQueries = enrichment.BlockedQueries;
                 routerClient.LastSeen = enrichment.LastSeen;
                 routerClient.QueryLogAvailable = enrichment.QueryLogAvailable;
+                if (HasUsefulValue(enrichment.Name))
+                    routerClient.AdGuardName = enrichment.Name;
             }
         }
 
@@ -891,6 +943,21 @@ namespace RouterPilot.ViewModels
             ApplyFilterAndSort();
         }
 
+        partial void OnHideClientsWithoutIpChanged(bool value)
+        {
+            ApplyFilterAndSort();
+        }
+
+        partial void OnHideUnknownDevicesChanged(bool value)
+        {
+            ApplyFilterAndSort();
+        }
+
+        partial void OnOnlineDevicesOnlyChanged(bool value)
+        {
+            ApplyFilterAndSort();
+        }
+
         partial void OnSortDescendingChanged(bool value)
         {
             OnPropertyChanged(nameof(SortDirectionText));
@@ -902,11 +969,42 @@ namespace RouterPilot.ViewModels
                 (SelectedClient is null ? null : ClientKey(SelectedClient));
             string search = SearchText.Trim();
 
-            IEnumerable<ClientInfo> query = _allClients;
+            List<ClientInfo> modeClients = IsKnownDevicesMode
+                ? _clientProfiles.Values.Where(profile => profile.IsKnown)
+                    .Select(profile => new KnownDeviceInfo
+                    {
+                        Profile = profile,
+                        IdentityResolver = _deviceIdentityResolver,
+                        CurrentClient = _clientInventoryState.Snapshot.TryGetValue(
+                            ClientIdentity.NormalizeMac(profile.Key), out ClientInfo? live) ? live : null
+                    })
+                    .Select(device => device.ToClientInfo())
+                    .ToList()
+                : _allClients.ToList();
+
+            totalClientCount = modeClients.Count;
+            OnPropertyChanged(nameof(TotalClientCount));
+            OnPropertyChanged(nameof(ClientCountText));
+            IEnumerable<ClientInfo> query = modeClients;
 
             if (ShowFavoritesOnly)
             {
                 query = query.Where(client => client.IsFavorite);
+            }
+
+            if (HideClientsWithoutIp)
+            {
+                query = query.Where(client => HasUsableClientIp(client.IpAddress));
+            }
+
+            if (HideUnknownDevices)
+            {
+                query = query.Where(client => !IsUnknownDeviceName(client.Name));
+            }
+
+            if (OnlineDevicesOnly)
+            {
+                query = query.Where(IsAuthoritativelyOnline);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -919,6 +1017,12 @@ namespace RouterPilot.ViewModels
                     Contains(client.DeviceType, search) ||
                     Contains(client.HealthText, search));
             }
+
+            List<ClientInfo> filteredClients = query.ToList();
+            visibleClientCount = filteredClients.Count;
+            OnPropertyChanged(nameof(VisibleClientCount));
+            OnPropertyChanged(nameof(ClientCountText));
+            query = filteredClients;
 
             query = SelectedSortOption switch
             {
@@ -990,10 +1094,10 @@ namespace RouterPilot.ViewModels
                         StringComparison.OrdinalIgnoreCase));
             }
 
-            if (!IsLoading && _allClients.Count > 0)
+            if (!IsLoading)
             {
                 StatusMessage =
-                    $"{Clients.Count} of {_allClients.Count} clients shown · " +
+                    $"{VisibleClientCount} of {TotalClientCount} {(TotalClientCount == 1 ? "client" : "clients")} shown · " +
                     $"sorted by {SelectedSortOption.ToLowerInvariant()} " +
                     $"({SortDirectionText.ToLowerInvariant()}).";
             }
@@ -1265,8 +1369,8 @@ namespace RouterPilot.ViewModels
             (client.DeviceIcon, client.DeviceType) =
                 DetectDevice(combined);
 
-            client.Manufacturer =
-                DetectManufacturer(client.MacAddress, client.Name);
+            client.Manufacturer = _deviceIdentityResolver.ResolveManufacturer(
+                client.MacAddress, client.Name, client.Manufacturer);
 
             if (!HasUsefulValue(client.RouterName))
             {
@@ -1274,6 +1378,21 @@ namespace RouterPilot.ViewModels
             }
 
             ClientProfile profile = GetOrCreateProfile(client);
+            client.OperatingSystem = _deviceIdentityResolver.ResolveOperatingSystem(
+                client.RouterName, client.AdGuardName, client.MdnsName, profile.LastKnownName) ?? string.Empty;
+            string resolvedName = _deviceIdentityResolver.ResolveFriendlyName(new DeviceIdentitySignals(
+                profile.Nickname,
+                client.RouterName,
+                null,
+                null,
+                client.AdGuardName,
+                profile.LastKnownName,
+                client.IpAddress));
+            // Always apply the shared resolution result.  Keeping the raw router
+            // value when resolution returns Unknown device is what allowed
+            // platform labels such as "Windows" to remain visible as names.
+            client.Name = resolvedName;
+            LogIdentityResolution(client, profile, resolvedName);
             profile.LastSeenUtc = DateTime.UtcNow;
             UpdateProfileObservation(profile, client);
             ApplyProfile(client, profile);
@@ -1324,100 +1443,6 @@ namespace RouterPilot.ViewModels
             }
 
             return ("●", "Unknown device");
-        }
-
-        private static string DetectManufacturer(
-            string? macAddress,
-            string? name)
-        {
-            string prefix = ClientIdentity.NormalizeMac(macAddress);
-
-            var oui = new Dictionary<string, string>(
-                StringComparer.OrdinalIgnoreCase)
-            {
-                ["001A11"] = "Google",
-                ["3C5A37"] = "Google",
-                ["F4F5D8"] = "Google",
-                ["001B63"] = "Apple",
-                ["3C0754"] = "Apple",
-                ["F0D1A9"] = "Apple",
-                ["B827EB"] = "Raspberry Pi",
-                ["DCA632"] = "Raspberry Pi",
-                ["E45F01"] = "Raspberry Pi",
-                ["001E10"] = "Shenzhen GL.iNet",
-                ["94D9B3"] = "Shenzhen GL.iNet",
-                ["9424E1"] = "Shenzhen GL.iNet",
-                ["001A2B"] = "Cisco",
-                ["001B44"] = "SanDisk",
-                ["001C42"] = "Parallels",
-                ["001D7E"] = "Cisco-Linksys",
-                ["001E8C"] = "ASUSTek",
-                ["001F3B"] = "Intel",
-                ["0024E8"] = "Dell",
-                ["0026B9"] = "Dell",
-                ["001422"] = "Dell",
-                ["00155D"] = "Microsoft",
-                ["7C1E52"] = "Microsoft",
-                ["0050F2"] = "Microsoft",
-                ["001A79"] = "Samsung",
-                ["0024E9"] = "Samsung",
-                ["3C5AB4"] = "Google/Nest",
-                ["AC84C6"] = "TP-Link",
-                ["50C7BF"] = "TP-Link",
-                ["00195B"] = "D-Link",
-                ["001F33"] = "Netgear",
-                ["000C29"] = "VMware",
-                ["001C14"] = "VMware",
-                ["080027"] = "Oracle VirtualBox"
-            };
-
-            if (prefix.Length >= 6 &&
-                oui.TryGetValue(prefix[..6], out string? manufacturer))
-            {
-                return manufacturer;
-            }
-
-            string host = (name ?? string.Empty).ToLowerInvariant();
-
-            if (host.Contains("iphone") ||
-                host.Contains("ipad") ||
-                host.Contains("macbook") ||
-                host.Contains("imac"))
-            {
-                return "Apple";
-            }
-
-            if (host.Contains("galaxy") ||
-                host.Contains("samsung"))
-            {
-                return "Samsung";
-            }
-
-            if (host.Contains("pixel") ||
-                host.Contains("chromecast") ||
-                host.Contains("google"))
-            {
-                return "Google";
-            }
-
-            if (host.Contains("raspberry"))
-            {
-                return "Raspberry Pi";
-            }
-
-            if (host.Contains("xbox"))
-            {
-                return "Microsoft";
-            }
-
-            if (host.Contains("playstation") ||
-                host.Contains("ps5") ||
-                host.Contains("ps4"))
-            {
-                return "Sony";
-            }
-
-            return "Unknown manufacturer";
         }
 
         private static (string Text, string Colour) DetectHealth(
@@ -1577,6 +1602,140 @@ namespace RouterPilot.ViewModels
             value.Contains(
                 search,
                 StringComparison.OrdinalIgnoreCase);
+
+        private static bool HasUsableClientIp(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            // Require normal dotted IPv4 or colon-delimited IPv6 notation;
+            // IPAddress.TryParse also accepts punctuation-free integer forms,
+            // which can be internal stripped-IP correlation keys.
+            if (!value.Contains('.', StringComparison.Ordinal) && !value.Contains(':', StringComparison.Ordinal)) return false;
+            return IPAddress.TryParse(ClientIdentity.NormalizeEndpoint(value), out _);
+        }
+
+        private void LogIdentityResolution(ClientInfo client, ClientProfile profile, string resolvedName)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Identity resolution: mac={MaskMac(client.MacAddress)} ip={client.IpAddress} " +
+                $"router={client.RouterName ?? string.Empty} adguard={client.AdGuardName ?? string.Empty} " +
+                $"persisted={profile.LastKnownName} final={resolvedName}");
+        }
+
+        private string MaskMac(string? mac)
+        {
+            if (!_deviceIdentityResolver.TryParseMac(mac, out ParsedMacAddress? parsed) || parsed is null)
+                return "(invalid)";
+            return parsed.Canonical[..6] + "******";
+        }
+
+        private async Task EnrichOnlineManufacturersAsync(IReadOnlyList<ClientInfo> clients)
+        {
+            try
+            {
+                List<(ClientInfo Client, string Manufacturer)> results =
+                    (await Task.WhenAll(clients.Select(async client =>
+                    (client, await _deviceIdentityResolver.ResolveManufacturerAsync(client.MacAddress, client.Name, client.Manufacturer)))))
+                    .ToList();
+                if (results.Count == 0) return;
+
+                void ApplyResults()
+                {
+                    bool changed = false;
+                    foreach ((ClientInfo client, string manufacturer) in results)
+                    {
+                        if (!_allClients.Contains(client) || client.Manufacturer == manufacturer) continue;
+                        client.Manufacturer = manufacturer;
+                        changed = true;
+                    }
+                    if (changed)
+                        ApplyFilterAndSort(SelectedClient is null ? null : ClientKey(SelectedClient));
+                }
+
+                System.Windows.Application.Current?.Dispatcher.Invoke(ApplyResults);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"MAC vendor enrichment unavailable: {ex.GetType().Name}");
+            }
+        }
+
+        private async Task EnrichMdnsAsync(IReadOnlyList<ClientInfo> clients)
+        {
+            using SemaphoreSlim gate = new(4, 4);
+            try
+            {
+                List<(ClientInfo Client, string Hostname)> results = (await Task.WhenAll(clients.Select(async client =>
+                {
+                    if (!HasUsableClientIp(client.IpAddress)) return (client, string.Empty);
+                    await gate.WaitAsync().ConfigureAwait(false);
+                    try { return (client, await _mdnsIdentityService.ResolveHostnameAsync(client.IpAddress).ConfigureAwait(false) ?? string.Empty); }
+                    finally { gate.Release(); }
+                }))).Where(item => !string.IsNullOrWhiteSpace(item.Item2)).ToList();
+                if (results.Count == 0) return;
+
+                void ApplyResults()
+                {
+                    bool changed = false;
+                    foreach ((ClientInfo client, string hostname) in results)
+                    {
+                        if (!_allClients.Contains(client)) continue;
+                        if (string.Equals(client.MdnsName, hostname, StringComparison.OrdinalIgnoreCase)) continue;
+                        client.MdnsName = hostname;
+                        ClientProfile profile = GetOrCreateProfile(client);
+                        string resolved = _deviceIdentityResolver.ResolveFriendlyName(new DeviceIdentitySignals(
+                            profile.Nickname, client.RouterName, null, hostname, client.AdGuardName,
+                            profile.LastKnownName, client.IpAddress));
+                        client.OperatingSystem = _deviceIdentityResolver.ResolveOperatingSystem(
+                            client.RouterName, client.AdGuardName, hostname, profile.LastKnownName) ?? client.OperatingSystem;
+                        if (!string.Equals(resolved, "Unknown device", StringComparison.OrdinalIgnoreCase))
+                            client.Name = resolved;
+                        UpdateProfileObservation(profile, client);
+                        changed = true;
+                    }
+                    if (changed)
+                    {
+                        SaveProfiles();
+                        ApplyFilterAndSort(SelectedClient is null ? null : ClientKey(SelectedClient));
+                    }
+                }
+                if (System.Windows.Application.Current is { } app)
+                    app.Dispatcher.Invoke(ApplyResults);
+                else
+                    ApplyResults();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"mDNS enrichment unavailable: {ex.GetType().Name}");
+            }
+        }
+
+        private static bool IsUnknownDeviceName(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return true;
+            string name = value.Trim();
+            return name.Equals("-", StringComparison.Ordinal) ||
+                   name.Equals("—", StringComparison.Ordinal) ||
+                   name.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("Unknown device", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Online state is established by the existing router inventory/enrichment
+        // path.  This filter only projects that state; it performs no new probe.
+        private bool IsAuthoritativelyOnline(ClientInfo client)
+        {
+            // All Clients is built exclusively from the current live-router
+            // snapshot. Known Clients use the same snapshot for correlation;
+            // persisted known records absent from it are offline.
+            if (!IsKnownDevicesMode) return _allClients.Contains(client);
+            string key = ClientIdentity.NormalizeHexMac(client.MacAddress);
+            return key.Length == 12 && _clientInventoryState.Snapshot.ContainsKey(key);
+        }
+
+        private static bool IsOnlineStatus(string? status) =>
+            string.Equals(status, "Online", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "Recently active", StringComparison.OrdinalIgnoreCase);
 
         private static long IpSortKey(string? value)
         {

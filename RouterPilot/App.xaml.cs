@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Windows;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -89,6 +90,9 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IDataFreshnessService, DataFreshnessService>();
             serviceCollection.AddSingleton<IClientPresenceHistoryService, ClientPresenceHistoryService>();
             serviceCollection.AddSingleton<ClientProfileService>();
+            serviceCollection.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = TimeSpan.FromSeconds(3) });
+            serviceCollection.AddSingleton<IDeviceIdentityResolver, DeviceIdentityResolver>();
+            serviceCollection.AddSingleton<IMdnsIdentityService, MdnsIdentityService>();
             serviceCollection.AddSingleton<ClientInventoryState>();
             serviceCollection.AddSingleton<ClientInventoryCoordinator>();
             serviceCollection.AddSingleton<KnownDeviceForgetService>();
@@ -107,6 +111,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IPortForwardService, PortForwardService>();
             serviceCollection.AddSingleton<ILanClientService, LanClientService>();
             serviceCollection.AddSingleton<IVpnService, VpnService>();
+            serviceCollection.AddSingleton<ITailscaleStatusService, TailscaleStatusService>();
             serviceCollection.AddSingleton<IVpnLiveStatusService, VpnLiveStatusService>();
             serviceCollection.AddSingleton<IVpnSummaryService, VpnSummaryService>();
             serviceCollection.AddSingleton(sp => new VpnScheduleService(
@@ -140,7 +145,7 @@ namespace RouterPilot
             // The dashboard window and read-only projections share this single
             // application state instance.
             serviceCollection.AddSingleton<DashboardViewModel>();
-            serviceCollection.AddTransient<ClientsViewModel>();
+            serviceCollection.AddSingleton<ClientsViewModel>();
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
             // This is existing Analytics state, retained so read-only surfaces can project it.

@@ -1,5 +1,30 @@
 # RouterPilot Changelog
 
+# RouterPilot v2.2.0
+
+## Clients
+- Improved device identification using router, DHCP and mDNS information.
+- Improved manufacturer identification and handling of private/randomised MAC addresses.
+- Improved Known Clients consistency, selection and refresh behaviour.
+- Added filters for missing IPs, unknown devices and online devices, plus visible/total client counts.
+- Improved per-client DNS attribution and unavailable-state handling.
+
+## Tailscale
+- Added read-only Tailscale status for supported GL.iNet routers, including device information, addresses, version and peers.
+
+## System Health
+- Added router temperature to System Health.
+- Added RouterPilot temperature guidance for supported Flint 2 / GL-MT6000 routers.
+
+## DNS / AdGuard Home
+- Improved client correlation and endpoint normalisation.
+- Improved distinction between genuine zero DNS activity and unavailable DNS statistics.
+- Clients whose DNS bypasses AdGuard remain visible while unavailable DNS telemetry is not represented as genuine zero activity.
+
+## Interface
+- Improved Clients / Known Clients mode presentation and card consistency.
+- Standardised search controls and refined the About / Support Development layout.
+
 # RouterPilot v2.1.1
 
 ## Changed

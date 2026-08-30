@@ -52,15 +52,20 @@ namespace RouterPilot.Models
 
         public string ActivityAvailabilityToolTip =>
             AdGuardDataAvailability != AdGuardAvailabilityState.Available
-                ? "DNS activity is unavailable; router connection details remain available."
+                ? "DNS statistics are unavailable for this client. The device may not be using AdGuard Home for DNS. If you use a policy-based VPN, check that AdGuard is configured to control DNS for that VPN policy."
                 : QueryLogAvailable
-                ? "Live values from the AdGuard Home query log."
+                ? "Values observed by AdGuard Home; encrypted upstream DNS used by AdGuard remains observable. Clients that bypass AdGuard directly (including external DoH, DoT or DoQ) are not observable."
                 : "AdGuard query logging is disabled; router connection details remain available.";
 
         // Presentation metadata populated by ClientsViewModel.
         public string DeviceIcon { get; set; } = "●";
         public string DeviceType { get; set; } = "Unknown device";
+        public string OperatingSystem { get; set; } = string.Empty;
         public string Manufacturer { get; set; } = "Unknown manufacturer";
+        // Optional identity supplied by an associated AdGuard client record;
+        // never required for router-derived naming.
+        public string AdGuardName { get; set; } = string.Empty;
+        public string MdnsName { get; set; } = string.Empty;
         public string HealthText { get; set; } = "Unknown";
         public string HealthColour { get; set; } = "#687386";
         public bool IsFavorite { get; set; }

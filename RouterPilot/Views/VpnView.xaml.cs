@@ -24,6 +24,8 @@ public partial class VpnView : UserControl
     private readonly SettingsService _settingsService;
     private readonly VpnScheduleService _vpnScheduleService;
     private readonly IDataFreshnessService _dataFreshnessService;
+    private readonly ITailscaleStatusService _tailscale;
+    private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -38,6 +40,7 @@ public partial class VpnView : UserControl
         _settingsService = ((App)Application.Current).Services.GetRequiredService<SettingsService>();
         _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
         _dataFreshnessService = ((App)Application.Current).Services.GetRequiredService<IDataFreshnessService>();
+        _tailscale = ((App)Application.Current).Services.GetRequiredService<ITailscaleStatusService>();
         DataContext = _viewModel;
         VpnSchedulePanel.DataContext = _vpnScheduleService;
         _vpnScheduleService.SchedulesChanged += VpnSchedules_Changed;
@@ -61,6 +64,7 @@ public partial class VpnView : UserControl
             return;
         }
         _viewModel.VpnIsLoading = true;
+        _ = LoadTailscaleAsync();
         try
         {
             IReadOnlyList<VpnTunnelInfo> tunnels = await _service.GetTunnelsAsync(CancellationToken.None);
@@ -105,6 +109,14 @@ public partial class VpnView : UserControl
             _viewModel.VpnInventoryLoadCompleted = true;
             _viewModel.VpnIsLoading = false;
         }
+    }
+
+    private async Task LoadTailscaleAsync()
+    {
+        if (!await _tailscaleRefreshGate.WaitAsync(0).ConfigureAwait(true)) return;
+        try { _viewModel.ApplyTailscaleStatus(await _tailscale.GetStatusAsync(CancellationToken.None)); }
+        catch { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); }
+        finally { _tailscaleRefreshGate.Release(); }
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();

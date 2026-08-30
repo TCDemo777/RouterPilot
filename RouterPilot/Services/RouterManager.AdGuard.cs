@@ -1745,7 +1745,7 @@ namespace RouterPilot.Services
                     client.IpAddress != "-")
                 {
                     clientsByAddress[
-                        client.IpAddress.Trim()] =
+                        ClientIdentity.NormalizeEndpoint(client.IpAddress)] =
                         client;
                 }
             }
@@ -1784,10 +1784,12 @@ namespace RouterPilot.Services
                         entry,
                         "client");
 
-                if (string.IsNullOrWhiteSpace(
-                        clientAddress) ||
+                string normalizedClientAddress =
+                    ClientIdentity.NormalizeEndpoint(clientAddress);
+
+                if (normalizedClientAddress.Length == 0 ||
                     !clientsByAddress.TryGetValue(
-                        clientAddress,
+                        normalizedClientAddress,
                         out ClientInfo? client))
                 {
                     continue;
@@ -1817,12 +1819,12 @@ namespace RouterPilot.Services
                         out DateTimeOffset timestamp))
                 {
                     if (!mostRecentByClient.TryGetValue(
-                            clientAddress,
+                            normalizedClientAddress,
                             out DateTimeOffset current) ||
                         timestamp > current)
                     {
                         mostRecentByClient[
-                            clientAddress] =
+                            normalizedClientAddress] =
                             timestamp;
                     }
                 }
@@ -1873,6 +1875,11 @@ namespace RouterPilot.Services
 
                 AddClientIdentifier(
                     clientsByIdentifier,
+                    client.MacAddress,
+                    client);
+
+                AddClientIdentifier(
+                    clientsByIdentifier,
                     client.Name,
                     client);
             }
@@ -1913,7 +1920,7 @@ namespace RouterPilot.Services
                     }
 
                     string identifier =
-                        property.Name.Trim();
+                        NormalizeClientIdentifier(property.Name);
 
                     if (!clientsByIdentifier.TryGetValue(
                             identifier,
@@ -1953,9 +1960,15 @@ namespace RouterPilot.Services
                 return;
             }
 
-            lookup[identifier.Trim()] =
-                client;
+            string key = NormalizeClientIdentifier(identifier);
+            if (key.Length == 0) return;
+            lookup[key] = client;
         }
+
+        private static string NormalizeClientIdentifier(string value) =>
+            IPAddress.TryParse(value.Trim(), out _) || value.Contains(':', StringComparison.Ordinal)
+                ? ClientIdentity.NormalizeEndpoint(value)
+                : value.Trim();
 
         private static bool IsBlockedQueryReason(
             string reason)

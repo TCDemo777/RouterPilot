@@ -14,6 +14,113 @@ using Renci.SshNet.Common;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+Require(ClientIdentity.EndpointEquals("192.168.1.20", "192.168.1.20"), "IPv4 endpoint correlation");
+Require(ClientIdentity.EndpointEquals("::ffff:192.168.1.20", "192.168.1.20"), "IPv4-mapped IPv6 endpoint correlation");
+Require(ClientIdentity.EndpointEquals("[2001:db8::20]:53", "2001:DB8::20"), "bracketed IPv6 endpoint correlation");
+Require(ClientIdentity.EndpointEquals("client.example.", "CLIENT.EXAMPLE"), "hostname endpoint correlation");
+TailscaleStatus tailscale = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Self\":{\"HostName\":\"router\",\"DNSName\":\"router.example.ts.net.\",\"TailscaleIPs\":[\"100.64.0.1\",\"fd7a::1\"]},\"Peer\":{\"nodekey:secret\":{\"HostName\":\"laptop\",\"TailscaleIPs\":[\"100.64.0.2\"],\"Online\":true}}}", "1.2.3");
+Require(tailscale.State == TailscaleState.Connected && tailscale.DnsName == "router.example.ts.net" && tailscale.Addresses.Count == 2, "Tailscale connected parsing");
+Require(tailscale.Peers.Count == 1 && tailscale.Peers[0].Name == "laptop" && tailscale.OnlinePeerCount == 1, "Tailscale peer parsing without exposing key");
+Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"NeedsLogin\"}").State == TailscaleState.NeedsLogin, "Tailscale login state");
+Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Unknown\":true}").State == TailscaleState.Connected, "Tailscale unknown fields");
+Require(TailscaleStatusService.ParseStatus("not-json").State == TailscaleState.Incompatible, "Tailscale malformed JSON");
+TailscaleStatus stoppedTailscale = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Stopped\",\"Self\":{\"HostName\":\"old-router\",\"TailscaleIPs\":[\"100.64.0.9\"]},\"Peer\":{\"old\":{\"HostName\":\"old-peer\"}}}");
+Require(stoppedTailscale.State == TailscaleState.Stopped && stoppedTailscale.DeviceName == string.Empty && stoppedTailscale.Peers.Count == 0 && stoppedTailscale.PeerCount is null, "Tailscale stopped clears connected data");
+TailscaleStatus connectedWithoutPeers = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Self\":{\"HostName\":\"router\"}}");
+Require(connectedWithoutPeers.PeerCount is null, "missing peer data is unavailable rather than zero");
+TailscaleStatus connectedWithNoPeers = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Peer\":{}}");
+Require(connectedWithNoPeers.PeerCount == 0 && connectedWithNoPeers.OnlinePeerCount == 0, "empty peer object is genuine zero");
+Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
+ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
+Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");
+Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("bypass", StringComparison.OrdinalIgnoreCase), "zero DNS tooltip explains AdGuard observation scope");
+Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("upstream DNS", StringComparison.OrdinalIgnoreCase), "encrypted AdGuard upstream remains observable");
+Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("DoH", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoT", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoQ", StringComparison.OrdinalIgnoreCase), "direct encrypted-DNS bypass is explained");
+ClientInfo unavailableDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
+Require(unavailableDns.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "unmatched DNS activity is presented as unavailable");
+var encryptedUpstreamClient = new ClientInfo { IpAddress = "192.168.1.20", AdGuardDataAvailability = AdGuardAvailabilityState.Available };
+MethodInfo? applyStatistics = typeof(RouterManager).GetMethod("ApplyClientTotalsFromStatistics", BindingFlags.Static | BindingFlags.NonPublic);
+Require(applyStatistics is not null, "AdGuard statistics merge helper is available");
+object? plainUpstreamResult = applyStatistics!.Invoke(null, new object[] { new List<ClientInfo> { encryptedUpstreamClient }, "{\"top_clients\":[{\"192.168.1.20\":7}]}" });
+Require((int)plainUpstreamResult! == 1 && encryptedUpstreamClient.TotalQueries == 7, "AdGuard client totals correlate independently of upstream transport");
+var genuineZeroClient = new ClientInfo { IpAddress = "192.168.1.22", AdGuardDataAvailability = AdGuardAvailabilityState.Available };
+object? genuineZeroResult = applyStatistics.Invoke(null, new object[] { new List<ClientInfo> { genuineZeroClient }, "{\"top_clients\":[{\"192.168.1.22\":0}]}" });
+Require((int)genuineZeroResult! == 1 && genuineZeroClient.TotalQueriesDisplay == "0" && genuineZeroClient.BlockedQueriesDisplay == "0", "AdGuard correlated zero activity remains numeric zero");
+var correlationFailureClient = new ClientInfo { IpAddress = "192.168.1.21", AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
+Require(correlationFailureClient.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "AdGuard correlation failure remains unavailable");
+ClientInfo discoveredClient = new()
+{
+    Name = "Living Room TV",
+    RouterName = "tv-host",
+    IpAddress = "192.168.1.40",
+    MacAddress = "AA:BB:CC:DD:EE:40",
+    Manufacturer = "Example Vendor",
+    DeviceType = "Television",
+    ConnectionType = "5 GHz",
+    WifiNetwork = "Home",
+    LiveInterface = "wlan0",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable
+};
+var knownProjection = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = discoveredClient.MacAddress, LastKnownName = discoveredClient.Name },
+    CurrentClient = discoveredClient
+};
+ClientInfo knownDetails = knownProjection.ToClientInfo();
+Require(knownProjection.IsOnline && knownProjection.Secondary == discoveredClient.IpAddress, "Known Devices projects discovered router identity");
+Require(knownDetails.Manufacturer == discoveredClient.Manufacturer && knownDetails.ConnectionType == discoveredClient.ConnectionType &&
+    knownDetails.LiveInterface == discoveredClient.LiveInterface, "Known Device details retain router-derived enrichment independently of AdGuard");
+Require(knownDetails.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "Known Device DNS fields remain unavailable when AdGuard enrichment is absent");
+var generatedIpName = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:42", LastKnownName = "1921681103", LastKnownIpAddress = "192.168.1.103" }
+};
+Require(generatedIpName.Name == "Unknown device" && generatedIpName.IpAddress == "192.168.1.103" && generatedIpName.ToClientInfo().Name == "Unknown device",
+    "stripped-IP identity does not leak into Known Device display name");
+var generatedIpWithPort = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:44", LastKnownName = "1921681103", LastKnownIpAddress = "192.168.1.103:5353" }
+};
+Require(generatedIpWithPort.Name == "Unknown device", "stripped-IP identity is detected with an endpoint port");
+var numericNickname = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:43", Nickname = "1921681103", LastKnownIpAddress = "192.168.1.103" }
+};
+Require(numericNickname.Name == "1921681103", "legitimate numeric Known Device nickname is preserved");
+var rememberedProfile = new ClientProfile
+{
+    Key = "AA:BB:CC:DD:EE:41",
+    LastKnownName = "Office Laptop",
+    LastKnownIpAddress = "192.168.1.41",
+    LastKnownConnectionSummary = "Wi-Fi 5 GHz"
+};
+var offlineKnown = new KnownDeviceInfo { Profile = rememberedProfile };
+Require(!offlineKnown.IsOnline && offlineKnown.Name == "Office Laptop" && offlineKnown.IpAddress == "192.168.1.41" &&
+    offlineKnown.ConnectionSummary == "Wi-Fi 5 GHz" && offlineKnown.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable,
+    "offline Known Device retains persisted identity without fabricating live or DNS data");
+ClientInfo movedClient = new()
+{
+    Name = "Office Laptop",
+    MacAddress = rememberedProfile.Key,
+    IpAddress = "192.168.1.99",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Available,
+    TotalQueries = 0,
+    BlockedQueries = 0
+};
+var movedKnown = new KnownDeviceInfo { Profile = rememberedProfile, CurrentClient = movedClient };
+Require(movedKnown.IsOnline && movedKnown.IpAddress == "192.168.1.99" && movedKnown.TotalQueriesDisplay == "0" &&
+    movedKnown.BlockRateDisplay == "0.0%", "Known Device follows current MAC identity when IP changes and preserves genuine DNS zero");
+Require(RouterTemperatureHealth.IsFlint2("GL-MT6000"), "Flint 2 model identification");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "50 °C") == TemperatureHealthState.Normal, "50 C is normal");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "60 °C") == TemperatureHealthState.Normal, "60 C is normal");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "64.9 °C") == TemperatureHealthState.Normal, "64.9 C is normal");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "65 °C") == TemperatureHealthState.Elevated, "65 C is elevated");
+Require(RouterTemperatureHealth.Evaluate("Flint 2", "70 °C") == TemperatureHealthState.Elevated, "70 C is elevated");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "79.9 °C") == TemperatureHealthState.Elevated, "79.9 C is elevated");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "80 °C") == TemperatureHealthState.High, "80 C is high");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "90 °C") == TemperatureHealthState.High, "90 C is high");
+Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "-") == TemperatureHealthState.Unavailable, "unavailable temperature is neutral");
+Require(RouterTemperatureHealth.Evaluate("GL-AX1800", "52 °C") == TemperatureHealthState.Unavailable, "unknown model remains neutral");
 NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, stats, "Existing status.");
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");

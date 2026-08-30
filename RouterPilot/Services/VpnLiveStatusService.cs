@@ -65,7 +65,7 @@ public sealed class VpnLiveStatusService : IVpnLiveStatusService
             {
                 VpnConfigMetadata? metadata = status.GroupId is int groupId && status.PeerId is int peerId && _metadata.TryGetValue($"{status.Protocol.ToLowerInvariant()},{groupId},{peerId}", out VpnConfigMetadata? match) ? match : null;
                 string location = FormatLocation(metadata?.Location);
-                string server = !string.IsNullOrWhiteSpace(metadata?.Name) ? metadata.Name : status.PeerName ?? (!string.IsNullOrWhiteSpace(metadata?.GroupName) ? metadata.GroupName : status.Domains.FirstOrDefault());
+                string server = !string.IsNullOrWhiteSpace(metadata?.Name) ? metadata.Name : status.PeerName ?? (!string.IsNullOrWhiteSpace(metadata?.GroupName) ? metadata.GroupName : status.Domains.FirstOrDefault() ?? string.Empty);
                 _current[status.TunnelId] = new VpnLiveStatusInfo { TunnelId=status.TunnelId, Enabled=status.Enabled, Status=status.Status, Protocol=status.Protocol, RxBytes=status.RxBytes, TxBytes=status.TxBytes, PeerName=status.PeerName, Domains=status.Domains, GroupId=status.GroupId, PeerId=status.PeerId, Via=status.Via, Port=status.Port, TunnelName=status.TunnelName, VirtualIpv4=status.VirtualIpv4, LocationDisplay=location, ServerName=server };
             }
         }

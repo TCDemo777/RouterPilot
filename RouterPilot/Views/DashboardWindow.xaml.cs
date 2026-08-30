@@ -97,7 +97,13 @@ namespace RouterPilot.Views
 
             DataContext =
                 _viewModel;
-            HeaderVersion.Text = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "-");
+            var assembly = Assembly.GetExecutingAssembly();
+            var informationalVersion = assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion;
+            HeaderVersion.Text = "v" + (!string.IsNullOrWhiteSpace(informationalVersion)
+                ? informationalVersion.Split('+')[0]
+                : assembly.GetName().Version?.ToString(3) ?? "-");
 
             _notificationService = ((App)Application.Current)
                 .Services.GetRequiredService<NotificationService>();
@@ -1453,7 +1459,7 @@ namespace RouterPilot.Views
 
         public void ShowKnownDevices()
         {
-            PageContent.Content = new KnownDevicesView();
+            PageContent.Content = new ClientsView(knownDevicesMode: true);
             SelectNavigationButton(ClientsButton);
         }
 
