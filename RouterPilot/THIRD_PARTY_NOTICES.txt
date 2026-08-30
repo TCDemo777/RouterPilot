@@ -107,7 +107,8 @@ which remain under Microsoft runtime licences and notices.
 https://dotnet.microsoft.com/platform/free
 
 The resolved dependency graph may include additional framework-support
-assemblies. No GPL, LGPL or AGPL runtime component is intentionally included.
+assemblies. Other than RouterPilot itself, no GPL, LGPL or AGPL runtime
+dependency is intentionally included.
 
 Licence texts
 -------------
