@@ -23,6 +23,7 @@ namespace RouterPilot.Views
         private readonly SettingsService _settingsService;
         private readonly UpdateService _updateService;
         private readonly DiagnosticsExecutionService _diagnosticsExecutionService;
+        private readonly RouterDiagnosticsToolService _routerDiagnosticsToolService;
         private readonly DiagnosticsHistoryService _diagnosticsHistoryService;
 
         private readonly StringBuilder _supportLog =
@@ -40,6 +41,8 @@ namespace RouterPilot.Views
                 .GetRequiredService<UpdateService>();
             _diagnosticsExecutionService = ((App)Application.Current).Services
                 .GetRequiredService<DiagnosticsExecutionService>();
+            _routerDiagnosticsToolService = ((App)Application.Current).Services
+                .GetRequiredService<RouterDiagnosticsToolService>();
             _diagnosticsHistoryService = ((App)Application.Current).Services
                 .GetRequiredService<DiagnosticsHistoryService>();
             _diagnosticsExecutionService.LatestResultChanged += DiagnosticsExecution_LatestResultChanged;
@@ -163,11 +166,6 @@ namespace RouterPilot.Views
             };
         }
 
-        private Task<RouterManager> GetRouterManagerAsync()
-        {
-            return _routerManagerProvider.GetRouterManagerAsync();
-        }
-
         private async Task RunRouterToolAsync(
             string action,
             Func<RouterManager, string, Task<string>> operation)
@@ -181,29 +179,19 @@ namespace RouterPilot.Views
             AppendLog(
                 $"{action} requested for {target}.");
 
-            try
-            {
-                string result =
-                    await operation(
-                        await GetRouterManagerAsync(),
-                        target);
+            RouterDiagnosticsToolResult result =
+                await _routerDiagnosticsToolService.ExecuteAsync(target, operation);
 
-                DiagnosticsTextBox.Text =
-                    string.IsNullOrWhiteSpace(result)
-                        ? $"{action} completed with no output."
-                        : result.Trim();
+            DiagnosticsTextBox.Text =
+                !result.Succeeded
+                    ? $"{action} failed ({result.FailureCategory})."
+                    : string.IsNullOrWhiteSpace(result.Output)
+                    ? $"{action} completed with no output."
+                    : result.Output.Trim();
 
-                AppendLog(
-                    $"{action} completed.");
-            }
-            catch (Exception ex)
-            {
-                DiagnosticsTextBox.Text =
-                    $"{action} failed ({DiagnosticRedactor.FailureCategory(ex)}).";
-
-                AppendLog(
-                    $"{action} failed ({DiagnosticRedactor.FailureCategory(ex)}).");
-            }
+            AppendLog(result.Succeeded
+                ? $"{action} completed."
+                : $"{action} failed ({result.FailureCategory}).");
         }
 
         private async void PingTool_Click(
@@ -774,6 +762,9 @@ namespace RouterPilot.Views
 
             OpenExternalUrl(sponsorsUrl);
         }
+
+        private Task<RouterManager> GetRouterManagerAsync() =>
+            _routerManagerProvider.GetRouterManagerAsync();
 
         private void BuyMeACoffee_Click(
             object sender,

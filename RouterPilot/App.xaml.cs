@@ -100,6 +100,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<FavouriteDeviceMonitoringService>();
             serviceCollection.AddSingleton(sp => new DiagnosticsHistoryService(Dispatcher));
             serviceCollection.AddSingleton<DiagnosticsExecutionService>();
+            serviceCollection.AddSingleton<RouterDiagnosticsToolService>();
             serviceCollection.AddSingleton<IBackupRestoreService, BackupRestoreService>();
             serviceCollection.AddSingleton<MaintenanceOperationService>();
             serviceCollection.AddSingleton<FirmwareUpdateService>();
