@@ -2026,31 +2026,7 @@ namespace RouterPilot.Services
                     "tx=$(cat /sys/class/net/$dev/statistics/tx_bytes 2>/dev/null || echo 0); " +
                     "printf '%s|%s|%s' \"$dev\" \"$rx\" \"$tx\"");
 
-            string[] parts =
-                output.Trim().Split('|');
-
-            return new NetworkTrafficSnapshot
-            {
-                InterfaceName =
-                    parts.Length > 0 &&
-                    !string.IsNullOrWhiteSpace(parts[0])
-                        ? parts[0].Trim()
-                        : "-",
-
-                ReceivedBytes =
-                    parts.Length > 1 &&
-                    long.TryParse(parts[1].Trim(), out long received)
-                        ? received
-                        : 0,
-
-                TransmittedBytes =
-                    parts.Length > 2 &&
-                    long.TryParse(parts[2].Trim(), out long transmitted)
-                        ? transmitted
-                        : 0,
-
-                CapturedAtUtc = DateTime.UtcNow
-            };
+            return NetworkTrafficSnapshotParser.Parse(output, DateTime.UtcNow);
         }
 
         //

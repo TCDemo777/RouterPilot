@@ -42,6 +42,16 @@ Require(WifiDiscoveryParser.ParseHostapdNetworks("L|phy0|wlan0|Home WiFi|2g|6|On
     WifiDiscoveryParser.InferBandFromChannel("11") == "2.4 GHz",
     "Wi-Fi parser preserves hostapd and signal/band transformations");
 
+DateTime trafficTimestamp = new(2026, 8, 31, 12, 0, 0, DateTimeKind.Utc);
+NetworkTrafficSnapshot traffic = NetworkTrafficSnapshotParser.Parse(" eth1 | 123 | 456 ", trafficTimestamp);
+Require(traffic.InterfaceName == "eth1" && traffic.ReceivedBytes == 123 &&
+    traffic.TransmittedBytes == 456 && traffic.CapturedAtUtc == trafficTimestamp,
+    "Network traffic parser preserves counter transformation");
+NetworkTrafficSnapshot malformedTraffic = NetworkTrafficSnapshotParser.Parse("||not-a-number", trafficTimestamp);
+Require(malformedTraffic.InterfaceName == "-" && malformedTraffic.ReceivedBytes == 0 &&
+    malformedTraffic.TransmittedBytes == 0,
+    "Network traffic parser preserves malformed fallback behavior");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();
