@@ -29,6 +29,19 @@ Require(parsedDhcpLeases.Count == 1 && parsedDhcpLeases[0].IsStatic &&
     parsedDhcpLeases[0].Hostname == "Unknown device" && parsedDhcpLeases[0].IpAddress == "192.168.1.42",
     "DHCP lease parser preserves static and unknown-host semantics");
 
+var parsedWifi = WifiDiscoveryParser.ParseConfiguredNetworks(
+    "N|radio0|dev0|phy0|Home WiFi|5g|36|psk2|Online|lan|HE80\n" +
+    "N|radio1|dev1|phy1||6g|auto|open|Configured|guest|\n");
+Require(parsedWifi.Count == 2 && parsedWifi[0].Band == "5 GHz" &&
+    parsedWifi[0].Security == "WPA2" && parsedWifi[0].ChannelWidth == "80 MHz" &&
+    parsedWifi[1].Ssid == "Hidden network" && parsedWifi[1].Band == "6 GHz" &&
+    parsedWifi[1].GuestClassification == WifiGuestClassification.VerifiedGuest,
+    "Wi-Fi parser preserves configured radio normalization");
+Require(WifiDiscoveryParser.ParseHostapdNetworks("L|phy0|wlan0|Home WiFi|2g|6|Online\n").Single().Band == "2.4 GHz" &&
+    WifiDiscoveryParser.FormatSignal("-55") == "-55 dBm" &&
+    WifiDiscoveryParser.InferBandFromChannel("11") == "2.4 GHz",
+    "Wi-Fi parser preserves hostapd and signal/band transformations");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();

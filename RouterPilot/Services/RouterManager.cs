@@ -356,50 +356,18 @@ namespace RouterPilot.Services
             string networkOutput = await _ssh.RunCommandAsync(networkCommand);
             var networks = new List<WifiRadioInfo>();
             LogWifiDiscoveryResult("configured-networks", networkOutput);
-
-            foreach (string line in networkOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                string[] parts = line.Split('|');
-                if (parts.Length < 11 || parts[0] != "N")
-                {
-                    continue;
-                }
-
-                string rawBand = parts[5].Trim().ToLowerInvariant();
-                string band = rawBand.Contains("2g") || rawBand.Contains("11g") || rawBand.Contains("11b")
-                    ? "2.4 GHz"
-                    : rawBand.Contains("5g") || rawBand.Contains("11a") || rawBand.Contains("11ac") || rawBand.Contains("11ax")
-                        ? "5 GHz"
-                        : rawBand.Contains("6g")
-                            ? "6 GHz"
-                            : InferBandFromChannel(parts[6]);
-
-                networks.Add(new WifiRadioInfo
-                {
-                    Radio = string.IsNullOrWhiteSpace(parts[2]) ? "-" : parts[2].Trim(),
-                    Interface = string.IsNullOrWhiteSpace(parts[3]) ? "-" : parts[3].Trim(),
-                    Ssid = string.IsNullOrWhiteSpace(parts[4]) ? "Hidden network" : parts[4].Trim(),
-                    Band = band,
-                    Channel = string.IsNullOrWhiteSpace(parts[6]) ? "auto" : parts[6].Trim(),
-                    Security = FormatWifiSecurity(parts[7]),
-                    Status = string.IsNullOrWhiteSpace(parts[8]) ? "Configured" : parts[8].Trim(),
-                    NetworkAssociation = string.IsNullOrWhiteSpace(parts[9]) ? "N/A" : parts[9].Trim(),
-                    ChannelWidth = FormatWifiChannelWidth(parts[10]),
-                    HardwareMode = string.IsNullOrWhiteSpace(parts[5]) ? "N/A" : parts[5].Trim(),
-                    GuestClassification = ClassifyGuestNetwork(parts[9], parts[3], parts[2])
-                });
-            }
+            networks.AddRange(WifiDiscoveryParser.ParseConfiguredNetworks(networkOutput));
 
             Debug.WriteLine(
                 $"[WiFiDiscovery] stage=configured-networks parsed={networks.Count} " +
-                $"interfaces={ReadDiscoveryCount(networkOutput, "runtime")} " +
-                $"physical={ReadDiscoveryCount(networkOutput, "physical")} " +
-                $"virtual={ReadDiscoveryCount(networkOutput, "virtual")} " +
-                $"configured={ReadDiscoveryCount(networkOutput, "configured")}");
+                $"interfaces={WifiDiscoveryParser.ReadDiscoveryCount(networkOutput, "runtime")} " +
+                $"physical={WifiDiscoveryParser.ReadDiscoveryCount(networkOutput, "physical")} " +
+                $"virtual={WifiDiscoveryParser.ReadDiscoveryCount(networkOutput, "virtual")} " +
+                $"configured={WifiDiscoveryParser.ReadDiscoveryCount(networkOutput, "configured")}");
 
             if (networks.Count == 0)
             {
-                string reason = ReadDiscoveryCount(networkOutput, "configured") == 0
+                string reason = WifiDiscoveryParser.ReadDiscoveryCount(networkOutput, "configured") == 0
                     ? "no-configured-interfaces"
                     : "parsing-failure";
                 Debug.WriteLine(
@@ -413,8 +381,8 @@ namespace RouterPilot.Services
                 networks = fallbackNetworks;
                 Debug.WriteLine(
                     $"[WiFiDiscovery] stage=hostapd-fallback parsed={networks.Count} " +
-                    $"uci={ReadDiscoveryCount(fallbackOutput, "uci")} " +
-                    $"hostapd={ReadDiscoveryCount(fallbackOutput, "hostapd")}");
+                    $"uci={WifiDiscoveryParser.ReadDiscoveryCount(fallbackOutput, "uci")} " +
+                    $"hostapd={WifiDiscoveryParser.ReadDiscoveryCount(fallbackOutput, "hostapd")}");
             }
 
             if (networks.Count == 0)
@@ -470,7 +438,7 @@ namespace RouterPilot.Services
                             Name = string.IsNullOrWhiteSpace(name) ? "Unknown device" : name,
                             IpAddress = string.IsNullOrWhiteSpace(ip) ? "-" : ip,
                             MacAddress = mac,
-                            Signal = FormatSignal(signal),
+                            Signal = WifiDiscoveryParser.FormatSignal(signal),
                             Band = band,
                             Interface = string.IsNullOrWhiteSpace(iface) ? network.Interface : iface,
                             Ssid = network.Ssid
@@ -1279,38 +1247,8 @@ namespace RouterPilot.Services
                 """;
 
             string output = await _ssh.RunCommandAsync(command);
-            var networks = new List<WifiRadioInfo>();
+            var networks = WifiDiscoveryParser.ParseHostapdNetworks(output);
             LogWifiDiscoveryResult("hostapd-fallback", output);
-
-            foreach (string line in output.Split(
-                new[] { '\r', '\n' },
-                StringSplitOptions.RemoveEmptyEntries))
-            {
-                string[] parts = line.Split('|');
-                if (parts.Length < 7 || parts[0] != "L")
-                {
-                    continue;
-                }
-
-                string rawBand = parts[4].Trim().ToLowerInvariant();
-                string band = rawBand.Contains("2g") || rawBand.Contains("11g") || rawBand.Contains("11b")
-                    ? "2.4 GHz"
-                    : rawBand.Contains("5g") || rawBand.Contains("11a") || rawBand.Contains("11ac") || rawBand.Contains("11ax")
-                        ? "5 GHz"
-                        : rawBand.Contains("6g")
-                            ? "6 GHz"
-                            : InferBandFromChannel(parts[5]);
-
-                networks.Add(new WifiRadioInfo
-                {
-                    Radio = string.IsNullOrWhiteSpace(parts[1]) ? "-" : parts[1].Trim(),
-                    Interface = string.IsNullOrWhiteSpace(parts[2]) ? "-" : parts[2].Trim(),
-                    Ssid = string.IsNullOrWhiteSpace(parts[3]) ? "Hidden network" : parts[3].Trim(),
-                    Band = band,
-                    Channel = string.IsNullOrWhiteSpace(parts[5]) ? "auto" : parts[5].Trim(),
-                    Status = string.IsNullOrWhiteSpace(parts[6]) ? "Configured" : parts[6].Trim()
-                });
-            }
 
             return (networks, output);
         }
@@ -1330,27 +1268,6 @@ namespace RouterPilot.Services
             };
 
             Debug.WriteLine($"[WiFiDiscovery] stage={stage} result={category}");
-        }
-
-        private static int ReadDiscoveryCount(string output, string name)
-        {
-            foreach (string line in output.Split(
-                new[] { '\r', '\n' },
-                StringSplitOptions.RemoveEmptyEntries))
-            {
-                string[] parts = line.Split('|');
-                for (int index = 1; index + 1 < parts.Length; index += 2)
-                {
-                    if (parts[0] == "D" &&
-                        parts[index].Equals(name, StringComparison.OrdinalIgnoreCase) &&
-                        int.TryParse(parts[index + 1], out int count))
-                    {
-                        return count;
-                    }
-                }
-            }
-
-            return 0;
         }
 
 
@@ -1516,7 +1433,7 @@ namespace RouterPilot.Services
                     : runtimeInterface;
                 if (!string.IsNullOrWhiteSpace(signal))
                 {
-                    existing.Signal = FormatSignal(signal);
+                    existing.Signal = WifiDiscoveryParser.FormatSignal(signal);
                 }
                 network.Clients.Add(existing);
                 return;
@@ -1530,7 +1447,7 @@ namespace RouterPilot.Services
                     : lease.Name,
                 IpAddress = string.IsNullOrWhiteSpace(lease.Ip) ? "-" : lease.Ip,
                 MacAddress = mac,
-                Signal = FormatSignal(signal),
+                Signal = WifiDiscoveryParser.FormatSignal(signal),
                 Band = network.Band,
                 Interface = string.IsNullOrWhiteSpace(runtimeInterface)
                     ? network.Interface
@@ -1645,7 +1562,7 @@ namespace RouterPilot.Services
                         Name = string.IsNullOrWhiteSpace(name) ? "Unknown device" : name,
                         IpAddress = string.IsNullOrWhiteSpace(ip) ? "-" : ip,
                         MacAddress = mac,
-                        Signal = FormatSignal(signal),
+                        Signal = WifiDiscoveryParser.FormatSignal(signal),
                         Band = string.IsNullOrWhiteSpace(band) ?
                             (IsExplicitWiredClientConnection(rawInterface) ? "Ethernet" : "Unknown") : band,
                         Interface = string.IsNullOrWhiteSpace(rawInterface) ? "-" : rawInterface,
@@ -1916,7 +1833,7 @@ namespace RouterPilot.Services
                             Band = band,
                             Ssid = ssid,
                             Interface = runtimeInterface,
-                            Signal = FormatSignal(signal)
+                            Signal = WifiDiscoveryParser.FormatSignal(signal)
                         };
                         break;
                     }
@@ -2017,7 +1934,7 @@ namespace RouterPilot.Services
                     }
                     if (parts.Length > 2 && HasUsefulWifiValue(parts[2]))
                     {
-                        inventoryMatch.Signal = FormatSignal(parts[2]);
+                        inventoryMatch.Signal = WifiDiscoveryParser.FormatSignal(parts[2]);
                     }
                 }
             }
@@ -2075,71 +1992,6 @@ namespace RouterPilot.Services
                 value != "-" && value != "—" &&
                 !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
                 !value.Equals("Not reported", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string FormatSignal(string signal)
-        {
-            if (string.IsNullOrWhiteSpace(signal))
-            {
-                return "-";
-            }
-
-            string value = signal.Trim();
-            return value.Contains("dbm", StringComparison.OrdinalIgnoreCase)
-                ? value
-                : $"{value} dBm";
-        }
-
-        private static string FormatWifiSecurity(string encryption)
-        {
-            string value = encryption?.Trim().ToLowerInvariant() ?? string.Empty;
-            if (value == "none" || value == "open") return "Open";
-            if (value.Contains("sae") && value.Contains("psk")) return "WPA2 / WPA3";
-            if (value.Contains("sae")) return "WPA3";
-            if (value.Contains("psk2")) return "WPA2";
-            if (value.Contains("psk")) return "WPA";
-            return string.IsNullOrWhiteSpace(encryption) ? "Unknown" : encryption.Trim();
-        }
-
-        private static string FormatWifiChannelWidth(string hardwareMode)
-        {
-            if (string.IsNullOrWhiteSpace(hardwareMode))
-            {
-                return "N/A";
-            }
-
-            Match match = Regex.Match(hardwareMode, @"(?:HT|VHT|HE|EHT)(20|40|80|160|320)", RegexOptions.IgnoreCase);
-            return match.Success ? $"{match.Groups[1].Value} MHz" : "N/A";
-        }
-
-        private static WifiGuestClassification ClassifyGuestNetwork(
-            string networkAssociation,
-            string ssid,
-            string interfaceName)
-        {
-            if (!string.IsNullOrWhiteSpace(networkAssociation) &&
-                networkAssociation.Contains("guest", StringComparison.OrdinalIgnoreCase))
-            {
-                return WifiGuestClassification.VerifiedGuest;
-            }
-
-            return ContainsGuestMarker(ssid) || ContainsGuestMarker(interfaceName)
-                ? WifiGuestClassification.LikelyGuest
-                : WifiGuestClassification.Unknown;
-        }
-
-        private static bool ContainsGuestMarker(string value) =>
-            !string.IsNullOrWhiteSpace(value) &&
-            value.Contains("guest", StringComparison.OrdinalIgnoreCase);
-
-        private static string InferBandFromChannel(string channelValue)
-        {
-            if (int.TryParse(channelValue?.Trim(), out int channel))
-            {
-                return channel <= 14 ? "2.4 GHz" : "5 GHz";
-            }
-
-            return "Unknown";
         }
 
         public async Task<string> RestartWifiAsync()
