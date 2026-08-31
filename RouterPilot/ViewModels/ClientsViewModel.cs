@@ -26,6 +26,7 @@ namespace RouterPilot.ViewModels
         private readonly ClientInventoryCoordinator _clientInventoryCoordinator;
         private readonly IDeviceIdentityResolver _deviceIdentityResolver;
         private readonly IMdnsIdentityService _mdnsIdentityService;
+        private readonly ClientIdentityEnrichmentCoordinator _identityEnrichmentCoordinator;
         private readonly AppSettings _settings;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly bool _clientProfileStoreReliable;
@@ -177,6 +178,7 @@ namespace RouterPilot.ViewModels
             _clientInventoryCoordinator = clientInventoryCoordinator;
             _deviceIdentityResolver = deviceIdentityResolver;
             _mdnsIdentityService = mdnsIdentityService;
+            _identityEnrichmentCoordinator = new ClientIdentityEnrichmentCoordinator(deviceIdentityResolver, mdnsIdentityService);
             _settings = _settingsService.Load();
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
@@ -985,44 +987,14 @@ namespace RouterPilot.ViewModels
             totalClientCount = modeClients.Count;
             OnPropertyChanged(nameof(TotalClientCount));
             OnPropertyChanged(nameof(ClientCountText));
-            IEnumerable<ClientInfo> query = modeClients;
-
-            if (ShowFavoritesOnly)
-            {
-                query = query.Where(client => client.IsFavorite);
-            }
-
-            if (HideClientsWithoutIp)
-            {
-                query = query.Where(client => HasUsableClientIp(client.IpAddress));
-            }
-
-            if (HideUnknownDevices)
-            {
-                query = query.Where(client => !IsUnknownDeviceName(client.Name));
-            }
-
-            if (OnlineDevicesOnly)
-            {
-                query = query.Where(IsAuthoritativelyOnline);
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                query = query.Where(client =>
-                    Contains(client.Name, search) ||
-                    Contains(client.IpAddress, search) ||
-                    Contains(client.MacAddress, search) ||
-                    Contains(client.Manufacturer, search) ||
-                    Contains(client.DeviceType, search) ||
-                    Contains(client.HealthText, search));
-            }
-
-            List<ClientInfo> filteredClients = query.ToList();
+            List<ClientInfo> filteredClients = ClientFilterService.Apply(
+                modeClients,
+                new ClientFilterOptions(SearchText, ShowFavoritesOnly, HideClientsWithoutIp, HideUnknownDevices, OnlineDevicesOnly),
+                IsAuthoritativelyOnline);
             visibleClientCount = filteredClients.Count;
             OnPropertyChanged(nameof(VisibleClientCount));
             OnPropertyChanged(nameof(ClientCountText));
-            query = filteredClients;
+            IEnumerable<ClientInfo> query = filteredClients;
 
             query = SelectedSortOption switch
             {
@@ -1604,14 +1576,7 @@ namespace RouterPilot.ViewModels
                 StringComparison.OrdinalIgnoreCase);
 
         private static bool HasUsableClientIp(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return false;
-            // Require normal dotted IPv4 or colon-delimited IPv6 notation;
-            // IPAddress.TryParse also accepts punctuation-free integer forms,
-            // which can be internal stripped-IP correlation keys.
-            if (!value.Contains('.', StringComparison.Ordinal) && !value.Contains(':', StringComparison.Ordinal)) return false;
-            return IPAddress.TryParse(ClientIdentity.NormalizeEndpoint(value), out _);
-        }
+            => ClientFilterService.HasUsableIp(value);
 
         private void LogIdentityResolution(ClientInfo client, ClientProfile profile, string resolvedName)
         {
@@ -1633,9 +1598,7 @@ namespace RouterPilot.ViewModels
             try
             {
                 List<(ClientInfo Client, string Manufacturer)> results =
-                    (await Task.WhenAll(clients.Select(async client =>
-                    (client, await _deviceIdentityResolver.ResolveManufacturerAsync(client.MacAddress, client.Name, client.Manufacturer)))))
-                    .ToList();
+                    await _identityEnrichmentCoordinator.ResolveManufacturersAsync(clients);
                 if (results.Count == 0) return;
 
                 void ApplyResults()
