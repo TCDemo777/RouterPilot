@@ -15,7 +15,7 @@ namespace RouterPilot.ViewModels
     public partial class ClientDetailsViewModel : ObservableObject, IDisposable
     {
         private const int RecentDnsHistoryLimit = 50;
-        private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly ClientDetailsLoader _detailsLoader;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly ClientProfileService _clientProfileService;
         private readonly IClientPresenceHistoryService _presenceHistory;
@@ -318,7 +318,7 @@ namespace RouterPilot.ViewModels
             IEnumerable<PortForwardRuleInfo>? portForwardRules = null)
         {
             _client = client;
-            _routerManagerProvider = routerManagerProvider;
+            _detailsLoader = new ClientDetailsLoader(routerManagerProvider);
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _presenceHistory = presenceHistory;
             _knownDeviceForgetService = knownDeviceForgetService;
@@ -456,21 +456,17 @@ namespace RouterPilot.ViewModels
                     return;
                 }
 
-                RouterManager routerManager =
-                    await _routerManagerProvider.GetRouterManagerAsync();
-                AdGuardQueryLogReadResult queryLogResult =
-                    await routerManager.GetQueryLogResultAsync();
+                ClientDetailsSnapshot activity =
+                    await _detailsLoader.LoadActivityAsync(_client);
 
                 if (_disposed) return;
 
-                _queryLogReadState = queryLogResult.IsAvailable
+                _queryLogReadState = activity.IsAvailable
                     ? DnsQueryLogReadState.Available
                     : DnsQueryLogReadState.Unavailable;
 
                 ApplyEntries(
-                    queryLogResult.Entries
-                        .Where(MatchesClient)
-                        .ToList());
+                    activity.Entries.ToList());
             }
             catch (Exception ex)
             {
@@ -747,26 +743,6 @@ namespace RouterPilot.ViewModels
                     : "Live updates resumed.";
         }
 
-        private bool MatchesClient(
-            QueryLogEntry entry)
-        {
-            return SameText(
-                       entry.ClientAddress,
-                       _client.IpAddress) ||
-                   SameText(
-                       entry.ClientName,
-                       _client.Name) ||
-                   SameText(
-                       entry.Client,
-                       _client.IpAddress) ||
-                   SameText(
-                       entry.Client,
-                       _client.Name) ||
-                   ContainsIdentifier(
-                       entry.Client,
-                       _client.IpAddress);
-        }
-
         private void ApplyEntries(
             List<QueryLogEntry> entries)
         {
@@ -1014,22 +990,6 @@ namespace RouterPilot.ViewModels
                 : observedUtc.ToLocalTime().ToString("dd MMM yyyy • HH:mm");
         }
 
-
-        private static bool ContainsIdentifier(
-            string? displayValue,
-            string? identifier)
-        {
-            if (string.IsNullOrWhiteSpace(displayValue) ||
-                string.IsNullOrWhiteSpace(identifier) ||
-                identifier == "-")
-            {
-                return false;
-            }
-
-            return displayValue.Contains(
-                identifier.Trim(),
-                StringComparison.OrdinalIgnoreCase);
-        }
 
         private async void RefreshTimer_Tick(
             object? sender,
