@@ -522,7 +522,7 @@ namespace RouterPilot.Services
             }
 
             string leaseOutput = await _ssh.RunCommandAsync("cat /tmp/dhcp.leases 2>/dev/null || true");
-            List<DhcpLeaseInfo> leases = ParseDhcpLeaseSnapshot(leaseOutput);
+            List<DhcpLeaseInfo> leases = DhcpLeaseParser.Parse(leaseOutput);
             IReadOnlyList<DhcpNetworkScopeInfo> scopes = await GetDhcpNetworkScopesAsync(CancellationToken.None);
             CorrelateDhcpScopes(leases, _dhcpReservationCache, scopes);
             List<string> warnings = DetectDhcpConflicts(_dhcpReservationCache, leases);
@@ -1132,32 +1132,6 @@ namespace RouterPilot.Services
             return sections;
         }
 
-        private static List<DhcpLeaseInfo> ParseDhcpLeaseSnapshot(string output)
-        {
-            var leases = new List<DhcpLeaseInfo>();
-            foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (fields.Length < 4 || !long.TryParse(fields[0], out long expirySeconds)) continue;
-
-                bool isStatic = expirySeconds == 0;
-                DateTimeOffset? expiry = isStatic ? null : DateTimeOffset.FromUnixTimeSeconds(expirySeconds);
-                string hostname = fields[3] == "*" ? "Unknown device" : fields[3];
-                leases.Add(new DhcpLeaseInfo
-                {
-                    Hostname = hostname,
-                    ClientName = hostname,
-                    MacAddress = fields[1],
-                    IpAddress = fields[2],
-                    IsStatic = isStatic,
-                    Expiry = expiry,
-                    RemainingLease = FormatRemainingLease(expiry, isStatic)
-                });
-            }
-
-            return leases.OrderBy(lease => lease.Hostname, StringComparer.OrdinalIgnoreCase).ToList();
-        }
-
         private static List<string> DetectDhcpConflicts(
             IReadOnlyList<DhcpReservationInfo> reservations,
             IReadOnlyList<DhcpLeaseInfo> leases)
@@ -1197,17 +1171,6 @@ namespace RouterPilot.Services
 
         private static bool HasDhcpValue(string value) =>
             !string.IsNullOrWhiteSpace(value) && value != "-" && !value.Equals("N/A", StringComparison.OrdinalIgnoreCase);
-
-        private static string FormatRemainingLease(DateTimeOffset? expiry, bool isStatic)
-        {
-            if (isStatic) return "Static";
-            if (expiry is null) return "N/A";
-            TimeSpan remaining = expiry.Value - DateTimeOffset.UtcNow;
-            if (remaining <= TimeSpan.Zero) return "Expired";
-            if (remaining.TotalMinutes < 60) return $"{Math.Ceiling(remaining.TotalMinutes):0} min";
-            if (remaining.TotalHours < 24) return $"{Math.Ceiling(remaining.TotalHours):0} hr";
-            return $"{Math.Ceiling(remaining.TotalDays):0} days";
-        }
 
         private static string RedactMac(string value)
         {

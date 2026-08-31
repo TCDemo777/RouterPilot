@@ -24,6 +24,11 @@ Require(!UsableIp(null) && !UsableIp(string.Empty) && !UsableIp(" ") && !UsableI
 Require(!UsableIp("1921681103"), "IP filter rejects internal stripped-IP identity keys");
 Require(UsableIp("[2001:db8::103]:53"), "IP filter accepts bracketed IPv6 endpoints");
 
+var parsedDhcpLeases = DhcpLeaseParser.Parse("0 aa:bb:cc:dd:ee:ff 192.168.1.42 *\n");
+Require(parsedDhcpLeases.Count == 1 && parsedDhcpLeases[0].IsStatic &&
+    parsedDhcpLeases[0].Hostname == "Unknown device" && parsedDhcpLeases[0].IpAddress == "192.168.1.42",
+    "DHCP lease parser preserves static and unknown-host semantics");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();
