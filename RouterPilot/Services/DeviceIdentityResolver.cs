@@ -129,9 +129,18 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
             _negativeOnlineCache[prefix] = DateTime.UtcNow.AddMinutes(10);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
-        catch (HttpRequestException) { }
-        catch (TaskCanceledException) { }
-        catch (JsonException) { }
+        catch (HttpRequestException exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"MAC vendor lookup unavailable ({exception.GetType().Name}); using local fallback.");
+        }
+        catch (TaskCanceledException exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"MAC vendor lookup timed out ({exception.GetType().Name}); using local fallback.");
+        }
+        catch (JsonException exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"MAC vendor lookup response invalid ({exception.GetType().Name}); using local fallback.");
+        }
         return ResolveManufacturer(canonicalMac, friendlyName);
     }
 

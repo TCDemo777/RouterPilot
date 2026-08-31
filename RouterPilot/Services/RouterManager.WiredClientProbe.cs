@@ -96,7 +96,10 @@ public partial class RouterManager
                 clients.Add(new ProbeClient(normalized, GetFlexibleBoolean(record, "online", true), GetFlexibleString(record, "name", "hostname", "host_name"), GetFlexibleString(record, "ip", "ipaddr", "ip_address"), values));
             }
         }
-        catch (JsonException) { }
+        catch (JsonException exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"Wired client probe response invalid ({exception.GetType().Name}); ignoring optional probe data.");
+        }
         return clients;
     }
 
