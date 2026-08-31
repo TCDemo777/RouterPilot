@@ -27,6 +27,7 @@ namespace RouterPilot.ViewModels
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly NotificationService _notificationService;
+        private readonly ProtectionStateLoader _stateLoader;
         private readonly DispatcherTimer _timer;
         private readonly SemaphoreSlim _protectionStateGate = new(1, 1);
         private readonly CancellationTokenSource _disposalCancellation = new();
@@ -94,6 +95,7 @@ namespace RouterPilot.ViewModels
             _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _notificationService = notificationService;
+            _stateLoader = new ProtectionStateLoader(routerManagerProvider, serviceCatalogue);
             _adGuardMaintenanceStateService.PropertyChanged += (_, _) =>
             {
                 OnPropertyChanged(nameof(ControlsEnabled));
@@ -338,17 +340,16 @@ namespace RouterPilot.ViewModels
             Message = "Refreshing all protection settings...";
             try
             {
-                RouterManager router =
-                    await _routerManagerProvider.GetRouterManagerAsync();
-                AdGuardProtectionStatus status = await router.GetAdGuardProtectionStatusAsync();
-                AdGuardStatistics statistics = await router.GetAdGuardStatisticsAsync();
-                _options = await router.GetProtectionOptionsAsync();
+                ProtectionStateSnapshot snapshot = await _stateLoader.LoadAsync(_disposalCancellation.Token);
+                AdGuardProtectionStatus status = snapshot.Status;
+                AdGuardStatistics statistics = snapshot.Statistics;
+                _options = snapshot.Options;
                 NotifyConfigurationDetails();
-                bool catalogueRefreshed = await _serviceCatalogue.RefreshAsync(router, _disposalCancellation.Token);
-                _blockedConfig = await router.GetBlockedServicesConfigAsync();
-                var rules = await router.GetCustomFilteringRulesAsync();
-                var rewrites = await router.GetDnsRewritesAsync();
-                var queryLog = await router.GetQueryLogAsync();
+                bool catalogueRefreshed = snapshot.CatalogueRefreshed;
+                _blockedConfig = snapshot.BlockedConfig;
+                IReadOnlyList<CustomFilteringRule> rules = snapshot.Rules;
+                IReadOnlyList<DnsRewriteRule> rewrites = snapshot.Rewrites;
+                IReadOnlyList<QueryLogEntry> queryLog = snapshot.QueryLog;
 
                 ApplyStatus(status);
                 ApplyStatistics(statistics);
