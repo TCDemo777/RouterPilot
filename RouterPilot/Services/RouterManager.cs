@@ -25,6 +25,7 @@ namespace RouterPilot.Services
         private readonly string _routerIp;
         private readonly RouterInfoService _routerInfo;
         private readonly NetworkService _network;
+        private readonly RouterSpeedTestCapabilityService _speedTestCapabilityService;
         private readonly CookieContainer _adGuardCookies;
         private readonly HttpClient _adGuardClient;
         private readonly Uri _adGuardBaseUri;
@@ -106,6 +107,9 @@ namespace RouterPilot.Services
                 new NetworkService(
                     _ssh);
 
+            _speedTestCapabilityService =
+                new RouterSpeedTestCapabilityService(_ssh);
+
             _adGuardBaseUri = new UriBuilder(
                 useAdGuardHttps
                     ? Uri.UriSchemeHttps
@@ -149,38 +153,9 @@ namespace RouterPilot.Services
         internal Task<string> RunReadOnlySshCommandAsync(string command, CancellationToken cancellationToken = default) =>
             _ssh.RunCommandAsync(command, cancellationToken);
 
-        /// <summary>
-        /// Performs a read-only inventory of known speed-test executables. The
-        /// result is intentionally conservative: RouterPilot does not execute a
-        /// detected binary until it has a verified Internet-test protocol and
-        /// safe fixed arguments for that backend.
-        /// </summary>
         public async Task<RouterSpeedTestCapability> DiscoverSpeedTestCapabilityAsync(
             CancellationToken cancellationToken = default)
-        {
-            const string discoveryCommand =
-                "for tool in speedtest speedtest-cli speedtest-netperf speedtestpp librespeed-cli iperf3 netperf; do " +
-                "if command -v \"$tool\" >/dev/null 2>&1; then printf '%s\\n' \"$tool\"; fi; done";
-
-            string output = await _ssh.RunCommandAsync(discoveryCommand, cancellationToken);
-            if (output.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase))
-                return new RouterSpeedTestCapability { SafeStatus = "ssh-unavailable" };
-
-            string? detected = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(value => value.Trim())
-                .FirstOrDefault(value => value is "speedtest" or "speedtest-cli" or "speedtest-netperf" or
-                    "speedtestpp" or "librespeed-cli" or "iperf3" or "netperf");
-
-            return new RouterSpeedTestCapability
-            {
-                // iperf3/netperf alone are not Internet tests without a verified
-                // remote server, and no installed CLI is assumed safe to invoke
-                // with guessed provider-specific arguments.
-                IsSupported = false,
-                DetectedBinary = detected,
-                SafeStatus = detected is null ? "unavailable" : "unverified-backend"
-            };
-        }
+            => await _speedTestCapabilityService.DiscoverAsync(cancellationToken);
 
         /// <summary>
         /// Uses the stock GL.iNet SDK4 upgrade service's read-only
