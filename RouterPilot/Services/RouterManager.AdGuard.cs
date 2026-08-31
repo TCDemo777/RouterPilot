@@ -1101,7 +1101,7 @@ namespace RouterPilot.Services
                 if (statsResponse.IsSuccess)
                 {
                     matchedStatisticsClients =
-                        ApplyClientTotalsFromStatistics(
+                        AdGuardClientCorrelationService.ApplyTopClientTotals(
                             clients,
                             statsResponse.Content);
                 }
@@ -1853,122 +1853,12 @@ namespace RouterPilot.Services
             return matchedEntries;
         }
 
+        // Compatibility shim retained for existing diagnostics/harness callers;
+        // correlation implementation lives in the dedicated service.
         private static int ApplyClientTotalsFromStatistics(
             List<ClientInfo> clients,
-            string json)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return 0;
-            }
-
-            var clientsByIdentifier =
-                new Dictionary<string, ClientInfo>(
-                    StringComparer.OrdinalIgnoreCase);
-
-            foreach (ClientInfo client in clients)
-            {
-                AddClientIdentifier(
-                    clientsByIdentifier,
-                    client.IpAddress,
-                    client);
-
-                AddClientIdentifier(
-                    clientsByIdentifier,
-                    client.MacAddress,
-                    client);
-
-                AddClientIdentifier(
-                    clientsByIdentifier,
-                    client.Name,
-                    client);
-            }
-
-            using JsonDocument document =
-                JsonDocument.Parse(json);
-
-            JsonElement root =
-                document.RootElement;
-
-            if (!root.TryGetProperty(
-                    "top_clients",
-                    out JsonElement topClients) ||
-                topClients.ValueKind != JsonValueKind.Array)
-            {
-                Debug.WriteLine(
-                    "AdGuard statistics did not contain top_clients.");
-
-                return 0;
-            }
-
-            int matchedClients = 0;
-
-            foreach (JsonElement item in topClients.EnumerateArray())
-            {
-                if (item.ValueKind != JsonValueKind.Object)
-                {
-                    continue;
-                }
-
-                foreach (JsonProperty property in item.EnumerateObject())
-                {
-                    if (!TryGetInteger(
-                            property.Value,
-                            out int count))
-                    {
-                        continue;
-                    }
-
-                    string identifier =
-                        NormalizeClientIdentifier(property.Name);
-
-                    if (!clientsByIdentifier.TryGetValue(
-                            identifier,
-                            out ClientInfo? client))
-                    {
-                        continue;
-                    }
-
-                    // Query-log counts describe the returned page, whereas
-                    // top_clients describes the configured statistics window.
-                    // Keep whichever source provides the larger real total.
-                    client.TotalQueries =
-                        Math.Max(
-                            client.TotalQueries,
-                            count);
-
-                    matchedClients++;
-                    break;
-                }
-            }
-
-            Debug.WriteLine(
-                "Applied statistics totals to " +
-                $"{matchedClients} clients.");
-
-            return matchedClients;
-        }
-
-        private static void AddClientIdentifier(
-            Dictionary<string, ClientInfo> lookup,
-            string? identifier,
-            ClientInfo client)
-        {
-            if (string.IsNullOrWhiteSpace(identifier) ||
-                identifier == "-")
-            {
-                return;
-            }
-
-            string key = NormalizeClientIdentifier(identifier);
-            if (key.Length == 0) return;
-            lookup[key] = client;
-        }
-
-        private static string NormalizeClientIdentifier(string value) =>
-            IPAddress.TryParse(value.Trim(), out _) || value.Contains(':', StringComparison.Ordinal)
-                ? ClientIdentity.NormalizeEndpoint(value)
-                : value.Trim();
+            string json) =>
+            AdGuardClientCorrelationService.ApplyTopClientTotals(clients, json);
 
         private static bool IsBlockedQueryReason(
             string reason)
