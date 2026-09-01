@@ -42,6 +42,12 @@ Require(WifiDiscoveryParser.ParseHostapdNetworks("L|phy0|wlan0|Home WiFi|2g|6|On
     WifiDiscoveryParser.InferBandFromChannel("11") == "2.4 GHz",
     "Wi-Fi parser preserves hostapd and signal/band transformations");
 
+Require(AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), false, false),
+    "AdGuard transport recovery retries once");
+Require(!AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), false, true) &&
+    !AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), true, false),
+    "AdGuard transport recovery does not retry repeatedly or after cancellation");
+
 DateTime trafficTimestamp = new(2026, 8, 31, 12, 0, 0, DateTimeKind.Utc);
 NetworkTrafficSnapshot traffic = NetworkTrafficSnapshotParser.Parse(" eth1 | 123 | 456 ", trafficTimestamp);
 Require(traffic.InterfaceName == "eth1" && traffic.ReceivedBytes == 123 &&

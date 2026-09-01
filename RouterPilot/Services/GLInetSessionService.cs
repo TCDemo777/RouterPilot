@@ -161,6 +161,12 @@ namespace RouterPilot.Services
 
         internal string GetCurrentSessionId() => _currentSessionId ?? throw new InvalidOperationException("No authenticated GL.iNet session is available.");
 
+        internal void InvalidateSession()
+        {
+            ThrowIfDisposed();
+            _currentSessionId = null;
+        }
+
         /// <summary>Calls a documented GL.iNet SDK4 ubus RPC method using an authenticated session SID.</summary>
         public Task<JsonDocument> CallAsync(
             string sessionId,

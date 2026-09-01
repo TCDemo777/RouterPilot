@@ -206,7 +206,7 @@ namespace RouterPilot.Services
                 CancellationToken cancellationToken = default)
         {
             AdGuardHttpResponse response =
-                await SendAdGuardRequestAsync(
+                await SendAdGuardRequestWithRecoveryAsync(
                     method,
                     "control/" + endpoint.TrimStart('/'),
                     token,
@@ -319,6 +319,36 @@ namespace RouterPilot.Services
                 throw;
             }
         }
+
+        private async Task<AdGuardHttpResponse> SendAdGuardRequestWithRecoveryAsync(
+            HttpMethod method,
+            string relativeUrl,
+            string token,
+            string? json,
+            TimeSpan timeout,
+            bool noCache,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await SendAdGuardRequestAsync(
+                    method, relativeUrl, token, json, timeout, noCache, cancellationToken);
+            }
+            catch (HttpRequestException exception) when (
+                AdGuardRecoveryPolicy.ShouldRetryTransport(
+                    exception,
+                    cancellationToken.IsCancellationRequested,
+                    alreadyRetried: false))
+            {
+                Debug.WriteLine("AdGuard transport failed; invalidating session and retrying once.");
+                InvalidateAdminToken();
+                _sessionService.InvalidateSession();
+                string freshToken = await GetAdminTokenAsync();
+                return await SendAdGuardRequestAsync(
+                    method, relativeUrl, freshToken, json, timeout, noCache, cancellationToken);
+            }
+        }
+
 
         private static bool IsCertificateValidationFailure(Exception exception)
         {
@@ -1499,7 +1529,7 @@ namespace RouterPilot.Services
                 CancellationToken cancellationToken = default)
         {
             AdGuardHttpResponse response =
-                await SendAdGuardRequestAsync(
+                await SendAdGuardRequestWithRecoveryAsync(
                     HttpMethod.Get,
                     "control/clients",
                     token,
@@ -1542,7 +1572,7 @@ namespace RouterPilot.Services
             foreach (string relativeUrl in relativeUrls)
             {
                 AdGuardHttpResponse response =
-                    await SendAdGuardRequestAsync(
+                    await SendAdGuardRequestWithRecoveryAsync(
                         HttpMethod.Get,
                         relativeUrl,
                         token,
@@ -2306,7 +2336,7 @@ namespace RouterPilot.Services
                 CancellationToken cancellationToken = default)
         {
             AdGuardHttpResponse response =
-                await SendAdGuardRequestAsync(
+                await SendAdGuardRequestWithRecoveryAsync(
                     HttpMethod.Get,
                     "control/stats",
                     token,
