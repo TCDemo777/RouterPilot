@@ -106,7 +106,14 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock x:Name="WifiStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only Wi-Fi telemetry…"/>
+                    <StackPanel>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock x:Name="WifiStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only Wi-Fi telemetry…"/><TextBlock x:Name="WifiSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="WifiAttention" Margin="0,3,0,0" Foreground="DarkOrange"/></StackPanel>
+                            <Button Grid.Column="1" Content="Copy Wi-Fi summary" Style="{DynamicResource Button.Secondary}" Click="CopyWifiSummary_Click"/>
+                        </Grid>
+                        <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Session history (RouterPilot observations)"/>
+                        <ListBox x:Name="WifiHistoryList" MaxHeight="100" BorderThickness="0" Background="Transparent"/>
+                    </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="WifiRadiosList" Margin="0,10,0,0">
                             <ItemsControl.ItemTemplate>

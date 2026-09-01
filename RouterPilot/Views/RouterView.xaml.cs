@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -18,12 +19,15 @@ public partial class RouterView : UserControl
     private readonly ObservableCollection<RouterPortSnapshot> _ports = new();
     private readonly ObservableCollection<RouterWanPathSnapshot> _multiWanPaths = new();
     private readonly ObservableCollection<RouterWifiRadioGroup> _wifiRadios = new();
+    private readonly ObservableCollection<string> _wifiHistory = new();
+    private readonly Dictionary<string, string> _wifiBaselines = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _refreshCancellation;
     private bool _refreshing;
     private bool _multiWanRefreshing;
     private bool _dnsRefreshing;
     private bool _performanceRefreshing;
     private bool _wifiRefreshing;
+    private RouterManager? _wifiManager;
 
     public RouterView()
     {
@@ -32,6 +36,7 @@ public partial class RouterView : UserControl
         PortsList.ItemsSource = _ports;
         MultiWanList.ItemsSource = _multiWanPaths;
         WifiRadiosList.ItemsSource = _wifiRadios;
+        WifiHistoryList.ItemsSource = _wifiHistory;
         DnsResolversList.ItemsSource = Array.Empty<string>();
         Loaded += RouterView_Loaded;
         Unloaded += RouterView_Unloaded;
@@ -142,16 +147,26 @@ public partial class RouterView : UserControl
         try
         {
             RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(_wifiManager, manager))
+            {
+                _wifiBaselines.Clear();
+                _wifiHistory.Clear();
+                _wifiManager = manager;
+            }
             List<WifiRadioInfo> networks = await manager.GetWifiRadiosAsync();
             RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
             if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
 
             _wifiRadios.Clear();
-            foreach (RouterWifiRadioGroup radio in GroupWifiNetworks(networks))
+            List<RouterWifiRadioGroup> groups = GroupWifiNetworks(networks).ToList();
+            foreach (RouterWifiRadioGroup radio in groups)
                 _wifiRadios.Add(radio);
             WifiStatus.Text = _wifiRadios.Count > 0
-                ? $"{_wifiRadios.Count} wireless radio(s) reported by the router."
+                ? $"{_wifiRadios.Count} physical wireless radio(s) reported by the router."
                 : "Wi-Fi telemetry is currently unavailable.";
+            WifiSummary.Text = groups.Count == 0 ? "Telemetry unavailable" : $"{groups.Count} radios • {groups.Sum(g => g.Networks.Sum(n => n.ClientCount))} associated clients";
+            WifiAttention.Text = groups.Count == 0 ? "Wi-Fi telemetry is currently unavailable." : string.Empty;
+            RecordWifiTransitions(groups);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -161,6 +176,35 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Router Wi-Fi refresh failed ({exception.GetType().Name}).");
         }
         finally { _wifiRefreshing = false; }
+    }
+
+    private void RecordWifiTransitions(IReadOnlyList<RouterWifiRadioGroup> groups)
+    {
+        foreach (RouterWifiRadioGroup group in groups)
+        {
+            string state = string.Join("|", group.Networks.Select(n => $"{n.StatusDisplay}:{n.Channel}:{n.ChannelWidth}:{n.HardwareMode}"));
+            string key = $"{group.Radio}\u001f{group.Band}";
+            if (_wifiBaselines.TryGetValue(key, out string? previous) && !string.Equals(previous, state, StringComparison.Ordinal))
+            {
+                _wifiHistory.Insert(0, $"{DateTime.Now:g}  {group.DisplayName} radio state changed");
+                while (_wifiHistory.Count > 100) _wifiHistory.RemoveAt(_wifiHistory.Count - 1);
+            }
+            _wifiBaselines[key] = state;
+        }
+    }
+
+    private void CopyWifiSummary_Click(object sender, RoutedEventArgs e)
+    {
+        StringBuilder text = new();
+        text.AppendLine("RouterPilot Wi-Fi Summary");
+        foreach (RouterWifiRadioGroup group in _wifiRadios)
+        {
+            text.AppendLine($"{group.DisplayName} ({group.RadioDisplay})");
+            foreach (WifiRadioInfo network in group.Networks)
+                text.AppendLine($"  State: {network.StatusDisplay}; Channel: {network.Channel}; Width: {network.ChannelWidth}; Mode: {network.HardwareMode}; Clients: {network.ClientCountDisplay}");
+        }
+        try { Clipboard.SetText(text.ToString()); WifiStatus.Text = "Wi-Fi summary copied."; }
+        catch { WifiStatus.Text = "Wi-Fi summary could not be copied."; }
     }
 
     private static IEnumerable<RouterWifiRadioGroup> GroupWifiNetworks(IEnumerable<WifiRadioInfo> networks)
