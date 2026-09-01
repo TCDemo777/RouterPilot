@@ -162,8 +162,14 @@
             <TabItem Header="Multi-WAN">
                 <Grid Margin="0,18,0,0">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <TextBlock x:Name="MultiWanSummary" FontSize="16" FontWeight="SemiBold" Text="Multi-WAN status unavailable"/>
-                    <TextBlock x:Name="MultiWanStatus" Grid.Row="1" Margin="0,4,0,12" Style="{DynamicResource Text.Muted}"/>
+                    <StackPanel>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock x:Name="MultiWanSummary" FontSize="16" FontWeight="SemiBold" Text="Multi-WAN status unavailable"/><TextBlock x:Name="MultiWanStatus" Margin="0,4,0,0" Style="{DynamicResource Text.Muted}"/><TextBlock x:Name="MultiWanSessionText" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/></StackPanel>
+                            <Button Grid.Column="1" Content="Copy Multi-WAN summary" Style="{DynamicResource Button.Secondary}" Click="CopyMultiWanSummary_Click"/>
+                        </Grid>
+                        <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Session history (RouterPilot observations)"/>
+                        <ListBox x:Name="MultiWanHistoryList" MaxHeight="100" BorderThickness="0" Background="Transparent"/>
+                    </StackPanel>
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="MultiWanList">
                             <ItemsControl.ItemTemplate>

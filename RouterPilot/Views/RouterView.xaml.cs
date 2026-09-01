@@ -18,6 +18,8 @@ public partial class RouterView : UserControl
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly ObservableCollection<RouterPortSnapshot> _ports = new();
     private readonly ObservableCollection<RouterWanPathSnapshot> _multiWanPaths = new();
+    private readonly ObservableCollection<string> _multiWanHistory = new();
+    private readonly Dictionary<string, string> _multiWanBaselines = new(StringComparer.OrdinalIgnoreCase);
     private readonly ObservableCollection<RouterWifiRadioGroup> _wifiRadios = new();
     private readonly ObservableCollection<string> _wifiHistory = new();
     private readonly Dictionary<string, string> _wifiBaselines = new(StringComparer.OrdinalIgnoreCase);
@@ -27,6 +29,7 @@ public partial class RouterView : UserControl
     private bool _dnsRefreshing;
     private bool _performanceRefreshing;
     private bool _wifiRefreshing;
+    private RouterManager? _multiWanManager;
     private RouterManager? _wifiManager;
 
     public RouterView()
@@ -35,6 +38,7 @@ public partial class RouterView : UserControl
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
         PortsList.ItemsSource = _ports;
         MultiWanList.ItemsSource = _multiWanPaths;
+        MultiWanHistoryList.ItemsSource = _multiWanHistory;
         WifiRadiosList.ItemsSource = _wifiRadios;
         WifiHistoryList.ItemsSource = _wifiHistory;
         DnsResolversList.ItemsSource = Array.Empty<string>();
@@ -110,6 +114,12 @@ public partial class RouterView : UserControl
         try
         {
             RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(_multiWanManager, manager))
+            {
+                _multiWanBaselines.Clear();
+                _multiWanHistory.Clear();
+                _multiWanManager = manager;
+            }
             RouterMultiWanSnapshot snapshot = await manager.GetRouterMultiWanTelemetryAsync(cancellationToken);
             RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
             if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
@@ -126,6 +136,8 @@ public partial class RouterView : UserControl
             MultiWanStatus.Text = snapshot.CapabilityState == RouterCapabilityState.Supported
                 ? $"{_multiWanPaths.Count} uplink path(s) reported by the router."
                 : "Multi-WAN telemetry is currently unavailable.";
+            RecordMultiWanTransitions(snapshot);
+            MultiWanSessionText.Text = $"Session path changes: {_multiWanHistory.Count}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -134,6 +146,29 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Multi-WAN refresh failed ({exception.GetType().Name}).");
         }
         finally { _multiWanRefreshing = false; }
+    }
+
+    private void RecordMultiWanTransitions(RouterMultiWanSnapshot snapshot)
+    {
+        string state = $"{snapshot.Mode}|{snapshot.ActivePathId}|{snapshot.DefaultPathId}|" + string.Join(",", snapshot.WanPaths.Select(path => $"{path.Id}:{path.RuntimeState}"));
+        if (_multiWanBaselines.TryGetValue("snapshot", out string? previous) && !string.Equals(previous, state, StringComparison.Ordinal))
+        {
+            _multiWanHistory.Insert(0, $"{DateTime.Now:g}  Multi-WAN observed state changed");
+            while (_multiWanHistory.Count > 100) _multiWanHistory.RemoveAt(_multiWanHistory.Count - 1);
+        }
+        _multiWanBaselines["snapshot"] = state;
+    }
+
+    private void CopyMultiWanSummary_Click(object sender, RoutedEventArgs e)
+    {
+        StringBuilder text = new();
+        text.AppendLine("RouterPilot Multi-WAN Summary");
+        text.AppendLine($"Summary: {MultiWanSummary.Text}");
+        text.AppendLine($"Paths: {_multiWanPaths.Count}");
+        foreach (RouterWanPathSnapshot path in _multiWanPaths)
+            text.AppendLine($"{path.Name}: {path.RuntimeState}; Interface: {path.InterfaceName}; Default route: {(path.IsDefault ? "Yes" : "No")}");
+        try { Clipboard.SetText(text.ToString()); MultiWanStatus.Text = "Multi-WAN summary copied."; }
+        catch { MultiWanStatus.Text = "Multi-WAN summary could not be copied."; }
     }
 
     private async Task RefreshWifiAsync()
