@@ -107,7 +107,6 @@
             <TabItem Header="Wi-Fi"/>
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
-            <TabItem Header="VPN"/>
             <TabItem Header="Health"/>
         </TabControl>
 
@@ -1008,8 +1007,6 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                <ContentControl x:Name="VpnContent" Visibility="Collapsed"/>
-
                 <!-- Overview details -->
                 <Grid x:Name="OverviewDetailsContent" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>

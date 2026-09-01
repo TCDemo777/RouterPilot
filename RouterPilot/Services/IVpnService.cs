@@ -7,6 +7,7 @@ namespace RouterPilot.Services;
 
 public interface IVpnService
 {
+    Task<(IReadOnlyList<VpnTunnelInfo> Tunnels, IReadOnlyList<VpnClientProfileInfo> Profiles)> GetInventoryAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<VpnClientProfileInfo>> GetClientProfilesAsync(CancellationToken cancellationToken);
 #if DEBUG

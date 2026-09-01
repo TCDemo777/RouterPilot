@@ -38,8 +38,7 @@ public sealed class VpnSummaryService : IVpnSummaryService
         VpnLiveStatusDiagnostics.Record("VpnSummaryService.RefreshAsync entered: YES");
         try
         {
-            IReadOnlyList<VpnTunnelInfo> tunnels = await _vpnService.GetTunnelsAsync(cancellationToken).ConfigureAwait(false);
-            IReadOnlyList<VpnClientProfileInfo> profiles = await _vpnService.GetClientProfilesAsync(cancellationToken).ConfigureAwait(false);
+            (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _vpnService.GetInventoryAsync(cancellationToken).ConfigureAwait(false);
             lock (_sync)
             {
                 _tunnels = tunnels;

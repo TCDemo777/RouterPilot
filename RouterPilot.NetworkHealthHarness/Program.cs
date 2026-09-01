@@ -30,6 +30,7 @@ TailscaleStatus connectedWithoutPeers = TailscaleStatusService.ParseStatus("{\"B
 Require(connectedWithoutPeers.PeerCount is null, "missing peer data is unavailable rather than zero");
 TailscaleStatus connectedWithNoPeers = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Peer\":{}}");
 Require(connectedWithNoPeers.PeerCount == 0 && connectedWithNoPeers.OnlinePeerCount == 0, "empty peer object is genuine zero");
+Require(new VpnLiveStatusInfo { RxBytes = 0, TxBytes = 0 }.DownloadDisplay == "0 B" && new VpnLiveStatusInfo().UploadDisplay == "—", "VPN counters distinguish genuine zero from unavailable");
 Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
 Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");

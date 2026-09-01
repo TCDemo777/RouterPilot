@@ -25,7 +25,11 @@ public partial class VpnView : UserControl
     private readonly VpnScheduleService _vpnScheduleService;
     private readonly IDataFreshnessService _dataFreshnessService;
     private readonly ITailscaleStatusService _tailscale;
+    private readonly IActiveRouterContext _activeRouter;
     private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
+    private readonly object _refreshSync = new();
+    private CancellationTokenSource? _refreshCts;
+    private bool _eventsAttached;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -41,18 +45,32 @@ public partial class VpnView : UserControl
         _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
         _dataFreshnessService = ((App)Application.Current).Services.GetRequiredService<IDataFreshnessService>();
         _tailscale = ((App)Application.Current).Services.GetRequiredService<ITailscaleStatusService>();
+        _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
         DataContext = _viewModel;
         VpnSchedulePanel.DataContext = _vpnScheduleService;
-        _vpnScheduleService.SchedulesChanged += VpnSchedules_Changed;
+        AttachEvents();
         UpdateVpnScheduleEmptyState();
-        _liveStatus.StatusChanged += LiveStatusChanged;
         DiagnosticsExpander.IsExpanded = _settingsService.Load().VpnDiagnosticsExpanded;
 #if DEBUG
         CaptureVpnStateButton.Visibility = Visibility.Visible;
 #endif
         if (embedded) PageHeader.Visibility = Visibility.Collapsed;
-        Loaded += async (_, _) => await RefreshAsync();
-        Unloaded += (_, _) => _vpnScheduleService.SchedulesChanged -= VpnSchedules_Changed;
+        Loaded += VpnView_Loaded;
+        Unloaded += (_, _) => StopRefresh();
+    }
+
+    private async void VpnView_Loaded(object sender, RoutedEventArgs e)
+    {
+        AttachEvents();
+        await RefreshAsync();
+    }
+
+    private void AttachEvents()
+    {
+        if (_eventsAttached) return;
+        _eventsAttached = true;
+        _vpnScheduleService.SchedulesChanged += VpnSchedules_Changed;
+        _liveStatus.StatusChanged += LiveStatusChanged;
     }
 
     private async Task RefreshAsync()
@@ -64,11 +82,25 @@ public partial class VpnView : UserControl
             return;
         }
         _viewModel.VpnIsLoading = true;
-        _ = LoadTailscaleAsync();
+        CancellationTokenSource refreshCts;
+        lock (_refreshSync)
+        {
+            _refreshCts?.Cancel();
+            _refreshCts?.Dispose();
+            _refreshCts = new CancellationTokenSource();
+            refreshCts = _refreshCts;
+        }
+        CancellationToken token = refreshCts.Token;
+        string profileId = _activeRouter.CurrentProfileId;
+        long contextVersion = _activeRouter.Version;
+        bool IsCurrent() => profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
+        Task tailscaleTask = LoadTailscaleAsync(token, IsCurrent);
         try
         {
-            IReadOnlyList<VpnTunnelInfo> tunnels = await _service.GetTunnelsAsync(CancellationToken.None);
-            IReadOnlyList<VpnClientProfileInfo> profiles = await _service.GetClientProfilesAsync(CancellationToken.None);
+            (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _service.GetInventoryAsync(token);
+            await tailscaleTask;
+            token.ThrowIfCancellationRequested();
+            if (!IsCurrent()) return;
             var profilesByGroup = profiles.ToDictionary(profile => profile.GroupId);
             var linkedTunnels = tunnels.Select(tunnel =>
             {
@@ -77,7 +109,7 @@ public partial class VpnView : UserControl
                 return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount };
             }).ToList();
             _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles));
-            try { await _liveStatus.EnsureSubscribedAsync(CancellationToken.None); }
+            try { await _liveStatus.EnsureSubscribedAsync(token); }
             catch (Exception exception)
             {
                 // Tunnel reads are authoritative for configured/disabled state.
@@ -87,18 +119,23 @@ public partial class VpnView : UserControl
             _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
             _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: true);
             _viewModel.VpnSupported = true;
-            SetVpnCapability(true);
+            SetVpnCapability(RouterCapabilityState.Supported);
             _viewModel.VpnStatus = $"{linkedTunnels.Count} tunnel(s), {linkedTunnels.Count(tunnel => tunnel.Enabled)} enabled";
 #if DEBUG
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
 #endif
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
         catch
         {
+            if (!IsCurrent()) return;
             _dataFreshnessService.MarkUnavailable(VpnFreshnessSource);
             _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: false);
             _viewModel.VpnSupported = false;
-            SetVpnCapability(false);
+            SetVpnCapability(RouterCapabilityState.Unknown);
             _viewModel.VpnStatus = "VPN client backend is unavailable for this router session.";
 #if DEBUG
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
@@ -111,15 +148,33 @@ public partial class VpnView : UserControl
         }
     }
 
-    private async Task LoadTailscaleAsync()
+    private async Task LoadTailscaleAsync(CancellationToken token, Func<bool> isCurrent)
     {
-        if (!await _tailscaleRefreshGate.WaitAsync(0).ConfigureAwait(true)) return;
-        try { _viewModel.ApplyTailscaleStatus(await _tailscale.GetStatusAsync(CancellationToken.None)); }
-        catch { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); }
+        if (!await _tailscaleRefreshGate.WaitAsync(0, token).ConfigureAwait(true)) return;
+        try
+        {
+            TailscaleStatus status = await _tailscale.GetStatusAsync(token);
+            if (isCurrent()) _viewModel.ApplyTailscaleStatus(status);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch when (isCurrent()) { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); }
         finally { _tailscaleRefreshGate.Release(); }
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();
+
+    private void StopRefresh()
+    {
+        lock (_refreshSync)
+        {
+            _refreshCts?.Cancel();
+            _refreshCts?.Dispose();
+            _refreshCts = null;
+        }
+        _liveStatus.StatusChanged -= LiveStatusChanged;
+        _vpnScheduleService.SchedulesChanged -= VpnSchedules_Changed;
+        _eventsAttached = false;
+    }
 
     private void LiveStatusChanged(IReadOnlyList<VpnLiveStatusInfo> statuses)
     {
@@ -416,10 +471,12 @@ public partial class VpnView : UserControl
         await RefreshAsync();
     }
 
-    private static void SetVpnCapability(bool available)
+    private static void SetVpnCapability(RouterCapabilityState telemetryState)
     {
         if (Application.Current.MainWindow?.DataContext is DashboardViewModel dashboard)
         {
+            dashboard.RouterCapabilities.VpnClient.Telemetry = telemetryState;
+            bool available = telemetryState == RouterCapabilityState.Supported;
             dashboard.RouterCapabilities.VpnClient.Read = available;
             dashboard.RouterCapabilities.VpnClient.TunnelControl = available;
         }

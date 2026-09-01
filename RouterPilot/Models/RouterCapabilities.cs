@@ -15,6 +15,7 @@ namespace RouterPilot.Models
 
     public sealed class VpnRouterCapabilities
     {
+        public RouterCapabilityState Telemetry { get; internal set; } = RouterCapabilityState.Unknown;
         public bool Read { get; internal set; }
         public bool TunnelControl { get; internal set; }
     }

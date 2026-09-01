@@ -70,8 +70,8 @@ public sealed class VpnLiveStatusInfo
     public bool Enabled { get; init; }
     public int Status { get; init; }
     public string Protocol { get; init; } = "Unknown";
-    public long RxBytes { get; init; }
-    public long TxBytes { get; init; }
+    public long? RxBytes { get; init; }
+    public long? TxBytes { get; init; }
     public string? PeerName { get; init; }
     public IReadOnlyList<string> Domains { get; init; } = [];
     public int? GroupId { get; init; }
@@ -87,9 +87,10 @@ public sealed class VpnLiveStatusInfo
     public string EndpointDisplay => Domains.Count == 0 ? string.Empty : string.Join(", ", Domains) + (Port is > 0 ? $" : {Port}" : string.Empty);
     public string DownloadDisplay => FormatBytes(RxBytes);
     public string UploadDisplay => FormatBytes(TxBytes);
-    private static string FormatBytes(long bytes)
+    private static string FormatBytes(long? bytes)
     {
-        string[] units = ["B", "KB", "MB", "GB", "TB"]; double value = Math.Max(0, bytes); int unit = 0;
+        if (bytes is null) return "—";
+        string[] units = ["B", "KB", "MB", "GB", "TB"]; double value = Math.Max(0, bytes.Value); int unit = 0;
         while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
         return unit == 0 ? $"{value:0} {units[unit]}" : $"{value:0.##} {units[unit]}";
     }

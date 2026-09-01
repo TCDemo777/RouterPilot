@@ -132,6 +132,12 @@
                             Content="Router"
                             Click="Router_Click"/>
 
+                    <Button x:Name="VpnButton"
+                            Style="{StaticResource SidebarNavigationButton}"
+                            Background="Transparent"
+                            Content="VPN"
+                            Click="Vpn_Click"/>
+
                     <TextBlock Margin="18,12,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
 
                     <Button x:Name="MaintenanceButton"

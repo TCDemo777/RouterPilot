@@ -14,6 +14,13 @@ public sealed class VpnService : IVpnService
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public VpnService(IRouterManagerProvider provider, TimelineService timeline) { _provider = provider; _timeline = timeline; }
+    public async Task<(IReadOnlyList<VpnTunnelInfo> Tunnels, IReadOnlyList<VpnClientProfileInfo> Profiles)> GetInventoryAsync(CancellationToken token)
+    {
+        RouterManager manager = await _provider.GetRouterManagerAsync(token);
+        IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(token);
+        IReadOnlyList<VpnClientProfileInfo> profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+        return (tunnels, Correlate(tunnels, profiles));
+    }
     public async Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken token) => await (await _provider.GetRouterManagerAsync(token)).GetVpnTunnelsAsync(token);
     public async Task<IReadOnlyList<VpnClientProfileInfo>> GetClientProfilesAsync(CancellationToken token)
     {

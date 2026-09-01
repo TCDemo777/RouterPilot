@@ -1318,7 +1318,8 @@ namespace RouterPilot.Views
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
                 case "health": NavigateToHealthTarget("network"); break;
-                case "wifi": case "dhcp": case "port-forward": case "vpn":
+                case "vpn": Vpn_Click(this, new RoutedEventArgs()); break;
+                case "wifi": case "dhcp": case "port-forward":
                     NavigateToNetworkSection(result.NavigationTarget);
                     var network = (NetworkView)PageContent.Content;
                     if (result.NavigationTarget == "dhcp" &&
@@ -1439,6 +1440,12 @@ namespace RouterPilot.Views
             SelectNavigationButton(RouterButton);
         }
 
+        private void Vpn_Click(object sender, RoutedEventArgs e)
+        {
+            PageContent.Content = new VpnView();
+            SelectNavigationButton(VpnButton);
+        }
+
         private void Maintenance_Click(
             object sender,
             RoutedEventArgs e)
@@ -1539,6 +1546,7 @@ namespace RouterPilot.Views
                 AnalyticsButton,
                 NetworkButton,
                 RouterButton,
+                VpnButton,
                 MaintenanceButton,
                 ClientsButton,
                 LogsButton,
