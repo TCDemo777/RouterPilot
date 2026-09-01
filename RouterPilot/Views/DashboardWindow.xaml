@@ -99,7 +99,10 @@
                            Foreground="{DynamicResource Brush.TextMuted}"
                            Text="NAVIGATION"/>
 
-                <StackPanel Grid.Row="1">
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
                     <TextBlock Margin="18,8,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
@@ -223,6 +226,7 @@
                             Click="About_Click"/>
 
                 </StackPanel>
+                </ScrollViewer>
 
             </Grid>
         </Border>

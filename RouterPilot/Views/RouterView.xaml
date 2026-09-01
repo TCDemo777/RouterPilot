@@ -11,7 +11,9 @@
         <TextBlock FontSize="26" FontWeight="Bold" Text="Router"/>
         <TextBlock Grid.Row="1" Margin="0,4,0,18" Style="{DynamicResource Text.Muted}"
                    Text="Read-only router telemetry and diagnostics"/>
-        <TabControl x:Name="RouterTabs" Grid.Row="2" SelectedIndex="0">
+        <TabControl x:Name="RouterTabs" Grid.Row="2" Margin="0,0,0,14"
+                    Style="{StaticResource RouterPilotTabControlStyle}"
+                    ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}">
             <TabItem Header="Overview">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <UniformGrid Columns="2" Margin="0,18,0,0">
