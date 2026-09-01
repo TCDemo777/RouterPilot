@@ -28,6 +28,7 @@ namespace RouterPilot.Services
         private readonly RouterSpeedTestCapabilityService _speedTestCapabilityService;
         private readonly RouterPortTelemetryService _routerPortTelemetryService;
         private readonly RouterMultiWanTelemetryService _routerMultiWanTelemetryService;
+        private readonly RouterDnsTelemetryService _routerDnsTelemetryService;
         private readonly CookieContainer _adGuardCookies;
         private readonly HttpClient _adGuardClient;
         private readonly Uri _adGuardBaseUri;
@@ -115,6 +116,8 @@ namespace RouterPilot.Services
                 new RouterPortTelemetryService(_ssh);
             _routerMultiWanTelemetryService =
                 new RouterMultiWanTelemetryService(_ssh);
+            _routerDnsTelemetryService =
+                new RouterDnsTelemetryService(_ssh);
 
             _adGuardBaseUri = new UriBuilder(
                 useAdGuardHttps
@@ -163,6 +166,10 @@ namespace RouterPilot.Services
         public Task<RouterMultiWanSnapshot> GetRouterMultiWanTelemetryAsync(
             CancellationToken cancellationToken = default) =>
             _routerMultiWanTelemetryService.LoadAsync(cancellationToken);
+
+        public Task<RouterDnsSnapshot> GetRouterDnsTelemetryAsync(
+            CancellationToken cancellationToken = default) =>
+            _routerDnsTelemetryService.LoadAsync(cancellationToken);
 
         internal Task<string> RunReadOnlySshCommandAsync(string command, CancellationToken cancellationToken = default) =>
             _ssh.RunCommandAsync(command, cancellationToken);

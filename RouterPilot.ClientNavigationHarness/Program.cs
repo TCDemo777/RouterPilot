@@ -122,6 +122,21 @@ Require(twoWanWithoutEvidence.WanPaths.Count == 2 &&
 Require(RouterMultiWanParser.Parse(string.Empty, DateTimeOffset.UtcNow).CapabilityState == RouterCapabilityState.Unknown,
     "Multi-WAN empty probe remains unknown");
 
+RouterDnsSnapshot dns = RouterDnsParser.Parse(
+    "S|supported|automatic|running|doh|unknown|unknown\n" +
+    "U| 1.1.1.1\nU|https://user:secret@dns.example.test/path?token=redacted\nU|1.1.1.1\n",
+    DateTimeOffset.UtcNow);
+Require(dns.CapabilityState == RouterCapabilityState.Supported &&
+    dns.Mode == RouterDnsMode.Automatic && dns.RuntimeState == RouterDnsRuntimeState.Running &&
+    dns.EncryptionMode == RouterDnsEncryptionMode.DoH && dns.UpstreamResolvers.Count == 2 &&
+    dns.UpstreamResolvers.All(value => !value.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
+        !value.Contains("token", StringComparison.OrdinalIgnoreCase)),
+    "Router DNS parser preserves safe configuration and redacts resolver credentials");
+RouterDnsSnapshot unknownDns = RouterDnsParser.Parse(string.Empty, DateTimeOffset.UtcNow);
+Require(unknownDns.CapabilityState == RouterCapabilityState.Unknown &&
+    unknownDns.Mode == RouterDnsMode.Unknown && unknownDns.UpstreamResolvers.Count == 0,
+    "Router DNS probe failure remains unknown");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();

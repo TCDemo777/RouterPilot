@@ -18,6 +18,7 @@ public partial class RouterView : UserControl
     private CancellationTokenSource? _refreshCancellation;
     private bool _refreshing;
     private bool _multiWanRefreshing;
+    private bool _dnsRefreshing;
 
     public RouterView()
     {
@@ -25,6 +26,7 @@ public partial class RouterView : UserControl
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
         PortsList.ItemsSource = _ports;
         MultiWanList.ItemsSource = _multiWanPaths;
+        DnsResolversList.ItemsSource = Array.Empty<string>();
         Loaded += RouterView_Loaded;
         Unloaded += RouterView_Unloaded;
         RouterTabs.SelectionChanged += RouterTabs_SelectionChanged;
@@ -34,6 +36,7 @@ public partial class RouterView : UserControl
     {
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
+        else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
     }
 
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
@@ -46,6 +49,7 @@ public partial class RouterView : UserControl
         if (e.Source != RouterTabs) return;
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
+        else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
     }
 
     private async Task RefreshPortsAsync()
@@ -115,5 +119,56 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Multi-WAN refresh failed ({exception.GetType().Name}).");
         }
         finally { _multiWanRefreshing = false; }
+    }
+
+    private async Task RefreshDnsAsync()
+    {
+        if (_dnsRefreshing) return;
+        _dnsRefreshing = true;
+        _refreshCancellation?.Cancel();
+        _refreshCancellation?.Dispose();
+        _refreshCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _refreshCancellation.Token;
+        try
+        {
+            RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            RouterDnsSnapshot snapshot = await manager.GetRouterDnsTelemetryAsync(cancellationToken);
+            RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
+
+            string adGuardText = "Unknown";
+            try
+            {
+                AdGuardStatus adGuard = await manager.GetAdGuardStatusAsync();
+                adGuardText = adGuard.IsRunning ? "Running" : "Stopped";
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Debug.WriteLine($"Router DNS AdGuard status unavailable ({exception.GetType().Name}).");
+            }
+            current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
+
+            DnsStatus.Text = snapshot.CapabilityState == RouterCapabilityState.Supported
+                ? "Read-only DNS configuration and runtime information."
+                : "DNS telemetry is currently unavailable.";
+            DnsModeText.Text = snapshot.Mode == RouterDnsMode.Unknown ? "—" : snapshot.Mode.ToString();
+            DnsEncryptionText.Text = snapshot.EncryptionMode == RouterDnsEncryptionMode.Unknown ? "—" : snapshot.EncryptionMode.ToString();
+            DnsRuntimeText.Text = snapshot.RuntimeState == RouterDnsRuntimeState.Unknown ? "—" : snapshot.RuntimeState.ToString();
+            DnsHandlesText.Text = snapshot.AdGuardHandlesClientRequests switch { true => "Yes", false => "No", _ => "Unknown" };
+            DnsVpnText.Text = snapshot.VpnDnsState ?? "—";
+            DnsResolversList.ItemsSource = snapshot.UpstreamResolvers.Count == 0 ? new[] { "—" } : snapshot.UpstreamResolvers;
+            DnsAdGuardText.Text = adGuardText;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            DnsStatus.Text = "DNS telemetry is currently unavailable.";
+            DnsModeText.Text = DnsEncryptionText.Text = DnsRuntimeText.Text = DnsVpnText.Text = "—";
+            DnsAdGuardText.Text = DnsHandlesText.Text = "Unknown";
+            DnsResolversList.ItemsSource = new[] { "—" };
+            System.Diagnostics.Debug.WriteLine($"Router DNS refresh failed ({exception.GetType().Name}).");
+        }
+        finally { _dnsRefreshing = false; }
     }
 }

@@ -124,7 +124,39 @@
                     </ScrollViewer>
                 </Grid>
             </TabItem>
-            <TabItem Header="DNS"><TextBlock Margin="24" Text="DNS telemetry will appear here."/></TabItem>
+            <TabItem Header="DNS">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,18,0,0">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="DNS overview"/>
+                        <TextBlock x:Name="DnsStatus" Margin="0,4,0,16" Style="{DynamicResource Text.Muted}" Text="DNS telemetry is currently unavailable."/>
+                        <UniformGrid Columns="2">
+                            <GroupBox Header="CONFIGURATION" Margin="0,0,12,12">
+                                <StackPanel Margin="14">
+                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/>
+                                    <TextBlock x:Name="DnsModeText" FontSize="16" Text="—"/>
+                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Encrypted DNS"/>
+                                    <TextBlock x:Name="DnsEncryptionText" Text="—"/>
+                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Upstream resolvers"/>
+                                    <ItemsControl x:Name="DnsResolversList"/>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="SERVICES" Margin="12,0,0,12">
+                                <StackPanel Margin="14">
+                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="DNS service"/>
+                                    <TextBlock x:Name="DnsRuntimeText" FontSize="16" Text="—"/>
+                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="AdGuard Home"/>
+                                    <TextBlock x:Name="DnsAdGuardText" Text="—"/>
+                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Handles client requests"/>
+                                    <TextBlock x:Name="DnsHandlesText" Text="Unknown"/>
+                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="VPN DNS"/>
+                                    <TextBlock x:Name="DnsVpnText" Text="—"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </UniformGrid>
+                        <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}" Text="RouterPilot can display client DNS activity only when it is visible to AdGuard Home. Other DNS paths may not be observable." TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Performance"><TextBlock Margin="24" Text="Performance telemetry will appear here."/></TabItem>
         </TabControl>
     </Grid>
