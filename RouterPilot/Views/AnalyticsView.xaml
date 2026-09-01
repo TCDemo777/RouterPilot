@@ -154,6 +154,19 @@
                                 <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="PEAK UPLOAD"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Body}" Text="{Binding PeakUpload}"/></StackPanel>
                                 <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="SOURCE / UPDATED"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Body}" Text="{Binding TrafficSource}"/><TextBlock Style="{StaticResource Text.Muted}" Text="{Binding TrafficLastUpdated}"/></StackPanel>
                             </UniformGrid>
+                            <TextBlock Margin="0,14,0,6" Style="{StaticResource Text.SectionTitle}" Text="Recent traffic samples" />
+                            <ItemsControl ItemsSource="{Binding TrafficHistory}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <TextBlock Style="{StaticResource Text.Muted}" Text="{Binding TimestampUtc, StringFormat={}{0:HH:mm:ss}}" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource Text.Secondary}" Text="{Binding DownloadBytesPerSecond, StringFormat={}{0:N0} B/s down}" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource Text.Secondary}" Text="{Binding UploadBytesPerSecond, StringFormat={}{0:N0} B/s up}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 
