@@ -20,6 +20,9 @@ public sealed record TailscalePeer(
     IReadOnlyList<string> Addresses,
     bool? Online)
 {
+    public string OperatingSystem { get; init; } = string.Empty;
+    public string LastSeen { get; init; } = string.Empty;
+    public string ConnectionPath { get; init; } = string.Empty;
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "Unnamed device" : Name;
     public string AddressDisplay => Addresses.Count == 0 ? "—" : string.Join(", ", Addresses);
     public string OnlineDisplay => Online switch { true => "Online", false => "Offline", _ => "—" };

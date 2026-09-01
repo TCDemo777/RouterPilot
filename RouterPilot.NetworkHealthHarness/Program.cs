@@ -18,9 +18,10 @@ Require(ClientIdentity.EndpointEquals("192.168.1.20", "192.168.1.20"), "IPv4 end
 Require(ClientIdentity.EndpointEquals("::ffff:192.168.1.20", "192.168.1.20"), "IPv4-mapped IPv6 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("[2001:db8::20]:53", "2001:DB8::20"), "bracketed IPv6 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("client.example.", "CLIENT.EXAMPLE"), "hostname endpoint correlation");
-TailscaleStatus tailscale = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Self\":{\"HostName\":\"router\",\"DNSName\":\"router.example.ts.net.\",\"TailscaleIPs\":[\"100.64.0.1\",\"fd7a::1\"]},\"Peer\":{\"nodekey:secret\":{\"HostName\":\"laptop\",\"TailscaleIPs\":[\"100.64.0.2\"],\"Online\":true}}}", "1.2.3");
+TailscaleStatus tailscale = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Self\":{\"HostName\":\"router\",\"DNSName\":\"router.example.ts.net.\",\"TailscaleIPs\":[\"100.64.0.1\",\"fd7a::1\"]},\"Peer\":{\"nodekey:secret\":{\"HostName\":\"laptop\",\"TailscaleIPs\":[\"100.64.0.2\"],\"Online\":true,\"OS\":\"Linux\",\"LastSeen\":\"2026-09-01T12:00:00Z\",\"Relay\":false}}}", "1.2.3");
 Require(tailscale.State == TailscaleState.Connected && tailscale.DnsName == "router.example.ts.net" && tailscale.Addresses.Count == 2, "Tailscale connected parsing");
 Require(tailscale.Peers.Count == 1 && tailscale.Peers[0].Name == "laptop" && tailscale.OnlinePeerCount == 1, "Tailscale peer parsing without exposing key");
+Require(tailscale.Peers[0].OperatingSystem == "Linux" && tailscale.Peers[0].LastSeen.Length > 0 && tailscale.Peers[0].ConnectionPath == "Direct", "Tailscale peer enrichment parsing");
 Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"NeedsLogin\"}").State == TailscaleState.NeedsLogin, "Tailscale login state");
 Require(TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Unknown\":true}").State == TailscaleState.Connected, "Tailscale unknown fields");
 Require(TailscaleStatusService.ParseStatus("not-json").State == TailscaleState.Incompatible, "Tailscale malformed JSON");
@@ -30,6 +31,16 @@ TailscaleStatus connectedWithoutPeers = TailscaleStatusService.ParseStatus("{\"B
 Require(connectedWithoutPeers.PeerCount is null, "missing peer data is unavailable rather than zero");
 TailscaleStatus connectedWithNoPeers = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Peer\":{}}");
 Require(connectedWithNoPeers.PeerCount == 0 && connectedWithNoPeers.OnlinePeerCount == 0, "empty peer object is genuine zero");
+var tailscaleHistoryVm = new VpnViewModel();
+tailscaleHistoryVm.ApplyTailscaleStatus(tailscale);
+Require(tailscaleHistoryVm.TailscaleHistory.Count == 0, "Tailscale initial baseline does not flood history");
+TailscaleStatus peerOffline = TailscaleStatusService.ParseStatus("{\"BackendState\":\"Running\",\"Peer\":{\"nodekey:secret\":{\"HostName\":\"laptop\",\"Online\":false}}}");
+tailscaleHistoryVm.ApplyTailscaleStatus(peerOffline);
+Require(tailscaleHistoryVm.TailscaleHistory.Count == 1 && tailscaleHistoryVm.TailscaleHistory[0].Contains("laptop", StringComparison.Ordinal), "Tailscale peer transition is recorded once");
+tailscaleHistoryVm.ApplyTailscaleStatus(peerOffline);
+Require(tailscaleHistoryVm.TailscaleHistory.Count == 1, "Repeated Tailscale state does not duplicate history");
+tailscaleHistoryVm.ResetTailscale();
+Require(tailscaleHistoryVm.TailscaleHistory.Count == 0, "Tailscale history resets with router context");
 Require(new VpnLiveStatusInfo { RxBytes = 0, TxBytes = 0 }.DownloadDisplay == "0 B" && new VpnLiveStatusInfo().UploadDisplay == "—", "VPN counters distinguish genuine zero from unavailable");
 Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };

@@ -76,8 +76,9 @@ public sealed class TailscaleStatusService : ITailscaleStatusService
                 foreach (JsonProperty property in peerMap.EnumerateObject())
                 {
                     JsonElement peer = property.Value;
-                    peers.Add(new(String(peer, "HostName"), CleanDns(String(peer, "DNSName")), Strings(peer, "TailscaleIPs"),
-                        peer.TryGetProperty("Online", out JsonElement online) && online.ValueKind is JsonValueKind.True or JsonValueKind.False ? online.GetBoolean() : null));
+                    peers.Add(new TailscalePeer(String(peer, "HostName"), CleanDns(String(peer, "DNSName")), Strings(peer, "TailscaleIPs"),
+                        peer.TryGetProperty("Online", out JsonElement online) && online.ValueKind is JsonValueKind.True or JsonValueKind.False ? online.GetBoolean() : null)
+                    { OperatingSystem = String(peer, "OS"), LastSeen = String(peer, "LastSeen"), ConnectionPath = ConnectionPath(peer) });
                 }
             string detail = state switch
             {
@@ -92,6 +93,14 @@ public sealed class TailscaleStatusService : ITailscaleStatusService
     }
 
     private static string String(JsonElement value, string name) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.String ? item.GetString() ?? string.Empty : string.Empty;
+    private static string ConnectionPath(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty("Relay", out JsonElement relay)) return string.Empty;
+        if (relay.ValueKind == JsonValueKind.String) return relay.GetString() ?? string.Empty;
+        if (relay.ValueKind == JsonValueKind.True) return "Relay";
+        if (relay.ValueKind == JsonValueKind.False) return "Direct";
+        return string.Empty;
+    }
     private static IReadOnlyList<string> Strings(JsonElement value, string name) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.Array ? item.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? string.Empty).Where(x => x.Length > 0).ToArray() : [];
     private static string CleanDns(string value) => value.TrimEnd('.');
     private static string FirstLine(string value) => value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? string.Empty;

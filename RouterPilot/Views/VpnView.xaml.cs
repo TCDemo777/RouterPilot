@@ -247,6 +247,19 @@ public partial class VpnView : UserControl
         _viewModel.VpnStatus = "✓ VPN details copied";
     }
 
+    private void CopyTailscaleSummary_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(_viewModel.BuildTailscaleSummary());
+            _viewModel.VpnStatus = "Tailscale summary copied.";
+        }
+        catch
+        {
+            _viewModel.VpnStatus = "Tailscale summary could not be copied.";
+        }
+    }
+
     private async void CaptureVpnState_Click(object sender, RoutedEventArgs e)
     {
 #if DEBUG

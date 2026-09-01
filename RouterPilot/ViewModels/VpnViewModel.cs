@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
+using System;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -7,6 +10,10 @@ namespace RouterPilot.ViewModels;
 
 public sealed partial class VpnViewModel : ObservableObject
 {
+    private readonly Dictionary<string, bool?> _peerStates = new(StringComparer.OrdinalIgnoreCase);
+    public ObservableCollection<string> TailscaleHistory { get; } = new();
+    public string TailscaleHistoryText => TailscaleHistory.Count == 0 ? "No Tailscale state changes observed this session." : string.Join("\n", TailscaleHistory);
+    public string TailscaleAttention => TailscaleStatus?.State switch { TailscaleState.NeedsLogin => "Tailscale needs login.", TailscaleState.Stopped => "Tailscale daemon is stopped.", TailscaleState.Unavailable => "Tailscale telemetry is unavailable.", _ => string.Empty };
     public ObservableCollection<VpnTunnelInfo> VpnTunnels { get; } = new();
     public ObservableCollection<VpnClientProfileInfo> VpnProfiles { get; } = new();
     [ObservableProperty] private bool vpnIsLoading;
@@ -22,8 +29,32 @@ public sealed partial class VpnViewModel : ObservableObject
     public string TailscalePeerCountDisplay => TailscaleStatus?.PeerCount?.ToString() ?? "—";
     public string TailscaleOnlinePeerCountDisplay => TailscaleStatus?.OnlinePeerCount?.ToString() ?? "—";
     public string TailscalePeerSummaryDisplay => TailscaleStatus is { PeerCount: int total, OnlinePeerCount: int online } ? $"{total} / {online}" : "—";
-    public void ApplyTailscaleStatus(TailscaleStatus status) { TailscaleStatus = status; OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscaleIPv4Display)); OnPropertyChanged(nameof(TailscaleIPv6Display)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); }
-    public void ResetTailscale() { TailscaleStatus = null; OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscaleIPv4Display)); OnPropertyChanged(nameof(TailscaleIPv6Display)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); }
+    public void ApplyTailscaleStatus(TailscaleStatus status)
+    {
+        TailscaleStatus? previous = TailscaleStatus;
+        bool usableTransition = previous is not null && status.State is not TailscaleState.Unavailable and not TailscaleState.Incompatible;
+        if (usableTransition && previous!.State != status.State)
+            AddTailscaleHistory($"Tailscale state changed: {previous.State} -> {status.State}");
+        if (previous?.PeerDataAvailable == true && status.PeerDataAvailable)
+            foreach (TailscalePeer peer in status.Peers)
+                if (_peerStates.TryGetValue(peer.Name, out bool? old) && old != peer.Online)
+                    AddTailscaleHistory($"{peer.DisplayName} is now {peer.OnlineDisplay}");
+        _peerStates.Clear();
+        if (status.PeerDataAvailable)
+            foreach (TailscalePeer peer in status.Peers)
+                _peerStates[peer.Name] = peer.Online;
+        TailscaleStatus = status;
+        NotifyTailscale();
+    }
+    public void ResetTailscale() { TailscaleStatus = null; _peerStates.Clear(); TailscaleHistory.Clear(); NotifyTailscale(); }
+    public string BuildTailscaleSummary() { StringBuilder text = new("RouterPilot Tailscale Summary\n"); text.AppendLine($"Status: {TailscaleStateDisplay}"); text.AppendLine($"Version: {TailscaleStatus?.Version ?? "—"}"); text.AppendLine($"IPv4 available: {(string.IsNullOrWhiteSpace(TailscaleStatus?.IPv4) ? "No" : "Yes")}"); text.AppendLine($"IPv6 available: {(string.IsNullOrWhiteSpace(TailscaleStatus?.IPv6) ? "No" : "Yes")}"); text.AppendLine($"Peers: {TailscalePeerSummaryDisplay}"); text.AppendLine("Peer identities and addresses omitted."); return text.ToString(); }
+    private void AddTailscaleHistory(string message)
+    {
+        TailscaleHistory.Insert(0, $"{DateTime.Now:g}  {message}");
+        while (TailscaleHistory.Count > 100) TailscaleHistory.RemoveAt(TailscaleHistory.Count - 1);
+    }
+
+    private void NotifyTailscale() { OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscaleIPv4Display)); OnPropertyChanged(nameof(TailscaleIPv6Display)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); OnPropertyChanged(nameof(TailscaleAttention)); OnPropertyChanged(nameof(TailscaleHistoryText)); }
     [ObservableProperty] private int vpnOperationTunnelId;
     private int? _connectionAttemptTunnelId;
     private int? _connectionAttemptGroupId;
