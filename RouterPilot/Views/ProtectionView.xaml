@@ -1078,6 +1078,22 @@
                             </Border>
                         </WrapPanel>
 
+                        <Border Margin="0,0,0,16" Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="RouterPilot session"/><TextBlock Margin="0,4,0,10" Style="{DynamicResource Text.Muted}" Text="AdGuard statistics observed during this RouterPilot session; not a daily or billing total."/></StackPanel>
+                                    <Button Grid.Column="1" Content="Copy Protection Summary" Style="{DynamicResource Button.Secondary}" Click="CopyProtectionSummary_Click"/>
+                                </Grid>
+                                <UniformGrid Columns="4">
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="REQUESTS"/><TextBlock Margin="0,3,0,0" Text="{Binding AdGuardSessionQueriesDisplay}"/></StackPanel>
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCKED"/><TextBlock Margin="0,3,0,0" Text="{Binding AdGuardSessionBlockedDisplay}"/></StackPanel>
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCK RATE"/><TextBlock Margin="0,3,0,0" Text="{Binding AdGuardSessionBlockRateDisplay}"/></StackPanel>
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="SAMPLES"/><TextBlock Margin="0,3,0,0" Text="{Binding AdGuardSessionSamplesDisplay}"/></StackPanel>
+                                </UniformGrid>
+                                <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding AdGuardSessionHistoryDisplay}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
                         <Border Margin="0,0,0,16" Padding="12" Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="DNS activity trend"/>

@@ -97,6 +97,20 @@ namespace RouterPilot.Views
             }
         }
 
+        private void CopyProtectionSummary_Click(object sender, RoutedEventArgs e)
+        {
+            if (InsightsTab.DataContext is not DashboardViewModel dashboard) return;
+            try
+            {
+                Clipboard.SetText(dashboard.BuildProtectionSummary());
+                _viewModel.SetMessage("Protection summary copied.");
+            }
+            catch
+            {
+                _viewModel.SetMessage("Protection summary could not be copied.");
+            }
+        }
+
         private void AddBlocklist_Click(object sender, RoutedEventArgs e) =>
             BlocklistEditorDialog.Show(Window.GetWindow(this), "Add blocklist", null, _viewModel.AddBlocklistAsync);
 

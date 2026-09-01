@@ -50,6 +50,15 @@ var malformedPorts = (IReadOnlyList<RouterPortSnapshot>)parsePorts.Invoke(null, 
 Require(malformedPorts.Count == 1 && malformedPorts[0].NegotiatedSpeedMbps is null && malformedPorts[0].RxBytes is null, "Malformed Ethernet counters remain unavailable");
 Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
+var protectionSession = new DashboardViewModel();
+protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 100, BlockedQueries = 10 });
+Require(protectionSession.AdGuardSessionQueriesDisplay == "—", "Protection session baseline does not count lifetime totals");
+protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 125, BlockedQueries = 15 });
+Require(protectionSession.AdGuardSessionQueriesDisplay == "25" && protectionSession.AdGuardSessionBlockedDisplay == "5", "Protection session deltas accumulate");
+protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 5, BlockedQueries = 1 });
+Require(protectionSession.AdGuardSessionQueriesDisplay == "25", "Protection counter reset does not create negative session totals");
+protectionSession.ClearAdGuardStatistics();
+Require(protectionSession.AdGuardSessionSamplesDisplay == "0", "Protection session reset is local");
 Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("bypass", StringComparison.OrdinalIgnoreCase), "zero DNS tooltip explains AdGuard observation scope");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("upstream DNS", StringComparison.OrdinalIgnoreCase), "encrypted AdGuard upstream remains observable");

@@ -209,6 +209,7 @@ namespace RouterPilot.ViewModels
         public string StatusDetail { get => _statusDetail; private set => SetProperty(ref _statusDetail, value); }
         public string Remaining { get => _remaining; private set => SetProperty(ref _remaining, value); }
         public string Message { get => _message; private set => SetProperty(ref _message, value); }
+        public void SetMessage(string message) => Message = message;
         public string BlockedServicesStatus { get => _blockedServicesStatus; private set => SetProperty(ref _blockedServicesStatus, value); }
         public string BlockedServicesSearch { get => _blockedServicesSearch; set { if (SetProperty(ref _blockedServicesSearch, value)) BlockedServicesView.Refresh(); } }
         public bool ShowBlockedOnly { get => _showBlockedOnly; set { if (SetProperty(ref _showBlockedOnly, value)) BlockedServicesView.Refresh(); } }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using RouterPilot.Models;
@@ -312,6 +313,20 @@ namespace RouterPilot.ViewModels
 
         [ObservableProperty]
         private string adGuardBlockRate = "-";
+
+        private long? _adGuardPreviousQueries;
+        private long? _adGuardPreviousBlocked;
+        private long _adGuardSessionQueries;
+        private long _adGuardSessionBlocked;
+        private DateTime? _adGuardSessionStarted;
+        private int _adGuardSessionSamples;
+        public ObservableCollection<string> AdGuardSessionEvents { get; } = new();
+        public string AdGuardSessionQueriesDisplay => _adGuardSessionSamples == 0 ? "—" : _adGuardSessionQueries.ToString("N0");
+        public string AdGuardSessionBlockedDisplay => _adGuardSessionSamples == 0 ? "—" : _adGuardSessionBlocked.ToString("N0");
+        public string AdGuardSessionBlockRateDisplay => _adGuardSessionSamples == 0 ? "—" : _adGuardSessionQueries == 0 ? "0.0%" : $"{(double)_adGuardSessionBlocked / _adGuardSessionQueries * 100:0.0}%";
+        public string AdGuardSessionSamplesDisplay => _adGuardSessionSamples.ToString("N0");
+        public string AdGuardSessionDurationDisplay => _adGuardSessionStarted is null ? "—" : FormatSessionDuration(DateTime.Now - _adGuardSessionStarted.Value);
+        public string AdGuardSessionHistoryDisplay => AdGuardSessionEvents.Count == 0 ? "No Protection state changes observed this session." : string.Join("\n", AdGuardSessionEvents);
 
 
         //
@@ -1248,6 +1263,9 @@ namespace RouterPilot.ViewModels
             };
         }
 
+        private static string FormatSessionDuration(TimeSpan duration) =>
+            duration.TotalHours >= 1 ? $"{duration.TotalHours:0.#} hours" : $"{Math.Max(0, duration.TotalMinutes):0} minutes";
+
         private static string FormatTrafficRate(double megabitsPerSecond)
         {
             if (megabitsPerSecond >= 1000)
@@ -1263,6 +1281,65 @@ namespace RouterPilot.ViewModels
             return $"{megabitsPerSecond * 1000d:0} Kbps";
         }
 
+        private void RecordAdGuardSessionStatistics(AdGuardStatistics statistics)
+        {
+            if (statistics.TotalQueries < 0 || statistics.BlockedQueries < 0 || statistics.BlockedQueries > statistics.TotalQueries)
+                return;
+            if (_adGuardPreviousQueries is null || _adGuardPreviousBlocked is null)
+            {
+                _adGuardPreviousQueries = statistics.TotalQueries;
+                _adGuardPreviousBlocked = statistics.BlockedQueries;
+                _adGuardSessionStarted ??= DateTime.Now;
+                return;
+            }
+            if (statistics.TotalQueries < _adGuardPreviousQueries || statistics.BlockedQueries < _adGuardPreviousBlocked)
+            {
+                AddAdGuardSessionEvent("Protection statistics baseline reset");
+                _adGuardPreviousQueries = statistics.TotalQueries;
+                _adGuardPreviousBlocked = statistics.BlockedQueries;
+                return;
+            }
+            _adGuardSessionQueries += statistics.TotalQueries - _adGuardPreviousQueries.Value;
+            _adGuardSessionBlocked += statistics.BlockedQueries - _adGuardPreviousBlocked.Value;
+            _adGuardPreviousQueries = statistics.TotalQueries;
+            _adGuardPreviousBlocked = statistics.BlockedQueries;
+            _adGuardSessionStarted ??= DateTime.Now;
+            _adGuardSessionSamples++;
+            NotifyAdGuardSession();
+        }
+
+        private void AddAdGuardSessionEvent(string message)
+        {
+            AdGuardSessionEvents.Insert(0, $"{DateTime.Now:g}  {message}");
+            while (AdGuardSessionEvents.Count > 100) AdGuardSessionEvents.RemoveAt(AdGuardSessionEvents.Count - 1);
+            NotifyAdGuardSession();
+        }
+
+        private void NotifyAdGuardSession()
+        {
+            OnPropertyChanged(nameof(AdGuardSessionQueriesDisplay));
+            OnPropertyChanged(nameof(AdGuardSessionBlockedDisplay));
+            OnPropertyChanged(nameof(AdGuardSessionBlockRateDisplay));
+            OnPropertyChanged(nameof(AdGuardSessionSamplesDisplay));
+            OnPropertyChanged(nameof(AdGuardSessionDurationDisplay));
+            OnPropertyChanged(nameof(AdGuardSessionHistoryDisplay));
+        }
+
+        public string BuildProtectionSummary()
+        {
+            StringBuilder text = new("RouterPilot Protection Summary\n");
+            text.AppendLine($"AdGuard: {(IsAdGuardAvailable ? "Available" : "Unavailable")}");
+            text.AppendLine($"DNS requests: {AdGuardQueriesDisplay}");
+            text.AppendLine($"Blocked: {AdGuardBlockedDisplay}");
+            text.AppendLine($"Block rate: {AdGuardBlockRateDisplay}");
+            text.AppendLine($"Session requests: {AdGuardSessionQueriesDisplay}");
+            text.AppendLine($"Session blocked: {AdGuardSessionBlockedDisplay}");
+            text.AppendLine($"Session samples: {AdGuardSessionSamplesDisplay}");
+            text.AppendLine("Domains, query history, client identities and credentials omitted.");
+            text.AppendLine($"Generated: {DateTime.Now:g}");
+            return text.ToString();
+        }
+
         public void UpdateAdGuardStatistics(
             AdGuardStatistics statistics)
         {
@@ -1274,6 +1351,7 @@ namespace RouterPilot.ViewModels
                 return;
             }
 
+            RecordAdGuardSessionStatistics(statistics);
             string timeUnits =
                 string.IsNullOrWhiteSpace(
                     statistics.QueryHistoryTimeUnits)
@@ -1483,6 +1561,15 @@ namespace RouterPilot.ViewModels
             TopClients.Clear();
             TopQueriedDomains.Clear();
             TopBlockedDomains.Clear();
+
+            _adGuardPreviousQueries = null;
+            _adGuardPreviousBlocked = null;
+            _adGuardSessionQueries = 0;
+            _adGuardSessionBlocked = 0;
+            _adGuardSessionStarted = null;
+            _adGuardSessionSamples = 0;
+            AdGuardSessionEvents.Clear();
+            NotifyAdGuardSession();
 
             AdGuardProtectionEnabled = false;
             AdGuardProtectionPaused = false;
