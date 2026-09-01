@@ -79,6 +79,19 @@ Require(RouterPortTelemetryParser.Parse(
     "P|eth0|physical||1|1000|full|mac|1|2|0|0|0|0||||\n").Count == 1,
     "Router port parser tolerates malformed and duplicate interface records");
 
+RouterMultiWanSnapshot multiWan = RouterMultiWanParser.Parse(
+    "S|1|failover|backup|primary\n" +
+    "W|backup|Backup|repeater|wwan|wwan0|1|1|online|1|0|1|192.0.2.1|||2|2|1\n" +
+    "W|primary|Primary|ethernet|wan|eth0|1|1|offline|0|1|0|198.51.100.1|198.51.100.2|||1|1|3\n" +
+    "W|backup|Duplicate|ethernet|wan2|eth2|1|1|online|1|0|0||||||",
+    DateTimeOffset.UtcNow);
+Require(multiWan.Mode == RouterMultiWanMode.Failover && multiWan.WanPaths.Count == 2 &&
+    multiWan.WanPaths[0].Id == "backup" && multiWan.WanPaths[0].RuntimeState == RouterWanRuntimeState.Online &&
+    multiWan.WanPaths[1].ConnectionType == RouterWanConnectionType.Ethernet,
+    "Multi-WAN parser preserves mode, status, types and deterministic ordering");
+Require(RouterMultiWanParser.Parse(string.Empty, DateTimeOffset.UtcNow).CapabilityState == RouterCapabilityState.Unknown,
+    "Multi-WAN empty probe remains unknown");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();

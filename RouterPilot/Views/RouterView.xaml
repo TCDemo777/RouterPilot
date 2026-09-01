@@ -101,7 +101,29 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Wi-Fi"><TextBlock Margin="24" Text="Wi-Fi telemetry will appear here."/></TabItem>
-            <TabItem Header="Multi-WAN"><TextBlock Margin="24" Text="Multi-WAN telemetry will appear here."/></TabItem>
+            <TabItem Header="Multi-WAN">
+                <Grid Margin="0,18,0,0">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock x:Name="MultiWanSummary" FontSize="16" FontWeight="SemiBold" Text="Multi-WAN status unavailable"/>
+                    <TextBlock x:Name="MultiWanStatus" Grid.Row="1" Margin="0,4,0,12" Style="{DynamicResource Text.Muted}"/>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="MultiWanList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <GroupBox Header="{Binding Name}" Margin="0,0,0,10">
+                                        <Grid Margin="14">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding RuntimeState}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding InterfaceName}"/></StackPanel>
+                                            <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="Connection type"/><TextBlock Text="{Binding ConnectionType}"/><TextBlock Margin="0,4,0,0" Text="{Binding Gateway, TargetNullValue=—}"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Role"/><TextBlock Text="{Binding IsActive, StringFormat=Active: {0}}"/><TextBlock Text="{Binding IsDefault, StringFormat=Default: {0}}"/></StackPanel>
+                                        </Grid>
+                                    </GroupBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             <TabItem Header="DNS"><TextBlock Margin="24" Text="DNS telemetry will appear here."/></TabItem>
             <TabItem Header="Performance"><TextBlock Margin="24" Text="Performance telemetry will appear here."/></TabItem>
         </TabControl>

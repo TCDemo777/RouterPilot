@@ -4,9 +4,9 @@
         xmlns:views="clr-namespace:RouterPilot.Views"
         Title="RouterPilot"
         Width="1100"
-        Height="720"
+        Height="760"
         MinWidth="900"
-        MinHeight="600"
+        MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.WindowBackground}">
     <Window.Resources>
@@ -99,9 +99,6 @@
                            Foreground="{DynamicResource Brush.TextMuted}"
                            Text="NAVIGATION"/>
 
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
                     <TextBlock Margin="18,8,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
                     <Button x:Name="OverviewButton"
@@ -226,7 +223,6 @@
                             Click="About_Click"/>
 
                 </StackPanel>
-                </ScrollViewer>
 
             </Grid>
         </Border>
