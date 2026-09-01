@@ -100,7 +100,58 @@
                     </ScrollViewer>
                 </Grid>
             </TabItem>
-            <TabItem Header="Wi-Fi"><TextBlock Margin="24" Text="Wi-Fi telemetry will appear here."/></TabItem>
+            <TabItem Header="Wi-Fi">
+                <Grid Margin="0,18,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="WifiStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only Wi-Fi telemetry…"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="WifiRadiosList" Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <GroupBox Header="{Binding DisplayName}" Margin="0,0,0,10">
+                                        <StackPanel Margin="14">
+                                            <TextBlock Style="{DynamicResource Text.Muted}" Text="Physical radio"/>
+                                            <TextBlock Text="{Binding RadioDisplay}"/>
+                                            <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Networks}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,0,0,10" Padding="0,0,0,10" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                                <StackPanel>
+                                                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="SSID / BSS"/>
+                                                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Ssid}"/>
+                                                                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding Interface}"/>
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="1">
+                                                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="State"/>
+                                                                    <TextBlock Text="{Binding StatusDisplay}"/>
+                                                                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Channel / width"/>
+                                                                    <TextBlock Text="{Binding ChannelSummary, TargetNullValue=—}"/>
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="2">
+                                                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/>
+                                                                    <TextBlock Text="{Binding HardwareMode, TargetNullValue=—}"/>
+                                                                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Clients / TX power"/>
+                                                                    <TextBlock Text="{Binding ClientCountDisplay}"/>
+                                                                    <TextBlock Text="{Binding TransmitPower, TargetNullValue=—}"/>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </GroupBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             <TabItem Header="Multi-WAN">
                 <Grid Margin="0,18,0,0">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>

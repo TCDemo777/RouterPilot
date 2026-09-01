@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,11 +17,13 @@ public partial class RouterView : UserControl
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly ObservableCollection<RouterPortSnapshot> _ports = new();
     private readonly ObservableCollection<RouterWanPathSnapshot> _multiWanPaths = new();
+    private readonly ObservableCollection<RouterWifiRadioGroup> _wifiRadios = new();
     private CancellationTokenSource? _refreshCancellation;
     private bool _refreshing;
     private bool _multiWanRefreshing;
     private bool _dnsRefreshing;
     private bool _performanceRefreshing;
+    private bool _wifiRefreshing;
 
     public RouterView()
     {
@@ -27,6 +31,7 @@ public partial class RouterView : UserControl
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
         PortsList.ItemsSource = _ports;
         MultiWanList.ItemsSource = _multiWanPaths;
+        WifiRadiosList.ItemsSource = _wifiRadios;
         DnsResolversList.ItemsSource = Array.Empty<string>();
         Loaded += RouterView_Loaded;
         Unloaded += RouterView_Unloaded;
@@ -36,6 +41,7 @@ public partial class RouterView : UserControl
     private async void RouterView_Loaded(object sender, RoutedEventArgs e)
     {
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
+        else if (RouterTabs.SelectedIndex == 2) await RefreshWifiAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
         else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
@@ -50,6 +56,7 @@ public partial class RouterView : UserControl
     {
         if (e.Source != RouterTabs) return;
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
+        else if (RouterTabs.SelectedIndex == 2) await RefreshWifiAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
         else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
@@ -122,6 +129,68 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Multi-WAN refresh failed ({exception.GetType().Name}).");
         }
         finally { _multiWanRefreshing = false; }
+    }
+
+    private async Task RefreshWifiAsync()
+    {
+        if (_wifiRefreshing) return;
+        _wifiRefreshing = true;
+        _refreshCancellation?.Cancel();
+        _refreshCancellation?.Dispose();
+        _refreshCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _refreshCancellation.Token;
+        try
+        {
+            RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            List<WifiRadioInfo> networks = await manager.GetWifiRadiosAsync();
+            RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
+
+            _wifiRadios.Clear();
+            foreach (RouterWifiRadioGroup radio in GroupWifiNetworks(networks))
+                _wifiRadios.Add(radio);
+            WifiStatus.Text = _wifiRadios.Count > 0
+                ? $"{_wifiRadios.Count} wireless radio(s) reported by the router."
+                : "Wi-Fi telemetry is currently unavailable.";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            _wifiRadios.Clear();
+            WifiStatus.Text = "Wi-Fi telemetry is currently unavailable.";
+            System.Diagnostics.Debug.WriteLine($"Router Wi-Fi refresh failed ({exception.GetType().Name}).");
+        }
+        finally { _wifiRefreshing = false; }
+    }
+
+    private static IEnumerable<RouterWifiRadioGroup> GroupWifiNetworks(IEnumerable<WifiRadioInfo> networks)
+    {
+        return networks
+            .Where(network => network is not null)
+            .GroupBy(network => $"{network.Radio}\u001f{network.Band}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => new RouterWifiRadioGroup(
+                group.First().Radio,
+                group.First().Band,
+                group.OrderBy(network => network.Ssid, StringComparer.OrdinalIgnoreCase).ToArray()))
+            .OrderBy(group => BandSortOrder(group.Band))
+            .ThenBy(group => group.Radio, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static int BandSortOrder(string band) => band switch
+    {
+        "2.4 GHz" => 0,
+        "5 GHz" => 1,
+        "6 GHz" => 2,
+        _ => 3
+    };
+
+    private sealed record RouterWifiRadioGroup(
+        string Radio,
+        string Band,
+        IReadOnlyList<WifiRadioInfo> Networks)
+    {
+        public string DisplayName => Band is "-" or "Unknown" ? $"Radio {Radio}" : Band;
+        public string RadioDisplay => string.IsNullOrWhiteSpace(Radio) || Radio == "-" ? "—" : Radio;
     }
 
     private async Task RefreshDnsAsync()
