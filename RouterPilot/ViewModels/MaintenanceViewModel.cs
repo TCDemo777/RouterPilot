@@ -3,6 +3,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Reflection;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -111,6 +113,26 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         .FirstOrDefault(item => item.Action == MaintenanceAction.CreateBackup)?.OutputSizeBytes is long size
             ? FormatFileSize(size)
             : RouterPilotStatusPresentation.NotAvailable;
+
+    public string BuildSupportSnapshot()
+    {
+        string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+        StringBuilder report = new();
+        report.AppendLine("RouterPilot Support Snapshot");
+        report.AppendLine();
+        report.AppendLine($"RouterPilot version: {version}");
+        report.AppendLine($"Router model: {Dashboard.RouterModel ?? RouterPilotStatusPresentation.NotAvailable}");
+        report.AppendLine($"Router connection: {Dashboard.RouterStatusText}");
+        report.AppendLine($"Internet: {Dashboard.InternetStatusText}");
+        report.AppendLine($"AdGuard: {Dashboard.AdGuardStatusText}");
+        report.AppendLine($"Wi-Fi telemetry: {WifiStatusText}");
+        report.AppendLine($"Firmware: {FirmwareCurrentVersion}");
+        report.AppendLine($"Last diagnostics: {History.FirstOrDefault(item => item.Action == MaintenanceAction.RunDiagnostics)?.TimestampDisplay ?? RouterPilotStatusPresentation.NotAvailable}");
+        report.AppendLine($"Generated: {DateTime.Now:g}");
+        report.AppendLine();
+        report.AppendLine("This snapshot intentionally omits passwords, tokens, IP/MAC addresses, SSIDs, client identities, DNS history, VPN endpoints and private keys.");
+        return report.ToString();
+    }
 
     public string HealthSummary => IsBusy
         ? RouterPilotStatusPresentation.Pending

@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -219,6 +220,36 @@ public partial class MaintenanceView : UserControl
             FileName = viewModel.BackupFolder,
             UseShellExecute = true
         });
+    }
+
+    private void CopySupportSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        try
+        {
+            Clipboard.SetText(viewModel.BuildSupportSnapshot());
+            MessageBox.Show("Support snapshot copied.", "RouterPilot Support", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch
+        {
+            MessageBox.Show("Support snapshot could not be copied.", "RouterPilot Support", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ExportSupportSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        SaveFileDialog dialog = new() { Title = "Export support snapshot", Filter = "Text file (*.txt)|*.txt|Markdown file (*.md)|*.md", DefaultExt = ".txt", FileName = "RouterPilot-Support-Snapshot.txt" };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, viewModel.BuildSupportSnapshot());
+            MessageBox.Show("Support snapshot exported.", "RouterPilot Support", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch
+        {
+            MessageBox.Show("Support snapshot could not be exported.", "RouterPilot Support", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private async void CheckFirmware_Click(object sender, RoutedEventArgs e)

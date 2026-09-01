@@ -184,6 +184,17 @@
 
             <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Support" />
+                    <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.Secondary}" Text="Copy or export a privacy-safe summary of information already loaded in RouterPilot. No router requests are made." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Width="156" Height="36" Margin="0,0,10,0" Style="{DynamicResource Button.Secondary}" Content="Copy support snapshot" Click="CopySupportSnapshot_Click" />
+                        <Button Width="156" Height="36" Style="{DynamicResource Button.Secondary}" Content="Export support snapshot" Click="ExportSupportSnapshot_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Backup &amp; Restore" />
             <Border Padding="0" BorderThickness="0">
                 <Grid>
