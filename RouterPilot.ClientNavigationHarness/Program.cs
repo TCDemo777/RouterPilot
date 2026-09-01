@@ -80,7 +80,7 @@ Require(RouterPortTelemetryParser.Parse(
     "Router port parser tolerates malformed and duplicate interface records");
 
 RouterMultiWanSnapshot multiWan = RouterMultiWanParser.Parse(
-    "S|1|failover|backup|primary\n" +
+    "S|supported|1|failover|backup|primary\n" +
     "W|backup|Backup|repeater|wwan|wwan0|1|1|online|1|0|1|192.0.2.1|||2|2|1\n" +
     "W|primary|Primary|ethernet|wan|eth0|1|1|offline|0|1|0|198.51.100.1|198.51.100.2|||1|1|3\n" +
     "W|backup|Duplicate|ethernet|wan2|eth2|1|1|online|1|0|0||||||",
@@ -89,6 +89,36 @@ Require(multiWan.Mode == RouterMultiWanMode.Failover && multiWan.WanPaths.Count 
     multiWan.WanPaths[0].Id == "backup" && multiWan.WanPaths[0].RuntimeState == RouterWanRuntimeState.Online &&
     multiWan.WanPaths[1].ConnectionType == RouterWanConnectionType.Ethernet,
     "Multi-WAN parser preserves mode, status, types and deterministic ordering");
+RouterMultiWanSnapshot ordinaryWan = RouterMultiWanParser.Parse(
+    "S|unknown|unknown|unknown||\n" +
+    "W|wan|Ethernet WAN|ethernet|wan|eth0|1|1|online|1|0|0|192.0.2.1|198.51.100.2||||",
+    DateTimeOffset.UtcNow);
+Require(ordinaryWan.WanPaths.Count == 1 &&
+    ordinaryWan.CapabilityState == RouterCapabilityState.Unknown &&
+    ordinaryWan.Mode == RouterMultiWanMode.Unknown,
+    "Ordinary WAN telemetry does not imply Multi-WAN support or mode");
+RouterMultiWanSnapshot supportedSingleWan = RouterMultiWanParser.Parse(
+    "S|supported|0|unknown||\n" +
+    "W|wan|Ethernet WAN|ethernet|wan|eth0|1|1|online|1|0|0||||||||",
+    DateTimeOffset.UtcNow);
+Require(supportedSingleWan.WanPaths.Count == 1 &&
+    supportedSingleWan.CapabilityState == RouterCapabilityState.Supported,
+    "Authoritatively capable platform may have one configured WAN");
+RouterMultiWanSnapshot unsupportedMultiWan = RouterMultiWanParser.Parse(
+    "S|unsupported|0|unknown||\n" +
+    "W|wan|Ethernet WAN|ethernet|wan|eth0|1|1|online|1|0|0||||||||",
+    DateTimeOffset.UtcNow);
+Require(unsupportedMultiWan.CapabilityState == RouterCapabilityState.Unsupported,
+    "Authoritative unsupported evidence remains Unsupported");
+RouterMultiWanSnapshot twoWanWithoutEvidence = RouterMultiWanParser.Parse(
+    "S|unknown|unknown|unknown||\n" +
+    "W|wan-a|WAN A|ethernet|wan-a|eth0|1|1|online|1|1|0||||||||\n" +
+    "W|wan-b|WAN B|ethernet|wan-b|eth1|1|1|online|1|0|0||||||||",
+    DateTimeOffset.UtcNow);
+Require(twoWanWithoutEvidence.WanPaths.Count == 2 &&
+    twoWanWithoutEvidence.CapabilityState == RouterCapabilityState.Unknown &&
+    twoWanWithoutEvidence.Mode == RouterMultiWanMode.Unknown,
+    "Multiple WAN paths do not imply Multi-WAN capability or mode");
 Require(RouterMultiWanParser.Parse(string.Empty, DateTimeOffset.UtcNow).CapabilityState == RouterCapabilityState.Unknown,
     "Multi-WAN empty probe remains unknown");
 

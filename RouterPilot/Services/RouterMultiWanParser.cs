@@ -11,6 +11,7 @@ internal static class RouterMultiWanParser
     public static RouterMultiWanSnapshot Parse(string? output, DateTimeOffset capturedAt)
     {
         bool? enabled = null;
+        RouterCapabilityState capability = RouterCapabilityState.Unknown;
         RouterMultiWanMode mode = RouterMultiWanMode.Unknown;
         string? active = null, @default = null;
         var paths = new List<RouterWanPathSnapshot>();
@@ -21,9 +22,10 @@ internal static class RouterMultiWanParser
             if (f.Length == 0) continue;
             if (f[0] == "S")
             {
-                enabled = ParseBool(Field(f, 1));
-                mode = Field(f, 2).ToLowerInvariant() switch { "single" => RouterMultiWanMode.SingleWan, "failover" => RouterMultiWanMode.Failover, "load-balance" or "loadbalancing" => RouterMultiWanMode.LoadBalancing, _ => RouterMultiWanMode.Unknown };
-                active = NullIf(Field(f, 3)); @default = NullIf(Field(f, 4));
+                capability = Field(f, 1).ToLowerInvariant() switch { "supported" => RouterCapabilityState.Supported, "unsupported" => RouterCapabilityState.Unsupported, _ => RouterCapabilityState.Unknown };
+                enabled = ParseBool(Field(f, 2));
+                mode = Field(f, 3).ToLowerInvariant() switch { "single" => RouterMultiWanMode.SingleWan, "failover" => RouterMultiWanMode.Failover, "load-balance" or "loadbalancing" => RouterMultiWanMode.LoadBalancing, _ => RouterMultiWanMode.Unknown };
+                active = NullIf(Field(f, 4)); @default = NullIf(Field(f, 5));
                 continue;
             }
             if (f[0] != "W" || string.IsNullOrWhiteSpace(Field(f, 1)) || !seen.Add(Field(f, 1))) continue;
@@ -31,7 +33,6 @@ internal static class RouterMultiWanParser
             paths.Add(new RouterWanPathSnapshot(Field(f, 1), Field(f, 2), ParseType(Field(f, 3)), Field(f, 4), Field(f, 5), ParseBool(Field(f, 6)), ParseBool(Field(f, 7)), state, ParseBool(Field(f, 9)), ParseBool(Field(f, 10)) == true, ParseBool(Field(f, 11)) == true, NullIf(Field(f, 12)), NullIf(Field(f, 13)), NullIf(Field(f, 14)), ParseInt(Field(f, 15)), ParseInt(Field(f, 16)), ParseInt(Field(f, 17))));
         }
         paths = paths.OrderByDescending(p => p.IsActive).ThenByDescending(p => p.IsDefault).ThenBy(p => p.Priority ?? int.MaxValue).ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase).ToList();
-        RouterCapabilityState capability = paths.Count > 0 ? RouterCapabilityState.Supported : RouterCapabilityState.Unknown;
         return new RouterMultiWanSnapshot(capability, enabled, mode, active, @default, paths, capturedAt);
     }
 
