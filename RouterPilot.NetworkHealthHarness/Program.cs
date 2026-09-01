@@ -52,7 +52,7 @@ Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback i
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
 var protectionSession = new DashboardViewModel();
 protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 100, BlockedQueries = 10 });
-Require(protectionSession.AdGuardSessionQueriesDisplay == "—", "Protection session baseline does not count lifetime totals");
+Require(protectionSession.AdGuardSessionQueriesDisplay == "0" && protectionSession.AdGuardSessionSamplesDisplay == "1", "Protection session baseline does not count lifetime totals");
 protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 125, BlockedQueries = 15 });
 Require(protectionSession.AdGuardSessionQueriesDisplay == "25" && protectionSession.AdGuardSessionBlockedDisplay == "5", "Protection session deltas accumulate");
 protectionSession.UpdateAdGuardStatistics(new AdGuardStatistics { TotalQueries = 5, BlockedQueries = 1 });

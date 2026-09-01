@@ -1290,6 +1290,8 @@ namespace RouterPilot.ViewModels
                 _adGuardPreviousQueries = statistics.TotalQueries;
                 _adGuardPreviousBlocked = statistics.BlockedQueries;
                 _adGuardSessionStarted ??= DateTime.Now;
+                _adGuardSessionSamples = Math.Max(1, _adGuardSessionSamples);
+                NotifyAdGuardSession();
                 return;
             }
             if (statistics.TotalQueries < _adGuardPreviousQueries || statistics.BlockedQueries < _adGuardPreviousBlocked)
