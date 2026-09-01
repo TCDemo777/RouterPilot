@@ -69,6 +69,9 @@ namespace RouterPilot.ViewModels
             string.IsNullOrWhiteSpace(ProfileNickname)
                 ? LiveClient?.Name ?? _client.Name
                 : ProfileNickname;
+        public string NameSource => !string.IsNullOrWhiteSpace(ProfileNickname)
+            ? "Personalized"
+            : CurrentClientOrSnapshot.NameSource;
         private ClientInfo? LiveClient =>
             ClientIdentity.IsMacKey(_client.MacAddress) &&
             _clientInventory.Snapshot.TryGetValue(ClientIdentity.NormalizeMac(_client.MacAddress), out ClientInfo? client)
@@ -393,6 +396,7 @@ namespace RouterPilot.ViewModels
 
             OnPropertyChanged(nameof(IsCurrentlyObserved));
             OnPropertyChanged(nameof(ClientName));
+            OnPropertyChanged(nameof(NameSource));
             OnPropertyChanged(nameof(IpAddress));
             OnPropertyChanged(nameof(IpAddressLabel));
             OnPropertyChanged(nameof(IpAddressToolTip));
@@ -521,6 +525,7 @@ namespace RouterPilot.ViewModels
             _client.MonitorAvailability = MonitorAvailability;
 
             OnPropertyChanged(nameof(ClientName));
+            OnPropertyChanged(nameof(NameSource));
             OnPropertyChanged(nameof(AvailabilityMonitoringStatus));
             if (!saved)
             {
@@ -715,6 +720,37 @@ namespace RouterPilot.ViewModels
         private void CopyMac()
         {
             CopyToClipboard(MacAddress, "MAC address");
+        }
+
+        [RelayCommand]
+        private void CopyDetails()
+        {
+            ClientInfo snapshot = CurrentClientOrSnapshot;
+            string details = string.Join(Environment.NewLine,
+                $"Name: {ClientName}",
+                $"Name source: {NameSource}",
+                $"Hostname: {snapshot.RouterName}",
+                $"IP address: {IpAddress}",
+                $"MAC address: {MacAddress}",
+                $"MAC type: {GetMacType(MacAddress)}",
+                $"Vendor: {snapshot.Manufacturer}",
+                $"Connection: {ConnectionSummary}",
+                $"DNS observability: {snapshot.ActivityAvailabilityToolTip}",
+                $"DNS requests: {TotalQueriesDisplay}",
+                $"Blocked: {BlockedQueriesDisplay}",
+                $"Blocked %: {BlockRateDisplay}",
+                $"First observed: {FirstObserved}",
+                $"Last observed: {LastObserved}");
+            Clipboard.SetText(details);
+            StatusMessage = "Client details copied.";
+        }
+
+        private static string GetMacType(string value)
+        {
+            string normalized = ClientIdentity.NormalizeHexMac(value);
+            if (normalized.Length != 12 || !byte.TryParse(normalized[..2], System.Globalization.NumberStyles.HexNumber, null, out byte first))
+                return "Unknown";
+            return (first & 0x02) != 0 ? "Private/local MAC" : "Universal MAC";
         }
 
         private void CopyToClipboard(string? value, string label)

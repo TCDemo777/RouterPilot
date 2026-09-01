@@ -5,6 +5,7 @@ namespace RouterPilot.Models
     public class ClientInfo
     {
         public string Name { get; set; } = "-";
+        public string NameSource { get; set; } = "Unknown";
         public string RouterName { get; set; } = "-";
         public string Notes { get; set; } = string.Empty;
         public string CustomCategory { get; set; } = string.Empty;

@@ -68,6 +68,9 @@
                         Visibility="{Binding NeedsReview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 <Button MinWidth="100" Height="36" Margin="0,0,10,0"
                         Command="{Binding RefreshCommand}" Content="Refresh"/>
+                <Button MinWidth="112" Height="36" Margin="0,0,10,0"
+                        Style="{DynamicResource Button.Secondary}"
+                        Command="{Binding CopyDetailsCommand}" Content="Copy details"/>
                 <Button MinWidth="100" Height="36"
                         Command="{Binding TogglePauseCommand}" Content="{Binding PauseButtonText}"/>
             </StackPanel>
@@ -159,6 +162,8 @@
                                        Text="CLIENT IDENTITY"/>
                             <TextBlock Margin="0,3,0,0" FontSize="15" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" Text="{Binding ClientName}"/>
+                            <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding NameSource, StringFormat=Name source: {0}}"/>
                         </StackPanel>
                     </Grid>
 

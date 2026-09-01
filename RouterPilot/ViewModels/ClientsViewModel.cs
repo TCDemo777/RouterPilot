@@ -1360,6 +1360,7 @@ namespace RouterPilot.ViewModels
                 client.AdGuardName,
                 profile.LastKnownName,
                 client.IpAddress));
+            client.NameSource = ResolveNameSource(profile, client);
             // Always apply the shared resolution result.  Keeping the raw router
             // value when resolution returns Unknown device is what allowed
             // platform labels such as "Windows" to remain visible as names.
@@ -1371,6 +1372,16 @@ namespace RouterPilot.ViewModels
 
             (client.HealthText, client.HealthColour) =
                 DetectHealth(client);
+        }
+
+        private static string ResolveNameSource(ClientProfile profile, ClientInfo client)
+        {
+            if (HasUsefulValue(profile.Nickname)) return "Personalized";
+            if (HasUsefulValue(client.RouterName)) return "Router";
+            if (HasUsefulValue(client.MdnsName)) return "mDNS";
+            if (HasUsefulValue(client.AdGuardName)) return "AdGuard";
+            if (HasUsefulValue(profile.LastKnownName)) return "Previously known";
+            return "Unknown";
         }
 
         private static (string Icon, string Type) DetectDevice(string value)
@@ -1652,6 +1663,7 @@ namespace RouterPilot.ViewModels
                             client.RouterName, client.AdGuardName, hostname, profile.LastKnownName) ?? client.OperatingSystem;
                         if (!string.Equals(resolved, "Unknown device", StringComparison.OrdinalIgnoreCase))
                             client.Name = resolved;
+                        client.NameSource = ResolveNameSource(profile, client);
                         UpdateProfileObservation(profile, client);
                         changed = true;
                     }
