@@ -123,10 +123,11 @@ Require(RouterMultiWanParser.Parse(string.Empty, DateTimeOffset.UtcNow).Capabili
     "Multi-WAN empty probe remains unknown");
 
 RouterDnsSnapshot dns = RouterDnsParser.Parse(
-    "S|supported|automatic|running|doh|unknown|unknown\n" +
+    "S|supported|dnsmasq|automatic|running|doh|unknown|unknown\n" +
     "U| 1.1.1.1\nU|https://user:secret@dns.example.test/path?token=redacted\nU|1.1.1.1\n",
     DateTimeOffset.UtcNow);
 Require(dns.CapabilityState == RouterCapabilityState.Supported &&
+    dns.ServiceName == "dnsmasq" &&
     dns.Mode == RouterDnsMode.Automatic && dns.RuntimeState == RouterDnsRuntimeState.Running &&
     dns.EncryptionMode == RouterDnsEncryptionMode.DoH && dns.UpstreamResolvers.Count == 2 &&
     dns.UpstreamResolvers.All(value => !value.Contains("secret", StringComparison.OrdinalIgnoreCase) &&

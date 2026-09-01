@@ -9,6 +9,7 @@ public enum RouterDnsEncryptionMode { Plain, DoH, DoT, Encrypted, Unknown }
 
 public sealed record RouterDnsSnapshot(
     RouterCapabilityState CapabilityState,
+    string? ServiceName,
     RouterDnsMode Mode,
     RouterDnsRuntimeState RuntimeState,
     RouterDnsEncryptionMode EncryptionMode,
@@ -19,6 +20,7 @@ public sealed record RouterDnsSnapshot(
 {
     public static RouterDnsSnapshot Unknown { get; } = new(
         RouterCapabilityState.Unknown,
+        null,
         RouterDnsMode.Unknown,
         RouterDnsRuntimeState.Unknown,
         RouterDnsEncryptionMode.Unknown,

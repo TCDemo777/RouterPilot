@@ -154,7 +154,9 @@ public partial class RouterView : UserControl
                 : "DNS telemetry is currently unavailable.";
             DnsModeText.Text = snapshot.Mode == RouterDnsMode.Unknown ? "—" : snapshot.Mode.ToString();
             DnsEncryptionText.Text = snapshot.EncryptionMode == RouterDnsEncryptionMode.Unknown ? "—" : snapshot.EncryptionMode.ToString();
-            DnsRuntimeText.Text = snapshot.RuntimeState == RouterDnsRuntimeState.Unknown ? "—" : snapshot.RuntimeState.ToString();
+            DnsRuntimeText.Text = snapshot.RuntimeState == RouterDnsRuntimeState.Unknown
+                ? "—"
+                : $"{snapshot.ServiceName ?? "DNS service"} · {snapshot.RuntimeState}";
             DnsHandlesText.Text = snapshot.AdGuardHandlesClientRequests switch { true => "Yes", false => "No", _ => "Unknown" };
             DnsVpnText.Text = snapshot.VpnDnsState ?? "—";
             DnsResolversList.ItemsSource = snapshot.UpstreamResolvers.Count == 0 ? new[] { "—" } : snapshot.UpstreamResolvers;

@@ -16,7 +16,7 @@ public sealed class RouterDnsTelemetryService
         try
         {
             string output = await _ssh.RunCommandAsync(
-                "runtime=unknown; pgrep -x dnsmasq >/dev/null 2>&1 && runtime=running; resolvers=$(awk '/^nameserver[[:space:]]+/ {print $2}' /tmp/resolv.conf.d/resolv.conf.auto 2>/dev/null); configured=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null); capability=unknown; [ \"$runtime\" = running ] || [ -n \"$resolvers\" ] || [ -n \"$configured\" ] && capability=supported; printf 'S|%s|unknown|%s|unknown|unknown|unknown\\n' \"$capability\" \"$runtime\"; printf '%s\\n' \"$resolvers\" | sed '/^$/d; s/^/U|/'; printf '%s' \"$configured\" | tr ' ' '\\n' | sed '/^$/d; s/^/U|/'",
+                "runtime=unknown; service=unknown; if pgrep -x dnsmasq >/dev/null 2>&1; then runtime=running; service=dnsmasq; elif pgrep -x smartdns >/dev/null 2>&1; then runtime=running; service=smartdns; fi; resolvers=$(awk '/^nameserver[[:space:]]+/ {print $2}' /tmp/resolv.conf.d/resolv.conf.auto 2>/dev/null); configured=$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null); mode=automatic; [ -n \"$configured\" ] && mode=manual; capability=unknown; [ \"$runtime\" = running ] || [ -n \"$resolvers\" ] || [ -n \"$configured\" ] && capability=supported; printf 'S|%s|%s|%s|%s|unknown|unknown|unknown\\n' \"$capability\" \"$service\" \"$mode\" \"$runtime\"; printf '%s\\n' \"$resolvers\" | sed '/^$/d; s/^/U|/'; printf '%s' \"$configured\" | tr ' ' '\\n' | sed '/^$/d; s/^/U|/'",
                 cancellationToken);
             return RouterDnsParser.Parse(output, DateTimeOffset.UtcNow);
         }

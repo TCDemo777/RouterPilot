@@ -11,6 +11,7 @@ internal static class RouterDnsParser
     public static RouterDnsSnapshot Parse(string? output, DateTimeOffset capturedAt)
     {
         RouterDnsCapability capability = RouterDnsCapability.Unknown;
+        string? service = null;
         RouterDnsMode mode = RouterDnsMode.Unknown;
         RouterDnsRuntimeState runtime = RouterDnsRuntimeState.Unknown;
         RouterDnsEncryptionMode encryption = RouterDnsEncryptionMode.Unknown;
@@ -31,11 +32,12 @@ internal static class RouterDnsParser
                         "unsupported" => RouterDnsCapability.Unsupported,
                         _ => RouterDnsCapability.Unknown
                     };
-                    mode = ParseMode(Field(fields, 2));
-                    runtime = ParseRuntime(Field(fields, 3));
-                    encryption = ParseEncryption(Field(fields, 4));
-                    handles = ParseBool(Field(fields, 5));
-                    vpn = NullIf(Field(fields, 6));
+                    service = NullIf(Field(fields, 2));
+                    mode = ParseMode(Field(fields, 3));
+                    runtime = ParseRuntime(Field(fields, 4));
+                    encryption = ParseEncryption(Field(fields, 5));
+                    handles = ParseBool(Field(fields, 6));
+                    vpn = NullIf(Field(fields, 7));
                     break;
                 case "U":
                     string resolver = NormalizeResolver(Field(fields, 1));
@@ -48,7 +50,7 @@ internal static class RouterDnsParser
         return new RouterDnsSnapshot(
             capability == RouterDnsCapability.Supported ? RouterCapabilityState.Supported :
             capability == RouterDnsCapability.Unsupported ? RouterCapabilityState.Unsupported : RouterCapabilityState.Unknown,
-            mode, runtime, encryption, upstreams.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(), handles, vpn, capturedAt);
+            service, mode, runtime, encryption, upstreams.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(), handles, vpn, capturedAt);
     }
 
     private enum RouterDnsCapability { Supported, Unsupported, Unknown }
