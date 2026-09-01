@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -25,6 +27,8 @@ namespace RouterPilot.Views
         private DashboardViewModel? _portForwardRulesOwner;
         private bool _maintenanceInProgress;
         private bool _showPortForwardAttentionOnly;
+        private CancellationTokenSource? _diagnosticsCancellation;
+        private bool _diagnosticsRunning;
 
         public NetworkView()
         {
@@ -86,7 +90,59 @@ namespace RouterPilot.Views
             RefreshPortForwardRuleFilter();
         }
 
-        private void NetworkView_Unloaded(object sender, RoutedEventArgs e) => DetachPortForwardRuleViewUpdates();
+        private void NetworkView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            _diagnosticsCancellation?.Cancel();
+            DetachPortForwardRuleViewUpdates();
+        }
+
+        private async void RunNetworkDiagnostics_Click(object sender, RoutedEventArgs e)
+        {
+            if (_diagnosticsRunning) return;
+            _diagnosticsRunning = true;
+            RunNetworkDiagnosticsButton.IsEnabled = false;
+            NetworkDiagnosticsStatusText.Text = "Running bounded connectivity checks...";
+            NetworkDiagnosticsDetailsText.Text = string.Empty;
+            _diagnosticsCancellation?.Cancel();
+            _diagnosticsCancellation?.Dispose();
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
+            _diagnosticsCancellation = cts;
+            string profileId = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>().CurrentProfileId;
+            long contextVersion = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>().Version;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cts.Token);
+                Stopwatch dnsTimer = Stopwatch.StartNew();
+                string dns = await router.DnsLookupAsync("example.com", cts.Token);
+                dnsTimer.Stop();
+                string ping = await router.PingAsync("1.1.1.1", cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
+                IActiveRouterContext active = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
+                if (profileId != active.CurrentProfileId || contextVersion != active.Version) return;
+                bool dnsOk = dns.Contains("Name:", StringComparison.OrdinalIgnoreCase) &&
+                             dns.Contains("Address:", StringComparison.OrdinalIgnoreCase);
+                Match loss = Regex.Match(ping, @"(?<loss>\d+(?:\.\d+)?)%\s*packet loss", RegexOptions.IgnoreCase);
+                Match avg = Regex.Match(ping, @"=\s*[^/]+/(?<avg>[\d.]+)/", RegexOptions.IgnoreCase);
+                string lossText = loss.Success ? $"Observed loss: {loss.Groups["loss"].Value}%" : "Observed loss: —";
+                string latencyText = avg.Success ? $"Latency average: {avg.Groups["avg"].Value} ms" : "Latency average: —";
+                NetworkDiagnosticsStatusText.Text = dnsOk ? "Internet/DNS checks completed." : "Internet check completed; DNS resolution was not confirmed.";
+                NetworkDiagnosticsDetailsText.Text = $"DNS resolution: {(dnsOk ? "Working" : "Unavailable")} ({dnsTimer.ElapsedMilliseconds} ms)  •  {latencyText}  •  {lossText}";
+            }
+            catch (OperationCanceledException)
+            {
+                NetworkDiagnosticsStatusText.Text = "Network diagnostics timed out or were cancelled.";
+            }
+            catch (Exception ex)
+            {
+                NetworkDiagnosticsStatusText.Text = OperationFailurePolicy.UserMessage(ex, "Network diagnostics", "Network diagnostics are currently unavailable.");
+            }
+            finally
+            {
+                if (ReferenceEquals(_diagnosticsCancellation, cts)) _diagnosticsCancellation = null;
+                _diagnosticsRunning = false;
+                RunNetworkDiagnosticsButton.IsEnabled = true;
+            }
+        }
 
         private void NetworkView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {

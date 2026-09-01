@@ -152,12 +152,12 @@ namespace RouterPilot.Services
         // Router diagnostic tools
         //
 
-        public Task<string> PingAsync(string target)
+        public Task<string> PingAsync(string target, CancellationToken cancellationToken = default)
         {
             string safeTarget = ValidateDiagnosticTarget(target);
 
             return _ssh.RunCommandAsync(
-                $"ping -c 4 -W 2 {safeTarget}");
+                $"ping -c 4 -W 2 {safeTarget}", cancellationToken);
         }
 
         public Task<string> TracerouteAsync(string target)
@@ -168,12 +168,12 @@ namespace RouterPilot.Services
                 $"traceroute -m 12 -w 2 {safeTarget}");
         }
 
-        public Task<string> DnsLookupAsync(string target)
+        public Task<string> DnsLookupAsync(string target, CancellationToken cancellationToken = default)
         {
             string safeTarget = ValidateDiagnosticTarget(target);
 
             return _ssh.RunCommandAsync(
-                $"nslookup {safeTarget}");
+                $"nslookup {safeTarget}", cancellationToken);
         }
 
         private static string ValidateDiagnosticTarget(string target)

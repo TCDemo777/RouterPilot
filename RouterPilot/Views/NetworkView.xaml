@@ -193,6 +193,21 @@
                     </Border>
                 </Grid>
 
+                <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Connection diagnostics"/>
+                                <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Run a bounded, read-only DNS and Internet reachability check."/>
+                            </StackPanel>
+                            <Button x:Name="RunNetworkDiagnosticsButton" Grid.Column="1" Padding="12,6" Style="{DynamicResource Button.Secondary}" Content="Run diagnostics" Click="RunNetworkDiagnostics_Click"/>
+                        </Grid>
+                        <TextBlock x:Name="NetworkDiagnosticsStatusText" Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="No diagnostic run in this session."/>
+                        <TextBlock x:Name="NetworkDiagnosticsDetailsText" Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <Border x:Name="OverviewMaintenanceContent" Margin="0,0,0,16" Style="{DynamicResource Card}">
                     <StackPanel>
                         <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Quick maintenance"/>
