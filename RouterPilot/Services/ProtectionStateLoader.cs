@@ -29,7 +29,7 @@ internal sealed class ProtectionStateLoader
 
     internal async Task<ProtectionStateSnapshot> LoadAsync(CancellationToken cancellationToken)
     {
-        RouterManager router = await _routers.GetRouterManagerAsync();
+        RouterManager router = await _routers.GetRouterManagerAsync(cancellationToken);
         AdGuardProtectionStatus status = await router.GetAdGuardProtectionStatusAsync();
         AdGuardStatistics statistics = await router.GetAdGuardStatisticsAsync();
         AdGuardProtectionOptions options = await router.GetProtectionOptionsAsync();

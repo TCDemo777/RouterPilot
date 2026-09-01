@@ -213,6 +213,16 @@
                            Foreground="{DynamicResource Brush.Warning}"
                            Text="{Binding AdGuardAvailabilityMessage}"/>
 
+                <Border Margin="0,0,0,16" Style="{DynamicResource Card.Compact}">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS OBSERVABILITY"/>
+                        <TextBlock Margin="0,6,0,0"
+                                   Style="{DynamicResource Text.Secondary}"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding DnsObservabilityText}"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Summary cards -->
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>

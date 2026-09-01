@@ -39,6 +39,21 @@ Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("upstream DNS", Str
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("DoH", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoT", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoQ", StringComparison.OrdinalIgnoreCase), "direct encrypted-DNS bypass is explained");
 ClientInfo unavailableDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
 Require(unavailableDns.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "unmatched DNS activity is presented as unavailable");
+Type statisticsParser = typeof(RouterManager).Assembly.GetType("RouterPilot.Services.AdGuardStatisticsParser")!;
+MethodInfo parseStatistics = statisticsParser.GetMethod("Parse", BindingFlags.Static | BindingFlags.NonPublic)!;
+MethodInfo createUnavailableStatistics = statisticsParser.GetMethod("CreateUnavailableStatistics", BindingFlags.Static | BindingFlags.NonPublic)!;
+AdGuardStatistics unavailableStatistics = (AdGuardStatistics)createUnavailableStatistics.Invoke(null, null)!;
+Require(unavailableStatistics.TotalQueries < 0 && unavailableStatistics.BlockedQueries < 0,
+    "AdGuard statistics preserve unavailable counts instead of defaulting to zero");
+AdGuardStatistics zeroStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":0,\"num_blocked_filtering\":0,\"top_queried_domains\":[{\"example.test\":0}]} ", DateTime.UtcNow })!;
+Require(zeroStatistics.TotalQueries == 0 && zeroStatistics.BlockedQueries == 0 && zeroStatistics.BlockPercentage == 0,
+    "AdGuard statistics preserve genuine zero counts");
+AdGuardStatistics malformedStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":\"invalid\",\"num_blocked_filtering\":\"invalid\",\"top_queried_domains\":[{\"valid.test\":4},{\"bad.test\":\"x\"}]} ", DateTime.UtcNow })!;
+Require(malformedStatistics.TotalQueries < 0 && malformedStatistics.BlockedQueries < 0 &&
+    malformedStatistics.TopQueriedDomains.Count == 1 && malformedStatistics.TopQueriedDomains[0].Count == 4,
+    "Malformed AdGuard statistics retain valid ranked data and unavailable totals");
 var encryptedUpstreamClient = new ClientInfo { IpAddress = "192.168.1.20", AdGuardDataAvailability = AdGuardAvailabilityState.Available };
 MethodInfo? applyStatistics = typeof(RouterManager).GetMethod("ApplyClientTotalsFromStatistics", BindingFlags.Static | BindingFlags.NonPublic);
 Require(applyStatistics is not null, "AdGuard statistics merge helper is available");

@@ -20,6 +20,7 @@ namespace RouterPilot.ViewModels
     public sealed class ProtectionViewModel : ObservableObject, IDisposable, IAsyncDisposable
     {
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly IActiveRouterContext _activeRouter;
         private readonly AdGuardProtectionNotificationTracker _protectionNotificationTracker;
         private readonly BlockedServiceMutationService _blockedServiceMutations;
         private readonly AdGuardServiceScheduleService _scheduleService;
@@ -73,11 +74,13 @@ namespace RouterPilot.ViewModels
         private bool _hasFilteringRulesData;
         private bool _blocklistsLoaded;
         private bool _blocklistsLoading;
+        private CancellationTokenSource? _activationCancellation;
         private string _blocklistsStatus = "Open Blocklists to load AdGuard Home subscriptions.";
         private string _blocklistSearch = "";
 
         public ProtectionViewModel(
             IRouterManagerProvider routerManagerProvider,
+            IActiveRouterContext activeRouter,
             AdGuardProtectionNotificationTracker protectionNotificationTracker,
             BlockedServiceMutationService blockedServiceMutations,
             AdGuardServiceScheduleService scheduleService,
@@ -88,6 +91,7 @@ namespace RouterPilot.ViewModels
             NotificationService notificationService)
         {
             _routerManagerProvider = routerManagerProvider;
+            _activeRouter = activeRouter;
             _protectionNotificationTracker = protectionNotificationTracker;
             _blockedServiceMutations = blockedServiceMutations;
             _scheduleService = scheduleService;
@@ -169,15 +173,21 @@ namespace RouterPilot.ViewModels
                 if (!SetProperty(ref _isAdGuardAvailable, value)) return;
                 OnPropertyChanged(nameof(ControlsEnabled));
                 OnPropertyChanged(nameof(AdGuardAvailabilityMessage));
+                OnPropertyChanged(nameof(DnsObservabilityText));
+                OnPropertyChanged(nameof(FilteringStateDisplay));
+                OnPropertyChanged(nameof(QueryLogStateDisplay));
+                OnPropertyChanged(nameof(SafeBrowsingStateDisplay));
+                OnPropertyChanged(nameof(ParentalStateDisplay));
+                OnPropertyChanged(nameof(SafeSearchStateDisplay));
                 if (!value)
                 {
                     SetProtectionStatus(RouterPilotStatus.NotAvailable);
                     StatusDetail = "AdGuard Home is unavailable. Router monitoring remains active.";
                     Remaining = string.Empty;
-                    TotalQueriesText = "N/A";
-                    BlockedQueriesText = "N/A";
-                    BlockPercentageText = "N/A";
-                    TopBlockedDomain = "N/A";
+                    TotalQueriesText = "—";
+                    BlockedQueriesText = "—";
+                    BlockPercentageText = "—";
+                    TopBlockedDomain = "—";
                     HasTopBlockedDomain = false;
                     QueryLogEntries.Clear();
                     QueryLogStatus = "DNS query information requires AdGuard Home.";
@@ -188,6 +198,11 @@ namespace RouterPilot.ViewModels
         public string AdGuardAvailabilityMessage => IsAdGuardAvailable
             ? string.Empty
             : "AdGuard Home is unavailable. Router monitoring remains active.";
+        public string DnsObservabilityText => !IsAdGuardAvailable
+            ? "Unavailable — AdGuard Home telemetry is unavailable. Router DNS may still be operating normally."
+            : QueryLogEnabled
+                ? "Available — activity visible to AdGuard Home; VPN or direct encrypted DNS paths may not be observable."
+                : "Limited — AdGuard query logging is disabled, so client DNS activity may not be visible.";
         public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
         public string StatusColour => RouterPilotStatusPresentation.Colour(_protectionStatus);
         public string StatusDetail { get => _statusDetail; private set => SetProperty(ref _statusDetail, value); }
@@ -246,17 +261,18 @@ namespace RouterPilot.ViewModels
         public string SafeSearchPixabayDisplay => FormatOnOff(SafeSearchPixabay);
         public string SafeSearchYandexDisplay => FormatOnOff(SafeSearchYandex);
         public string SafeSearchYouTubeDisplay => FormatOnOff(SafeSearchYouTube);
-        public string FilteringStateDisplay => FormatOnOff(FilteringEnabled);
-        public string QueryLogStateDisplay => FormatOnOff(QueryLogEnabled);
-        public string SafeBrowsingStateDisplay => FormatOnOff(SafeBrowsingEnabled);
-        public string ParentalStateDisplay => FormatOnOff(ParentalEnabled);
-        public string SafeSearchStateDisplay => FormatOnOff(SafeSearchEnabled);
+        private string FormatAdGuardOption(bool enabled) => IsAdGuardAvailable ? FormatOnOff(enabled) : "—";
+        public string FilteringStateDisplay => FormatAdGuardOption(FilteringEnabled);
+        public string QueryLogStateDisplay => FormatAdGuardOption(QueryLogEnabled);
+        public string SafeBrowsingStateDisplay => FormatAdGuardOption(SafeBrowsingEnabled);
+        public string ParentalStateDisplay => FormatAdGuardOption(ParentalEnabled);
+        public string SafeSearchStateDisplay => FormatAdGuardOption(SafeSearchEnabled);
 
         public bool FilteringEnabled { get => _filteringEnabled; set { if (SetProperty(ref _filteringEnabled, value)) { OnPropertyChanged(nameof(FilteringStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("DNS filtering", r => r.SetFilteringEnabledAsync(value)); } } }
         public bool SafeBrowsingEnabled { get => _safeBrowsingEnabled; set { if (SetProperty(ref _safeBrowsingEnabled, value)) { OnPropertyChanged(nameof(SafeBrowsingStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Safe Browsing", r => r.SetSafeBrowsingEnabledAsync(value)); } } }
         public bool SafeSearchEnabled { get => _safeSearchEnabled; set { if (SetProperty(ref _safeSearchEnabled, value)) { OnPropertyChanged(nameof(SafeSearchStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Safe Search", r => r.SetSafeSearchEnabledAsync(value, _options.SafeSearch)); } } }
         public bool ParentalEnabled { get => _parentalEnabled; set { if (SetProperty(ref _parentalEnabled, value)) { OnPropertyChanged(nameof(ParentalStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Parental Control", r => r.SetParentalEnabledAsync(value)); } } }
-        public bool QueryLogEnabled { get => _queryLogEnabled; set { if (SetProperty(ref _queryLogEnabled, value)) { OnPropertyChanged(nameof(QueryLogStateDisplay)); if (!_isInitialising) _ = UpdateOptionAsync("Query logging", r => r.SetQueryLogEnabledAsync(value, _options)); } } }
+        public bool QueryLogEnabled { get => _queryLogEnabled; set { if (SetProperty(ref _queryLogEnabled, value)) { OnPropertyChanged(nameof(QueryLogStateDisplay)); OnPropertyChanged(nameof(DnsObservabilityText)); if (!_isInitialising) _ = UpdateOptionAsync("Query logging", r => r.SetQueryLogEnabledAsync(value, _options)); } } }
 
         public string NewRuleDomain { get => _newRuleDomain; set => SetProperty(ref _newRuleDomain, value); }
         public string NewRewriteDomain { get => _newRewriteDomain; set => SetProperty(ref _newRewriteDomain, value); }
@@ -289,11 +305,18 @@ namespace RouterPilot.ViewModels
 
         public async Task StartAsync()
         {
+            _activationCancellation?.Cancel();
+            _activationCancellation?.Dispose();
+            _activationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_disposalCancellation.Token);
             _timer.Start();
             await RefreshAllAsync();
         }
 
-        public void Stop() => _timer.Stop();
+        public void Stop()
+        {
+            _timer.Stop();
+            _activationCancellation?.Cancel();
+        }
         public void Dispose()
         {
             lock (_disposeLock)
@@ -329,6 +352,7 @@ namespace RouterPilot.ViewModels
 
             _disposed = true;
             _timer.Stop();
+            _activationCancellation?.Cancel();
             _scheduleService.BlockedServicesChanged -= ScheduleService_BlockedServicesChanged;
             _disposalCancellation.Cancel();
         }
@@ -338,9 +362,15 @@ namespace RouterPilot.ViewModels
             if (IsBusy) return;
             IsBusy = true;
             Message = "Refreshing all protection settings...";
+            string profileId = _activeRouter.CurrentProfileId;
+            long contextVersion = _activeRouter.Version;
+            CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
+            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
             try
             {
-                ProtectionStateSnapshot snapshot = await _stateLoader.LoadAsync(_disposalCancellation.Token);
+                ProtectionStateSnapshot snapshot = await _stateLoader.LoadAsync(token);
+                token.ThrowIfCancellationRequested();
+                if (!IsCurrent()) return;
                 AdGuardProtectionStatus status = snapshot.Status;
                 AdGuardStatistics statistics = snapshot.Statistics;
                 _options = snapshot.Options;
@@ -397,8 +427,12 @@ namespace RouterPilot.ViewModels
                 IsAdGuardAvailable = true;
                 Message = "Protection settings refreshed.";
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
             catch (Exception)
             {
+                if (!IsCurrent()) return;
                 HasFilteringRulesData = false;
                 IsAdGuardAvailable = false;
                 if (BlockedServices.Count == 0)
@@ -412,8 +446,12 @@ namespace RouterPilot.ViewModels
         private async Task RefreshTimedDataAsync()
         {
             if (IsBusy) return;
+            CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
+            string profileId = _activeRouter.CurrentProfileId;
+            long contextVersion = _activeRouter.Version;
+            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
 
-            await RefreshProtectionStatusAsync(false);
+            await RefreshProtectionStatusAsync(false, token);
             _statisticsRefreshTick++;
 
             // The timer runs every three seconds. Refresh statistics every
@@ -425,12 +463,16 @@ namespace RouterPilot.ViewModels
             try
             {
                 RouterManager router =
-                    await _routerManagerProvider.GetRouterManagerAsync();
-                ApplyStatistics(await router.GetAdGuardStatisticsAsync());
-                await RefreshQueryLogAsync(false);
+                    await _routerManagerProvider.GetRouterManagerAsync(token);
+                AdGuardStatistics statistics = await router.GetAdGuardStatisticsAsync();
+                if (!IsCurrent()) return;
+                ApplyStatistics(statistics);
+                await RefreshQueryLogAsync(false, token);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch
             {
+                if (!IsCurrent()) return;
                 IsAdGuardAvailable = false;
                 // Keep the last successful statistics visible when a
                 // transient router or AdGuard request fails.
@@ -439,24 +481,31 @@ namespace RouterPilot.ViewModels
 
         private void ApplyStatistics(AdGuardStatistics statistics)
         {
-            TotalQueriesText = statistics.TotalQueries.ToString("N0");
-            BlockedQueriesText = statistics.BlockedQueries.ToString("N0");
-            BlockPercentageText = statistics.BlockPercentage.ToString("0.0") + "%";
-            TopBlockedDomain = statistics.TopBlockedDomains.FirstOrDefault()?.Name
-                ?? "No blocked domains yet";
-            HasTopBlockedDomain = statistics.TopBlockedDomains.Count > 0;
+            bool totalAvailable = statistics.TotalQueries >= 0;
+            bool blockedAvailable = statistics.BlockedQueries >= 0;
+            TotalQueriesText = totalAvailable ? statistics.TotalQueries.ToString("N0") : "—";
+            BlockedQueriesText = blockedAvailable ? statistics.BlockedQueries.ToString("N0") : "—";
+            BlockPercentageText = totalAvailable && blockedAvailable && statistics.TotalQueries > 0 && statistics.BlockedQueries <= statistics.TotalQueries
+                ? statistics.BlockPercentage.ToString("0.0") + "%"
+                : totalAvailable && blockedAvailable && statistics.TotalQueries == 0 ? "0.0%" : "—";
+            TopBlockedDomain = !blockedAvailable ? "—" : statistics.TopBlockedDomains.FirstOrDefault()?.Name ?? "No blocked domains yet";
+            HasTopBlockedDomain = blockedAvailable && statistics.TopBlockedDomains.Count > 0;
         }
 
 
-        private async Task RefreshQueryLogAsync(bool showMessage)
+        private async Task RefreshQueryLogAsync(bool showMessage, CancellationToken? refreshToken = null)
         {
+            CancellationToken token = refreshToken ?? _activationCancellation?.Token ?? _disposalCancellation.Token;
             try
             {
                 RouterManager router =
-                    await _routerManagerProvider.GetRouterManagerAsync();
-                ApplyQueryLog(await router.GetQueryLogAsync());
+                    await _routerManagerProvider.GetRouterManagerAsync(token);
+                IReadOnlyList<QueryLogEntry> entries = await router.GetQueryLogAsync();
+                token.ThrowIfCancellationRequested();
+                ApplyQueryLog(entries);
                 if (showMessage) Message = "Recent DNS activity refreshed.";
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
                 QueryLogStatus = "Recent DNS activity is unavailable.";
@@ -494,11 +543,32 @@ namespace RouterPilot.ViewModels
                    entry.Status.Contains(search, StringComparison.OrdinalIgnoreCase);
         }
 
-        private async Task RefreshProtectionStatusAsync(bool showMessage)
+        private async Task RefreshProtectionStatusAsync(bool showMessage, CancellationToken? refreshToken = null)
         {
             if (IsBusy) return;
-            try { RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(); ApplyStatus(await router.GetAdGuardProtectionStatusAsync()); IsAdGuardAvailable = true; if (showMessage) Message = "Protection status refreshed."; }
-            catch (Exception) { IsAdGuardAvailable = false; StatusDetail = "AdGuard Home is unavailable. Router monitoring remains active."; if (showMessage) Message = StatusDetail; }
+            CancellationToken token = refreshToken ?? _activationCancellation?.Token ?? _disposalCancellation.Token;
+            string profileId = _activeRouter.CurrentProfileId;
+            long contextVersion = _activeRouter.Version;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(token);
+                AdGuardProtectionStatus status = await router.GetAdGuardProtectionStatusAsync();
+                token.ThrowIfCancellationRequested();
+                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version)
+                    return;
+                ApplyStatus(status);
+                IsAdGuardAvailable = true;
+                if (showMessage) Message = "Protection status refreshed.";
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception)
+            {
+                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version)
+                    return;
+                IsAdGuardAvailable = false;
+                StatusDetail = "AdGuard Home is unavailable. Router monitoring remains active.";
+                if (showMessage) Message = StatusDetail;
+            }
         }
 
         private async Task DisableProtectionAsync()

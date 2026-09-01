@@ -17,17 +17,30 @@ internal static class AdGuardStatisticsParser
     {
         AdGuardStatistics stats = CreateUnavailableStatistics();
 
-        using JsonDocument document = JsonDocument.Parse(json);
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return stats;
+        }
+
+        using (document)
+        {
         JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            return stats;
 
         if (root.TryGetProperty("num_dns_queries", out JsonElement queries) &&
-            queries.TryGetInt32(out int totalQueries))
+            TryGetInteger(queries, out int totalQueries))
         {
             stats.TotalQueries = totalQueries;
         }
 
         if (root.TryGetProperty("num_blocked_filtering", out JsonElement blocked) &&
-            blocked.TryGetInt32(out int blockedQueries))
+            TryGetInteger(blocked, out int blockedQueries))
         {
             stats.BlockedQueries = blockedQueries;
         }
@@ -45,6 +58,7 @@ internal static class AdGuardStatisticsParser
         Debug.WriteLine($"Top blocked: {stats.TopBlockedDomains.Count}");
 
         return stats;
+        }
     }
 
     internal static AdGuardStatistics CreateUnavailableStatistics() => new()
@@ -176,9 +190,9 @@ internal static class AdGuardStatisticsParser
     {
         JsonElement value = array[index];
 
-        if (value.TryGetInt32(out int integerValue)) return integerValue;
+        if (TryGetInteger(value, out int integerValue)) return integerValue;
 
-        if (value.TryGetInt64(out long longValue))
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out long longValue))
         {
             if (longValue > int.MaxValue) return int.MaxValue;
             if (longValue < int.MinValue) return int.MinValue;
