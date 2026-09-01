@@ -20,6 +20,8 @@ public partial class RouterView : UserControl
     private readonly ObservableCollection<RouterWanPathSnapshot> _multiWanPaths = new();
     private readonly ObservableCollection<string> _multiWanHistory = new();
     private readonly Dictionary<string, string> _multiWanBaselines = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PortSessionState> _portStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ObservableCollection<string> _portHistory = new();
     private readonly ObservableCollection<RouterWifiRadioGroup> _wifiRadios = new();
     private readonly ObservableCollection<string> _wifiHistory = new();
     private readonly Dictionary<string, string> _wifiBaselines = new(StringComparer.OrdinalIgnoreCase);
@@ -30,6 +32,7 @@ public partial class RouterView : UserControl
     private bool _performanceRefreshing;
     private bool _wifiRefreshing;
     private RouterManager? _multiWanManager;
+    private RouterManager? _portsManager;
     private RouterManager? _wifiManager;
 
     public RouterView()
@@ -37,6 +40,7 @@ public partial class RouterView : UserControl
         InitializeComponent();
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
         PortsList.ItemsSource = _ports;
+        PortsHistoryList.ItemsSource = _portHistory;
         MultiWanList.ItemsSource = _multiWanPaths;
         MultiWanHistoryList.ItemsSource = _multiWanHistory;
         WifiRadiosList.ItemsSource = _wifiRadios;
@@ -82,10 +86,18 @@ public partial class RouterView : UserControl
         try
         {
             RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(_portsManager, manager))
+            {
+                _portStates.Clear();
+                _portHistory.Clear();
+                _portsManager = manager;
+            }
             RouterPortTelemetryResult result = await manager.GetRouterPortTelemetryAsync(cancellationToken);
             RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
             if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
 
+            bool authoritative = result.Capability == RouterCapabilityState.Supported && result.Ports.Count > 0;
+            if (authoritative) RecordPortTransitions(result.Ports);
             _ports.Clear();
             foreach (RouterPortSnapshot port in result.Ports)
                 if (port.IsPhysical || port.InterfaceType == RouterInterfaceType.Unknown)
@@ -93,6 +105,11 @@ public partial class RouterView : UserControl
             PortsStatus.Text = result.Capability == RouterCapabilityState.Supported
                 ? $"{_ports.Count} authoritative Ethernet interface(s) found."
                 : "Ethernet port telemetry is currently unavailable.";
+            PortsSummary.Text = authoritative ? $"Connected: {_ports.Count(port => port.Carrier == true)}  •  Disconnected: {_ports.Count(port => port.Carrier == false)}  •  Session link changes: {_portStates.Values.Sum(state => state.LinkChanges)}" : "Telemetry unavailable —";
+            PortsAttention.Text = authoritative && _portStates.Values.Any(state => state.NewErrorsThisSession > 0 || state.NewDropsThisSession > 0)
+                ? $"New Ethernet errors/drops observed on {_portStates.Values.Count(state => state.NewErrorsThisSession > 0 || state.NewDropsThisSession > 0)} port(s)."
+                : string.Empty;
+            PortsSessionText.Text = $"Session history (RouterPilot observations) • {_portHistory.Count} event(s)";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -101,6 +118,78 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Router port refresh failed ({exception.GetType().Name}).");
         }
         finally { _refreshing = false; }
+    }
+
+    private void RecordPortTransitions(IReadOnlyList<RouterPortSnapshot> ports)
+    {
+        foreach (RouterPortSnapshot port in ports.Where(port => port.IsPhysical || port.InterfaceType == RouterInterfaceType.Unknown))
+        {
+            if (!_portStates.TryGetValue(port.Id, out PortSessionState? state))
+            {
+                _portStates[port.Id] = new PortSessionState(port);
+                continue;
+            }
+            if (state.Carrier.HasValue && port.Carrier.HasValue && state.Carrier != port.Carrier)
+            {
+                state.LinkChanges++;
+                AddPortHistory($"{port.FriendlyName} link {(port.Carrier == true ? "connected" : "disconnected")}");
+            }
+            if (state.NegotiatedSpeedMbps.HasValue && port.NegotiatedSpeedMbps.HasValue && state.NegotiatedSpeedMbps != port.NegotiatedSpeedMbps)
+                AddPortHistory($"{port.FriendlyName} speed changed {state.NegotiatedSpeedMbps} -> {port.NegotiatedSpeedMbps} Mbps");
+            if (!string.Equals(state.Duplex, "Unknown", StringComparison.OrdinalIgnoreCase) && !string.Equals(port.Duplex, "Unknown", StringComparison.OrdinalIgnoreCase) && !string.Equals(state.Duplex, port.Duplex, StringComparison.OrdinalIgnoreCase))
+                AddPortHistory($"{port.FriendlyName} duplex changed {state.Duplex} -> {port.Duplex}");
+            long newErrors = CounterDelta(state.RxErrors, port.RxErrors) + CounterDelta(state.TxErrors, port.TxErrors);
+            long newDrops = CounterDelta(state.RxDropped, port.RxDropped) + CounterDelta(state.TxDropped, port.TxDropped);
+            state.NewErrorsThisSession += newErrors;
+            state.NewDropsThisSession += newDrops;
+            if (newErrors > 0) AddPortHistory($"New Ethernet errors observed on {port.FriendlyName}: {newErrors}");
+            if (newDrops > 0) AddPortHistory($"New Ethernet drops observed on {port.FriendlyName}: {newDrops}");
+            state.Update(port);
+        }
+    }
+
+    private void AddPortHistory(string message)
+    {
+        _portHistory.Insert(0, $"{DateTime.Now:g}  {message}");
+        while (_portHistory.Count > 100) _portHistory.RemoveAt(_portHistory.Count - 1);
+    }
+
+    private static long CounterDelta(long? previous, long? current) => previous.HasValue && current.HasValue && current.Value >= previous.Value ? current.Value - previous.Value : 0;
+
+    private sealed class PortSessionState
+    {
+        public bool? Carrier { get; private set; }
+        public int? NegotiatedSpeedMbps { get; private set; }
+        public string Duplex { get; private set; }
+        public long? RxErrors { get; private set; }
+        public long? TxErrors { get; private set; }
+        public long? RxDropped { get; private set; }
+        public long? TxDropped { get; private set; }
+        public int LinkChanges { get; set; }
+        public long NewErrorsThisSession { get; set; }
+        public long NewDropsThisSession { get; set; }
+        public PortSessionState(RouterPortSnapshot port) { Duplex = port.Duplex; Update(port); }
+        public void Update(RouterPortSnapshot port)
+        {
+            Carrier = port.Carrier; NegotiatedSpeedMbps = port.NegotiatedSpeedMbps; Duplex = port.Duplex;
+            RxErrors = port.RxErrors; TxErrors = port.TxErrors; RxDropped = port.RxDropped; TxDropped = port.TxDropped;
+        }
+    }
+
+    private void CopyPortsSummary_Click(object sender, RoutedEventArgs e)
+    {
+        StringBuilder text = new("RouterPilot Ethernet Ports Summary\n");
+        text.AppendLine($"Physical ports observed: {_ports.Count}");
+        text.AppendLine($"Connected: {_ports.Count(port => port.Carrier == true)}");
+        text.AppendLine($"Disconnected: {_ports.Count(port => port.Carrier == false)}");
+        foreach (RouterPortSnapshot port in _ports)
+        {
+            PortSessionState? state = _portStates.GetValueOrDefault(port.Id);
+            text.AppendLine($"{port.FriendlyName}: {port.LinkState}; Speed: {port.SpeedDisplay}; Duplex: {port.Duplex}; New errors: {state?.NewErrorsThisSession ?? 0}; New drops: {state?.NewDropsThisSession ?? 0}");
+        }
+        text.AppendLine($"Generated: {DateTime.Now:g}");
+        try { Clipboard.SetText(text.ToString()); PortsStatus.Text = "Ports summary copied."; }
+        catch { PortsStatus.Text = "Ports summary could not be copied."; }
     }
 
     private async Task RefreshMultiWanAsync()

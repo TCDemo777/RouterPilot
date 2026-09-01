@@ -67,7 +67,11 @@
             <TabItem Header="Ports">
                 <Grid Margin="0,18,0,0">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <TextBlock x:Name="PortsStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only interface telemetry…"/>
+                    <StackPanel>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="PortsStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only interface telemetry…"/><TextBlock x:Name="PortsSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="PortsAttention" Margin="0,3,0,0" Foreground="DarkOrange" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="1" Content="Copy Ports Summary" Style="{DynamicResource Button.Secondary}" Click="CopyPortsSummary_Click"/></Grid>
+                        <TextBlock x:Name="PortsSessionText" Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Session history (RouterPilot observations)"/>
+                        <ListBox x:Name="PortsHistoryList" MaxHeight="110" BorderThickness="0" Background="Transparent"/>
+                    </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="PortsList" Margin="0,10,0,0">
                             <ItemsControl.ItemTemplate>

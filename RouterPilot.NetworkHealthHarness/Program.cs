@@ -42,6 +42,12 @@ Require(tailscaleHistoryVm.TailscaleHistory.Count == 1, "Repeated Tailscale stat
 tailscaleHistoryVm.ResetTailscale();
 Require(tailscaleHistoryVm.TailscaleHistory.Count == 0, "Tailscale history resets with router context");
 Require(new VpnLiveStatusInfo { RxBytes = 0, TxBytes = 0 }.DownloadDisplay == "0 B" && new VpnLiveStatusInfo().UploadDisplay == "—", "VPN counters distinguish genuine zero from unavailable");
+Type portParser = typeof(RouterManager).Assembly.GetType("RouterPilot.Services.RouterPortTelemetryParser")!;
+MethodInfo parsePorts = portParser.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public)!;
+var parsedPorts = (IReadOnlyList<RouterPortSnapshot>)parsePorts.Invoke(null, ["P|eth0|physical||1|2500|full|aa:bb:cc:dd:ee:ff|100|200|1|2|3|4||||"])!;
+Require(parsedPorts.Count == 1 && parsedPorts[0].IsPhysical && parsedPorts[0].NegotiatedSpeedMbps == 2500 && parsedPorts[0].RxErrors == 1 && parsedPorts[0].RxDropped == 3, "Ethernet port telemetry parsing");
+var malformedPorts = (IReadOnlyList<RouterPortSnapshot>)parsePorts.Invoke(null, ["P|eth1|physical||1|bad|full||bad|-2|-1|x|y|z||||"])!;
+Require(malformedPorts.Count == 1 && malformedPorts[0].NegotiatedSpeedMbps is null && malformedPorts[0].RxBytes is null, "Malformed Ethernet counters remain unavailable");
 Require(!ClientIdentity.EndpointEquals("127.0.0.1", "192.168.1.20"), "loopback is not confused with a LAN client");
 ClientInfo observedZeroDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Available };
 Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");
