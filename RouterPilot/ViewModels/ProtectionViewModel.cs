@@ -75,6 +75,7 @@ namespace RouterPilot.ViewModels
         private bool _blocklistsLoaded;
         private bool _blocklistsLoading;
         private CancellationTokenSource? _activationCancellation;
+        private CancellationTokenSource? _refreshActivation;
         private string _blocklistsStatus = "Open Blocklists to load AdGuard Home subscriptions.";
         private string _blocklistSearch = "";
 
@@ -362,10 +363,12 @@ namespace RouterPilot.ViewModels
             if (IsBusy) return;
             IsBusy = true;
             Message = "Refreshing all protection settings...";
+            CancellationTokenSource activation = _activationCancellation ?? _disposalCancellation;
             string profileId = _activeRouter.CurrentProfileId;
             long contextVersion = _activeRouter.Version;
             CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
             bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
+            _refreshActivation = activation;
             try
             {
                 ProtectionStateSnapshot snapshot = await _stateLoader.LoadAsync(token);
@@ -439,7 +442,15 @@ namespace RouterPilot.ViewModels
                     BlockedServicesStatus = "Blocked services could not be loaded. Use Refresh all to try again.";
                 Message = "AdGuard Home is unavailable. Router monitoring remains active.";
             }
-            finally { _isInitialising = false; IsBusy = false; }
+            finally
+            {
+                if (ReferenceEquals(_refreshActivation, activation))
+                {
+                    _isInitialising = false;
+                    _refreshActivation = null;
+                    IsBusy = false;
+                }
+            }
         }
 
 

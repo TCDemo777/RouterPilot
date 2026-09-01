@@ -143,8 +143,14 @@ public partial class VpnView : UserControl
         }
         finally
         {
-            _viewModel.VpnInventoryLoadCompleted = true;
-            _viewModel.VpnIsLoading = false;
+            // A cancelled refresh may complete after the active profile has
+            // already started a replacement refresh. Do not clear the new
+            // profile's loading indicator from the stale operation.
+            if (IsCurrent())
+            {
+                _viewModel.VpnInventoryLoadCompleted = true;
+                _viewModel.VpnIsLoading = false;
+            }
         }
     }
 
