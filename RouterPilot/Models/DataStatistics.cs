@@ -194,4 +194,5 @@ public sealed class DataStatisticsReadResult
     public DataStatisticsAvailability Availability { get; init; }
     public DataStatisticsStatus? Status { get; init; }
     public DataStatisticsSnapshot? Snapshot { get; init; }
+    public NetworkTrafficSnapshot? TrafficSnapshot { get; init; }
 }

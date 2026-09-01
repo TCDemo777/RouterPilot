@@ -4,6 +4,7 @@ using System.Text.Json;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
+using RouterPilot.Presentation;
 
 static void Require(bool condition, string message)
 {
@@ -110,3 +111,20 @@ using JsonDocument emptyDetail = JsonDocument.Parse("""{ "application_id": "app"
 Require(DataStatisticsParser.ParseApplicationDetail(emptyDetail.RootElement).Devices.Count == 0, "Empty detail devices were not tolerated.");
 
 Console.WriteLine("Data Statistics parser fixtures passed.");
+
+var traffic = new TrafficSessionAccumulator();
+DateTime t0 = DateTime.UnixEpoch;
+Require(traffic.Add(new NetworkTrafficObservation(100, 50, t0, "wan")) is null, "Traffic baseline must not count lifetime bytes.");
+var sample = traffic.Add(new NetworkTrafficObservation(300, 150, t0.AddSeconds(2), "wan"));
+Require(sample is { DownloadBytesPerSecond: 100, UploadBytesPerSecond: 50 } && traffic.DownloadedBytes == 200 && traffic.UploadedBytes == 100,
+    "Traffic deltas or session totals were incorrect.");
+Require(traffic.Add(new NetworkTrafficObservation(250, 160, t0.AddSeconds(4), "wan")) is null && traffic.SampleCount == 1,
+    "Counter reset must establish a new baseline without a negative rate.");
+Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(6), "wwan")) is null,
+    "Interface changes must establish a new baseline.");
+Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(8), "wwan")) is { DownloadBytesPerSecond: 0, UploadBytesPerSecond: 0 },
+    "A genuine zero-rate sample was not retained.");
+traffic.Reset();
+Require(traffic.SampleCount == 0 && traffic.History.Count == 0 && traffic.Add(new NetworkTrafficObservation(1, 1, t0, "wan")) is null,
+    "Traffic reset must be local and restore the baseline.");
+Console.WriteLine("Traffic session fixtures passed.");

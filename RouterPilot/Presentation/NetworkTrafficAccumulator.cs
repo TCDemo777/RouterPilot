@@ -82,7 +82,8 @@ public sealed class NetworkTrafficAccumulator
 public readonly record struct NetworkTrafficObservation(
     long ReceivedBytes,
     long TransmittedBytes,
-    DateTime CapturedAtUtc);
+    DateTime CapturedAtUtc,
+    string InterfaceName = "-");
 
 public readonly record struct NetworkTrafficSample(
     double DownloadMbps,

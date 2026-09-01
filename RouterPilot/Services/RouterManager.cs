@@ -2032,7 +2032,7 @@ namespace RouterPilot.Services
         }
 
         public async Task<NetworkTrafficSnapshot>
-            GetNetworkTrafficSnapshotAsync()
+            GetNetworkTrafficSnapshotAsync(CancellationToken cancellationToken = default)
         {
             // Resolve the physical device used by the logical WAN interface,
             // then read the kernel byte counters. The fallbacks cover common
@@ -2045,7 +2045,8 @@ namespace RouterPilot.Services
                     "[ -n \"$dev\" ] || dev=eth1; " +
                     "rx=$(cat /sys/class/net/$dev/statistics/rx_bytes 2>/dev/null || echo 0); " +
                     "tx=$(cat /sys/class/net/$dev/statistics/tx_bytes 2>/dev/null || echo 0); " +
-                    "printf '%s|%s|%s' \"$dev\" \"$rx\" \"$tx\"");
+                    "printf '%s|%s|%s' \"$dev\" \"$rx\" \"$tx\"",
+                    cancellationToken);
 
             return NetworkTrafficSnapshotParser.Parse(output, DateTime.UtcNow);
         }

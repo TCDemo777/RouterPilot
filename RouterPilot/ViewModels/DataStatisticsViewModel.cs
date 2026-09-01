@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -13,6 +14,7 @@ using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using RouterPilot.Models;
 using RouterPilot.Services;
+using RouterPilot.Presentation;
 
 namespace RouterPilot.ViewModels;
 
@@ -30,6 +32,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     private bool _fullTableLoaded;
     private long? _topAppsPeriodSeconds;
     private bool _disposed;
+    private readonly TrafficSessionAccumulator _trafficSession = new();
 
     [ObservableProperty] private bool isLoading;
     [ObservableProperty] private string statusTitle = "Data Statistics";
@@ -46,6 +49,16 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     [ObservableProperty] private string detailError = string.Empty;
     [ObservableProperty] private string detailPeriodWarning = string.Empty;
     [ObservableProperty] private ApplicationTrafficDetail? selectedDetail;
+    [ObservableProperty] private string currentDownload = "—";
+    [ObservableProperty] private string currentUpload = "—";
+    [ObservableProperty] private string sessionDownloaded = "—";
+    [ObservableProperty] private string sessionUploaded = "—";
+    [ObservableProperty] private string sessionTotal = "—";
+    [ObservableProperty] private string peakDownload = "—";
+    [ObservableProperty] private string peakUpload = "—";
+    [ObservableProperty] private string trafficSamples = "—";
+    [ObservableProperty] private string trafficLastUpdated = "—";
+    [ObservableProperty] private string trafficSource = "—";
 
     public ObservableCollection<ApplicationTrafficStat> TopApps { get; } = new();
     public ObservableCollection<ApplicationTrafficRow> AllApplications { get; } = new();
@@ -57,6 +70,8 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public Axis[] TrafficXAxes { get; }
     public Axis[] TrafficYAxes { get; }
     public IAsyncRelayCommand RefreshCommand { get; }
+    public IRelayCommand ResetTrafficSessionCommand { get; }
+    public IReadOnlyList<TrafficSessionSample> TrafficHistory => _trafficSession.History;
 
     public bool HasTopApps => TopApps.Count > 0;
     public bool HasLoaded => _loaded;
@@ -93,6 +108,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         _clientProfiles = clientProfiles;
         _activeRouter = activeRouter;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsLoading && !_disposed);
+        ResetTrafficSessionCommand = new RelayCommand(ResetTrafficSession);
         AllApplicationsView = CollectionViewSource.GetDefaultView(AllApplications);
         AllApplicationsView.SortDescriptions.Add(
             new SortDescription(nameof(ApplicationTrafficRow.TotalBytes), ListSortDirection.Descending));
@@ -125,6 +141,8 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
     public void ResetForRouterSession()
     {
+        _trafficSession.Reset();
+        UpdateTrafficPresentation(null);
         _loaded = false;
         TopApps.Clear();
         TrafficSeries = [];
@@ -157,6 +175,16 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             _loaded = true;
             OnPropertyChanged(nameof(HasLoaded));
             Apply(readResult);
+            if (readResult.TrafficSnapshot is { } traffic)
+            {
+                TrafficSessionSample? sample = _trafficSession.Add(new NetworkTrafficObservation(
+                    traffic.ReceivedBytes, traffic.TransmittedBytes, traffic.CapturedAtUtc, traffic.InterfaceName));
+                UpdateTrafficPresentation(sample);
+            }
+            else
+            {
+                UpdateTrafficPresentation(null);
+            }
             if (readResult.Availability == DataStatisticsAvailability.Available)
             {
                 await RefreshFullTableAsync(readResult.Snapshot?.PeriodSeconds);
@@ -179,6 +207,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
                 "Data Statistics refresh",
                 "RouterPilot could not read Data Statistics. Check the router connection and try again.");
             NotifyPresentationChanged();
+            UpdateTrafficPresentation(null);
         }
         finally
         {
@@ -187,6 +216,34 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             _refreshGate.Release();
         }
     }
+
+    private void ResetTrafficSession()
+    {
+        if (_disposed) return;
+        _trafficSession.Reset();
+        TrafficLastUpdated = "—";
+        TrafficSource = "—";
+        UpdateTrafficPresentation(null);
+    }
+
+    private void UpdateTrafficPresentation(TrafficSessionSample? sample)
+    {
+        CurrentDownload = sample is { } value ? FormatRate(value.DownloadBytesPerSecond) : "—";
+        CurrentUpload = sample is { } upload ? FormatRate(upload.UploadBytesPerSecond) : "—";
+        SessionDownloaded = _trafficSession.SampleCount > 0 ? FormatBytes(_trafficSession.DownloadedBytes) : "—";
+        SessionUploaded = _trafficSession.SampleCount > 0 ? FormatBytes(_trafficSession.UploadedBytes) : "—";
+        SessionTotal = _trafficSession.SampleCount > 0
+            ? FormatBytes(_trafficSession.DownloadedBytes + _trafficSession.UploadedBytes)
+            : "—";
+        PeakDownload = _trafficSession.SampleCount > 0 ? FormatRate(_trafficSession.PeakDownloadBytesPerSecond) : "—";
+        PeakUpload = _trafficSession.SampleCount > 0 ? FormatRate(_trafficSession.PeakUploadBytesPerSecond) : "—";
+        TrafficSamples = _trafficSession.SampleCount > 0 ? _trafficSession.SampleCount.ToString() : "—";
+        TrafficLastUpdated = sample is { } current ? current.TimestampUtc.ToLocalTime().ToString("g") : TrafficLastUpdated;
+        TrafficSource = sample is { } source && !string.IsNullOrWhiteSpace(source.InterfaceName) ? source.InterfaceName : TrafficSource;
+        OnPropertyChanged(nameof(TrafficHistory));
+    }
+
+    private static string FormatRate(long bytesPerSecond) => $"{FormatBytes(bytesPerSecond)}/s";
 
     private void Apply(DataStatisticsReadResult result)
     {

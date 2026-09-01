@@ -23,6 +23,20 @@ public sealed class DataStatisticsService
             RouterManager routerManager = await _routerManagerProvider
                 .GetRouterManagerAsync(cancellationToken)
                 .ConfigureAwait(false);
+            NetworkTrafficSnapshot? traffic = null;
+            try
+            {
+                traffic = await routerManager.GetNetworkTrafficSnapshotAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // DPI statistics remain useful when the optional traffic counter is unavailable.
+            }
             DataStatisticsStatus status = await routerManager
                 .GetDataStatisticsStatusAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -32,7 +46,8 @@ public sealed class DataStatisticsService
                 return new DataStatisticsReadResult
                 {
                     Availability = DataStatisticsAvailability.Unsupported,
-                    Status = status
+                    Status = status,
+                    TrafficSnapshot = traffic
                 };
             }
 
@@ -41,7 +56,8 @@ public sealed class DataStatisticsService
                 return new DataStatisticsReadResult
                 {
                     Availability = DataStatisticsAvailability.Disabled,
-                    Status = status
+                    Status = status,
+                    TrafficSnapshot = traffic
                 };
             }
 
@@ -50,7 +66,8 @@ public sealed class DataStatisticsService
                 return new DataStatisticsReadResult
                 {
                     Availability = DataStatisticsAvailability.DpiInactive,
-                    Status = status
+                    Status = status,
+                    TrafficSnapshot = traffic
                 };
             }
 
@@ -61,7 +78,8 @@ public sealed class DataStatisticsService
             {
                 Availability = DataStatisticsAvailability.Available,
                 Status = status,
-                Snapshot = snapshot
+                Snapshot = snapshot,
+                TrafficSnapshot = traffic
             };
         }
         catch (DataStatisticsRpcException exception) when (exception.IsMethodOrServiceUnavailable)
