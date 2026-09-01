@@ -19,6 +19,7 @@ public partial class RouterView : UserControl
     private bool _refreshing;
     private bool _multiWanRefreshing;
     private bool _dnsRefreshing;
+    private bool _performanceRefreshing;
 
     public RouterView()
     {
@@ -37,6 +38,7 @@ public partial class RouterView : UserControl
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
+        else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
     }
 
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
@@ -50,6 +52,7 @@ public partial class RouterView : UserControl
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
+        else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
     }
 
     private async Task RefreshPortsAsync()
@@ -172,5 +175,39 @@ public partial class RouterView : UserControl
             System.Diagnostics.Debug.WriteLine($"Router DNS refresh failed ({exception.GetType().Name}).");
         }
         finally { _dnsRefreshing = false; }
+    }
+
+    private async Task RefreshPerformanceAsync()
+    {
+        if (_performanceRefreshing) return;
+        _performanceRefreshing = true;
+        _refreshCancellation?.Cancel();
+        _refreshCancellation?.Dispose();
+        _refreshCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _refreshCancellation.Token;
+        try
+        {
+            RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            RouterInfo info = await manager.GetRouterInfoAsync();
+            RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
+
+            PerformanceStatus.Text = "Read-only router resource telemetry.";
+            PerformanceCpuText.Text = string.IsNullOrWhiteSpace(info.CpuUsage) || info.CpuUsage == "-" ? "—" : info.CpuUsage;
+            PerformanceLoadText.Text = string.IsNullOrWhiteSpace(info.LoadAverage) || info.LoadAverage == "-" ? "—" : info.LoadAverage;
+            PerformanceTemperatureText.Text = string.IsNullOrWhiteSpace(info.Temperature) || info.Temperature == "-" ? "—" : info.Temperature;
+            PerformanceMemoryText.Text = info.MemoryUsed == "-" || info.MemoryUsage == "-" ? "—" : $"{info.MemoryUsed} · {info.MemoryUsage}";
+            PerformanceStorageText.Text = string.IsNullOrWhiteSpace(info.StorageUsage) || info.StorageUsage == "-" ? "—" : info.StorageUsage;
+            PerformanceUptimeText.Text = string.IsNullOrWhiteSpace(info.Uptime) || info.Uptime == "-" ? "—" : info.Uptime;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            PerformanceStatus.Text = "Router resource telemetry is currently unavailable.";
+            PerformanceCpuText.Text = PerformanceLoadText.Text = PerformanceTemperatureText.Text = "—";
+            PerformanceMemoryText.Text = PerformanceStorageText.Text = PerformanceUptimeText.Text = "—";
+            System.Diagnostics.Debug.WriteLine($"Router performance refresh failed ({exception.GetType().Name}).");
+        }
+        finally { _performanceRefreshing = false; }
     }
 }
