@@ -1,0 +1,72 @@
+<UserControl x:Class="RouterPilot.Views.RouterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Brush.WindowBackground}">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBlock FontSize="26" FontWeight="Bold" Text="Router"/>
+        <TextBlock Grid.Row="1" Margin="0,4,0,18" Style="{DynamicResource Text.Muted}"
+                   Text="Read-only router telemetry and diagnostics"/>
+        <TabControl x:Name="RouterTabs" Grid.Row="2" SelectedIndex="0">
+            <TabItem Header="Overview">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <UniformGrid Columns="2" Margin="0,18,0,0">
+                        <GroupBox Header="IDENTITY" Margin="0,0,12,12">
+                            <StackPanel Margin="14">
+                                <TextBlock Text="Model" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock FontSize="16" Text="{Binding RouterModel}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Hostname" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding Hostname}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Firmware" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding RouterFirmwareVersion}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Uptime" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding Uptime}"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="SYSTEM" Margin="12,0,0,12">
+                            <StackPanel Margin="14">
+                                <TextBlock Text="CPU" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock FontSize="16" Text="{Binding CpuUsageDisplay}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Memory" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding MemoryUsage}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Temperature" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding Temperature}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Storage" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding StorageUsage}"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="NETWORK" Margin="0,0,12,12">
+                            <StackPanel Margin="14">
+                                <TextBlock Text="Internet / WAN" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock FontSize="16" Text="{Binding InternetStatusText}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Public IP" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding PublicIpDisplay}"/>
+                                <TextBlock Margin="0,10,0,0" Text="DNS server" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding DnsServer}"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="SERVICES" Margin="12,0,0,12">
+                            <StackPanel Margin="14">
+                                <TextBlock Text="AdGuard" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock FontSize="16" Text="{Binding AdGuardServiceDisplay}"/>
+                                <TextBlock Margin="0,10,0,0" Text="VPN" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding VpnStatusText}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Wi-Fi summary" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding WifiSignalEmptyMessage}"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </UniformGrid>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Ports"><TextBlock Margin="24" Text="Port telemetry will appear here."/></TabItem>
+            <TabItem Header="Wi-Fi"><TextBlock Margin="24" Text="Wi-Fi telemetry will appear here."/></TabItem>
+            <TabItem Header="Multi-WAN"><TextBlock Margin="24" Text="Multi-WAN telemetry will appear here."/></TabItem>
+            <TabItem Header="DNS"><TextBlock Margin="24" Text="DNS telemetry will appear here."/></TabItem>
+            <TabItem Header="Performance"><TextBlock Margin="24" Text="Performance telemetry will appear here."/></TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

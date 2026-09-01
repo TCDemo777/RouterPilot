@@ -126,6 +126,12 @@
                             Content="Network"
                             Click="Network_Click"/>
 
+                    <Button x:Name="RouterButton"
+                            Style="{StaticResource SidebarNavigationButton}"
+                            Background="Transparent"
+                            Content="Router"
+                            Click="Router_Click"/>
+
                     <TextBlock Margin="18,12,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
 
                     <Button x:Name="MaintenanceButton"

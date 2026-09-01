@@ -1293,6 +1293,7 @@ namespace RouterPilot.Views
             switch (result.NavigationTarget)
             {
                 case "overview": Overview_Click(this, new RoutedEventArgs()); break;
+                case "router": Router_Click(this, new RoutedEventArgs()); break;
                 case "clients":
                     if (string.Equals(result.Category, "Client", StringComparison.OrdinalIgnoreCase))
                     {
@@ -1432,6 +1433,12 @@ namespace RouterPilot.Views
                 NetworkButton);
         }
 
+        private void Router_Click(object sender, RoutedEventArgs e)
+        {
+            PageContent.Content = new RouterView();
+            SelectNavigationButton(RouterButton);
+        }
+
         private void Maintenance_Click(
             object sender,
             RoutedEventArgs e)
@@ -1531,6 +1538,7 @@ namespace RouterPilot.Views
                 ProtectionButton,
                 AnalyticsButton,
                 NetworkButton,
+                RouterButton,
                 MaintenanceButton,
                 ClientsButton,
                 LogsButton,

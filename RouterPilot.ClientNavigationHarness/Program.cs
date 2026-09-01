@@ -48,6 +48,12 @@ Require(!AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), 
     !AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), true, false),
     "AdGuard transport recovery does not retry repeatedly or after cancellation");
 
+RouterCapabilitySnapshot unknownCapabilities = RouterCapabilitySnapshot.Unknown;
+Require(unknownCapabilities.Temperature == RouterCapabilityState.Unknown &&
+    RouterCapabilitySnapshot.FromEvidence(true) == RouterCapabilityState.Supported &&
+    RouterCapabilitySnapshot.FromEvidence(false) == RouterCapabilityState.Unknown,
+    "Router capability model distinguishes supported evidence from unknown");
+
 DateTime trafficTimestamp = new(2026, 8, 31, 12, 0, 0, DateTimeKind.Utc);
 NetworkTrafficSnapshot traffic = NetworkTrafficSnapshotParser.Parse(" eth1 | 123 | 456 ", trafficTimestamp);
 Require(traffic.InterfaceName == "eth1" && traffic.ReceivedBytes == 123 &&
