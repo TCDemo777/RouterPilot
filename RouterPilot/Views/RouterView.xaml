@@ -62,7 +62,42 @@
                     </UniformGrid>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="Ports"><TextBlock Margin="24" Text="Port telemetry will appear here."/></TabItem>
+            <TabItem Header="Ports">
+                <Grid Margin="0,18,0,0">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock x:Name="PortsStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only interface telemetry…"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="PortsList" Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <GroupBox Header="{Binding FriendlyName}" Margin="0,0,0,10">
+                                        <Grid Margin="14">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding LinkState}"/>
+                                                <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding InterfaceName}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Style="{DynamicResource Text.Muted}" Text="Speed / Duplex"/>
+                                                <TextBlock Text="{Binding SpeedDisplay}"/>
+                                                <TextBlock Text="{Binding Duplex}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{DynamicResource Text.Muted}" Text="RX / TX totals"/>
+                                                <TextBlock Text="{Binding RxBytesDisplay}"/>
+                                                <TextBlock Text="{Binding TxBytesDisplay}"/>
+                                                <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Errors / drops"/>
+                                                <TextBlock Text="{Binding ErrorsDisplay}"/>
+                                                <TextBlock Text="{Binding DropsDisplay}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </GroupBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             <TabItem Header="Wi-Fi"><TextBlock Margin="24" Text="Wi-Fi telemetry will appear here."/></TabItem>
             <TabItem Header="Multi-WAN"><TextBlock Margin="24" Text="Multi-WAN telemetry will appear here."/></TabItem>
             <TabItem Header="DNS"><TextBlock Margin="24" Text="DNS telemetry will appear here."/></TabItem>

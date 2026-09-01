@@ -64,6 +64,21 @@ Require(malformedTraffic.InterfaceName == "-" && malformedTraffic.ReceivedBytes 
     malformedTraffic.TransmittedBytes == 0,
     "Network traffic parser preserves malformed fallback behavior");
 
+IReadOnlyList<RouterPortSnapshot> ports = RouterPortTelemetryParser.Parse(
+    "P|eth-wan|physical||1|2500|full|aa:bb:cc:dd:ee:ff|100|200|0|0|0|0|br-lan|||\n" +
+    "P|br-lan|bridge||0|||aa:bb:cc:dd:ee:00||||||br-lan|||\n" +
+    "P|lo|loopback||||||||||||||||\n");
+Require(ports.Count == 3 && ports[0].InterfaceName == "eth-wan" &&
+    ports[0].LinkState == "Connected" && ports[0].SpeedDisplay == "2.5 Gbps" &&
+    ports[0].Duplex == "Full" && ports[0].ErrorsDisplay == "0 / 0" &&
+    ports[1].LinkState == "Disconnected" && ports[1].SpeedDisplay == "—" &&
+    ports[2].InterfaceType == RouterInterfaceType.Loopback,
+    "Router port parser preserves link, speed, counters and interface classification");
+Require(RouterPortTelemetryParser.Parse(
+    "P|eth0|physical||1|bad|half|mac|bad|2|0|0|0|0||||\n" +
+    "P|eth0|physical||1|1000|full|mac|1|2|0|0|0|0||||\n").Count == 1,
+    "Router port parser tolerates malformed and duplicate interface records");
+
 // Shared identity resolver: strict EUI-48 parsing, address classification,
 // consistent vendor precedence, and safe handling of non-MAC identifiers.
 IDeviceIdentityResolver identityResolver = new DeviceIdentityResolver();
