@@ -387,8 +387,54 @@ namespace RouterPilot.Services
                 (await _ssh.RunCommandAsync(
                     "df -h / | tail -1")).Trim();
 
+            // BusyBox/OpenWrt-compatible aggregate inventory.  Only mounted
+            // block-backed filesystems are surfaced as external storage; root,
+            // overlay, ROM and virtual filesystems are deliberately excluded.
+            try
+            {
+                string storageOutput = await _ssh.RunCommandAsync("df -P; printf '\\n__MOUNTS__\\n'; cat /proc/mounts 2>/dev/null");
+                info.ExternalStorage = ParseExternalStorage(storageOutput);
+                info.ExternalStorageInventoryLoaded = !storageOutput.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                info.ExternalStorageInventoryLoaded = false;
+                info.ExternalStorage = new();
+            }
+
 
             return info;
+        }
+
+        private static List<MountedStorageInfo> ParseExternalStorage(string output)
+        {
+            var mounts = new Dictionary<string, string>(StringComparer.Ordinal);
+            bool inMounts = false;
+            foreach (string line in output.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (line == "__MOUNTS__") { inMounts = true; continue; }
+                if (!inMounts) continue;
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 4) mounts[parts[1]] = parts[3];
+            }
+
+            var result = new List<MountedStorageInfo>();
+            foreach (string line in output.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (line.StartsWith("Filesystem", StringComparison.OrdinalIgnoreCase) || line == "__MOUNTS__") continue;
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 6 || !parts[0].StartsWith("/dev/", StringComparison.Ordinal)) continue;
+                string mountPoint = parts[^1];
+                if (mountPoint is "/" or "/rom" || mountPoint.StartsWith("/tmp", StringComparison.Ordinal)) continue;
+                result.Add(new MountedStorageInfo
+                {
+                    Device = parts[0], Capacity = FormatStorageSize(parts[1]), Used = FormatStorageSize(parts[2]),
+                    Available = FormatStorageSize(parts[3]), Usage = parts[4], MountPoint = mountPoint,
+                    FileSystem = mounts.TryGetValue(mountPoint, out string? mount) ? mount.Split(',')[0] : "Unknown",
+                    ReadOnly = mounts.TryGetValue(mountPoint, out string? options) && options.Split(',').Contains("ro", StringComparer.Ordinal)
+                });
+            }
+            return result.GroupBy(item => item.MountPoint, StringComparer.Ordinal).Select(group => group.First()).ToList();
         }
         private static string FormatKilobytes(
             double kilobytes)
@@ -399,6 +445,16 @@ namespace RouterPilot.Services
             return megabytes >= 1024d
                 ? $"{megabytes / 1024d:0.0} GB"
                 : $"{megabytes:0} MB";
+        }
+
+        private static string FormatStorageSize(string value)
+        {
+            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double blocks)) return "—";
+            double bytes = blocks * 1024d;
+            string[] units = ["B", "KB", "MB", "GB", "TB"];
+            int unit = 0;
+            while (bytes >= 1024d && unit < units.Length - 1) { bytes /= 1024d; unit++; }
+            return $"{bytes:0.#} {units[unit]}";
         }
 
         private void ApplyLastCpuUsage(RouterInfo info)

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace RouterPilot.Models
 {
     public class RouterInfo
@@ -31,6 +33,8 @@ namespace RouterPilot.Models
         public string MemoryCache { get; set; } = "-";
 
         public string StorageUsage { get; set; } = "-";
+        public bool ExternalStorageInventoryLoaded { get; set; }
+        public List<MountedStorageInfo> ExternalStorage { get; set; } = new();
 
 
         //
@@ -45,5 +49,17 @@ namespace RouterPilot.Models
         public string DnsServer { get; set; } = "-";
 
         public string Latency { get; set; } = "-";
+    }
+
+    public sealed class MountedStorageInfo
+    {
+        public string Device { get; set; } = "-";
+        public string MountPoint { get; set; } = "-";
+        public string FileSystem { get; set; } = "-";
+        public string Capacity { get; set; } = "-";
+        public string Used { get; set; } = "-";
+        public string Available { get; set; } = "-";
+        public string Usage { get; set; } = "-";
+        public bool ReadOnly { get; set; }
     }
 }
