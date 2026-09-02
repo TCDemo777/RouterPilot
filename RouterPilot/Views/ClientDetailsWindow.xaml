@@ -251,6 +251,8 @@
                             </StackPanel.Style>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="DHCP"/>
                             <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding DhcpSummary}"/>
+                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding DhcpLeaseStatus, StringFormat=Lease: {0}}"
+                                       ToolTip="A reservation is configuration context; an active lease is current router state."/>
                             <StackPanel Margin="0,5,0,0" Visibility="{Binding HasDhcpAddressPresentation, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DhcpAddressLabel}"/>
                                 <TextBlock Margin="0,2,0,0" TextTrimming="CharacterEllipsis" Text="{Binding DhcpIpAddress}"/>
@@ -277,7 +279,9 @@
                                         </Style.Triggers>
                                     </Style>
                             </TextBlock.Style>
-                        </TextBlock>
+                            </TextBlock>
+                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
+                                       Text="{Binding DhcpLeaseExpiry, StringFormat=Lease expiry: {0}}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="4">
@@ -287,10 +291,12 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="First observed"/>
-                                    <TextBlock Text="{Binding FirstObserved}"/>
-                                </StackPanel>
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="First observed"/>
+                                <TextBlock Text="{Binding FirstObserved}"/>
+                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="Last seen by RouterPilot" ToolTip="Last successful authoritative observation by RouterPilot; unobserved time is not inferred."/>
+                                <TextBlock Text="{Binding LastSeenByRouterPilot}"/>
+                            </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Grid>

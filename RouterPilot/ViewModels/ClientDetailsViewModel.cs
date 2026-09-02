@@ -91,12 +91,16 @@ namespace RouterPilot.ViewModels
         public string MacAddress => _client.MacAddress;
         private ClientInfo CurrentClientOrSnapshot => LiveClient ?? _client;
         public string LastSeen => CurrentClientOrSnapshot.LastSeen;
+        public string LastSeenByRouterPilot => _client.LastObservedUtc == default
+            ? "—"
+            : _client.LastObservedUtc.ToLocalTime().ToString("g");
         public string TotalQueriesDisplay => CurrentClientOrSnapshot.TotalQueriesDisplay;
         public string BlockedQueriesDisplay => CurrentClientOrSnapshot.BlockedQueriesDisplay;
         public string BlockRateDisplay => CurrentClientOrSnapshot.BlockRateDisplay;
         public bool IsEthernetConnection => LiveClient?.IsEthernetConnection == true;
         public bool IsWifiConnection => LiveClient?.IsWifiConnection == true;
-        public string ConnectionType => IsEthernetConnection ? "Ethernet" : "Wi-Fi";
+        public string ConnectionType => IsEthernetConnection ? "Ethernet" :
+            IsWifiConnection ? "Wi-Fi" : "Unknown";
         public string ConnectionLabel => IsCurrentlyObserved ? "CONNECTION" : "LAST CONNECTION";
         public string ConnectionSummary => LiveClient?.ConnectionSummary ??
             (!string.IsNullOrWhiteSpace(Profile?.LastKnownConnectionSummary)
@@ -149,6 +153,16 @@ namespace RouterPilot.ViewModels
         public string DhcpAddressLabel => HasDhcpReservation ? "RESERVED ADDRESS" : "DHCP ADDRESS";
         public string DhcpLeaseType => _dhcpReservation is not null || _dhcpLease?.IsStatic == true ? "Reserved" : "Dynamic";
         public string DhcpLeaseRemaining => _dhcpLease?.RemainingLease ?? "Not reported";
+        public string DhcpLeaseStatus => !IsCurrentlyObserved && _dhcpReservation is not null
+            ? "Reserved (offline)"
+            : _dhcpLease is null
+                ? (_dhcpReservation is null ? "Unknown" : "Reserved")
+                : _dhcpLease.Expiry is DateTimeOffset expiry && expiry <= DateTimeOffset.UtcNow
+                    ? "Expired"
+                    : "Active";
+        public string DhcpLeaseExpiry => _dhcpLease?.Expiry is DateTimeOffset expiry
+            ? expiry.ToLocalTime().ToString("g")
+            : "Not reported";
         public string DhcpReservation => _dhcpReservation is null ? "Not configured" : _dhcpReservation.Enabled ? "Enabled" : "Disabled";
         public string DhcpScope => _dhcpLease?.ScopeDisplay ?? _dhcpReservation?.ScopeDisplay ?? "Not reported";
         public string DhcpSummary => $"{DhcpLeaseType} • {DhcpScope}";
@@ -416,6 +430,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(HealthText));
             OnPropertyChanged(nameof(HealthColour));
             OnPropertyChanged(nameof(LastSeen));
+            OnPropertyChanged(nameof(LastSeenByRouterPilot));
             OnPropertyChanged(nameof(TotalQueriesDisplay));
             OnPropertyChanged(nameof(BlockedQueriesDisplay));
             OnPropertyChanged(nameof(BlockRateDisplay));
@@ -425,6 +440,8 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(DhcpAddressLabel));
             OnPropertyChanged(nameof(DhcpLeaseType));
             OnPropertyChanged(nameof(DhcpLeaseRemaining));
+            OnPropertyChanged(nameof(DhcpLeaseStatus));
+            OnPropertyChanged(nameof(DhcpLeaseExpiry));
             OnPropertyChanged(nameof(DhcpSummary));
             OnPropertyChanged(nameof(HasCurrentReservedAddressMismatch));
             OnPropertyChanged(nameof(HasDhcpAddressPresentation));
@@ -735,6 +752,10 @@ namespace RouterPilot.ViewModels
                 $"MAC type: {GetMacType(MacAddress)}",
                 $"Vendor: {snapshot.Manufacturer}",
                 $"Connection: {ConnectionSummary}",
+                $"Last seen by RouterPilot: {LastSeenByRouterPilot}",
+                $"DHCP lease: {DhcpLeaseStatus}",
+                $"DHCP lease expiry: {DhcpLeaseExpiry}",
+                $"DHCP reservation: {DhcpReservation}",
                 $"DNS observability: {snapshot.ActivityAvailabilityToolTip}",
                 $"DNS requests: {TotalQueriesDisplay}",
                 $"Blocked: {BlockedQueriesDisplay}",
