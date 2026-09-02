@@ -104,6 +104,7 @@
                     ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
                     SelectionChanged="NetworkTabs_SelectionChanged">
             <TabItem Header="Overview"/>
+            <TabItem Header="Network Map"/>
             <TabItem Header="Wi-Fi"/>
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
@@ -114,6 +115,40 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24,0,24,24">
+
+                <StackPanel x:Name="MapContent" Visibility="Collapsed">
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="LAN topology"/>
+                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Evidence-based local device relationships. Unknown attachment is shown when the router cannot prove a medium or physical port." TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Copy Network Map Summary" Padding="12,6" Click="CopyNetworkMapSummary_Click"/>
+                    </Grid>
+                    <Border Style="{DynamicResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="ROUTER"/>
+                            <TextBlock Margin="0,6,0,0" FontSize="18" FontWeight="SemiBold" Text="Router"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Current LAN clients are grouped by authoritative connection evidence."/>
+                        </StackPanel>
+                    </Border>
+                    <UniformGrid Columns="3" Margin="0,0,0,12">
+                        <Border Style="{DynamicResource Card.Compact}" Margin="0,0,8,0"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CURRENT DEVICES"/><TextBlock x:Name="MapCurrentCountText" Margin="0,5,0,0" FontSize="20" Text="—"/></StackPanel></Border>
+                        <Border Style="{DynamicResource Card.Compact}" Margin="4,0,4,0"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WIRED"/><TextBlock x:Name="MapWiredCountText" Margin="0,5,0,0" FontSize="20" Text="—"/></StackPanel></Border>
+                        <Border Style="{DynamicResource Card.Compact}" Margin="8,0,0,0"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WI-FI / UNKNOWN"/><TextBlock x:Name="MapWirelessCountText" Margin="0,5,0,0" FontSize="20" Text="—"/></StackPanel></Border>
+                    </UniformGrid>
+                    <TextBlock x:Name="MapStatusText" Margin="0,0,0,8" Style="{DynamicResource Text.Muted}" Text="Loading network map…"/>
+                    <ItemsControl x:Name="MapClientsList" ItemsSource="{Binding LanClients}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,8">
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding Name}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding ConnectionType}"/></StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="{Binding IsOnline, StringFormat=Online: {0}}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
 
                 <!-- Overview -->
                 <ContentControl x:Name="HealthContent" Visibility="Collapsed"/>

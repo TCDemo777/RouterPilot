@@ -51,10 +51,11 @@ namespace RouterPilot.Views
         {
             NetworkTabs.SelectedIndex = section switch
             {
-                "wifi" => 1,
-                "dhcp" => 2,
-                "port-forward" => 3,
-                "health" => 4,
+                "map" => 1,
+                "wifi" => 2,
+                "dhcp" => 3,
+                "port-forward" => 4,
+                "health" => 5,
                 _ => 0
             };
             UpdateNetworkTabVisibility();
@@ -88,6 +89,7 @@ namespace RouterPilot.Views
         {
             AttachPortForwardRuleViewUpdates();
             RefreshPortForwardRuleFilter();
+            UpdateMapSummary();
         }
 
         private void NetworkView_Unloaded(object sender, RoutedEventArgs e)
@@ -149,6 +151,7 @@ namespace RouterPilot.Views
             DetachPortForwardRuleViewUpdates();
             AttachPortForwardRuleViewUpdates();
             RefreshPortForwardRuleFilter();
+            UpdateMapSummary();
         }
 
         private void AttachPortForwardRuleViewUpdates()
@@ -353,28 +356,56 @@ namespace RouterPilot.Views
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
             if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
-                OverviewDetailsContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || HealthContent is null)
+                OverviewDetailsContent is null || MapContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || HealthContent is null)
             {
                 return;
             }
 
-            bool showWifi = NetworkTabs.SelectedIndex == 1;
-            bool showDhcp = NetworkTabs.SelectedIndex == 2;
-            bool showPortForward = NetworkTabs.SelectedIndex == 3;
-            bool showHealth = NetworkTabs.SelectedIndex == 4;
+            bool showMap = NetworkTabs.SelectedIndex == 1;
+            bool showWifi = NetworkTabs.SelectedIndex == 2;
+            bool showDhcp = NetworkTabs.SelectedIndex == 3;
+            bool showPortForward = NetworkTabs.SelectedIndex == 4;
+            bool showHealth = NetworkTabs.SelectedIndex == 5;
             if (showHealth && _networkHealthView is null)
             {
                 _networkHealthView = new NetworkHealthView();
                 HealthContent.Content = _networkHealthView;
             }
-            OverviewSummaryContent.Visibility = showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
-            OverviewMaintenanceContent.Visibility = showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
-            OverviewDetailsContent.Visibility = showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
+            OverviewSummaryContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
+            OverviewMaintenanceContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
+            OverviewDetailsContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
+            MapContent.Visibility = showMap ? Visibility.Visible : Visibility.Collapsed;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
             PortForwardContent.Visibility = showPortForward ? Visibility.Visible : Visibility.Collapsed;
             HealthContent.Visibility = showHealth ? Visibility.Visible : Visibility.Collapsed;
             if (showPortForward) _ = RefreshPortForwardAsync();
+            if (showMap) UpdateMapSummary();
+        }
+
+        private void UpdateMapSummary()
+        {
+            if (DataContext is not DashboardViewModel vm || MapCurrentCountText is null) return;
+            int current = vm.LanClients.Count(client => client.IsOnline);
+            int wired = vm.LanClients.Count(client => client.IsOnline && client.ConnectionType.Contains("Wired", StringComparison.OrdinalIgnoreCase));
+            int wifi = vm.LanClients.Count(client => client.IsOnline && client.ConnectionType.Contains("Wi", StringComparison.OrdinalIgnoreCase));
+            int unknown = Math.Max(0, current - wired - wifi);
+            MapCurrentCountText.Text = current.ToString();
+            MapWiredCountText.Text = wired.ToString();
+            MapWirelessCountText.Text = $"{wifi} / {unknown}";
+            MapStatusText.Text = vm.LanIsLoading ? "Loading current clients…" : "Current clients grouped by authoritative connection evidence.";
+        }
+
+        private void CopyNetworkMapSummary_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not DashboardViewModel vm) return;
+            int current = vm.LanClients.Count(client => client.IsOnline);
+            int wired = vm.LanClients.Count(client => client.IsOnline && client.ConnectionType.Contains("Wired", StringComparison.OrdinalIgnoreCase));
+            int wifi = vm.LanClients.Count(client => client.IsOnline && client.ConnectionType.Contains("Wi", StringComparison.OrdinalIgnoreCase));
+            int unknown = Math.Max(0, current - wired - wifi);
+            string summary = $"RouterPilot Network Map Summary\nCurrent devices: {current}\nWired: {wired}\nWi-Fi: {wifi}\nUnknown attachment: {unknown}\nGenerated: {DateTime.Now:g}";
+            try { Clipboard.SetText(summary); MapStatusText.Text = "Network map summary copied."; }
+            catch { MapStatusText.Text = "Network map summary could not be copied."; }
         }
         private async Task RefreshPortForwardAsync()
         {
