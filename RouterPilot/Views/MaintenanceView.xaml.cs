@@ -260,6 +260,25 @@ public partial class MaintenanceView : UserControl
         await viewModel.CheckFirmwareAsync();
     }
 
+    private async void RunDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            await viewModel.RunDiagnosticsAsync(_refreshAll);
+    }
+
+    private void CancelDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            viewModel.CancelDiagnostics();
+    }
+
+    private void CopyDiagnosticReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        try { Clipboard.SetText(viewModel.BuildDiagnosticReport()); MessageBox.Show("Diagnostic report copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch { MessageBox.Show("Diagnostic report could not be copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
     private void OpenFirmwarePage_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel)

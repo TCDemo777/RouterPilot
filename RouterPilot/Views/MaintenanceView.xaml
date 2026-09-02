@@ -228,6 +228,21 @@
 
             <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Diagnostics"/><TextBlock Style="{StaticResource Text.Secondary}" Text="Current observations plus one bounded, read-only troubleshooting run." TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Width="150" Height="36" Content="Run Diagnostics" Click="RunDiagnostics_Click"/><Button Width="90" Height="36" Margin="8,0,0,0" Style="{DynamicResource Button.Secondary}" Content="Cancel" Click="CancelDiagnostics_Click"/></StackPanel>
+                    </Grid>
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.Muted}" Text="{Binding DiagnosticsStatus}" TextWrapping="Wrap"/>
+                    <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding DiagnosticChecks}">
+                        <ItemsControl.ItemTemplate><DataTemplate><Border Padding="10,8" Margin="0,0,0,6" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock FontWeight="SemiBold" Text="{Binding Title}"/><TextBlock Grid.Column="1" Text="{Binding State}"/><TextBlock Grid.Column="2" Style="{StaticResource Text.Secondary}" Text="{Binding Summary}" TextWrapping="Wrap"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Button Width="170" Height="36" Style="{DynamicResource Button.Secondary}" Content="Copy Diagnostic Report" Click="CopyDiagnosticReport_Click"/></StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Backup &amp; Restore" />
             <Border Padding="0" BorderThickness="0">
                 <Grid>

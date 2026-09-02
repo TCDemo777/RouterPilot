@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Threading;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Reflection;
@@ -18,6 +19,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly MaintenanceHistoryService _historyService;
     private readonly FirmwareUpdateService _firmwareUpdateService;
     private DashboardViewModel _dashboard;
+    private CancellationTokenSource? _diagnosticsCancellation;
 
     [ObservableProperty]
     private bool isBusy;
@@ -61,6 +63,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public ReadOnlyObservableCollection<MaintenanceHistoryEntry> History { get; }
 
     public ObservableCollection<MaintenanceActionItem> Actions { get; }
+    public ObservableCollection<DiagnosticCheck> DiagnosticChecks { get; } = new();
+    public string DiagnosticsStatus { get; private set; } = "No diagnostic run in this session.";
+    public bool IsDiagnosticsRunning { get; private set; }
 
     public string BackupFolder => _backupRestoreService.BackupFolder;
 
@@ -100,6 +105,65 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string UpdateReadinessText => FirmwareUpdate.Status == FirmwareUpdateCheckStatus.UpdateAvailable
         ? "Review the release and create a secure backup before updating."
         : "Firmware identity is read-only; no update is downloaded or installed by RouterPilot.";
+
+    public async Task RunDiagnosticsAsync(Func<Task> refreshAll)
+    {
+        if (IsDiagnosticsRunning) return;
+        IsDiagnosticsRunning = true;
+        _diagnosticsCancellation?.Cancel();
+        _diagnosticsCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        CancellationToken token = _diagnosticsCancellation.Token;
+        DiagnosticChecks.Clear();
+        DiagnosticsStatus = "Running diagnostics…";
+        OnPropertyChanged(nameof(IsDiagnosticsRunning)); OnPropertyChanged(nameof(DiagnosticsStatus));
+        try
+        {
+            await refreshAll();
+            token.ThrowIfCancellationRequested();
+            AddCheck("Router connection", Dashboard.RouterConnected ? "Pass" : "Unavailable", Dashboard.RouterStatusText, "Router");
+            AddCheck("Internet reachability", Dashboard.InternetConnected ? "Pass" : "Attention", Dashboard.InternetStatusText, "Network");
+            AddCheck("Gateway context", IsKnown(Dashboard.Gateway) ? "Pass" : "Unavailable", IsKnown(Dashboard.Gateway) ? "Gateway information available" : "Gateway information unavailable", "Network");
+            AddCheck("Router DNS", Dashboard.RouterConnected ? "Available" : "Unknown", "See Router → DNS for native DNS telemetry.", "Router DNS");
+            AddCheck("AdGuard", Dashboard.IsAdGuardAvailable ? "Pass" : "Unavailable", Dashboard.AdGuardStatusText, "Protection");
+            AddCheck("VPN context", Dashboard.VpnSummary.State == "Connected" ? "Pass" : "Unknown", Dashboard.VpnNetworkSummary, "VPN");
+            AddCheck("Router resources", Dashboard.RouterConnected ? "Available" : "Unavailable", Dashboard.RouterConnected ? $"CPU {Dashboard.CpuUsage}; temperature {Dashboard.Temperature}" : "Resource telemetry unavailable", "Performance");
+            DiagnosticsStatus = $"Diagnostics completed • {DiagnosticChecks.Count} checks • {DateTime.Now:g}";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            DiagnosticsStatus = "Diagnostics cancelled.";
+            AddCheck("Diagnostic run", "Cancelled", "No further checks were started.", "Diagnostics");
+        }
+        catch (Exception exception)
+        {
+            DiagnosticsStatus = "Diagnostics completed with unavailable checks.";
+            AddCheck("Diagnostic run", "Unavailable", "One or more shared observations could not be loaded.", "Diagnostics");
+            System.Diagnostics.Debug.WriteLine($"Diagnostics composition failed ({exception.GetType().Name}).");
+        }
+        finally { IsDiagnosticsRunning = false; OnPropertyChanged(nameof(IsDiagnosticsRunning)); OnPropertyChanged(nameof(DiagnosticsStatus)); }
+    }
+
+    public void CancelDiagnostics() => _diagnosticsCancellation?.Cancel();
+
+    private void AddCheck(string title, string state, string summary, string source) => DiagnosticChecks.Add(new DiagnosticCheck(title, state, summary, source));
+    private static bool IsKnown(string? value) => !string.IsNullOrWhiteSpace(value) && value != "-";
+
+    public string BuildDiagnosticReport()
+    {
+        StringBuilder report = new("RouterPilot Diagnostic Report\n\n");
+        report.AppendLine($"Generated: {DateTime.Now:g}");
+        report.AppendLine($"Router: {StateForReport(Dashboard.RouterConnected, Dashboard.RouterStatusText)}");
+        report.AppendLine($"Internet: {StateForReport(Dashboard.InternetConnected, Dashboard.InternetStatusText)}");
+        report.AppendLine($"AdGuard: {StateForReport(Dashboard.IsAdGuardAvailable, Dashboard.AdGuardStatusText)}");
+        report.AppendLine($"VPN: {Dashboard.VpnSummary.State}");
+        report.AppendLine($"Firmware: {RouterFirmwareText}");
+        report.AppendLine("\nChecks:");
+        foreach (DiagnosticCheck check in DiagnosticChecks) report.AppendLine($"- {check.Title}: {check.State} — {check.Summary}");
+        report.AppendLine("\nThis report omits addresses, client identities, SSIDs, domains, endpoints, credentials and raw command output.");
+        return report.ToString();
+    }
+
+    private static string StateForReport(bool available, string value) => available ? "Available" : "Unavailable";
     public string FirmwareStatusColour => RouterPilotStatusPresentation.Colour(
         IsFirmwareChecking ? RouterPilotStatus.Pending : FirmwareUpdate.Status switch
         {
@@ -423,3 +487,5 @@ public sealed partial class MaintenanceActionItem : ObservableObject
     [ObservableProperty]
     private string lastResultColour = RouterPilotStatusPresentation.Colour(RouterPilotStatus.NotAvailable);
 }
+
+public sealed record DiagnosticCheck(string Title, string State, string Summary, string Source);
