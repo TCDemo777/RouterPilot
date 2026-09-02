@@ -260,6 +260,11 @@ namespace RouterPilot.ViewModels
                         ? "#16803C"
                         : "#687386";
 
+        public string StorageTelemetryDisplay => StorageUsage is not (null or "-") ? "Available" : "Unknown";
+        public string ExternalStorageDisplay => "Unknown";
+        public string FileSharingDisplay => "Unknown";
+        public string FileSharingSharesDisplay => "—";
+
         public string TemperatureHealthText =>
             RouterTemperatureHealth.Text(RouterModel, Temperature);
 
@@ -2044,6 +2049,7 @@ namespace RouterPilot.ViewModels
             StorageUsage = string.IsNullOrWhiteSpace(rawStorage)
                 ? "-"
                 : rawStorage.Trim();
+            OnPropertyChanged(nameof(StorageTelemetryDisplay));
 
             StoragePercentage = 0;
             StorageUsed = "-";

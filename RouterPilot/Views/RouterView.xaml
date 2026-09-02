@@ -269,6 +269,42 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Storage">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,18,0,0">
+                        <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Storage &amp; File Sharing"/>
+                        <TextBlock Margin="0,4,0,16" Style="{DynamicResource Text.Muted}" Text="Read-only router storage and sharing observations. File browsing and storage changes are not available here." TextWrapping="Wrap"/>
+                        <Border Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.CardCaption}" Text="ROOT FILESYSTEM"/>
+                                <TextBlock Margin="0,6,0,0" FontSize="18" Text="{Binding StorageTelemetryDisplay, FallbackValue=Unknown, TargetNullValue=Unknown}"/>
+                                <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Secondary}" Text="Usage"/>
+                                <TextBlock Text="{Binding StorageUsage, FallbackValue=—, TargetNullValue=—}"/>
+                                <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}" Text="Used / available / total"/>
+                                <TextBlock Text="{Binding StorageUsed, StringFormat=Used: {0}}"/>
+                                <TextBlock Text="{Binding StorageAvailable, StringFormat=Available: {0}}"/>
+                                <TextBlock Text="{Binding StorageTotal, StringFormat=Capacity: {0}}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="0,14,0,0" Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.CardCaption}" Text="EXTERNAL STORAGE"/>
+                                <TextBlock Margin="0,6,0,0" FontSize="18" Text="{Binding ExternalStorageDisplay}"/>
+                                <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="USB device inventory is not available from the current proven router telemetry contract." TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="0,14,0,0" Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.CardCaption}" Text="FILE SHARING"/>
+                                <TextBlock Margin="0,6,0,0" FontSize="18" Text="{Binding FileSharingDisplay}"/>
+                                <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}" Text="Configured shares"/>
+                                <TextBlock Text="{Binding FileSharingSharesDisplay}"/>
+                                <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="No credentials, share paths, or files are read." TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </Grid>
 </UserControl>
