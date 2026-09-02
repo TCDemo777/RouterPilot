@@ -67,6 +67,8 @@ namespace RouterPilot.Views
         private readonly IRouterSwitchCoordinator _routerSwitchCoordinator;
         private bool _routerOnline = true;
         private int _vpnNetworkContextRefreshQueued;
+        private CancellationTokenSource? _resumeRecoveryCancellation;
+        private long _resumeGeneration;
         private bool _healthSourcesReady;
         private bool? _observedInternetState;
         private bool _vpnStateObserved;
@@ -1184,6 +1186,7 @@ namespace RouterPilot.Views
 
         public Task PrepareForShutdownAsync()
         {
+            _resumeRecoveryCancellation?.Cancel();
             return _refreshCoordinator.DisposeAsync().AsTask();
         }
 
@@ -1636,8 +1639,36 @@ namespace RouterPilot.Views
 
         private void SystemEvents_PowerModeChanged(object? sender, PowerModeChangedEventArgs e)
         {
+            if (e.Mode == PowerModes.Suspend)
+            {
+                Interlocked.Increment(ref _resumeGeneration);
+                _resumeRecoveryCancellation?.Cancel();
+                _routerManagerProvider.Invalidate();
+                return;
+            }
             if (e.Mode != PowerModes.Resume) return;
+            long generation = Interlocked.Increment(ref _resumeGeneration);
             _dataFreshnessService.BeginReestablishmentWindow(TimeSpan.FromMinutes(2));
+            _routerManagerProvider.Invalidate();
+            _resumeRecoveryCancellation?.Cancel();
+            _resumeRecoveryCancellation?.Dispose();
+            _resumeRecoveryCancellation = new CancellationTokenSource();
+            _ = RecoverAfterResumeAsync(generation, _resumeRecoveryCancellation.Token);
+        }
+
+        private async Task RecoverAfterResumeAsync(long generation, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded) return;
+                await _refreshCoordinator.RunNowAsync(DashboardRefreshTask, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Debug.WriteLine($"Post-resume recovery failed ({exception.GetType().Name}). Manual Refresh remains available.");
+            }
         }
 
         private void VpnSummaryService_SummaryChanged(VpnSummaryState summary)
