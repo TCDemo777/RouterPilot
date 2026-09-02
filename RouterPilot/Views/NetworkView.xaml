@@ -109,6 +109,7 @@
             <TabItem Header="DHCP"/>
             <TabItem Header="Port Forwarding"/>
             <TabItem Header="Health"/>
+            <TabItem Header="Internet Quality"/>
         </TabControl>
 
         <ScrollViewer Grid.Row="2"
@@ -152,6 +153,33 @@
 
                 <!-- Overview -->
                 <ContentControl x:Name="HealthContent" Visibility="Collapsed"/>
+                <StackPanel x:Name="InternetQualityContent" Margin="0,0,0,16" Visibility="Collapsed">
+                    <Border Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Internet quality"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Short, manual gateway, Internet and DNS observations. This is not continuous monitoring." TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button x:Name="RunInternetQualityButton" Padding="12,6" Style="{DynamicResource Button.Primary}" Content="Run Internet Quality Test" Click="RunInternetQuality_Click"/>
+                                    <Button x:Name="CancelInternetQualityButton" Margin="8,0,0,0" Padding="12,6" Style="{DynamicResource Button.Secondary}" Content="Cancel" IsEnabled="False" Click="CancelInternetQuality_Click"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="InternetQualityStatusText" Margin="0,14,0,0" Style="{DynamicResource Text.Muted}" Text="No manual test run in this session."/>
+                            <TextBlock x:Name="InternetQualityDetailsText" Margin="0,6,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+                            <Button x:Name="CopyInternetQualityButton" Margin="0,12,0,0" HorizontalAlignment="Left" Padding="12,6" Style="{DynamicResource Button.Secondary}" Content="Copy Internet Quality Report" Click="CopyInternetQuality_Click" IsEnabled="False"/>
+                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="Gateway latency is local gateway timing. Internet latency is the existing router-side diagnostic target. DNS timing measures the diagnostic resolver path and does not prove AdGuard processing time." TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Margin="0,12,0,0" Style="{DynamicResource Card.Compact}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Recent manual tests"/>
+                            <ItemsControl x:Name="InternetQualityHistoryList" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
                 <Grid x:Name="OverviewSummaryContent" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

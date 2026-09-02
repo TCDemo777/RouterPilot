@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
@@ -29,6 +30,13 @@ namespace RouterPilot.Views
         private bool _showPortForwardAttentionOnly;
         private CancellationTokenSource? _diagnosticsCancellation;
         private bool _diagnosticsRunning;
+        private CancellationTokenSource? _qualityCancellation;
+        private bool _qualityRunning;
+        private readonly List<InternetQualityRun> _qualityHistory = new();
+        private InternetQualityRun? _latestQualityRun;
+
+        private sealed record InternetQualityRun(DateTimeOffset Timestamp, PingSummary? Gateway, PingSummary? Internet, long? DnsMs, bool DnsSucceeded);
+        private sealed record PingSummary(int Responses, int Attempts, double? MinMs, double? AverageMs, double? MaxMs, double? VariationMs);
 
         public NetworkView()
         {
@@ -56,6 +64,7 @@ namespace RouterPilot.Views
                 "dhcp" => 3,
                 "port-forward" => 4,
                 "health" => 5,
+                "internet-quality" => 6,
                 _ => 0
             };
             UpdateNetworkTabVisibility();
@@ -95,8 +104,88 @@ namespace RouterPilot.Views
         private void NetworkView_Unloaded(object sender, RoutedEventArgs e)
         {
             _diagnosticsCancellation?.Cancel();
+            _qualityCancellation?.Cancel();
             DetachPortForwardRuleViewUpdates();
         }
+
+        private async void RunInternetQuality_Click(object sender, RoutedEventArgs e)
+        {
+            if (_qualityRunning) return;
+            _qualityRunning = true;
+            RunInternetQualityButton.IsEnabled = false;
+            CancelInternetQualityButton.IsEnabled = true;
+            _qualityCancellation?.Cancel();
+            _qualityCancellation?.Dispose();
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(25));
+            _qualityCancellation = cts;
+            try
+            {
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cts.Token);
+                string gateway = (DataContext as DashboardViewModel)?.Gateway ?? string.Empty;
+                PingSummary? gatewaySummary = string.IsNullOrWhiteSpace(gateway) || gateway == "-" ? null : await MeasurePingAsync(router, gateway, cts.Token);
+                PingSummary? internetSummary = await MeasurePingAsync(router, "1.1.1.1", cts.Token);
+                Stopwatch dnsTimer = Stopwatch.StartNew();
+                string dns = await router.DnsLookupAsync("example.com", cts.Token);
+                dnsTimer.Stop();
+                cts.Token.ThrowIfCancellationRequested();
+                bool dnsOk = dns.Contains("Name:", StringComparison.OrdinalIgnoreCase) && dns.Contains("Address:", StringComparison.OrdinalIgnoreCase);
+                InternetQualityRun run = new(DateTimeOffset.Now, gatewaySummary, internetSummary, dnsOk ? dnsTimer.ElapsedMilliseconds : null, dnsOk);
+                _latestQualityRun = run;
+                _qualityHistory.Add(run);
+                if (_qualityHistory.Count > 10) _qualityHistory.RemoveAt(0);
+                InternetQualityStatusText.Text = "Internet quality test completed.";
+                InternetQualityDetailsText.Text = FormatQuality(run);
+                CopyInternetQualityButton.IsEnabled = true;
+                InternetQualityHistoryList.ItemsSource = null;
+                InternetQualityHistoryList.ItemsSource = _qualityHistory.AsEnumerable().Reverse().Select(item => $"{item.Timestamp.LocalDateTime:g} • {FormatMetric(item.Internet?.AverageMs)} Internet • DNS {FormatMetric(item.DnsMs)}").ToList();
+            }
+            catch (OperationCanceledException)
+            {
+                InternetQualityStatusText.Text = "Internet quality test timed out or was cancelled.";
+            }
+            catch (Exception ex)
+            {
+                InternetQualityStatusText.Text = OperationFailurePolicy.UserMessage(ex, "Internet quality", "Internet quality diagnostics are currently unavailable.");
+            }
+            finally
+            {
+                if (ReferenceEquals(_qualityCancellation, cts)) _qualityCancellation = null;
+                _qualityRunning = false;
+                RunInternetQualityButton.IsEnabled = true;
+                CancelInternetQualityButton.IsEnabled = false;
+            }
+        }
+
+        private async void CancelInternetQuality_Click(object sender, RoutedEventArgs e) => _qualityCancellation?.Cancel();
+
+        private void CopyInternetQuality_Click(object sender, RoutedEventArgs e)
+        {
+            if (_latestQualityRun is null) return;
+            Clipboard.SetText("RouterPilot Internet Quality Report\n\nGenerated: " + _latestQualityRun.Timestamp.LocalDateTime.ToString("g") + "\n" + FormatQuality(_latestQualityRun) + "\n\nThis is a short manual diagnostic sample, not continuous monitoring. Addresses, client identities, SSIDs, endpoints and credentials are omitted.");
+        }
+
+        private static async Task<PingSummary?> MeasurePingAsync(RouterManager router, string target, CancellationToken token)
+        {
+            List<double> values = new();
+            for (int i = 0; i < 3; i++)
+            {
+                string output = await router.PingAsync(target, token);
+                Match match = Regex.Match(output, @"=\s*[^/]+/(?<avg>[\d.]+)/(?<max>[\d.]+)", RegexOptions.IgnoreCase);
+                Match minMatch = Regex.Match(output, @"=\s*(?<min>[\d.]+)/", RegexOptions.IgnoreCase);
+                if (match.Success && double.TryParse(match.Groups["avg"].Value, out double average)) values.Add(average);
+            }
+            if (values.Count == 0) return null;
+            double variation = values.Count > 1 ? values.Skip(1).Select((value, index) => Math.Abs(value - values[index])).Average() : double.NaN;
+            return new PingSummary(values.Count * 4, 12, values.Min(), values.Average(), values.Max(), double.IsNaN(variation) ? null : variation);
+        }
+
+        private static string FormatQuality(InternetQualityRun run) =>
+            $"Gateway: {(run.Gateway is null ? "—" : FormatMetric(run.Gateway.AverageMs) + " average")}\n" +
+            $"Internet: {(run.Internet is null ? "Unavailable" : $"{run.Internet.Responses}/{run.Internet.Attempts} responses • {FormatMetric(run.Internet.MinMs)} min • {FormatMetric(run.Internet.AverageMs)} average • {FormatMetric(run.Internet.MaxMs)} max • variation {FormatMetric(run.Internet.VariationMs)}")}\n" +
+            $"DNS resolution: {(run.DnsSucceeded ? $"Pass • {FormatMetric(run.DnsMs)}" : "Unavailable")}";
+
+        private static string FormatMetric(double? value) => value is null ? "—" : $"{value.Value:0.#} ms";
+        private static string FormatMetric(long? value) => value is null ? "—" : $"{value.Value} ms";
 
         private async void RunNetworkDiagnostics_Click(object sender, RoutedEventArgs e)
         {
@@ -356,7 +445,7 @@ namespace RouterPilot.Views
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
             if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
-                OverviewDetailsContent is null || MapContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || HealthContent is null)
+                OverviewDetailsContent is null || MapContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || HealthContent is null || InternetQualityContent is null)
             {
                 return;
             }
@@ -366,19 +455,21 @@ namespace RouterPilot.Views
             bool showDhcp = NetworkTabs.SelectedIndex == 3;
             bool showPortForward = NetworkTabs.SelectedIndex == 4;
             bool showHealth = NetworkTabs.SelectedIndex == 5;
+            bool showQuality = NetworkTabs.SelectedIndex == 6;
             if (showHealth && _networkHealthView is null)
             {
                 _networkHealthView = new NetworkHealthView();
                 HealthContent.Content = _networkHealthView;
             }
-            OverviewSummaryContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
-            OverviewMaintenanceContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
-            OverviewDetailsContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth ? Visibility.Collapsed : Visibility.Visible;
+            OverviewSummaryContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
+            OverviewMaintenanceContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
+            OverviewDetailsContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
             MapContent.Visibility = showMap ? Visibility.Visible : Visibility.Collapsed;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
             PortForwardContent.Visibility = showPortForward ? Visibility.Visible : Visibility.Collapsed;
             HealthContent.Visibility = showHealth ? Visibility.Visible : Visibility.Collapsed;
+            InternetQualityContent.Visibility = showQuality ? Visibility.Visible : Visibility.Collapsed;
             if (showPortForward) _ = RefreshPortForwardAsync();
             if (showMap) UpdateMapSummary();
         }
