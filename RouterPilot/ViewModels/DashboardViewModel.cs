@@ -264,22 +264,28 @@ namespace RouterPilot.ViewModels
         public string ExternalStorageDisplay => !ExternalStorageInventoryLoaded
             ? "Unknown"
             : ExternalStorage.Count > 0 ? "Available" : "No external storage currently observed";
-        public string FileSharingDisplay => "Unknown";
-        public string FileSharingSharesDisplay => "—";
+        public string FileSharingDisplay => !FileSharingInventoryLoaded ? "Unknown" : SambaShares.Count > 0 ? "Configured" : "No shares configured";
+        public string FileSharingSharesDisplay => !FileSharingInventoryLoaded ? "—" : SambaShares.Count.ToString("N0");
         public ObservableCollection<MountedStorageInfo> ExternalStorage { get; } = new();
         public ObservableCollection<StorageDeviceInfo> AttachedStorage { get; } = new();
+        public ObservableCollection<SambaShareInfo> SambaShares { get; } = new();
+        public bool FileSharingInventoryLoaded { get; private set; }
         public string ExternalStorageInventoryDisplay => !ExternalStorageInventoryLoaded ? "Unknown" : ExternalStorage.Count.ToString("N0");
         public bool ExternalStorageInventoryLoaded { get; private set; }
 
-        public void UpdateExternalStorage(IEnumerable<MountedStorageInfo>? storage, bool loaded, IEnumerable<StorageDeviceInfo>? attached = null)
+        public void UpdateExternalStorage(IEnumerable<MountedStorageInfo>? storage, bool loaded, IEnumerable<StorageDeviceInfo>? attached = null, IEnumerable<SambaShareInfo>? shares = null, bool fileSharingLoaded = false)
         {
             ExternalStorage.Clear();
             foreach (MountedStorageInfo item in storage ?? Enumerable.Empty<MountedStorageInfo>()) ExternalStorage.Add(item);
             AttachedStorage.Clear();
             foreach (StorageDeviceInfo item in attached ?? Enumerable.Empty<StorageDeviceInfo>()) AttachedStorage.Add(item);
+            SambaShares.Clear();
+            foreach (SambaShareInfo item in shares ?? Enumerable.Empty<SambaShareInfo>()) SambaShares.Add(item);
+            FileSharingInventoryLoaded = fileSharingLoaded;
             ExternalStorageInventoryLoaded = loaded;
             OnPropertyChanged(nameof(ExternalStorageInventoryDisplay));
             OnPropertyChanged(nameof(ExternalStorageInventoryLoaded));
+            OnPropertyChanged(nameof(FileSharingDisplay)); OnPropertyChanged(nameof(FileSharingSharesDisplay));
         }
 
         public string TemperatureHealthText =>

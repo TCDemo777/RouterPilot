@@ -36,6 +36,8 @@ namespace RouterPilot.Models
         public bool ExternalStorageInventoryLoaded { get; set; }
         public List<MountedStorageInfo> ExternalStorage { get; set; } = new();
         public List<StorageDeviceInfo> AttachedStorage { get; set; } = new();
+        public bool FileSharingInventoryLoaded { get; set; }
+        public List<SambaShareInfo> SambaShares { get; set; } = new();
 
 
         //
@@ -69,5 +71,15 @@ namespace RouterPilot.Models
         public string Device { get; set; } = "-";
         public string Size { get; set; } = "-";
         public bool Removable { get; set; }
+    }
+
+    public sealed class SambaShareInfo
+    {
+        public string Name { get; set; } = "Unknown share";
+        public string Path { get; set; } = string.Empty;
+        public bool? GuestAccess { get; set; }
+        public bool? ReadOnly { get; set; }
+        public bool? Enabled { get; set; }
+        public string StorageDisplay { get; set; } = "Unknown storage";
     }
 }

@@ -392,9 +392,11 @@ namespace RouterPilot.Services
             // overlay, ROM and virtual filesystems are deliberately excluded.
             try
             {
-                string storageOutput = await _ssh.RunCommandAsync("df -P; printf '\\n__MOUNTS__\\n'; cat /proc/mounts 2>/dev/null; printf '\\n__PARTITIONS__\\n'; cat /proc/partitions 2>/dev/null; printf '\\n__BLOCKS__\\n'; for f in /sys/class/block/*/removable; do n=${f%/removable}; n=${n##*/}; r=$(cat \"$f\" 2>/dev/null); s=$(cat \"/sys/class/block/$n/size\" 2>/dev/null); printf '%s|%s|%s\\n' \"$n\" \"$r\" \"$s\"; done");
+                string storageOutput = await _ssh.RunCommandAsync("df -P; printf '\\n__MOUNTS__\\n'; cat /proc/mounts 2>/dev/null; printf '\\n__PARTITIONS__\\n'; cat /proc/partitions 2>/dev/null; printf '\\n__BLOCKS__\\n'; for f in /sys/class/block/*/removable; do n=${f%/removable}; n=${n##*/}; r=$(cat \"$f\" 2>/dev/null); s=$(cat \"/sys/class/block/$n/size\" 2>/dev/null); printf '%s|%s|%s\\n' \"$n\" \"$r\" \"$s\"; done; printf '\\n__SAMBA4__\\n'; if command -v uci >/dev/null 2>&1; then uci show samba4 2>/dev/null; else printf '__NO_UCI__\\n'; fi; printf '__END_SAMBA4__\\n'");
                 info.ExternalStorage = ParseExternalStorage(storageOutput);
                 info.AttachedStorage = ParseAttachedStorage(storageOutput);
+                info.SambaShares = ParseSambaShares(storageOutput, info.ExternalStorage);
+                info.FileSharingInventoryLoaded = HasSamba4Inventory(storageOutput);
                 info.ExternalStorageInventoryLoaded = !storageOutput.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase);
             }
             catch
@@ -402,6 +404,8 @@ namespace RouterPilot.Services
                 info.ExternalStorageInventoryLoaded = false;
                 info.ExternalStorage = new();
                 info.AttachedStorage = new();
+                info.FileSharingInventoryLoaded = false;
+                info.SambaShares = new();
             }
 
 
@@ -479,6 +483,43 @@ namespace RouterPilot.Services
             }
             return devices.Where(item => item.Removable).GroupBy(item => item.Device.TrimEnd('0','1','2','3','4','5','6','7','8','9'), StringComparer.Ordinal).Select(group => group.First()).ToList();
         }
+        private static bool HasSamba4Inventory(string output) => output.Contains("__SAMBA4__", StringComparison.Ordinal) && !output.Contains("__NO_UCI__", StringComparison.Ordinal);
+
+        private static List<SambaShareInfo> ParseSambaShares(string output, IReadOnlyList<MountedStorageInfo> storage)
+        {
+            int start = output.IndexOf("__SAMBA4__", StringComparison.Ordinal), end = output.IndexOf("__END_SAMBA4__", StringComparison.Ordinal);
+            if (start < 0 || end <= start) return new();
+            var sections = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+            foreach (string line in output[(start + 10)..end].Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string[] pair = line.Split('=', 2);
+                if (pair.Length != 2 || !pair[0].StartsWith("samba4.@sambashare[", StringComparison.Ordinal) || !pair[0].Contains("].", StringComparison.Ordinal)) continue;
+                int close = pair[0].IndexOf("] .".Replace(" ", string.Empty), StringComparison.Ordinal); if (close < 0) continue;
+                string id = pair[0]["samba4.@sambashare[".Length..close]; string key = pair[0][(close + 2)..];
+                if (!sections.TryGetValue(id, out Dictionary<string, string>? values)) sections[id] = values = new(StringComparer.OrdinalIgnoreCase);
+                values[key] = pair[1].Trim().Trim('\'');
+            }
+            return sections.Values.Select(values =>
+            {
+                string path = values.GetValueOrDefault("path", string.Empty);
+                MountedStorageInfo? mounted = storage.FirstOrDefault(item => IsPathWithin(path, item.MountPoint));
+                return new SambaShareInfo
+                {
+                    Name = values.GetValueOrDefault("name", string.IsNullOrWhiteSpace(path) ? "Unknown share" : path.TrimEnd('/').Split('/').Last()), Path = path,
+                    GuestAccess = ParseYesNo(values.GetValueOrDefault("guest_ok")), ReadOnly = ParseYesNo(values.GetValueOrDefault("read_only")), Enabled = ParseYesNo(values.GetValueOrDefault("enabled")),
+                    StorageDisplay = mounted?.MountPoint.Trim('/').Split('/').Last() ?? "Unknown storage"
+                };
+            }).ToList();
+        }
+
+        private static bool IsPathWithin(string child, string parent)
+        {
+            string c = NormalizeMountPoint(child), p = NormalizeMountPoint(parent);
+            return !string.IsNullOrWhiteSpace(c) && !string.IsNullOrWhiteSpace(p) && (c.Equals(p, StringComparison.Ordinal) || c.StartsWith(p + "/", StringComparison.Ordinal));
+        }
+
+        private static bool? ParseYesNo(string? value) => value?.Trim().ToLowerInvariant() switch { "yes" or "true" or "1" => true, "no" or "false" or "0" => false, _ => null };
+
         private static string FormatKilobytes(
             double kilobytes)
         {

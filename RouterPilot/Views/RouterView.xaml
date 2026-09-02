@@ -305,6 +305,9 @@
                                 <TextBlock Margin="0,6,0,0" FontSize="18" Text="{Binding FileSharingDisplay}"/>
                                 <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}" Text="Configured shares"/>
                                 <TextBlock Text="{Binding FileSharingSharesDisplay}"/>
+                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding SambaShares}">
+                                    <ItemsControl.ItemTemplate><DataTemplate><Border Margin="0,0,0,8" Padding="10" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1"><StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding Name}"/><TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding StorageDisplay, StringFormat=Storage: {0}}"/><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding ReadOnly, StringFormat=Read-only: {0}}"/><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding GuestAccess, StringFormat=Guest access: {0}}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
                                 <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="No credentials, share paths, or files are read." TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
