@@ -27,7 +27,18 @@ namespace RouterPilot.Views
             Unloaded += ProtectionView_Unloaded;
             IsVisibleChanged += ProtectionView_IsVisibleChanged;
         }
-        private async void ProtectionView_Loaded(object sender, RoutedEventArgs e) => await ActivateAsync();
+        private async void ProtectionView_Loaded(object sender, RoutedEventArgs e)
+        {
+            // The view is constructed before it is attached to DashboardWindow;
+            // resolve the shared dashboard context again at load time.
+            DashboardViewModel? dashboard = Window.GetWindow(this)?.DataContext as DashboardViewModel;
+            if (dashboard is not null)
+            {
+                InsightsTab.DataContext = dashboard;
+                ExposureTab.DataContext = dashboard;
+            }
+            await ActivateAsync();
+        }
         private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => Deactivate();
 
         private async void ProtectionView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
