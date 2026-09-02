@@ -36,8 +36,8 @@
         <Style x:Key="SidebarNavigationButton"
                TargetType="Button"
                BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Height" Value="36"/>
-            <Setter Property="Margin" Value="10,1"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="10,0"/>
             <Setter Property="Padding" Value="16,0"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Foreground" Value="#D7DCE2"/>
@@ -101,7 +101,7 @@
                            Text="NAVIGATION"/>
 
                 <StackPanel Grid.Row="1" Margin="0,0,0,4">
-                    <TextBlock Margin="18,8,0,8" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
+                    <TextBlock Margin="18,4,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="#35404D"
@@ -139,7 +139,7 @@
                             Content="VPN"
                             Click="Vpn_Click"/>
 
-                    <TextBlock Margin="18,12,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
+                    <TextBlock Margin="18,8,0,3" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
 
                     <Button x:Name="MaintenanceButton"
                             Style="{StaticResource SidebarNavigationButton}"

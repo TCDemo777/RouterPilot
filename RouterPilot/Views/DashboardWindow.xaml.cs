@@ -274,6 +274,7 @@ namespace RouterPilot.Views
 
             _refreshInProgress = true;
             long routerSession = _activeRouter.Version;
+            long resumeGeneration = Volatile.Read(ref _resumeGeneration);
             bool routerCommunicationConfirmed = false;
             bool routerManagerGateEntered = false;
 
@@ -323,6 +324,7 @@ namespace RouterPilot.Views
 
                 cancellationToken.ThrowIfCancellationRequested();
                 ThrowIfRouterSessionChanged(routerSession);
+                ThrowIfResumeGenerationChanged(resumeGeneration);
                 routerCommunicationConfirmed = true;
                 _dataFreshnessService.MarkSuccess(RouterFreshnessSource);
 
@@ -392,6 +394,7 @@ namespace RouterPilot.Views
                 // router network request fails.
                 await Task.WhenAll(wifiTask, dhcpTask, adGuardTask);
                 ThrowIfRouterSessionChanged(routerSession);
+                ThrowIfResumeGenerationChanged(resumeGeneration);
                 if (networkFailure is not null)
                 {
                     throw networkFailure;
@@ -425,6 +428,7 @@ namespace RouterPilot.Views
 
                 await _vpnSummaryService.RefreshAsync(cancellationToken);
                 ThrowIfRouterSessionChanged(routerSession);
+                ThrowIfResumeGenerationChanged(resumeGeneration);
                 if (_vpnSummaryService.Current.IsAvailable)
                     _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
                 else
@@ -451,7 +455,7 @@ namespace RouterPilot.Views
                         "dd MMM yyyy HH:mm:ss");
             }
             catch (OperationCanceledException)
-                when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession))
+                when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession) || resumeGeneration != Volatile.Read(ref _resumeGeneration))
             {
             }
             catch (SshAuthenticationException)
@@ -1643,6 +1647,7 @@ namespace RouterPilot.Views
             {
                 Interlocked.Increment(ref _resumeGeneration);
                 _resumeRecoveryCancellation?.Cancel();
+                _trafficAccumulator.ResetBaseline();
                 _routerManagerProvider.Invalidate();
                 return;
             }
@@ -1654,6 +1659,12 @@ namespace RouterPilot.Views
             _resumeRecoveryCancellation?.Dispose();
             _resumeRecoveryCancellation = new CancellationTokenSource();
             _ = RecoverAfterResumeAsync(generation, _resumeRecoveryCancellation.Token);
+        }
+
+        private void ThrowIfResumeGenerationChanged(long generation)
+        {
+            if (generation != Volatile.Read(ref _resumeGeneration))
+                throw new OperationCanceledException("Router refresh superseded by system resume.");
         }
 
         private async Task RecoverAfterResumeAsync(long generation, CancellationToken cancellationToken)
