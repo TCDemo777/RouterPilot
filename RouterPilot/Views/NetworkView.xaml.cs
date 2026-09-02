@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Input;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -32,6 +33,7 @@ namespace RouterPilot.Views
         private bool _diagnosticsRunning;
         private CancellationTokenSource? _qualityCancellation;
         private bool _qualityRunning;
+        private bool _mapSelectionFromInput;
         private readonly List<InternetQualityRun> _qualityHistory = new();
         private InternetQualityRun? _latestQualityRun;
 
@@ -510,6 +512,22 @@ namespace RouterPilot.Views
         {
             if (Application.Current.MainWindow is DashboardWindow dashboard)
                 dashboard.NavigateToRouterOverview();
+        }
+
+        private void MapClientsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => _mapSelectionFromInput = true;
+
+        private void MapClientsList_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.Enter or Key.Space)
+                _mapSelectionFromInput = true;
+        }
+
+        private void MapClientsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_mapSelectionFromInput) return;
+            _mapSelectionFromInput = false;
+            if ((DataContext as DashboardViewModel)?.SelectedMapClient is null) return;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => MapDetailsCard?.BringIntoView()));
         }
         private async Task RefreshPortForwardAsync()
         {

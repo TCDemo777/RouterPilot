@@ -112,7 +112,7 @@
             <TabItem Header="Internet Quality"/>
         </TabControl>
 
-        <ScrollViewer Grid.Row="2"
+        <ScrollViewer x:Name="NetworkContentScrollViewer" Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24,0,24,24">
@@ -140,22 +140,24 @@
                         <Border Style="{DynamicResource Card.Compact}" Margin="8,0,0,0"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WI-FI / UNKNOWN"/><TextBlock x:Name="MapWirelessCountText" Margin="0,5,0,0" FontSize="20" Text="—"/></StackPanel></Border>
                     </UniformGrid>
                     <TextBlock x:Name="MapStatusText" Margin="0,0,0,8" Style="{DynamicResource Text.Muted}" Text="Loading network map…"/>
-                    <ListBox x:Name="MapClientsList" ItemsSource="{Binding LanClients}" SelectedItem="{Binding SelectedMapClient, Mode=TwoWay}" AutomationProperties.Name="Network map devices" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox x:Name="MapClientsList" ItemsSource="{Binding LanClients}" SelectedItem="{Binding SelectedMapClient, Mode=TwoWay}" SelectionChanged="MapClientsList_SelectionChanged" PreviewMouseLeftButtonDown="MapClientsList_PreviewMouseLeftButtonDown" PreviewKeyDown="MapClientsList_PreviewKeyDown" AutomationProperties.Name="Network map devices" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate><DataTemplate>
-                            <Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,8">
+                            <Border Style="{DynamicResource Card.Compact}" Margin="0,0,0,6" Padding="12,10" ToolTip="{Binding Name}">
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding Name}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding ConnectionType}"/></StackPanel>
-                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="{Binding IsOnline, StringFormat=Online: {0}}"/>
+                                    <StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding ConnectionType}" TextTrimming="CharacterEllipsis"/></StackPanel>
+                                    <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="{Binding StatusDisplay}"/>
                                 </Grid>
                             </Border>
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
-                    <Border Margin="0,8,0,0" Padding="14" Style="{DynamicResource Card}" AutomationProperties.Name="Network map selected device details">
+                    <Border x:Name="MapDetailsCard" Margin="0,8,0,0" Padding="14" Style="{DynamicResource Card}" AutomationProperties.Name="Network map selected device details">
                         <StackPanel>
                             <TextBlock Style="{DynamicResource Text.CardCaption}" Text="SELECTED DEVICE"/>
                             <TextBlock Margin="0,6,0,0" FontSize="17" FontWeight="SemiBold" Text="{Binding MapSelectionDisplay}" TextWrapping="Wrap"/>
