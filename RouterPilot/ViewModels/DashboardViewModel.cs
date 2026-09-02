@@ -847,6 +847,27 @@ namespace RouterPilot.ViewModels
         public bool PortForwardingSupported => RouterCapabilities.PortForwarding.Read;
         public bool PortForwardingWriteSupported => RouterCapabilities.PortForwarding.Write && !PortForwardIsLoading;
 
+        // Firewall & Exposure is intentionally limited to the authoritative
+        // aggregate port-forward snapshot currently available in RouterPilot.
+        // Other firewall/UPnP/DMZ surfaces remain unknown until a stable,
+        // read-only source is available; absence is never treated as disabled.
+        public string ExposureTelemetryDisplay => PortForwardingSupported ? "Available" : "Unknown";
+        public string FirewallEngineDisplay => "—";
+        public string StaticPortForwardCountDisplay => PortForwardingSupported ? PortForwardRules.Count.ToString("N0") : "—";
+        public string EnabledStaticPortForwardCountDisplay => PortForwardingSupported ? PortForwardRules.Count(rule => rule.Enabled).ToString("N0") : "—";
+        public string DisabledStaticPortForwardCountDisplay => PortForwardingSupported ? PortForwardRules.Count(rule => !rule.Enabled).ToString("N0") : "—";
+        public string WanLanForwardingDisplay => !PortForwardingSupported
+            ? "Unknown"
+            : PortForwardRules.Any(rule => rule.Enabled &&
+                string.Equals(rule.SourceZone, "wan", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(rule.DestinationZone, "lan", StringComparison.OrdinalIgnoreCase))
+                ? "Configured"
+                : "Not configured";
+        public string UpnpDisplay => "Unknown";
+        public string UpnpMappingCountDisplay => "—";
+        public string DmzDisplay => "Unknown";
+        public string WanRemoteAdministrationDisplay => "Unknown";
+
         partial void OnPortForwardIsLoadingChanged(bool value) => OnPropertyChanged(nameof(PortForwardingWriteSupported));
 
         public void SetPortForwardingCapabilities(bool read, bool write)
@@ -855,6 +876,7 @@ namespace RouterPilot.ViewModels
             RouterCapabilities.PortForwarding.Write = write;
             OnPropertyChanged(nameof(PortForwardingSupported));
             OnPropertyChanged(nameof(PortForwardingWriteSupported));
+            NotifyExposureSummary();
         }
         public ObservableCollection<string> DhcpWarnings { get; } = new();
 
@@ -1135,6 +1157,21 @@ namespace RouterPilot.ViewModels
                 WifiNetworks,
                 DhcpLoaded);
             OnPropertyChanged(nameof(PortForwardRules));
+            NotifyExposureSummary();
+        }
+
+        private void NotifyExposureSummary()
+        {
+            OnPropertyChanged(nameof(ExposureTelemetryDisplay));
+            OnPropertyChanged(nameof(FirewallEngineDisplay));
+            OnPropertyChanged(nameof(StaticPortForwardCountDisplay));
+            OnPropertyChanged(nameof(EnabledStaticPortForwardCountDisplay));
+            OnPropertyChanged(nameof(DisabledStaticPortForwardCountDisplay));
+            OnPropertyChanged(nameof(WanLanForwardingDisplay));
+            OnPropertyChanged(nameof(UpnpDisplay));
+            OnPropertyChanged(nameof(UpnpMappingCountDisplay));
+            OnPropertyChanged(nameof(DmzDisplay));
+            OnPropertyChanged(nameof(WanRemoteAdministrationDisplay));
         }
 
         private static void ApplyDhcpProfileCorrelation(
@@ -1338,6 +1375,24 @@ namespace RouterPilot.ViewModels
             text.AppendLine($"Session blocked: {AdGuardSessionBlockedDisplay}");
             text.AppendLine($"Session samples: {AdGuardSessionSamplesDisplay}");
             text.AppendLine("Domains, query history, client identities and credentials omitted.");
+            text.AppendLine($"Generated: {DateTime.Now:g}");
+            return text.ToString();
+        }
+
+        public string BuildFirewallExposureSummary()
+        {
+            StringBuilder text = new("RouterPilot Firewall & Exposure Summary\n");
+            text.AppendLine($"Port-forward telemetry: {ExposureTelemetryDisplay}");
+            text.AppendLine($"Static port forwards: {StaticPortForwardCountDisplay}");
+            text.AppendLine($"Enabled static forwards: {EnabledStaticPortForwardCountDisplay}");
+            text.AppendLine($"Disabled static forwards: {DisabledStaticPortForwardCountDisplay}");
+            text.AppendLine($"WAN to LAN forwarding: {WanLanForwardingDisplay}");
+            text.AppendLine($"UPnP: {UpnpDisplay}");
+            text.AppendLine($"Active dynamic mappings: {UpnpMappingCountDisplay}");
+            text.AppendLine($"DMZ: {DmzDisplay}");
+            text.AppendLine($"WAN remote administration: {WanRemoteAdministrationDisplay}");
+            text.AppendLine("RouterPilot does not externally test whether configured mappings are reachable from the public Internet.");
+            text.AppendLine("Rule addresses, ports, client identities and descriptions omitted.");
             text.AppendLine($"Generated: {DateTime.Now:g}");
             return text.ToString();
         }

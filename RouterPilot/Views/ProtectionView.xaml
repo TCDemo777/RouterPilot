@@ -1310,6 +1310,61 @@
                     <ContentControl Margin="0,0,24,24" Content="{Binding}" ContentTemplate="{StaticResource ProtectionTab.Schedules}"/>
                 </ScrollViewer>
             </TabItem>
+
+            <TabItem x:Name="ExposureTab" Header="Firewall &amp; Exposure">
+                <ScrollViewer x:Name="ExposureScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,24,24">
+                        <TextBlock Margin="0,0,0,6" Style="{DynamicResource Text.SectionTitle}" Text="Firewall &amp; Exposure"/>
+                        <TextBlock Margin="0,0,0,16" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                   Text="Read-only router configuration context. Configured mappings are not proof of reachability from the public Internet."/>
+
+                        <WrapPanel Margin="0,0,-12,16">
+                            <Border Width="210" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="PORT-FORWARD TELEMETRY"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding ExposureTelemetryDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Aggregate read-only snapshot"/></StackPanel>
+                            </Border>
+                            <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="STATIC FORWARDS"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding StaticPortForwardCountDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Configured rules"/></StackPanel>
+                            </Border>
+                            <Border Width="150" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ENABLED"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding EnabledStaticPortForwardCountDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Static rules"/></StackPanel>
+                            </Border>
+                            <Border Width="150" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DISABLED"/>
+                                    <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding DisabledStaticPortForwardCountDisplay}"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}" Text="Static rules"/></StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <Border Padding="14" Style="{DynamicResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router observations"/>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                    <TextBlock Style="{DynamicResource Text.Secondary}" Text="Firewall engine"/><TextBlock Grid.Column="1" Text="{Binding FirewallEngineDisplay}"/>
+                                    <TextBlock Grid.Row="1" Style="{DynamicResource Text.Secondary}" Text="WAN → LAN forwarding"/><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WanLanForwardingDisplay}"/>
+                                    <TextBlock Grid.Row="2" Style="{DynamicResource Text.Secondary}" Text="UPnP"/><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding UpnpDisplay}"/>
+                                    <TextBlock Grid.Row="3" Style="{DynamicResource Text.Secondary}" Text="Active dynamic mappings"/><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding UpnpMappingCountDisplay}"/>
+                                    <TextBlock Grid.Row="4" Style="{DynamicResource Text.Secondary}" Text="DMZ"/><TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DmzDisplay}"/>
+                                    <TextBlock Grid.Row="5" Style="{DynamicResource Text.Secondary}" Text="WAN remote administration"/><TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding WanRemoteAdministrationDisplay}"/>
+                                </Grid>
+                                <Button Margin="0,16,0,0" HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Content="Copy Firewall &amp; Exposure Summary" Click="CopyFirewallExposureSummary_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,16,0,0" Padding="14" Style="{DynamicResource Card}">
+                            <TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                       Text="RouterPilot reports configured forwards and runtime telemetry only. It does not externally scan ports or claim that a mapping is reachable from the Internet."/>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </Grid>
 </UserControl>

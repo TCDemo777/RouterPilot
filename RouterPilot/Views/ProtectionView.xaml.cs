@@ -20,7 +20,9 @@ namespace RouterPilot.Views
             _viewModel = ((App)Application.Current).Services
                 .GetRequiredService<ProtectionViewModel>();
             DataContext = _viewModel;
-            InsightsTab.DataContext = Application.Current.MainWindow?.DataContext as DashboardViewModel;
+            DashboardViewModel? dashboard = Application.Current.MainWindow?.DataContext as DashboardViewModel;
+            InsightsTab.DataContext = dashboard;
+            ExposureTab.DataContext = dashboard;
             Loaded += ProtectionView_Loaded;
             Unloaded += ProtectionView_Unloaded;
             IsVisibleChanged += ProtectionView_IsVisibleChanged;
@@ -67,6 +69,7 @@ namespace RouterPilot.Views
                 3 => BlocklistsScrollViewer,
                 4 => BlockedServicesScrollViewer,
                 5 => SchedulesScrollViewer,
+                6 => ExposureScrollViewer,
                 _ => null
             };
 
@@ -108,6 +111,20 @@ namespace RouterPilot.Views
             catch
             {
                 _viewModel.SetMessage("Protection summary could not be copied.");
+            }
+        }
+
+        private void CopyFirewallExposureSummary_Click(object sender, RoutedEventArgs e)
+        {
+            if (ExposureTab.DataContext is not DashboardViewModel dashboard) return;
+            try
+            {
+                Clipboard.SetText(dashboard.BuildFirewallExposureSummary());
+                _viewModel.SetMessage("Firewall & Exposure summary copied.");
+            }
+            catch
+            {
+                _viewModel.SetMessage("Firewall & Exposure summary could not be copied.");
             }
         }
 
