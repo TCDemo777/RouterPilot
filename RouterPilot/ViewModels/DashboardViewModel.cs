@@ -261,7 +261,9 @@ namespace RouterPilot.ViewModels
                         : "#687386";
 
         public string StorageTelemetryDisplay => StorageUsage is not (null or "-") ? "Available" : "Unknown";
-        public string ExternalStorageDisplay => "Unknown";
+        public string ExternalStorageDisplay => !ExternalStorageInventoryLoaded
+            ? "Unknown"
+            : ExternalStorage.Count > 0 ? "Available" : "No external storage currently observed";
         public string FileSharingDisplay => "Unknown";
         public string FileSharingSharesDisplay => "—";
         public ObservableCollection<MountedStorageInfo> ExternalStorage { get; } = new();

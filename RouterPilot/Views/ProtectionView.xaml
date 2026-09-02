@@ -1317,7 +1317,10 @@
                         <TextBlock Margin="0,0,0,6" Style="{DynamicResource Text.SectionTitle}" Text="Firewall &amp; Exposure"/>
                         <TextBlock Margin="0,0,0,16" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
                                    Text="Read-only router configuration context. Configured mappings are not proof of reachability from the public Internet."/>
-                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Muted}" Text="Firewall telemetry: {Binding ExposureTelemetryDisplay, FallbackValue=Unknown, TargetNullValue=Unknown}"/>
+                        <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
+                            <TextBlock Style="{DynamicResource Text.Muted}" Text="Firewall telemetry: "/>
+                            <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding ExposureTelemetryDisplay, FallbackValue=Unknown, TargetNullValue=Unknown}"/>
+                        </StackPanel>
                         <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Muted}" Text="{Binding PortForwardStatus, FallbackValue=Firewall telemetry is loading, TargetNullValue=Firewall telemetry is loading}" TextWrapping="Wrap"/>
 
                         <WrapPanel Margin="0,0,-12,16">

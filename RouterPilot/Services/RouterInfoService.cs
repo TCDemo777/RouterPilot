@@ -415,7 +415,7 @@ namespace RouterPilot.Services
                 if (line == "__MOUNTS__") { inMounts = true; continue; }
                 if (!inMounts) continue;
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 4) mounts[parts[1]] = parts[3];
+                if (parts.Length >= 4) mounts[parts[1]] = $"{parts[2]}|{parts[3]}";
             }
 
             var result = new List<MountedStorageInfo>();
@@ -424,14 +424,16 @@ namespace RouterPilot.Services
                 if (line.StartsWith("Filesystem", StringComparison.OrdinalIgnoreCase) || line == "__MOUNTS__") continue;
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 6 || !parts[0].StartsWith("/dev/", StringComparison.Ordinal)) continue;
-                string mountPoint = parts[^1];
-                if (mountPoint is "/" or "/rom" || mountPoint.StartsWith("/tmp", StringComparison.Ordinal)) continue;
+                int percentIndex = Array.FindIndex(parts, part => part.EndsWith('%'));
+                if (percentIndex < 4 || percentIndex == parts.Length - 1) continue;
+                string mountPoint = string.Join(' ', parts[(percentIndex + 1)..]);
+                if (mountPoint is "/" or "/rom" or "/overlay" || mountPoint.StartsWith("/tmp", StringComparison.Ordinal)) continue;
                 result.Add(new MountedStorageInfo
                 {
                     Device = parts[0], Capacity = FormatStorageSize(parts[1]), Used = FormatStorageSize(parts[2]),
-                    Available = FormatStorageSize(parts[3]), Usage = parts[4], MountPoint = mountPoint,
-                    FileSystem = mounts.TryGetValue(mountPoint, out string? mount) ? mount.Split(',')[0] : "Unknown",
-                    ReadOnly = mounts.TryGetValue(mountPoint, out string? options) && options.Split(',').Contains("ro", StringComparer.Ordinal)
+                    Available = FormatStorageSize(parts[3]), Usage = parts[percentIndex], MountPoint = mountPoint,
+                    FileSystem = mounts.TryGetValue(mountPoint, out string? mount) ? mount.Split('|')[0] : "Unknown",
+                    ReadOnly = mounts.TryGetValue(mountPoint, out string? options) && options.Split('|').ElementAtOrDefault(1)?.Split(',').Contains("ro", StringComparer.Ordinal) == true
                 });
             }
             return result.GroupBy(item => item.MountPoint, StringComparer.Ordinal).Select(group => group.First()).ToList();
