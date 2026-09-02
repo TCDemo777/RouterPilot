@@ -78,6 +78,9 @@ namespace RouterPilot.Models
         public string WifiNetwork { get; set; } = "-";
         public string SignalStrength { get; set; } = "-";
         public string LiveInterface { get; set; } = "-";
+        public string WifiRadio { get; set; } = "-";
+        public string WifiChannel { get; set; } = "-";
+        public string WifiChannelWidth { get; set; } = "N/A";
 
         public bool IsEthernetConnection =>
             string.Equals(ConnectionType, "Ethernet", StringComparison.OrdinalIgnoreCase);

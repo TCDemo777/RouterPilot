@@ -223,6 +223,11 @@
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding ConnectionLabel}"/>
                         <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding ConnectionToolTip}" Text="{Binding ConnectionSummary}"/>
+                        <StackPanel Margin="0,5,0,0" Visibility="{Binding IsWifiConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding WifiRadio, StringFormat=Radio: {0}}"/>
+                            <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding WifiChannel, StringFormat=Channel: {0}}"/>
+                            <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding WifiChannelWidth, StringFormat=Width: {0}}"/>
+                        </StackPanel>
                         <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
                                    Text="{Binding SignalSummary}">
                             <TextBlock.Style>

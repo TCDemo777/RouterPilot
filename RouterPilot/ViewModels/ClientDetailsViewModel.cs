@@ -112,6 +112,9 @@ namespace RouterPilot.ViewModels
         public string WifiNetwork => LiveClient?.WifiNetwork ?? "-";
         public string WifiBand => LiveClient?.ConnectionType ?? "-";
         public string WifiInterface => LiveClient?.LiveInterface ?? "-";
+        public string WifiRadio => LiveClient?.WifiRadio ?? "—";
+        public string WifiChannel => LiveClient?.WifiChannel ?? "—";
+        public string WifiChannelWidth => LiveClient?.WifiChannelWidth ?? "—";
         public bool HasSignal => LiveClient?.HasSignalSummary == true;
         public string SignalQuality => LiveClient?.SignalQuality ?? "—";
         public string SignalStrength => LiveClient?.SignalStrength ?? "—";
@@ -423,6 +426,9 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(WifiNetwork));
             OnPropertyChanged(nameof(WifiBand));
             OnPropertyChanged(nameof(WifiInterface));
+            OnPropertyChanged(nameof(WifiRadio));
+            OnPropertyChanged(nameof(WifiChannel));
+            OnPropertyChanged(nameof(WifiChannelWidth));
             OnPropertyChanged(nameof(HasSignal));
             OnPropertyChanged(nameof(SignalQuality));
             OnPropertyChanged(nameof(SignalStrength));

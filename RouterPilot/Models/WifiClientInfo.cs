@@ -9,6 +9,9 @@ namespace RouterPilot.Models
         public string Band { get; set; } = "-";
         public string Interface { get; set; } = "-";
         public string Ssid { get; set; } = "-";
+        public string Radio { get; set; } = "-";
+        public string Channel { get; set; } = "-";
+        public string ChannelWidth { get; set; } = "N/A";
 
         public string SignalQuality
         {

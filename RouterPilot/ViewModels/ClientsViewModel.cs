@@ -271,6 +271,9 @@ namespace RouterPilot.ViewModels
                         client.Interface = HasUsefulValue(client.Interface)
                             ? client.Interface
                             : network.Interface;
+                        client.Radio = HasUsefulValue(client.Radio) ? client.Radio : network.Radio;
+                        client.Channel = HasUsefulValue(client.Channel) ? client.Channel : network.Channel;
+                        client.ChannelWidth = HasUsefulValue(client.ChannelWidth) ? client.ChannelWidth : network.ChannelWidth;
                         return client;
                     }))
                     .ToList();
@@ -412,6 +415,9 @@ namespace RouterPilot.ViewModels
                     ConnectionType = client.Band,
                     SignalStrength = client.Signal,
                     LiveInterface = client.Interface,
+                    WifiRadio = client.Radio,
+                    WifiChannel = client.Channel,
+                    WifiChannelWidth = client.ChannelWidth,
                     QueryLogAvailable = false
                 })
                 .ToList();
@@ -1280,6 +1286,9 @@ namespace RouterPilot.ViewModels
             client.WifiNetwork = live.Ssid;
             client.SignalStrength = live.Signal;
             client.LiveInterface = live.Interface;
+            client.WifiRadio = live.Radio;
+            client.WifiChannel = live.Channel;
+            client.WifiChannelWidth = live.ChannelWidth;
         }
 
         private static IEnumerable<ClientInfo> BuildConnectedClientList(
