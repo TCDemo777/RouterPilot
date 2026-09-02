@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Collections.Generic;
+using System.Threading;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -13,12 +15,16 @@ namespace RouterPilot.Views
     public partial class ProtectionView : UserControl
     {
         private readonly ProtectionViewModel _viewModel;
+        private readonly IPortForwardService _portForwardService;
+        private bool _exposureRefreshStarted;
         private bool _isActive;
         public ProtectionView()
         {
             InitializeComponent();
             _viewModel = ((App)Application.Current).Services
                 .GetRequiredService<ProtectionViewModel>();
+            _portForwardService = ((App)Application.Current).Services
+                .GetRequiredService<IPortForwardService>();
             DataContext = _viewModel;
             DashboardViewModel? dashboard = Application.Current.MainWindow?.DataContext as DashboardViewModel;
             InsightsTab.DataContext = dashboard;
@@ -36,8 +42,31 @@ namespace RouterPilot.Views
             {
                 InsightsTab.DataContext = dashboard;
                 ExposureTab.DataContext = dashboard;
+                if (!_exposureRefreshStarted)
+                {
+                    _exposureRefreshStarted = true;
+                    _ = RefreshExposureAsync(dashboard);
+                }
             }
             await ActivateAsync();
+        }
+
+        private async Task RefreshExposureAsync(DashboardViewModel dashboard)
+        {
+            try
+            {
+                IReadOnlyList<PortForwardRuleInfo> rules = await _portForwardService.GetRulesAsync(CancellationToken.None);
+                dashboard.PortForwardRules.Clear();
+                foreach (PortForwardRuleInfo rule in rules) dashboard.PortForwardRules.Add(rule);
+                dashboard.ReevaluatePortForwardIntelligence();
+                dashboard.SetPortForwardingCapabilities(true, dashboard.PortForwardingWriteSupported);
+                dashboard.PortForwardStatus = string.Empty;
+            }
+            catch
+            {
+                dashboard.SetPortForwardingCapabilities(false, false);
+                dashboard.PortForwardStatus = "Firewall/port-forward telemetry could not be read.";
+            }
         }
         private void ProtectionView_Unloaded(object sender, RoutedEventArgs e) => Deactivate();
 

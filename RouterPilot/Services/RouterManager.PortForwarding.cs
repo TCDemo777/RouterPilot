@@ -16,7 +16,10 @@ public partial class RouterManager
     {
         string sid = await _sessionService.GetAdminTokenAsync(token);
         using JsonDocument document = await _sessionService.CallAsync(sid, "firewall", "get_port_forward_list", token);
-        if (!document.RootElement.TryGetProperty("result", out JsonElement result) || !result.TryGetProperty("res", out JsonElement rules) || rules.ValueKind != JsonValueKind.Array) return Array.Empty<PortForwardRuleInfo>();
+        if (!document.RootElement.TryGetProperty("result", out JsonElement result))
+            throw new InvalidOperationException("Firewall port-forward response did not contain a result.");
+        if (!result.TryGetProperty("res", out JsonElement rules) || rules.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Firewall port-forward response did not contain a rule list.");
         return rules.EnumerateArray().Select(ParsePortForward).Where(rule => !string.IsNullOrWhiteSpace(rule.Id)).ToList();
     }
 
