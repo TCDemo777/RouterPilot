@@ -30,6 +30,14 @@ public partial class RouterView : UserControl
     private bool _multiWanRefreshing;
     private bool _dnsRefreshing;
     private bool _performanceRefreshing;
+    private RouterManager? _performanceManager;
+    private readonly List<PerformanceSample> _performanceSamples = new();
+    private readonly ObservableCollection<string> _performanceHistory = new();
+    private double? _performancePeakCpu;
+    private double? _performancePeakMemory;
+    private double? _performancePeakTemperature;
+    private DateTime? _performanceSessionStarted;
+    private string? _performanceLastThermalBand;
     private bool _wifiRefreshing;
     private RouterManager? _multiWanManager;
     private RouterManager? _portsManager;
@@ -45,6 +53,7 @@ public partial class RouterView : UserControl
         MultiWanHistoryList.ItemsSource = _multiWanHistory;
         WifiRadiosList.ItemsSource = _wifiRadios;
         WifiHistoryList.ItemsSource = _wifiHistory;
+        PerformanceHistoryList.ItemsSource = _performanceHistory;
         DnsResolversList.ItemsSource = Array.Empty<string>();
         Loaded += RouterView_Loaded;
         Unloaded += RouterView_Unloaded;
@@ -425,6 +434,11 @@ public partial class RouterView : UserControl
         try
         {
             RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+            if (!ReferenceEquals(_performanceManager, manager))
+            {
+                ResetPerformanceSessionState();
+                _performanceManager = manager;
+            }
             RouterInfo info = await manager.GetRouterInfoAsync();
             RouterManager current = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
             if (!ReferenceEquals(manager, current) || cancellationToken.IsCancellationRequested) return;
@@ -436,6 +450,10 @@ public partial class RouterView : UserControl
             PerformanceMemoryText.Text = info.MemoryUsed == "-" || info.MemoryUsage == "-" ? "—" : $"{info.MemoryUsed} · {info.MemoryUsage}";
             PerformanceStorageText.Text = string.IsNullOrWhiteSpace(info.StorageUsage) || info.StorageUsage == "-" ? "—" : info.StorageUsage;
             PerformanceUptimeText.Text = string.IsNullOrWhiteSpace(info.Uptime) || info.Uptime == "-" ? "—" : info.Uptime;
+            RecordPerformanceSample(info);
+            PerformanceSessionText.Text = $"Session: {_performanceSamples.Count} successful observation(s)";
+            PerformancePeakText.Text = $"Peaks — CPU: {FormatPercent(_performancePeakCpu)}  Memory: {FormatPercent(_performancePeakMemory)}  Temperature: {FormatTemperature(_performancePeakTemperature)}";
+            PerformanceAttentionText.Text = BuildPerformanceAttention();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -447,4 +465,93 @@ public partial class RouterView : UserControl
         }
         finally { _performanceRefreshing = false; }
     }
+
+    private void RecordPerformanceSample(RouterInfo info)
+    {
+        DateTime now = DateTime.Now;
+        _performanceSessionStarted ??= now;
+        double? cpu = info.CpuUsagePercent ?? ParsePercent(info.CpuUsage);
+        double? memory = ParsePercent(info.MemoryUsage);
+        double? temperature = ParseNumber(info.Temperature);
+        double? load = info.LoadAverage1Minute;
+        _performanceSamples.Add(new PerformanceSample(now, cpu, memory, temperature, load));
+        while (_performanceSamples.Count > 120) _performanceSamples.RemoveAt(0);
+        if (cpu.HasValue) _performancePeakCpu = Math.Max(_performancePeakCpu ?? cpu.Value, cpu.Value);
+        if (memory.HasValue) _performancePeakMemory = Math.Max(_performancePeakMemory ?? memory.Value, memory.Value);
+        if (temperature.HasValue)
+        {
+            _performancePeakTemperature = Math.Max(_performancePeakTemperature ?? temperature.Value, temperature.Value);
+            string band = temperature.Value >= 80 ? "High" : temperature.Value >= 65 ? "Elevated" : "Normal";
+            if (_performanceLastThermalBand is not null && band != _performanceLastThermalBand)
+                AddPerformanceHistory($"Temperature {(_performanceLastThermalBand == "Normal" ? "entered elevated" : band == "High" ? "entered high" : "returned below elevated")} range.");
+            _performanceLastThermalBand = band;
+        }
+        PerformanceHistoryList.Visibility = _performanceHistory.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private string BuildPerformanceAttention()
+    {
+        var items = new List<string>();
+        if (_performanceSamples.Count == 0) return "Performance telemetry is currently unavailable.";
+        if (_performanceLastThermalBand == "High") items.Add("Temperature is in the high RouterPilot guidance range.");
+        else if (_performanceLastThermalBand == "Elevated") items.Add("Temperature is in the elevated RouterPilot guidance range.");
+        if (_performanceSamples.TakeLast(3).Count(sample => sample.Cpu is >= 85) >= 2) items.Add("High CPU utilisation has been observed across several recent samples.");
+        return string.Join(" ", items);
+    }
+
+    private void AddPerformanceHistory(string message)
+    {
+        _performanceHistory.Insert(0, $"{DateTime.Now:g}  {message}");
+        while (_performanceHistory.Count > 100) _performanceHistory.RemoveAt(_performanceHistory.Count - 1);
+    }
+
+    private void ResetPerformanceSessionState()
+    {
+        _performanceSamples.Clear(); _performanceHistory.Clear();
+        _performancePeakCpu = _performancePeakMemory = _performancePeakTemperature = null;
+        _performanceSessionStarted = null; _performanceLastThermalBand = null;
+    }
+
+    private static double? ParsePercent(string? value)
+    {
+        double? parsed = ParseNumber(value);
+        return parsed is >= 0 and <= 100 ? parsed : null;
+    }
+
+    private static double? ParseNumber(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == "-") return null;
+        string clean = value.Replace("%", "", StringComparison.Ordinal).Replace("°", "", StringComparison.Ordinal).Replace("C", "", StringComparison.OrdinalIgnoreCase).Trim();
+        return double.TryParse(clean, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double result) && !double.IsNaN(result) && !double.IsInfinity(result) && result >= 0 ? result : null;
+    }
+
+    private static string FormatPercent(double? value) => value.HasValue ? $"{value.Value:0.#}%" : "—";
+    private static string FormatTemperature(double? value) => value.HasValue ? $"{value.Value:0.#} °C" : "—";
+
+    private void ResetPerformanceSession_Click(object sender, RoutedEventArgs e)
+    {
+        ResetPerformanceSessionState();
+        PerformanceSessionText.Text = "Session reset (RouterPilot local only).";
+        PerformancePeakText.Text = "Peaks — CPU: —  Memory: —  Temperature: —";
+        PerformanceAttentionText.Text = string.Empty;
+        PerformanceHistoryList.Visibility = Visibility.Collapsed;
+    }
+
+    private void CopyPerformanceSummary_Click(object sender, RoutedEventArgs e)
+    {
+        StringBuilder text = new("RouterPilot Performance Summary\n");
+        text.AppendLine($"CPU: {PerformanceCpuText.Text}");
+        text.AppendLine($"Load: {PerformanceLoadText.Text}");
+        text.AppendLine($"Memory: {PerformanceMemoryText.Text}");
+        text.AppendLine($"Root storage: {PerformanceStorageText.Text}");
+        text.AppendLine($"Temperature: {PerformanceTemperatureText.Text}");
+        text.AppendLine($"Uptime: {PerformanceUptimeText.Text}");
+        text.AppendLine($"{PerformancePeakText.Text}");
+        text.AppendLine($"Session samples: {_performanceSamples.Count}");
+        text.AppendLine("Generated: " + DateTime.Now.ToString("g"));
+        try { Clipboard.SetText(text.ToString()); PerformanceStatus.Text = "Performance summary copied."; }
+        catch { PerformanceStatus.Text = "Performance summary could not be copied."; }
+    }
+
+    private sealed record PerformanceSample(DateTime Timestamp, double? Cpu, double? Memory, double? Temperature, double? Load);
 }

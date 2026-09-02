@@ -253,6 +253,19 @@
                             </GroupBox>
                         </UniformGrid>
                         <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}" Text="Values use the same authoritative router telemetry shown elsewhere in RouterPilot. Load averages are not CPU percentages." TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="Copy Performance Summary" Click="CopyPerformanceSummary_Click" Margin="0,0,8,0" Padding="12,6"/>
+                            <Button Content="Reset RouterPilot Performance Session" Click="ResetPerformanceSession_Click" Padding="12,6"/>
+                        </StackPanel>
+                        <GroupBox Header="SESSION INTELLIGENCE" Margin="0,0,0,12">
+                            <StackPanel Margin="14">
+                                <TextBlock x:Name="PerformanceSessionText" Text="Session: 0 successful observations"/>
+                                <TextBlock x:Name="PerformancePeakText" Margin="0,6,0,0" Text="Peaks — CPU: —  Memory: —  Temperature: —" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="PerformanceAttentionText" Margin="0,8,0,0" Foreground="#C97A00" TextWrapping="Wrap"/>
+                                <ItemsControl x:Name="PerformanceHistoryList" Margin="0,8,0,0" Visibility="Collapsed"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <TextBlock Style="{DynamicResource Text.Muted}" Text="Session values reflect successful RouterPilot observations only; they are not continuous monitoring. Temperature guidance: normal below 65 °C, elevated 65–79 °C, high at 80 °C or above." TextWrapping="Wrap"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
