@@ -90,6 +90,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0"
@@ -99,7 +100,7 @@
                            Foreground="{DynamicResource Brush.TextMuted}"
                            Text="NAVIGATION"/>
 
-                <StackPanel Grid.Row="1">
+                <StackPanel Grid.Row="1" Margin="0,0,0,4">
                     <TextBlock Margin="18,8,0,8" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
@@ -222,13 +223,15 @@
                         </Grid>
                     </Button>
 
+                </StackPanel>
+
+                <Border Grid.Row="2" BorderBrush="#3A424C" BorderThickness="0,1,0,0" Padding="0,6,0,6">
                     <Button x:Name="AboutButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
                             Content="About"
                             Click="About_Click"/>
-
-                </StackPanel>
+                </Border>
 
             </Grid>
         </Border>
