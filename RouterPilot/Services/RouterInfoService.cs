@@ -418,7 +418,7 @@ namespace RouterPilot.Services
                 if (line is "__PARTITIONS__" or "__BLOCKS__") { inMounts = false; continue; }
                 if (!inMounts) continue;
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 4) mounts[parts[1]] = $"{parts[2]}|{parts[3]}";
+                if (parts.Length >= 4) mounts[NormalizeMountPoint(parts[1])] = $"{parts[2]}|{parts[3]}";
             }
 
             var result = new List<MountedStorageInfo>();
@@ -429,18 +429,39 @@ namespace RouterPilot.Services
                 if (parts.Length < 6 || !parts[0].StartsWith("/dev/", StringComparison.Ordinal)) continue;
                 int percentIndex = Array.FindIndex(parts, part => part.EndsWith('%'));
                 if (percentIndex < 4 || percentIndex == parts.Length - 1) continue;
-                string mountPoint = string.Join(' ', parts[(percentIndex + 1)..]);
-                if (mountPoint is "/" or "/rom" or "/overlay" || mountPoint.StartsWith("/tmp", StringComparison.Ordinal)) continue;
+                string mountPoint = NormalizeMountPoint(string.Join(' ', parts[(percentIndex + 1)..]));
+                if (mountPoint is "/" or "/rom" or "/overlay") continue;
+                if (mounts.TryGetValue(mountPoint, out string? mountMetadata))
+                {
+                    string fileSystem = mountMetadata.Split('|')[0];
+                    if (IsVirtualFileSystem(fileSystem)) continue;
+                }
                 result.Add(new MountedStorageInfo
                 {
                     Device = parts[0], Capacity = FormatStorageSize(parts[1]), Used = FormatStorageSize(parts[2]),
                     Available = FormatStorageSize(parts[3]), Usage = parts[percentIndex], MountPoint = mountPoint,
-                    FileSystem = mounts.TryGetValue(mountPoint, out string? mount) ? mount.Split('|')[0] : "Unknown",
-                    ReadOnly = mounts.TryGetValue(mountPoint, out string? options) && options.Split('|').ElementAtOrDefault(1)?.Split(',').Contains("ro", StringComparer.Ordinal) == true
+                    FileSystem = mountMetadata?.Split('|')[0] ?? "Unknown",
+                    ReadOnly = mountMetadata?.Split('|').ElementAtOrDefault(1)?.Split(',').Contains("ro", StringComparer.Ordinal) == true
                 });
             }
             return result.GroupBy(item => item.MountPoint, StringComparer.Ordinal).Select(group => group.First()).ToList();
         }
+
+        private static string NormalizeMountPoint(string mountPoint)
+        {
+            if (string.IsNullOrWhiteSpace(mountPoint)) return string.Empty;
+            string normalized = mountPoint.Trim();
+            while (normalized.Length > 1 && normalized.EndsWith("/", StringComparison.Ordinal))
+                normalized = normalized[..^1];
+            return normalized;
+        }
+
+        private static bool IsVirtualFileSystem(string fileSystem) => fileSystem.ToLowerInvariant() switch
+        {
+            "overlay" or "overlayfs" or "rootfs" or "tmpfs" or "devtmpfs" or "proc" or "sysfs" or
+            "cgroup" or "cgroup2" or "debugfs" or "tracefs" or "securityfs" or "pstore" or "configfs" or "ramfs" => true,
+            _ => false
+        };
 
         private static List<StorageDeviceInfo> ParseAttachedStorage(string output)
         {
