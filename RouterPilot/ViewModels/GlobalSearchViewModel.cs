@@ -158,7 +158,26 @@ namespace RouterPilot.ViewModels
             }
         }
         private static string NormalisePortToken(string? value) => (value ?? string.Empty).Trim().Replace('–', '-').Replace('—', '-').Replace(':', '-');
-        private static readonly (string Title, string Subtitle, string Terms, string Target)[] Pages = [("Overview", "Page", "overview home dashboard", "overview"), ("Clients", "Page", "clients devices", "clients"), ("Router", "Router page", "router telemetry overview ports wifi multi-wan dns performance", "router"), ("Wi-Fi", "Network page", "wifi wi-fi wireless", "wifi"), ("Port Forwarding", "Network page", "port forwarding port forward nat", "port-forward"), ("DHCP", "Network page", "dhcp reservations leases", "dhcp"), ("VPN", "VPN page", "vpn openvpn wireguard tailscale tunnel", "vpn"), ("DNS Filtering", "Page", "dns adguard protection firewall exposure firewall zones port forwarding upnp nat-pmp dmz remote administration", "protection"), ("Timeline", "Page", "timeline logs history", "timeline"), ("System Health", "Page", "health system health", "health"), ("Analytics", "Page", "analytics diagnostics", "analytics"), ("Settings", "Page", "settings", "settings")];
+        private static readonly (string Title, string Subtitle, string Terms, string Target)[] Pages = [
+            ("Overview", "Page", "overview home dashboard", "overview"),
+            ("Clients", "Page", "clients devices", "clients"),
+            ("Known Clients", "Clients page", "known clients devices history", "clients"),
+            ("Network", "Page", "network internet wan latency gateway dns dhcp dhcpv6 ipv6 guest lan subnet bridge vlan mtu network map", "health"),
+            ("Router", "Router page", "router telemetry overview ports ethernet wifi wi-fi wireless multi-wan multiwan failover dns performance temperature thermal storage usb samba smb nas file sharing", "router"),
+            ("Wi-Fi", "Router page", "wifi wi-fi wireless guest guest network radio bss", "wifi"),
+            ("Multi-WAN", "Router page", "multi-wan multiwan wan failover default route", "router"),
+            ("Port Forwarding", "Protection page", "port forwarding port forward forwarded ports nat", "protection"),
+            ("Firewall & Exposure", "Protection page", "firewall firewall zones upnp nat-pmp dmz exposure remote administration", "protection"),
+            ("DHCP / LAN", "Network page", "dhcp dhcpv4 dhcpv6 lan subnet bridge vlan", "dhcp"),
+            ("IPv6", "Network page", "ipv6 ip6 router advertisement ra prefix delegation", "health"),
+            ("Storage & File Sharing", "Router page", "storage external storage usb disk samba smb nas file sharing shares", "router"),
+            ("VPN", "VPN page", "vpn openvpn wireguard tailscale tunnel", "vpn"),
+            ("Protection", "Page", "dns adguard protection", "protection"),
+            ("Data Statistics", "Page", "data statistics traffic bandwidth analytics", "analytics"),
+            ("Maintenance", "Page", "maintenance diagnostics backup firmware services", "maintenance"),
+            ("About", "Page", "about version information", "about"),
+            ("Timeline", "Page", "timeline recent activity router events session history", "timeline")
+        ];
 
         private void ApplySearch()
         {

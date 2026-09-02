@@ -498,6 +498,19 @@ namespace RouterPilot.Views
             try { Clipboard.SetText(summary); MapStatusText.Text = "Network map summary copied."; }
             catch { MapStatusText.Text = "Network map summary could not be copied."; }
         }
+
+        private void OpenMapClientDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if ((DataContext as DashboardViewModel)?.SelectedMapClient is not LanClientInfo client) return;
+            if (Application.Current.MainWindow is DashboardWindow dashboard)
+                dashboard.OpenClientDetailsForDeviceIdentity(client.MacAddress);
+        }
+
+        private void OpenMapRouterDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (Application.Current.MainWindow is DashboardWindow dashboard)
+                dashboard.NavigateToRouterOverview();
+        }
         private async Task RefreshPortForwardAsync()
         {
             if (DataContext is not DashboardViewModel viewModel || viewModel.PortForwardIsLoading) return;

@@ -867,6 +867,10 @@ namespace RouterPilot.ViewModels
         public ObservableCollection<DhcpLeaseInfo> UnreservedDhcpLeases { get; } = new();
         public ObservableCollection<PortForwardRuleInfo> PortForwardRules { get; } = new();
         public ObservableCollection<LanClientInfo> LanClients { get; } = new();
+        private LanClientInfo? selectedMapClient;
+        public LanClientInfo? SelectedMapClient { get => selectedMapClient; set { if (SetProperty(ref selectedMapClient, value)) OnPropertyChanged(nameof(MapSelectionDisplay)); } }
+        public string MapSelectionDisplay => SelectedMapClient is null ? "Select a device or network item to view details." : $"{SelectedMapClient.Name} · {SelectedMapClient.ConnectionType} · {(SelectedMapClient.IsOnline ? "Online" : "Offline")}";
+        public void ClearMapSelection() => SelectedMapClient = null;
         [ObservableProperty] private int lanConnectedCount;
         [ObservableProperty] private bool lanIsLoading;
         [ObservableProperty] private string lanStatus = string.Empty;
@@ -973,6 +977,7 @@ namespace RouterPilot.ViewModels
             RouterCapabilities.WiFi.ChannelWidthRead = networkList
                 .Any(network => !string.Equals(network.ChannelWidth, "N/A", StringComparison.Ordinal));
             UpdateWifiIntelligence(networkList);
+            RebuildLanClients();
             ReevaluatePortForwardIntelligence();
             OnPropertyChanged(nameof(GuestWifiNetworks));
             OnPropertyChanged(nameof(HasGuestWifiNetworks));
@@ -1090,6 +1095,7 @@ namespace RouterPilot.ViewModels
             ReplaceDhcpCollection(DhcpWarnings, snapshot.Warnings);
             ReplaceDhcpCollection(DhcpScopeCapacities, BuildDhcpScopeCapacities(snapshot.Scopes, snapshot.Leases, snapshot.Reservations));
             ReplaceDhcpCollection(UnreservedDhcpLeases, BuildUnreservedDhcpLeases(snapshot.Leases, snapshot.Reservations));
+            RebuildLanClients();
 
             RouterCapabilities.Dhcp.Read = snapshot.Configurations.Count > 0;
             RouterCapabilities.Dhcp.ActiveLeases = true;
@@ -1109,6 +1115,50 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(HasUnreservedDhcpLeases));
             OnPropertyChanged(nameof(UnreservedDhcpLeaseCount));
             ReevaluatePortForwardIntelligence();
+        }
+
+        /// <summary>Builds map nodes from already-loaded DHCP and Wi-Fi snapshots.</summary>
+        private void RebuildLanClients()
+        {
+            string? selectedMac = SelectedMapClient is { } selected && ClientIdentity.IsMacKey(selected.MacAddress)
+                ? ClientIdentity.NormalizeMac(selected.MacAddress)
+                : null;
+            Dictionary<string, LanClientInfo> clients = new(StringComparer.OrdinalIgnoreCase);
+            foreach (DhcpLeaseInfo lease in DhcpLeases)
+            {
+                string mac = ClientIdentity.NormalizeMac(lease.MacAddress);
+                if (!ClientIdentity.IsMacKey(mac)) continue;
+                clients[mac] = new LanClientInfo
+                {
+                    Name = string.IsNullOrWhiteSpace(lease.ClientName) ? lease.Hostname : lease.ClientName,
+                    IpAddress = lease.IpAddress,
+                    MacAddress = lease.MacAddress,
+                    ConnectionType = "LAN / unknown attachment",
+                    InterfaceDisplay = "Network attachment not reported",
+                    Interface = "Unknown",
+                    IsStaticReservation = lease.IsStatic,
+                    IsOnline = true
+                };
+            }
+            foreach (WifiRadioInfo radio in WifiNetworks)
+            foreach (WifiClientInfo client in radio.Clients)
+            {
+                string mac = ClientIdentity.NormalizeMac(client.MacAddress);
+                if (!ClientIdentity.IsMacKey(mac)) continue;
+                clients[mac] = new LanClientInfo
+                {
+                    Name = string.IsNullOrWhiteSpace(client.Name) ? "Unknown device" : client.Name,
+                    IpAddress = client.IpAddress,
+                    MacAddress = client.MacAddress,
+                    ConnectionType = "Wi-Fi",
+                    InterfaceDisplay = string.Join(" · ", new[] { radio.Band, radio.Ssid }.Where(value => !string.IsNullOrWhiteSpace(value) && value != "-")),
+                    Interface = radio.Interface,
+                    IsOnline = true
+                };
+            }
+            LanClients.Clear();
+            foreach (LanClientInfo client in clients.Values.OrderBy(client => client.Name, StringComparer.OrdinalIgnoreCase)) LanClients.Add(client);
+            SelectedMapClient = selectedMac is null ? null : LanClients.FirstOrDefault(client => ClientIdentity.MacEquals(client.MacAddress, selectedMac));
         }
 
         private static IEnumerable<DhcpScopeCapacityInfo> BuildDhcpScopeCapacities(

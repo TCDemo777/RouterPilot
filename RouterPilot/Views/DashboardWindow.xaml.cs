@@ -624,6 +624,7 @@ namespace RouterPilot.Views
             // its usage gate before starting the normal one-shot refresh path.
             _ = Dispatcher.InvokeAsync(async () =>
             {
+                _viewModel.ClearMapSelection();
                 _healthSourcesReady = false;
                 _initialFirmwareCheckScheduled = false;
                 await ShowConnectionErrorAsync("Connecting to the selected router...", notifyConnectivityChange: false, clearPreviousData: true);
@@ -1286,6 +1287,8 @@ namespace RouterPilot.Views
             network.NavigateToSection(section);
         }
 
+        public void NavigateToRouterOverview() => Router_Click(this, new RoutedEventArgs());
+
         private void NavigateToMaintenanceFirmware()
         {
             MaintenanceView maintenance = PageContent.Content as MaintenanceView ?? new MaintenanceView(
@@ -1325,6 +1328,8 @@ namespace RouterPilot.Views
                 case "protection": Protection_Click(this, new RoutedEventArgs()); break;
                 case "analytics": Analytics_Click(this, new RoutedEventArgs()); break;
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
+                case "maintenance": Maintenance_Click(this, new RoutedEventArgs()); break;
+                case "about": About_Click(this, new RoutedEventArgs()); break;
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
                 case "health": NavigateToHealthTarget("network"); break;
                 case "vpn": Vpn_Click(this, new RoutedEventArgs()); break;
