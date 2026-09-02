@@ -122,6 +122,39 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router identity &amp; lifecycle" />
+                    <UniformGrid Columns="3">
+                        <StackPanel Margin="0,0,14,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="MODEL"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterIdentityText}"/></StackPanel>
+                        <StackPanel Margin="0,0,14,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="FIRMWARE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterFirmwareText}"/></StackPanel>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="UPTIME"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterUptimeText}"/></StackPanel>
+                    </UniformGrid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="RouterPilot observes uptime from the router; a missing or failed sample is not treated as a restart." TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router services" />
+                    <UniformGrid Columns="4">
+                        <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="DHCP"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding DhcpServiceText}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="Service state"/></StackPanel>
+                        <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="ACTIVE LEASES"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding DhcpLeaseCountText}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="Authoritative inventory"/></StackPanel>
+                        <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="RESERVATIONS"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding DhcpReservationCountText}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="Configured entries"/></StackPanel>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="ADGUARD"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding Dashboard.AdGuardStatusText}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="Protection page is canonical"/></StackPanel>
+                    </UniformGrid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="Running describes observed service state; it is not a guarantee of service health. RouterPilot does not probe each process separately." TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Firmware update readiness" />
+                    <TextBlock Style="{StaticResource Text.Secondary}" Text="{Binding UpdateReadinessText}" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" Text="Firmware updates can interrupt router and Internet availability. RouterPilot never downloads or installs firmware automatically." TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
             <Border x:Name="FirmwareSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router firmware" />

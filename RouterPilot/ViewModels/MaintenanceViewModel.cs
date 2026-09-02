@@ -81,9 +81,25 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         {
             FirmwareUpdateCheckStatus.UpToDate => "Up to date",
             FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
-            FirmwareUpdateCheckStatus.Error => "Error",
+            FirmwareUpdateCheckStatus.Error => "Unable to determine",
             _ => RouterPilotStatusPresentation.NotAvailable
         };
+
+    public string RouterIdentityText => string.IsNullOrWhiteSpace(Dashboard.RouterModel) || Dashboard.RouterModel == "-"
+        ? RouterPilotStatusPresentation.NotAvailable
+        : Dashboard.RouterModel;
+    public string RouterFirmwareText => string.IsNullOrWhiteSpace(Dashboard.FirmwareVersion) || Dashboard.FirmwareVersion == "-"
+        ? RouterPilotStatusPresentation.NotAvailable
+        : Dashboard.FirmwareVersion;
+    public string RouterUptimeText => string.IsNullOrWhiteSpace(Dashboard.Uptime) || Dashboard.Uptime == "-"
+        ? RouterPilotStatusPresentation.NotAvailable
+        : Dashboard.Uptime;
+    public string DhcpServiceText => Dashboard.DhcpLoaded ? Dashboard.DhcpStatusDisplay : RouterPilotStatusPresentation.NotAvailable;
+    public string DhcpLeaseCountText => Dashboard.DhcpLoaded ? Dashboard.DhcpLeases.Count.ToString() : RouterPilotStatusPresentation.NotAvailable;
+    public string DhcpReservationCountText => Dashboard.DhcpLoaded ? Dashboard.DhcpReservations.Count.ToString() : RouterPilotStatusPresentation.NotAvailable;
+    public string UpdateReadinessText => FirmwareUpdate.Status == FirmwareUpdateCheckStatus.UpdateAvailable
+        ? "Review the release and create a secure backup before updating."
+        : "Firmware identity is read-only; no update is downloaded or installed by RouterPilot.";
     public string FirmwareStatusColour => RouterPilotStatusPresentation.Colour(
         IsFirmwareChecking ? RouterPilotStatus.Pending : FirmwareUpdate.Status switch
         {
@@ -266,7 +282,12 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private void Dashboard_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(DashboardViewModel.RouterConnected) or
-            nameof(DashboardViewModel.AdGuardAvailability))
+            nameof(DashboardViewModel.AdGuardAvailability) or
+            nameof(DashboardViewModel.RouterModel) or
+            nameof(DashboardViewModel.FirmwareVersion) or
+            nameof(DashboardViewModel.Uptime) or
+            nameof(DashboardViewModel.DhcpLoaded) or
+            nameof(DashboardViewModel.DhcpStatusDisplay))
         {
             OnPropertyChanged(nameof(WifiStatusText));
             OnPropertyChanged(nameof(WifiStatusColour));
@@ -274,6 +295,12 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(HealthSummaryDetail));
             OnPropertyChanged(nameof(HealthSummaryColour));
             OnPropertyChanged(nameof(CanCheckFirmware));
+            OnPropertyChanged(nameof(RouterIdentityText));
+            OnPropertyChanged(nameof(RouterFirmwareText));
+            OnPropertyChanged(nameof(RouterUptimeText));
+            OnPropertyChanged(nameof(DhcpServiceText));
+            OnPropertyChanged(nameof(DhcpLeaseCountText));
+            OnPropertyChanged(nameof(DhcpReservationCountText));
             UpdateAvailability();
         }
     }
