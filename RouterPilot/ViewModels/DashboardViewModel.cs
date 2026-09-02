@@ -267,13 +267,16 @@ namespace RouterPilot.ViewModels
         public string FileSharingDisplay => "Unknown";
         public string FileSharingSharesDisplay => "—";
         public ObservableCollection<MountedStorageInfo> ExternalStorage { get; } = new();
+        public ObservableCollection<StorageDeviceInfo> AttachedStorage { get; } = new();
         public string ExternalStorageInventoryDisplay => !ExternalStorageInventoryLoaded ? "Unknown" : ExternalStorage.Count.ToString("N0");
         public bool ExternalStorageInventoryLoaded { get; private set; }
 
-        public void UpdateExternalStorage(IEnumerable<MountedStorageInfo>? storage, bool loaded)
+        public void UpdateExternalStorage(IEnumerable<MountedStorageInfo>? storage, bool loaded, IEnumerable<StorageDeviceInfo>? attached = null)
         {
             ExternalStorage.Clear();
             foreach (MountedStorageInfo item in storage ?? Enumerable.Empty<MountedStorageInfo>()) ExternalStorage.Add(item);
+            AttachedStorage.Clear();
+            foreach (StorageDeviceInfo item in attached ?? Enumerable.Empty<StorageDeviceInfo>()) AttachedStorage.Add(item);
             ExternalStorageInventoryLoaded = loaded;
             OnPropertyChanged(nameof(ExternalStorageInventoryDisplay));
             OnPropertyChanged(nameof(ExternalStorageInventoryLoaded));

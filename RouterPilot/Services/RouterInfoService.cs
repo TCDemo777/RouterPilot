@@ -392,14 +392,16 @@ namespace RouterPilot.Services
             // overlay, ROM and virtual filesystems are deliberately excluded.
             try
             {
-                string storageOutput = await _ssh.RunCommandAsync("df -P; printf '\\n__MOUNTS__\\n'; cat /proc/mounts 2>/dev/null");
+                string storageOutput = await _ssh.RunCommandAsync("df -P; printf '\\n__MOUNTS__\\n'; cat /proc/mounts 2>/dev/null; printf '\\n__PARTITIONS__\\n'; cat /proc/partitions 2>/dev/null; printf '\\n__BLOCKS__\\n'; for f in /sys/class/block/*/removable; do n=${f%/removable}; n=${n##*/}; r=$(cat \"$f\" 2>/dev/null); s=$(cat \"/sys/class/block/$n/size\" 2>/dev/null); printf '%s|%s|%s\\n' \"$n\" \"$r\" \"$s\"; done");
                 info.ExternalStorage = ParseExternalStorage(storageOutput);
+                info.AttachedStorage = ParseAttachedStorage(storageOutput);
                 info.ExternalStorageInventoryLoaded = !storageOutput.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
                 info.ExternalStorageInventoryLoaded = false;
                 info.ExternalStorage = new();
+                info.AttachedStorage = new();
             }
 
 
@@ -413,6 +415,7 @@ namespace RouterPilot.Services
             foreach (string line in output.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (line == "__MOUNTS__") { inMounts = true; continue; }
+                if (line is "__PARTITIONS__" or "__BLOCKS__") { inMounts = false; continue; }
                 if (!inMounts) continue;
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 4) mounts[parts[1]] = $"{parts[2]}|{parts[3]}";
@@ -438,6 +441,23 @@ namespace RouterPilot.Services
             }
             return result.GroupBy(item => item.MountPoint, StringComparer.Ordinal).Select(group => group.First()).ToList();
         }
+
+        private static List<StorageDeviceInfo> ParseAttachedStorage(string output)
+        {
+            bool inBlocks = false;
+            var devices = new List<StorageDeviceInfo>();
+            foreach (string line in output.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (line == "__BLOCKS__") { inBlocks = true; continue; }
+                if (!inBlocks || line.Contains("SSH_", StringComparison.OrdinalIgnoreCase)) continue;
+                string[] parts = line.Split('|');
+                if (parts.Length != 3 || string.IsNullOrWhiteSpace(parts[0]) || !long.TryParse(parts[2], out long sectors) || sectors <= 0) continue;
+                string name = parts[0];
+                if (name.Any(char.IsWhiteSpace) || name.EndsWith("p", StringComparison.OrdinalIgnoreCase) && name.Length < 2) continue;
+                devices.Add(new StorageDeviceInfo { Device = "/dev/" + name, Removable = parts[1] == "1", Size = FormatStorageBytes(sectors * 512d) });
+            }
+            return devices.Where(item => item.Removable).GroupBy(item => item.Device.TrimEnd('0','1','2','3','4','5','6','7','8','9'), StringComparer.Ordinal).Select(group => group.First()).ToList();
+        }
         private static string FormatKilobytes(
             double kilobytes)
         {
@@ -452,7 +472,11 @@ namespace RouterPilot.Services
         private static string FormatStorageSize(string value)
         {
             if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double blocks)) return "—";
-            double bytes = blocks * 1024d;
+            return FormatStorageBytes(blocks * 1024d);
+        }
+
+        private static string FormatStorageBytes(double bytes)
+        {
             string[] units = ["B", "KB", "MB", "GB", "TB"];
             int unit = 0;
             while (bytes >= 1024d && unit < units.Length - 1) { bytes /= 1024d; unit++; }

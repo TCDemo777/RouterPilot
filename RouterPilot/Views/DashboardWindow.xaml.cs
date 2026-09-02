@@ -371,7 +371,7 @@ namespace RouterPilot.Views
 
                 _viewModel.UpdateStorageUsage(
                     info.StorageUsage);
-                _viewModel.UpdateExternalStorage(info.ExternalStorage, info.ExternalStorageInventoryLoaded);
+                _viewModel.UpdateExternalStorage(info.ExternalStorage, info.ExternalStorageInventoryLoaded, info.AttachedStorage);
 
                 // Router and AdGuard work are independent. Start both groups
                 // together, then apply each successful result separately.

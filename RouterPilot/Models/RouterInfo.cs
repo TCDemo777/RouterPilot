@@ -35,6 +35,7 @@ namespace RouterPilot.Models
         public string StorageUsage { get; set; } = "-";
         public bool ExternalStorageInventoryLoaded { get; set; }
         public List<MountedStorageInfo> ExternalStorage { get; set; } = new();
+        public List<StorageDeviceInfo> AttachedStorage { get; set; } = new();
 
 
         //
@@ -61,5 +62,12 @@ namespace RouterPilot.Models
         public string Available { get; set; } = "-";
         public string Usage { get; set; } = "-";
         public bool ReadOnly { get; set; }
+    }
+
+    public sealed class StorageDeviceInfo
+    {
+        public string Device { get; set; } = "-";
+        public string Size { get; set; } = "-";
+        public bool Removable { get; set; }
     }
 }

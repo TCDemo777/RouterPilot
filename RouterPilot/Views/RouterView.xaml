@@ -294,6 +294,9 @@
                                 <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding ExternalStorage}">
                                     <ItemsControl.ItemTemplate><DataTemplate><Border Margin="0,0,0,8" Padding="10" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1"><StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding MountPoint}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding FileSystem}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding Capacity, StringFormat=Capacity: {0}}"/><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding Used, StringFormat=Used: {0}}"/><TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding Available, StringFormat=Available: {0}}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AttachedStorage}">
+                                    <ItemsControl.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding Device}"/><TextBlock Style="{DynamicResource Text.Muted}" Text=" — detected, not mounted"/></StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                         <Border Margin="0,14,0,0" Padding="14" Style="{DynamicResource Card}">
