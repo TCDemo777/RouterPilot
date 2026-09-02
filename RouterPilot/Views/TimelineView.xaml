@@ -37,7 +37,7 @@
                     <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Logs"/>
                     <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Chronological RouterPilot activity and safe operation results."/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Logs"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Logs"/></StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding CopySummaryCommand}" Content="Copy Event Summary"/><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Logs"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Logs"/></StackPanel>
             </Grid>
             <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
             <Grid>
@@ -60,6 +60,7 @@
             <Border Grid.Row="4" Style="{StaticResource SectionContainerStyle}" Margin="0">
             <StackPanel>
                 <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Event history"/>
+                <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}" Text="Session-only observations. Gaps may occur while Windows is asleep or RouterPilot is closed; this is not a complete router audit log." TextWrapping="Wrap"/>
                 <ItemsControl ItemsSource="{Binding EventsView}">
                     <!-- <ItemsControl.ItemTemplate>
                         <DataTemplate>

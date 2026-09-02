@@ -15,6 +15,14 @@ public enum TimelineCategory
     Firmware,
     Security,
     Schedules
+    ,Network
+    ,WiFi
+    ,Wan
+    ,Protection
+    ,Vpn
+    ,Performance
+    ,Lifecycle
+    ,Firewall
 }
 
 public enum TimelineSeverity
@@ -64,6 +72,9 @@ public partial class TimelineEvent : ObservableObject
     public string? CorrelationId { get; init; }
     public string? RelatedEntityId { get; init; }
     public string? DeduplicationKey { get; init; }
+    public string? NavigationTarget { get; init; }
+    public string? PreviousState { get; init; }
+    public string? CurrentState { get; init; }
 
     [ObservableProperty]
     private bool isRead;

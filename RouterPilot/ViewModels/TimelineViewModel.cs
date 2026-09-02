@@ -38,7 +38,7 @@ public partial class TimelineViewModel : ObservableObject
 
     public ReadOnlyObservableCollection<TimelineEvent> Events { get; }
     public ICollectionView EventsView { get; }
-    public string[] Categories { get; } = ["All", "Router", "Clients", "AdGuard", "Maintenance", "Diagnostics", "Backup", "Firmware", "Security", "Schedules"];
+    public string[] Categories { get; } = ["All", "Router", "Network", "Clients", "WiFi", "Wan", "AdGuard", "Protection", "VPN", "Performance", "Lifecycle", "Firewall", "Maintenance", "Diagnostics", "Backup", "Firmware", "Security", "Schedules"];
     public string[] Severities { get; } = ["All", "Information", "Success", "Warning", "Error"];
     public string[] DateRanges { get; } = ["Today", "Last 24 Hours", "Last 7 Days", "All"];
 
@@ -68,11 +68,23 @@ public partial class TimelineViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv|JSON (*.json)|*.json|Text (*.txt)|*.txt", FileName = "RouterPilot_Timeline_" + DateTime.Now.ToString("yyyy-MM-dd_HHmm") };
         if (dialog.ShowDialog() != true) return;
-        var items = EventsView.Cast<TimelinePresentationItem>().SelectMany(item => item.SourceEvents).DistinctBy(item => item.Id).Select(item => new SafeTimelineExport(item.Timestamp, item.Category.ToString(), item.EventType.ToString(), item.Severity.ToString(), item.Title, item.Message, item.Source ?? string.Empty)).ToList();
+        var items = EventsView.Cast<TimelinePresentationItem>().SelectMany(item => item.SourceEvents).DistinctBy(item => item.Id).Select(ToSafeExport).ToList();
         if (items.Count == 0) { MessageBox.Show("There are no currently filtered events to export.", "Export Timeline", MessageBoxButton.OK, MessageBoxImage.Information); return; }
         string extension = Path.GetExtension(dialog.FileName).ToLowerInvariant();
         string output = extension == ".json" ? JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true }) : extension == ".txt" ? string.Join(Environment.NewLine + Environment.NewLine, items.Select(x => $"{x.Timestamp.LocalDateTime:yyyy-MM-dd HH:mm}\n[{x.Category}] {x.Title}\n{x.Severity} — {x.Message}")) : BuildCsv(items);
         await File.WriteAllTextAsync(dialog.FileName, output, new UTF8Encoding(false));
+    }
+
+    [RelayCommand]
+    private void CopySummary()
+    {
+        var items = EventsView.Cast<TimelinePresentationItem>().SelectMany(item => item.SourceEvents).DistinctBy(item => item.Id).OrderBy(item => item.Timestamp).ToList();
+        if (items.Count == 0) return;
+        string output = "RouterPilot Session Event Summary\n" +
+            $"Generated: {DateTime.Now:g}\nEvents included: {items.Count}\n\n" +
+            string.Join(Environment.NewLine + Environment.NewLine, items.Select(item => $"{item.Timestamp.ToLocalTime():dd MMM yyyy HH:mm}  {item.Category}\n{SafeTitle(item)}\n{SafeMessage(item)}")) +
+            "\n\nEvents reflect observations made while RouterPilot was running. Related activity is temporal correlation only; causation is not inferred.";
+        try { Clipboard.SetText(output); } catch { }
     }
 
     private static string BuildCsv(IEnumerable<SafeTimelineExport> items)
@@ -82,6 +94,17 @@ public partial class TimelineViewModel : ObservableObject
         rows.AddRange(items.Select(x => string.Join(',', Escape(x.Timestamp.ToString("O")), Escape(x.Category), Escape(x.EventType), Escape(x.Severity), Escape(x.Title), Escape(x.Message), Escape(x.Source))));
         return string.Join(Environment.NewLine, rows);
     }
+
+    private static SafeTimelineExport ToSafeExport(TimelineEvent item) =>
+        new(item.Timestamp, item.Category.ToString(), item.EventType.ToString(), item.Severity.ToString(), SafeTitle(item), SafeMessage(item), item.Source ?? string.Empty);
+
+    private static string SafeTitle(TimelineEvent item) => item.Category == TimelineCategory.Clients || item.EventType == TimelineEventType.PublicIpChanged
+        ? "RouterPilot observed a network or client state change"
+        : item.Title;
+
+    private static string SafeMessage(TimelineEvent item) => item.Category == TimelineCategory.Clients || item.EventType == TimelineEventType.PublicIpChanged
+        ? "Specific client identities and network addresses are omitted from this support summary."
+        : item.Message;
 
     public System.Threading.Tasks.Task MarkReadAsync() => _timelineService.MarkAllReadAsync();
 

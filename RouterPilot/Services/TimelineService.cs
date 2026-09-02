@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -17,15 +15,12 @@ public sealed class TimelineService : INotifyPropertyChanged
 {
     private const int MaximumEntries = 1000;
     private readonly Dispatcher _dispatcher;
-    private readonly string _path;
     private readonly ObservableCollection<TimelineEvent> _events = new();
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
     private bool _initialized;
 
     public TimelineService(Dispatcher dispatcher, ApplicationDataPathProvider paths)
     {
         _dispatcher = dispatcher;
-        _path = Path.Combine(paths.CurrentPath, "timeline.json");
         Events = new ReadOnlyObservableCollection<TimelineEvent>(_events);
     }
 
@@ -39,27 +34,10 @@ public sealed class TimelineService : INotifyPropertyChanged
         if (_initialized)
             return;
 
-        List<TimelineEvent> loaded = [];
-        try
-        {
-            if (File.Exists(_path))
-            {
-                await using FileStream stream = File.OpenRead(_path);
-                TimelineStore? store = await JsonSerializer.DeserializeAsync<TimelineStore>(stream);
-                loaded = store?.Events ?? [];
-            }
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            // A corrupt optional history must never affect router startup.
-        }
-
         await _dispatcher.InvokeAsync(() =>
         {
             if (_initialized)
                 return;
-            foreach (TimelineEvent item in loaded.OrderByDescending(entry => entry.Timestamp).Take(MaximumEntries))
-                _events.Add(item);
             _initialized = true;
             Changed?.Invoke(this, EventArgs.Empty);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnreadCount)));
@@ -85,8 +63,7 @@ public sealed class TimelineService : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnreadCount)));
         });
 
-        if (added)
-            await FlushAsync(cancellationToken);
+        // Timeline history is intentionally session-local; no disk persistence.
         return added;
     }
 
@@ -107,8 +84,7 @@ public sealed class TimelineService : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnreadCount)));
             }
         });
-        if (changed)
-            await FlushAsync(cancellationToken);
+        // Session-local only.
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken = default)
@@ -120,32 +96,11 @@ public sealed class TimelineService : INotifyPropertyChanged
             Changed?.Invoke(this, EventArgs.Empty);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnreadCount)));
         });
-        await FlushAsync(cancellationToken);
+        // Session-local only.
     }
 
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
-        await _writeGate.WaitAsync(cancellationToken);
-        try
-        {
-            List<TimelineEvent> snapshot = await _dispatcher.InvokeAsync(
-                () => _events.ToList(), DispatcherPriority.Send, cancellationToken);
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            string temporaryPath = _path + ".tmp";
-            await File.WriteAllTextAsync(temporaryPath,
-                JsonSerializer.Serialize(new TimelineStore { Events = snapshot }, new JsonSerializerOptions { WriteIndented = true }),
-                cancellationToken);
-            File.Move(temporaryPath, _path, overwrite: true);
-        }
-        finally
-        {
-            _writeGate.Release();
-        }
-    }
-
-    private sealed class TimelineStore
-    {
-        public int FormatVersion { get; init; } = 1;
-        public List<TimelineEvent> Events { get; init; } = [];
+        await Task.CompletedTask;
     }
 }
