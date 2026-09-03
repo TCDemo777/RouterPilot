@@ -159,6 +159,12 @@ namespace RouterPilot.Services
                 .GetRouterInfoAsync();
         }
 
+        public async Task<RouterAdvancedSnapshot> GetRouterAdvancedTelemetryAsync(CancellationToken cancellationToken = default)
+        {
+            const string command = "printf '__GLCONFIG__\\n'; uci -q show glconfig.general 2>/dev/null; printf '__NETWORK__\\n'; uci -q show network.iot network.guest 2>/dev/null; printf '__FIREWALL__\\n'; uci -q show firewall.@zone[1] 2>/dev/null; printf '__SQM__\\n'; uci -q show sqm 2>/dev/null; printf '__ZEROTIER__\\n'; uci -q show zerotier 2>/dev/null; printf '__NAS__\\n'; uci -q show nas.conf 2>/dev/null; printf '__PROCESSES__\\n'; ps w 2>/dev/null | grep -E '[g]l-dpi|[m]inidlnad'";
+            return RouterAdvancedTelemetryService.Parse(await _ssh.RunCommandAsync(command, cancellationToken).ConfigureAwait(false));
+        }
+
         public Task<RouterPortTelemetryResult> GetRouterPortTelemetryAsync(
             CancellationToken cancellationToken = default) =>
             _routerPortTelemetryService.LoadAsync(cancellationToken);

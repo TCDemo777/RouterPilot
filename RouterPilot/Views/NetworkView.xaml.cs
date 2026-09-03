@@ -33,6 +33,7 @@ namespace RouterPilot.Views
         private bool _diagnosticsRunning;
         private CancellationTokenSource? _qualityCancellation;
         private bool _qualityRunning;
+        private bool _advancedRefreshing;
         private bool _mapSelectionFromInput;
         private readonly List<InternetQualityRun> _qualityHistory = new();
         private InternetQualityRun? _latestQualityRun;
@@ -96,11 +97,25 @@ namespace RouterPilot.Views
                     .FirstOrDefault(item => string.Equals(item.Id, ruleId, StringComparison.Ordinal)));
         }
 
-        private void NetworkView_Loaded(object sender, RoutedEventArgs e)
+        private async void NetworkView_Loaded(object sender, RoutedEventArgs e)
         {
             AttachPortForwardRuleViewUpdates();
             RefreshPortForwardRuleFilter();
             UpdateMapSummary();
+            await RefreshAdvancedTelemetryAsync();
+        }
+
+        private async Task RefreshAdvancedTelemetryAsync()
+        {
+            if (_advancedRefreshing || DataContext is not DashboardViewModel dashboard) return;
+            _advancedRefreshing = true;
+            try
+            {
+                RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync();
+                dashboard.AdvancedRouterSnapshot = await manager.GetRouterAdvancedTelemetryAsync();
+            }
+            catch { dashboard.AdvancedRouterSnapshot = RouterAdvancedSnapshot.Unknown; }
+            finally { _advancedRefreshing = false; }
         }
 
         private void NetworkView_Unloaded(object sender, RoutedEventArgs e)

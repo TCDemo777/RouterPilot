@@ -34,6 +34,9 @@ namespace RouterPilot.ViewModels
         private NetworkHealthSnapshot networkHealth = NetworkHealthSnapshot.Loading;
 
         [ObservableProperty]
+        private RouterAdvancedSnapshot advancedRouterSnapshot = RouterAdvancedSnapshot.Unknown;
+
+        [ObservableProperty]
         private NetworkHealthViewSnapshot networkHealthView = new(
             "Initializing",
             RouterPilotStatus.Pending,

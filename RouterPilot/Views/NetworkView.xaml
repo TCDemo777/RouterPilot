@@ -275,6 +275,23 @@
                     </Border>
                 </Grid>
 
+                <Border Margin="0,0,0,16" Style="{DynamicResource Card}" AutomationProperties.Name="Advanced network configuration">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Configuration"/>
+                        <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Secondary}" Text="Authoritative read-only configuration observed from the router." TextWrapping="Wrap"/>
+                        <UniformGrid Columns="4">
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.NetworkMode}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="IoT network"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.IoTEnabled, TargetNullValue=Unknown}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="NAT masquerade"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.NatMasquerade, TargetNullValue=Unknown}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.SqmEnabled, TargetNullValue=Unknown}"/></StackPanel>
+                        </UniformGrid>
+                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmQueueDiscipline, StringFormat=Queue discipline: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiRunning, StringFormat=DPI runtime: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.WebDavEnabled, StringFormat=WebDAV configured: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DlnaRunning, StringFormat=DLNA runtime: {0}}"/>
+                    </StackPanel>
+                </Border>
+
                 <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
                     <StackPanel>
                         <Grid>
