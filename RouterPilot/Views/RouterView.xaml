@@ -25,6 +25,10 @@
                                 <TextBlock Text="{Binding Hostname}"/>
                                 <TextBlock Margin="0,10,0,0" Text="Firmware" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock Text="{Binding RouterFirmwareVersion}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Kernel" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding RouterKernelVersion}" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterKernelVersion}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Architecture" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Text="{Binding RouterArchitecture}" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterArchitecture}"/>
                                 <TextBlock Margin="0,10,0,0" Text="Uptime" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock Text="{Binding Uptime}"/>
                             </StackPanel>

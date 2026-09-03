@@ -70,6 +70,12 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string routerFirmwareVersion = "-";
 
+        [ObservableProperty]
+        private string routerKernelVersion = "-";
+
+        [ObservableProperty]
+        private string routerArchitecture = "-";
+
         // Cached state supplied by FirmwareUpdateService; the dashboard never initiates
         // firmware I/O and only uses this confirmed result for presentation/scoring.
         [ObservableProperty]

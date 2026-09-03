@@ -340,6 +340,12 @@ namespace RouterPilot.Views
                 _viewModel.FirmwareVersion =
                     info.Firmware;
 
+                _viewModel.RouterKernelVersion =
+                    info.KernelVersion;
+
+                _viewModel.RouterArchitecture =
+                    info.Architecture;
+
                 ScheduleInitialFirmwareCheck(router, routerSession);
 
                 _viewModel.Uptime =
@@ -1074,6 +1080,12 @@ namespace RouterPilot.Views
                 "-";
 
             _viewModel.FirmwareVersion =
+                "-";
+
+            _viewModel.RouterKernelVersion =
+                "-";
+
+            _viewModel.RouterArchitecture =
                 "-";
 
             _viewModel.Uptime =

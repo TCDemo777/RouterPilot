@@ -75,6 +75,11 @@ namespace RouterPilot.Services
                         info.Firmware =
                             version.GetString() ?? "-";
                     }
+
+                    if (release.TryGetProperty("kernel", out JsonElement kernel))
+                        info.KernelVersion = kernel.GetString() ?? "-";
+                    if (release.TryGetProperty("target", out JsonElement target))
+                        info.Architecture = target.GetString() ?? "-";
                 }
             }
             catch

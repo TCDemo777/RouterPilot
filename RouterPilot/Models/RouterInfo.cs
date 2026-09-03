@@ -10,6 +10,10 @@ namespace RouterPilot.Models
 
         public string Firmware { get; set; } = "-";
 
+        public string KernelVersion { get; set; } = "-";
+
+        public string Architecture { get; set; } = "-";
+
         public string Uptime { get; set; } = "-";
 
         public string CpuUsage { get; set; } = "-";
