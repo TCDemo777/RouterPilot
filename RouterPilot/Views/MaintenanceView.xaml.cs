@@ -17,6 +17,7 @@ public partial class MaintenanceView : UserControl
     private readonly Func<Task> _refreshAll;
     private bool _backupPrivacyWarningAcknowledged;
     private bool _navigateToFirmwareWhenLoaded;
+    private MaintenanceTab _selectedTab = MaintenanceTab.Overview;
 
     public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll)
     {
@@ -25,10 +26,50 @@ public partial class MaintenanceView : UserControl
         viewModel.AttachDashboard(dashboard);
         DataContext = viewModel;
         Loaded += MaintenanceView_Loaded;
+        ApplyMaintenanceTab(_selectedTab);
+    }
+
+    public MaintenanceTab SelectedMaintenanceTab => _selectedTab;
+
+    private void MaintenanceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.Source != MaintenanceTabs || MaintenanceTabs.SelectedItem is not TabItem { Tag: string tag } || !Enum.TryParse(tag, out MaintenanceTab tab))
+            return;
+        _selectedTab = tab;
+        ApplyMaintenanceTab(tab);
+    }
+
+    private void ApplyMaintenanceTab(MaintenanceTab tab)
+    {
+        Set(OverviewStatusSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
+        Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
+        Set(QuickActionsSection, tab == MaintenanceTab.Overview);
+        Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Firmware);
+        Set(GuidedDiagnosticsSection, tab == MaintenanceTab.Diagnostics);
+        Set(DiagnosticsSection, tab == MaintenanceTab.Diagnostics);
+        Set(SnapshotsSection, tab == MaintenanceTab.Snapshots);
+        Set(FirmwareLifecycleSection, tab == MaintenanceTab.Firmware);
+        Set(FirmwareReadinessSection, tab == MaintenanceTab.Firmware);
+        Set(FirmwareSection, tab == MaintenanceTab.Firmware);
+        Set(ReportsSection, tab == MaintenanceTab.Reports);
+        Set(SupportSection, tab == MaintenanceTab.Support);
+        Set(BackupSection, tab == MaintenanceTab.Support);
+        Set(HistorySection, tab == MaintenanceTab.LogsEvents || tab == MaintenanceTab.Support);
+        Set(ServicesSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
+    }
+
+    private static void Set(UIElement element, bool visible) => element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    public void NavigateToTab(MaintenanceTab tab)
+    {
+        _selectedTab = tab;
+        MaintenanceTabs.SelectedIndex = (int)tab;
+        ApplyMaintenanceTab(tab);
     }
 
     public void NavigateToFirmware()
     {
+        NavigateToTab(MaintenanceTab.Firmware);
         if (IsLoaded)
         {
             FirmwareSection.BringIntoView();

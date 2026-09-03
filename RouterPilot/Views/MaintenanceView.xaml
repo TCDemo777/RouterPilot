@@ -12,7 +12,18 @@
                        Style="{StaticResource Text.Secondary}"
                        Text="Safely manage supported router services and review recent maintenance activity." />
 
-            <Border Style="{StaticResource SectionContainerStyle}" Padding="16">
+            <TabControl x:Name="MaintenanceTabs" Margin="0,0,0,16" SelectionChanged="MaintenanceTabs_SelectionChanged" AutomationProperties.Name="Maintenance sections">
+                <TabItem Header="Overview" Tag="Overview" />
+                <TabItem Header="Diagnostics" Tag="Diagnostics" />
+                <TabItem Header="Health" Tag="Health" />
+                <TabItem Header="Snapshots" Tag="Snapshots" />
+                <TabItem Header="Firmware" Tag="Firmware" />
+                <TabItem Header="Logs &amp; Events" Tag="LogsEvents" />
+                <TabItem Header="Reports" Tag="Reports" />
+                <TabItem Header="Support" Tag="Support" />
+            </TabControl>
+
+            <Border x:Name="OverviewStatusSection" Style="{StaticResource SectionContainerStyle}" Padding="16">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <Ellipse Width="10" Height="10" Margin="0,4,12,0" VerticalAlignment="Top" Fill="{Binding HealthSummaryColour}" />
@@ -23,7 +34,7 @@
                 </Grid>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="OverviewCurrentSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Current status" />
                     <UniformGrid Columns="4" Margin="0,0,0,0">
@@ -47,7 +58,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="QuickActionsSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
@@ -122,7 +133,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="RouterLifecycleSummarySection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router identity &amp; lifecycle" />
                     <UniformGrid Columns="3">
@@ -134,7 +145,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Guided Diagnostics">
+            <Border x:Name="GuidedDiagnosticsSection" Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Guided Diagnostics">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Guided Diagnostics" />
                     <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Choose what you are troubleshooting. RouterPilot correlates currently loaded evidence and does not change router settings." TextWrapping="Wrap" />
@@ -157,7 +168,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Configuration Snapshot">
+            <Border x:Name="SnapshotsSection" Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Configuration Snapshot">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Configuration Snapshot" />
                     <TextBlock Margin="0,5,0,12" Style="{StaticResource Text.Secondary}" Text="Capture the router state currently observable by RouterPilot and compare it later. This is not a backup or restore point." TextWrapping="Wrap" />
@@ -197,7 +208,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Home Network Report">
+            <Border x:Name="ReportsSection" Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Home Network Report">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Home Network Report" />
                     <TextBlock Margin="0,5,0,12" Style="{StaticResource Text.Secondary}" Text="Create a concise privacy-safe summary from the RouterPilot state already loaded in this session." TextWrapping="Wrap" />
@@ -208,7 +219,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="ServicesSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router services" />
                     <UniformGrid Columns="4">
@@ -221,7 +232,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="FirmwareLifecycleSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Firmware &amp; Lifecycle" />
                     <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Record the observable router state before an upgrade and verify it after the router reconnects. RouterPilot never installs firmware or changes router settings." TextWrapping="Wrap" />
@@ -234,7 +245,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="FirmwareReadinessSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Firmware update readiness" />
                     <TextBlock Style="{StaticResource Text.Secondary}" Text="{Binding UpdateReadinessText}" TextWrapping="Wrap"/>
@@ -302,7 +313,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="SupportSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Support" />
                     <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.Secondary}" Text="Copy or export a privacy-safe summary of information already loaded in RouterPilot. No router requests are made." TextWrapping="Wrap" />
@@ -313,7 +324,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="DiagnosticsSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -339,7 +350,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="BackupSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Backup &amp; Restore" />
             <Border Padding="0" BorderThickness="0">
@@ -376,7 +387,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="HistorySection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock x:Name="MaintenanceHistoryHeading" Style="{StaticResource SectionHeaderStyle}" Text="Maintenance history" />
             <Border Padding="0" BorderBrush="{DynamicResource Brush.Border}"
