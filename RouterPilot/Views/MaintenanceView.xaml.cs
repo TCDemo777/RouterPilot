@@ -65,6 +65,12 @@ public partial class MaintenanceView : UserControl
             viewModel.CaptureStateSnapshot();
     }
 
+    private void DiagnosticCategory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag } && Enum.TryParse(tag, out DiagnosticCategory category) && DataContext is MaintenanceViewModel viewModel)
+            viewModel.SelectDiagnosticCategory(category);
+    }
+
     private async void PrepareFirmwareUpgrade_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MaintenanceViewModel viewModel)
@@ -345,7 +351,7 @@ public partial class MaintenanceView : UserControl
     private void CopyDiagnosticReport_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel) return;
-        try { Clipboard.SetText(viewModel.BuildDiagnosticReport()); MessageBox.Show("Diagnostic report copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Information); }
+        try { Clipboard.SetText(viewModel.DiagnosticSession is null ? viewModel.BuildDiagnosticReport() : viewModel.DiagnosticReport); MessageBox.Show("Diagnostic report copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Information); }
         catch { MessageBox.Show("Diagnostic report could not be copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 

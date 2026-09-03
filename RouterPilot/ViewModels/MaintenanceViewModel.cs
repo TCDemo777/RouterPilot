@@ -26,6 +26,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private CancellationTokenSource? _diagnosticsCancellation;
     private bool _snapshotBusy;
     private bool _lifecycleBusy;
+    private bool _diagnosticBusy;
 
     [ObservableProperty]
     private bool isBusy;
@@ -96,6 +97,11 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public bool IsLifecycleBusy => _lifecycleBusy;
     public string LifecycleStatus { get; private set; } = "No firmware lifecycle check has been run.";
     public RouterStateSnapshot? PreUpgradeSnapshot => StateSnapshots.FirstOrDefault(snapshot => snapshot.FriendlyName.StartsWith("Pre-upgrade", StringComparison.OrdinalIgnoreCase));
+    public DiagnosticCategory SelectedDiagnosticCategory { get; private set; } = DiagnosticCategory.NotSure;
+    public GuidedDiagnosticSession? DiagnosticSession { get; private set; }
+    public bool IsDiagnosticBusy => _diagnosticBusy;
+    public string DiagnosticStatus => DiagnosticSession is null ? "Diagnostic evidence is not loaded yet." : $"{DiagnosticSession.State} — {DiagnosticSession.Findings.Count} finding(s).";
+    public string DiagnosticReport => GuidedDiagnosticsService.BuildReport(DiagnosticSession);
     public string HomeNetworkReportText => NetworkHealthCentreProjection.BuildHomeNetworkReport(_dashboard);
 
     public void CaptureStateSnapshot()
@@ -161,6 +167,29 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         await CompareLatestWithCurrentAsync(refreshAll);
         LifecycleStatus = "Post-upgrade verification completed. Review the observable configuration changes below.";
         OnPropertyChanged(nameof(LifecycleStatus));
+    }
+
+    public void SelectDiagnosticCategory(DiagnosticCategory category)
+    {
+        SelectedDiagnosticCategory = category;
+        OnPropertyChanged(nameof(SelectedDiagnosticCategory));
+        RunDiagnosticSession();
+    }
+
+    public void RunDiagnosticSession()
+    {
+        if (_diagnosticBusy) return;
+        _diagnosticBusy = true;
+        OnPropertyChanged(nameof(IsDiagnosticBusy));
+        try { DiagnosticSession = GuidedDiagnosticsService.Build(SelectedDiagnosticCategory, _dashboard); }
+        finally
+        {
+            _diagnosticBusy = false;
+            OnPropertyChanged(nameof(IsDiagnosticBusy));
+            OnPropertyChanged(nameof(DiagnosticSession));
+            OnPropertyChanged(nameof(DiagnosticStatus));
+            OnPropertyChanged(nameof(DiagnosticReport));
+        }
     }
 
     public async Task CompareLatestWithCurrentAsync(Func<Task> refreshAll)

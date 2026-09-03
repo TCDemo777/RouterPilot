@@ -176,7 +176,7 @@ namespace RouterPilot.ViewModels
             ("VPN", "VPN page", "vpn openvpn wireguard tailscale tunnel vpn dashboard client server", "vpn"),
             ("Protection", "Page", "dns adguard protection", "protection"),
             ("Data Statistics", "Page", "data statistics traffic bandwidth analytics", "analytics"),
-            ("Maintenance", "Page", "maintenance diagnostics backup firmware services", "maintenance"),
+            ("Maintenance", "Page", "maintenance diagnostics diagnose troubleshoot troubleshooting internet problem wifi problem dns problem vpn problem client problem ethernet problem storage problem network problem network not working slow internet slow wifi backup firmware services", "maintenance"),
             ("Configuration Snapshot", "Maintenance page", "configuration snapshot router snapshot configuration changes router changes change detection compare router before update after update change journal observable changes known good", "maintenance"),
             ("Router Logs", "Maintenance page", "router logs logs system log syslog logread events troubleshooting kernel log", "router-logs"),
             ("About", "Page", "about version information", "about"),
