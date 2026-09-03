@@ -175,6 +175,7 @@ namespace RouterPilot.ViewModels
             ("Protection", "Page", "dns adguard protection", "protection"),
             ("Data Statistics", "Page", "data statistics traffic bandwidth analytics", "analytics"),
             ("Maintenance", "Page", "maintenance diagnostics backup firmware services", "maintenance"),
+            ("Configuration Snapshot", "Maintenance page", "configuration snapshot router snapshot configuration changes router changes change detection compare router before update after update", "maintenance"),
             ("Router Logs", "Maintenance page", "router logs logs system log syslog logread events troubleshooting kernel log", "router-logs"),
             ("About", "Page", "about version information", "about"),
             ("Timeline", "Page", "timeline recent activity router events session history", "timeline")

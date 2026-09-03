@@ -19,8 +19,12 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly MaintenanceHistoryService _historyService;
     private readonly FirmwareUpdateService _firmwareUpdateService;
     private readonly RouterCapabilityDiscoveryService _capabilityDiscovery;
+    private readonly RouterStateSnapshotService _snapshotService;
+    private readonly IActiveRouterContext _activeRouter;
+    private readonly IRouterSwitchCoordinator _routerSwitch;
     private DashboardViewModel _dashboard;
     private CancellationTokenSource? _diagnosticsCancellation;
+    private bool _snapshotBusy;
 
     [ObservableProperty]
     private bool isBusy;
@@ -36,13 +40,20 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         MaintenanceHistoryService historyService,
         IBackupRestoreService backupRestoreService,
         FirmwareUpdateService firmwareUpdateService,
-        RouterCapabilityDiscoveryService capabilityDiscovery)
+        RouterCapabilityDiscoveryService capabilityDiscovery,
+        RouterStateSnapshotService snapshotService,
+        IActiveRouterContext activeRouter,
+        IRouterSwitchCoordinator routerSwitch)
     {
         _operations = operations;
         _backupRestoreService = backupRestoreService;
         _historyService = historyService;
         _firmwareUpdateService = firmwareUpdateService;
         _capabilityDiscovery = capabilityDiscovery;
+        _snapshotService = snapshotService;
+        _activeRouter = activeRouter;
+        _routerSwitch = routerSwitch;
+        _routerSwitch.Switched += RouterSwitch_Switched;
         _firmwareUpdateService.PropertyChanged += FirmwareUpdateService_PropertyChanged;
         History = historyService.Entries;
         _historyService.Changed += HistoryService_Changed;
@@ -72,6 +83,80 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public bool IsCapabilityReportRunning { get; private set; }
     public string CapabilityReportStatus { get; private set; } = "No capability report collected in this session.";
     public string CapabilityReportText { get; private set; } = string.Empty;
+
+    public IReadOnlyList<RouterStateSnapshot> StateSnapshots => _snapshotService.Load(_activeRouter.CurrentProfileId);
+    public RouterStateSnapshot? LatestStateSnapshot => StateSnapshots.FirstOrDefault();
+    public IReadOnlyList<RouterStateChange> StateChanges { get; private set; } = [];
+    public bool IsSnapshotBusy => _snapshotBusy;
+    public string SnapshotStatus { get; private set; } = "No configuration snapshots yet.";
+    public string SnapshotChangeSummary => StateChanges.Count == 0 ? "No comparable changes detected." : $"{StateChanges.Count} observable changes detected.";
+
+    public void CaptureStateSnapshot()
+    {
+        if (_snapshotBusy || !_dashboard.RouterConnected) return;
+        _snapshotBusy = true;
+        OnPropertyChanged(nameof(IsSnapshotBusy));
+        try
+        {
+            RouterStateSnapshot snapshot = RouterStateSnapshotService.FromDashboard(_activeRouter.CurrentProfileId, _dashboard);
+            _snapshotService.Save(snapshot);
+            SnapshotStatus = $"Snapshot captured {snapshot.CapturedAt.ToLocalTime():g}.";
+            StateChanges = [];
+        }
+        finally
+        {
+            _snapshotBusy = false;
+            OnPropertyChanged(nameof(IsSnapshotBusy));
+            OnPropertyChanged(nameof(StateSnapshots));
+            OnPropertyChanged(nameof(LatestStateSnapshot));
+            OnPropertyChanged(nameof(SnapshotStatus));
+            OnPropertyChanged(nameof(SnapshotChangeSummary));
+        }
+    }
+
+    public async Task CompareLatestWithCurrentAsync(Func<Task> refreshAll)
+    {
+        if (_snapshotBusy || LatestStateSnapshot is not { } baseline) return;
+        _snapshotBusy = true;
+        OnPropertyChanged(nameof(IsSnapshotBusy));
+        try
+        {
+            await refreshAll();
+            if (baseline.ProfileId != _activeRouter.CurrentProfileId)
+            {
+                SnapshotStatus = "Snapshot belongs to a different router/profile.";
+                StateChanges = [];
+                return;
+            }
+            RouterStateSnapshot current = RouterStateSnapshotService.FromDashboard(_activeRouter.CurrentProfileId, _dashboard);
+            StateChanges = RouterStateSnapshotComparer.Compare(baseline, current);
+            SnapshotStatus = $"Compared with current router at {current.CapturedAt.ToLocalTime():g}.";
+        }
+        catch (OperationCanceledException) { SnapshotStatus = "Snapshot comparison cancelled."; }
+        catch (Exception exception)
+        {
+            SnapshotStatus = "Current router state could not be fully retrieved.";
+            System.Diagnostics.Debug.WriteLine($"Snapshot comparison failed ({exception.GetType().Name}).");
+        }
+        finally
+        {
+            _snapshotBusy = false;
+            OnPropertyChanged(nameof(IsSnapshotBusy));
+            OnPropertyChanged(nameof(StateChanges));
+            OnPropertyChanged(nameof(SnapshotStatus));
+            OnPropertyChanged(nameof(SnapshotChangeSummary));
+        }
+    }
+
+    public void DeleteLatestStateSnapshot()
+    {
+        if (LatestStateSnapshot is not { } snapshot) return;
+        _snapshotService.Delete(_activeRouter.CurrentProfileId, snapshot.SnapshotId);
+        StateChanges = [];
+        SnapshotStatus = "Snapshot deleted locally.";
+        OnPropertyChanged(nameof(StateSnapshots)); OnPropertyChanged(nameof(LatestStateSnapshot));
+        OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
+    }
 
     public async Task CollectCapabilityReportAsync()
     {
@@ -392,7 +477,23 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(DhcpLeaseCountText));
             OnPropertyChanged(nameof(DhcpReservationCountText));
             UpdateAvailability();
+            if (e.PropertyName is nameof(DashboardViewModel.RouterConnected) or nameof(DashboardViewModel.RouterModel))
+            {
+                StateChanges = [];
+                OnPropertyChanged(nameof(StateSnapshots));
+                OnPropertyChanged(nameof(LatestStateSnapshot));
+                OnPropertyChanged(nameof(StateChanges));
+                OnPropertyChanged(nameof(SnapshotChangeSummary));
+            }
         }
+    }
+
+    private void RouterSwitch_Switched(object? sender, RouterProfile profile)
+    {
+        StateChanges = [];
+        SnapshotStatus = "Router switched. Select a snapshot for the active profile.";
+        OnPropertyChanged(nameof(StateSnapshots)); OnPropertyChanged(nameof(LatestStateSnapshot));
+        OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
     }
 
     partial void OnIsBusyChanged(bool value)

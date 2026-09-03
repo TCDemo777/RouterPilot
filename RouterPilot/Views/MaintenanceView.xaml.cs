@@ -59,6 +59,25 @@ public partial class MaintenanceView : UserControl
         await viewModel.ExecuteAsync(action, _refreshAll);
     }
 
+    private void CaptureSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            viewModel.CaptureStateSnapshot();
+    }
+
+    private async void CompareSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            await viewModel.CompareLatestWithCurrentAsync(_refreshAll);
+    }
+
+    private void DeleteSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel &&
+            MessageBox.Show("Delete the local RouterPilot snapshot? The router will not be changed.", "Delete snapshot", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            viewModel.DeleteLatestStateSnapshot();
+    }
+
     private void ActionMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu } button)
