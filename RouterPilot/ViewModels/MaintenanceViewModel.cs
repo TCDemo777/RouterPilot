@@ -90,6 +90,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public bool IsSnapshotBusy => _snapshotBusy;
     public string SnapshotStatus { get; private set; } = "No configuration snapshots yet.";
     public string SnapshotChangeSummary => StateChanges.Count == 0 ? "No comparable changes detected." : $"{StateChanges.Count} observable changes detected.";
+    public string HomeNetworkReportText => NetworkHealthCentreProjection.BuildHomeNetworkReport(_dashboard);
 
     public void CaptureStateSnapshot()
     {

@@ -161,6 +161,17 @@
                 </StackPanel>
             </Border>
 
+            <Border Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Home Network Report">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Home Network Report" />
+                    <TextBlock Margin="0,5,0,12" Style="{StaticResource Text.Secondary}" Text="Create a concise privacy-safe summary from the RouterPilot state already loaded in this session." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Margin="0,0,10,0" Padding="12,6" Style="{DynamicResource Button.Primary}" Content="Copy Report" Click="CopyHomeReport_Click" AutomationProperties.Name="Copy privacy-safe home network report" />
+                        <Button Padding="12,6" Style="{DynamicResource Button.Secondary}" Content="Save Report" Click="SaveHomeReport_Click" AutomationProperties.Name="Save privacy-safe home network report" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router services" />

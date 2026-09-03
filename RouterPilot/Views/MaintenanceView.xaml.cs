@@ -65,6 +65,22 @@ public partial class MaintenanceView : UserControl
             viewModel.CaptureStateSnapshot();
     }
 
+    private void CopyHomeReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        try { Clipboard.SetText(viewModel.HomeNetworkReportText); MessageBox.Show("Privacy-safe home network report copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch { MessageBox.Show("The report could not be copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private void SaveHomeReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        SaveFileDialog dialog = new() { Title = "Save home network report", Filter = "Text file (*.txt)|*.txt", DefaultExt = ".txt", FileName = "RouterPilot-Network-Report-" + DateTime.Now.ToString("yyyy-MM-dd") + ".txt" };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try { File.WriteAllText(dialog.FileName, viewModel.HomeNetworkReportText); MessageBox.Show("Privacy-safe home network report saved.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch { MessageBox.Show("The report could not be saved.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
     private async void CompareSnapshot_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MaintenanceViewModel viewModel)

@@ -160,6 +160,8 @@ namespace RouterPilot.ViewModels
         private static string NormalisePortToken(string? value) => (value ?? string.Empty).Trim().Replace('–', '-').Replace('—', '-').Replace(':', '-');
         private static readonly (string Title, string Subtitle, string Terms, string Target)[] Pages = [
             ("Overview", "Page", "overview home dashboard", "overview"),
+            ("Network Health", "Overview page", "network health health network status troubleshooting troubleshoot internet health wifi health dns health vpn health router health network issues", "health"),
+            ("Home Network Report", "Maintenance page", "network report home network report privacy-safe report", "maintenance"),
             ("Clients", "Page", "clients devices", "clients"),
             ("Known Clients", "Clients page", "known clients devices history", "clients"),
             ("Network", "Page", "network internet wan latency gateway dns dhcp dhcpv4 dhcpv6 ipv6 ip6 router advertisement ra guest guest network guest wifi lan lan configuration subnet bridge vlan mtu network map network mode router mode access point repeater drop-in gateway iot", "health"),

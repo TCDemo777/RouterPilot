@@ -19,6 +19,7 @@ namespace RouterPilot.Views
         private readonly MaintenanceViewModel _maintenance;
         private readonly Func<Task> _refreshAll;
         private readonly DashboardPreferencesService _dashboardPreferences;
+        private readonly DashboardViewModel _dashboard;
         private bool _backupPrivacyWarningAcknowledged;
 
         public OverviewView(MaintenanceViewModel maintenance,
@@ -27,20 +28,24 @@ namespace RouterPilot.Views
             InitializeComponent();
             _maintenance = maintenance;
             _maintenance.AttachDashboard(dashboard);
+            _dashboard = dashboard;
             _refreshAll = refreshAll;
             _dashboardPreferences = ((App)Application.Current).Services
                 .GetRequiredService<DashboardPreferencesService>();
             DataContext = dashboard;
+            dashboard.PropertyChanged += Dashboard_PropertyChanged;
             _maintenance.PropertyChanged += Maintenance_PropertyChanged;
             _dashboardPreferences.Changed += DashboardPreferences_Changed;
             Loaded += (_, _) =>
             {
                 RefreshQuickActionAvailability();
                 ApplyDashboardPreferences();
+                RefreshHealthCentre();
             };
             Unloaded += (_, _) =>
             {
                 _maintenance.PropertyChanged -= Maintenance_PropertyChanged;
+                _dashboard.PropertyChanged -= Dashboard_PropertyChanged;
                 _dashboardPreferences.Changed -= DashboardPreferences_Changed;
             };
         }
@@ -104,6 +109,12 @@ namespace RouterPilot.Views
 
         private void Maintenance_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
             Dispatcher.InvokeAsync(RefreshQuickActionAvailability);
+
+        private void Dashboard_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+            Dispatcher.InvokeAsync(RefreshHealthCentre);
+
+        private void RefreshHealthCentre() =>
+            HealthCentreObservations.ItemsSource = NetworkHealthCentreProjection.Create(_dashboard);
 
         private void RefreshQuickActionAvailability()
         {
