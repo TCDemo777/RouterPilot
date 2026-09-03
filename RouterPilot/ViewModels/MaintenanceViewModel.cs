@@ -25,6 +25,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private DashboardViewModel _dashboard;
     private CancellationTokenSource? _diagnosticsCancellation;
     private bool _snapshotBusy;
+    private bool _lifecycleBusy;
 
     [ObservableProperty]
     private bool isBusy;
@@ -92,6 +93,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string SnapshotStatus { get; private set; } = "No configuration snapshots yet.";
     public string SnapshotChangeSummary => StateChanges.Count == 0 ? "No comparable changes detected." : $"{StateChanges.Count} observable changes detected.";
     public string SnapshotComparisonReport => BuildComparisonReport();
+    public bool IsLifecycleBusy => _lifecycleBusy;
+    public string LifecycleStatus { get; private set; } = "No firmware lifecycle check has been run.";
+    public RouterStateSnapshot? PreUpgradeSnapshot => StateSnapshots.FirstOrDefault(snapshot => snapshot.FriendlyName.StartsWith("Pre-upgrade", StringComparison.OrdinalIgnoreCase));
     public string HomeNetworkReportText => NetworkHealthCentreProjection.BuildHomeNetworkReport(_dashboard);
 
     public void CaptureStateSnapshot()
@@ -115,6 +119,48 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(SnapshotStatus));
             OnPropertyChanged(nameof(SnapshotChangeSummary));
         }
+    }
+
+    public async Task PrepareForFirmwareUpgradeAsync(Func<Task> refreshAll)
+    {
+        if (_lifecycleBusy || !_dashboard.RouterConnected) return;
+        _lifecycleBusy = true;
+        OnPropertyChanged(nameof(IsLifecycleBusy));
+        try
+        {
+            LifecycleStatus = "Refreshing router state...";
+            OnPropertyChanged(nameof(LifecycleStatus));
+            await refreshAll();
+            RouterStateSnapshot snapshot = RouterStateSnapshotService.FromDashboard(
+                _activeRouter.CurrentProfileId, _dashboard,
+                $"Pre-upgrade — Firmware {RouterFirmwareText} — {DateTime.Now:g}");
+            _snapshotService.Save(snapshot);
+            LifecycleStatus = "Pre-upgrade snapshot captured. Perform the firmware upgrade using the GL.iNet administration interface, then return to RouterPilot after the router has restarted.";
+            SnapshotStatus = $"Pre-upgrade baseline captured {snapshot.CapturedAt.ToLocalTime():g}.";
+        }
+        catch (OperationCanceledException) { LifecycleStatus = "Pre-upgrade preparation cancelled."; }
+        catch (Exception exception)
+        {
+            LifecycleStatus = "Pre-upgrade state could not be fully captured.";
+            System.Diagnostics.Debug.WriteLine($"Firmware preparation failed ({exception.GetType().Name}).");
+        }
+        finally
+        {
+            _lifecycleBusy = false;
+            OnPropertyChanged(nameof(IsLifecycleBusy));
+            OnPropertyChanged(nameof(LifecycleStatus));
+            OnPropertyChanged(nameof(StateSnapshots));
+            OnPropertyChanged(nameof(LatestStateSnapshot));
+            OnPropertyChanged(nameof(PreUpgradeSnapshot));
+            OnPropertyChanged(nameof(SnapshotStatus));
+        }
+    }
+
+    public async Task RunPostUpgradeCheckAsync(Func<Task> refreshAll)
+    {
+        await CompareLatestWithCurrentAsync(refreshAll);
+        LifecycleStatus = "Post-upgrade verification completed. Review the observable configuration changes below.";
+        OnPropertyChanged(nameof(LifecycleStatus));
     }
 
     public async Task CompareLatestWithCurrentAsync(Func<Task> refreshAll)
@@ -177,7 +223,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         StateChanges = [];
         SnapshotStatus = "Snapshot deleted locally.";
         OnPropertyChanged(nameof(StateSnapshots)); OnPropertyChanged(nameof(LatestStateSnapshot));
-        OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
+        OnPropertyChanged(nameof(PreUpgradeSnapshot)); OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
     }
 
     public async Task CollectCapabilityReportAsync()

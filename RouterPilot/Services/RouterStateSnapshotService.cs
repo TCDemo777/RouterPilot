@@ -111,11 +111,11 @@ public sealed class RouterStateSnapshotService
         catch (IOException) { return []; }
     }
 
-    public static RouterStateSnapshot FromDashboard(string profileId, DashboardViewModel dashboard)
+    public static RouterStateSnapshot FromDashboard(string profileId, DashboardViewModel dashboard, string? friendlyName = null)
     {
         RouterAdvancedSnapshot advanced = dashboard.AdvancedRouterSnapshot;
         return new RouterStateSnapshot(
-            1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, $"Snapshot — {DateTime.Now:g}", profileId,
+            1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, friendlyName ?? $"Snapshot — {DateTime.Now:g}", profileId,
             Safe(dashboard.RouterModel), Safe(dashboard.FirmwareVersion),
             new RouterStateSystem(Safe(dashboard.RouterKernelVersion), Safe(dashboard.RouterArchitecture), Safe(advanced.NetworkMode)),
             new RouterStateNetwork(advanced.GuestEnabled, advanced.IoTEnabled, advanced.GuestIgmpSnooping, advanced.IoTIgmpSnooping, advanced.NatMasquerade, advanced.NatMasqueradeIpv6),

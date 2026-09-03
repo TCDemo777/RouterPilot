@@ -65,6 +65,18 @@ public partial class MaintenanceView : UserControl
             viewModel.CaptureStateSnapshot();
     }
 
+    private async void PrepareFirmwareUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            await viewModel.PrepareForFirmwareUpgradeAsync(_refreshAll);
+    }
+
+    private async void RunPostUpgradeCheck_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel)
+            await viewModel.RunPostUpgradeCheckAsync(_refreshAll);
+    }
+
     private void CopyHomeReport_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel) return;

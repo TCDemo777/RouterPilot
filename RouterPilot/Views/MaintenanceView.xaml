@@ -200,6 +200,19 @@
 
             <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
+                    <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Firmware &amp; Lifecycle" />
+                    <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Record the observable router state before an upgrade and verify it after the router reconnects. RouterPilot never installs firmware or changes router settings." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Prepare for Firmware Upgrade" Click="PrepareFirmwareUpgrade_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
+                        <Button Style="{DynamicResource Button.Secondary}" Content="Run Post-Upgrade Check" Click="RunPostUpgradeCheck_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
+                    </StackPanel>
+                    <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding LifecycleStatus}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding RouterFirmwareText, StringFormat=Current firmware: {0}}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Firmware update readiness" />
                     <TextBlock Style="{StaticResource Text.Secondary}" Text="{Binding UpdateReadinessText}" TextWrapping="Wrap"/>
                     <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" Text="Firmware updates can interrupt router and Internet availability. RouterPilot never downloads or installs firmware automatically." TextWrapping="Wrap"/>
