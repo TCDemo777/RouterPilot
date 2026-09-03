@@ -10,6 +10,7 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using RouterPilot.Models;
 using RouterPilot.Services;
+using RouterPilot.ViewModels;
 
 namespace RouterPilot.Views;
 
@@ -42,17 +43,21 @@ public partial class RouterView : UserControl
     private RouterManager? _multiWanManager;
     private RouterManager? _portsManager;
     private RouterManager? _wifiManager;
+    private readonly RouterLogsViewModel _routerLogsViewModel;
 
     public RouterView()
     {
         InitializeComponent();
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
+        _routerLogsViewModel = ((App)Application.Current).Services.GetRequiredService<RouterLogsViewModel>();
+        _routerLogsViewModel.PropertyChanged += RouterLogsViewModel_PropertyChanged;
         PortsList.ItemsSource = _ports;
         PortsHistoryList.ItemsSource = _portHistory;
         MultiWanList.ItemsSource = _multiWanPaths;
         MultiWanHistoryList.ItemsSource = _multiWanHistory;
         WifiRadiosList.ItemsSource = _wifiRadios;
         WifiHistoryList.ItemsSource = _wifiHistory;
+        RouterLogsRecentList.ItemsSource = _routerLogsViewModel.RecentImportantEntries;
         PerformanceHistoryList.ItemsSource = _performanceHistory;
         DnsResolversList.ItemsSource = Array.Empty<string>();
         Loaded += RouterView_Loaded;
@@ -62,6 +67,7 @@ public partial class RouterView : UserControl
 
     private async void RouterView_Loaded(object sender, RoutedEventArgs e)
     {
+        UpdateRouterLogsSummary();
         if (RouterTabs.SelectedIndex == 1) await RefreshPortsAsync();
         else if (RouterTabs.SelectedIndex == 2) await RefreshWifiAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
@@ -69,8 +75,40 @@ public partial class RouterView : UserControl
         else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
     }
 
+    private void RouterLogsViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(RouterLogsViewModel.HasLoaded) or nameof(RouterLogsViewModel.WarningErrorCount) or nameof(RouterLogsViewModel.NewestTimestamp) or nameof(RouterLogsViewModel.RecentImportantEntries))
+            Dispatcher.InvokeAsync(UpdateRouterLogsSummary);
+    }
+
+    private void UpdateRouterLogsSummary()
+    {
+        if (!_routerLogsViewModel.HasLoaded)
+        {
+            RouterLogsSummary.Text = "Router logs have not been loaded.";
+            RouterLogsNewest.Text = "Open Router Logs for bounded recent messages.";
+            RouterLogsRecentList.ItemsSource = Array.Empty<RouterLogEntry>();
+            return;
+        }
+
+        RouterLogsSummary.Text = _routerLogsViewModel.WarningErrorCount == 0
+            ? "No warning or error events in the loaded logs."
+            : $"{_routerLogsViewModel.WarningErrorCount:N0} warning/error event(s) in loaded logs.";
+        RouterLogsNewest.Text = string.IsNullOrWhiteSpace(_routerLogsViewModel.NewestTimestamp)
+            ? "Newest event time unavailable."
+            : $"Newest event: {_routerLogsViewModel.NewestTimestamp}";
+        RouterLogsRecentList.ItemsSource = _routerLogsViewModel.RecentImportantEntries;
+    }
+
+    private void OpenRouterLogs_Click(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is DashboardWindow dashboard)
+            dashboard.NavigateToRouterLogs();
+    }
+
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
     {
+        _routerLogsViewModel.PropertyChanged -= RouterLogsViewModel_PropertyChanged;
         _refreshCancellation?.Cancel();
     }
 

@@ -61,6 +61,32 @@
                                 <TextBlock Text="{Binding WifiSignalEmptyMessage}"/>
                             </StackPanel>
                         </GroupBox>
+                        <GroupBox Header="RECENT ROUTER EVENTS" Margin="12,0,0,12">
+                            <StackPanel Margin="14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="RouterLogsSummary" FontSize="16" FontWeight="SemiBold" Text="Router logs have not been loaded." TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="RouterLogsNewest" Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Open Router Logs for bounded recent messages." TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Margin="10,0,0,0" Content="Open Router Logs" Style="{DynamicResource Button.Secondary}" Click="OpenRouterLogs_Click" AutomationProperties.Name="Open Router Logs"/>
+                                </Grid>
+                                <ItemsControl x:Name="RouterLogsRecentList" Margin="0,10,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,7" Padding="0,0,0,7" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Message}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Message}"/>
+                                                    <TextBlock Margin="0,2,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding Timestamp}"/>
+                                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding Severity}"/>
+                                                    <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding Category}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </GroupBox>
                     </UniformGrid>
                 </ScrollViewer>
             </TabItem>

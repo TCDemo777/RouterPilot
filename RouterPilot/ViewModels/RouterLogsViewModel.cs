@@ -9,6 +9,7 @@ namespace RouterPilot.ViewModels;
 public partial class RouterLogsViewModel : ObservableObject
 {
     private readonly IRouterManagerProvider _provider;
+    private readonly IRouterProfileService _profiles;
     private List<RouterLogEntry> _all = new();
     private CancellationTokenSource? _loadCancellation;
     public ObservableCollection<RouterLogEntry> Entries { get; } = new();
@@ -20,9 +21,30 @@ public partial class RouterLogsViewModel : ObservableObject
     [ObservableProperty] private string statusMessage = "Router logs have not been loaded.";
     [ObservableProperty] private bool isLoading;
     [ObservableProperty] private RouterLogEntry? selectedEntry;
+    [ObservableProperty] private bool hasLoaded;
+    public int WarningErrorCount => _all.Count(e => e.Severity is "Emergency" or "Alert" or "Critical" or "Error" or "Warning");
+    public string NewestTimestamp => _all.FirstOrDefault()?.Timestamp ?? "—";
+    public IReadOnlyList<RouterLogEntry> RecentImportantEntries => _all
+        .Where(e => e.Severity is "Emergency" or "Alert" or "Critical" or "Error" or "Warning")
+        .Take(3).ToList();
     public string EmptyMessage => IsLoading ? "Loading router logs…" : _all.Count == 0 ? "No router log entries returned." : "No log entries match the current filters.";
     public string LoadedCount => Entries.Count.ToString("N0");
-    public RouterLogsViewModel(IRouterManagerProvider provider) => _provider = provider;
+    public RouterLogsViewModel(IRouterManagerProvider provider, IRouterProfileService profiles)
+    {
+        _provider = provider;
+        _profiles = profiles;
+        _profiles.ActiveProfileChanged += Profiles_ActiveProfileChanged;
+    }
+
+    private void Profiles_ActiveProfileChanged(object? sender, EventArgs e)
+    {
+        _all = new();
+        Entries.Clear();
+        HasLoaded = false;
+        SelectedEntry = null;
+        StatusMessage = "Router logs have not been loaded.";
+        NotifySummaryChanged();
+    }
     [RelayCommand]
     public async Task RefreshAsync()
     {
@@ -32,11 +54,13 @@ public partial class RouterLogsViewModel : ObservableObject
         {
             string output = await (await _provider.GetRouterManagerAsync(_loadCancellation.Token)).GetRouterLogsAsync(_loadCancellation.Token);
             _all = RouterLogParser.Parse(output, 250).Reverse().ToList();
+            HasLoaded = true;
             ApplyFilter(); StatusMessage = $"Showing {_all.Count:N0} bounded recent router log entries.";
+            NotifySummaryChanged();
         }
         catch (OperationCanceledException) when (_loadCancellation?.IsCancellationRequested == true) { StatusMessage = "Router log refresh cancelled."; }
         catch (Exception ex) { StatusMessage = OperationFailurePolicy.UserMessage(ex, "Router log refresh", "Router logs are currently unavailable."); }
-        finally { IsLoading = false; OnPropertyChanged(nameof(EmptyMessage)); }
+        finally { IsLoading = false; OnPropertyChanged(nameof(EmptyMessage)); NotifySummaryChanged(); }
     }
     partial void OnSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedSeverityChanged(string value) => ApplyFilter();
@@ -52,5 +76,13 @@ public partial class RouterLogsViewModel : ObservableObject
         Entries.Clear(); foreach (RouterLogEntry entry in query) Entries.Add(entry);
         if (SelectedEntry is not null && !Entries.Contains(SelectedEntry)) SelectedEntry = null;
         OnPropertyChanged(nameof(LoadedCount)); OnPropertyChanged(nameof(EmptyMessage));
+    }
+
+    private void NotifySummaryChanged()
+    {
+        OnPropertyChanged(nameof(WarningErrorCount));
+        OnPropertyChanged(nameof(NewestTimestamp));
+        OnPropertyChanged(nameof(RecentImportantEntries));
+        OnPropertyChanged(nameof(EmptyMessage));
     }
 }
