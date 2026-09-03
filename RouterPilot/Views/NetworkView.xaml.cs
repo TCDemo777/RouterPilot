@@ -514,6 +514,12 @@ namespace RouterPilot.Views
                 dashboard.NavigateToRouterOverview();
         }
 
+        private void BackToMap_Click(object sender, RoutedEventArgs e)
+        {
+            MapClientsList?.BringIntoView();
+            MapClientsList?.Focus();
+        }
+
         private void MapClientsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => _mapSelectionFromInput = true;
 
         private void MapClientsList_PreviewKeyDown(object sender, KeyEventArgs e)

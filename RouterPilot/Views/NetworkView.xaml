@@ -140,9 +140,9 @@
                         <Border Style="{DynamicResource Card.Compact}" Margin="8,0,0,0"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WI-FI / UNKNOWN"/><TextBlock x:Name="MapWirelessCountText" Margin="0,5,0,0" FontSize="20" Text="—"/></StackPanel></Border>
                     </UniformGrid>
                     <TextBlock x:Name="MapStatusText" Margin="0,0,0,8" Style="{DynamicResource Text.Muted}" Text="Loading network map…"/>
-                    <ListBox x:Name="MapClientsList" ItemsSource="{Binding LanClients}" SelectedItem="{Binding SelectedMapClient, Mode=TwoWay}" SelectionChanged="MapClientsList_SelectionChanged" PreviewMouseLeftButtonDown="MapClientsList_PreviewMouseLeftButtonDown" PreviewKeyDown="MapClientsList_PreviewKeyDown" AutomationProperties.Name="Network map devices" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox x:Name="MapClientsList" ItemsSource="{Binding LanClients}" SelectedItem="{Binding SelectedMapClient, Mode=TwoWay}" SelectionChanged="MapClientsList_SelectionChanged" PreviewMouseLeftButtonDown="MapClientsList_PreviewMouseLeftButtonDown" PreviewKeyDown="MapClientsList_PreviewKeyDown" AutomationProperties.Name="Network map devices" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource Network.SearchTargetRow}">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 <Setter Property="Padding" Value="0"/>
@@ -165,6 +165,7 @@
                             <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding SelectedMapClient.MacAddress, StringFormat=MAC: {0}}"/>
                             <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding SelectedMapClient.InterfaceDisplay, StringFormat=Attachment: {0}}"/>
                             <Button Margin="0,12,0,0" HorizontalAlignment="Left" Padding="12,6" Content="View Client Details" Click="OpenMapClientDetails_Click" AutomationProperties.Name="View selected client details"/>
+                            <Button Margin="0,8,0,0" HorizontalAlignment="Left" Padding="12,6" Content="Back to map" Click="BackToMap_Click" AutomationProperties.Name="Back to network map"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
