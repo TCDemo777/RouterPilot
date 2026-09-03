@@ -12,7 +12,11 @@
                        Style="{StaticResource Text.Secondary}"
                        Text="Safely manage supported router services and review recent maintenance activity." />
 
-            <TabControl x:Name="MaintenanceTabs" Margin="0,0,0,16" SelectionChanged="MaintenanceTabs_SelectionChanged" AutomationProperties.Name="Maintenance sections">
+            <TabControl x:Name="MaintenanceTabs" Margin="0,0,0,16"
+                        Style="{StaticResource RouterPilotTabControlStyle}"
+                        ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}"
+                        SelectionChanged="MaintenanceTabs_SelectionChanged"
+                        AutomationProperties.Name="Maintenance sections">
                 <TabItem Header="Overview" Tag="Overview" />
                 <TabItem Header="Diagnostics" Tag="Diagnostics" />
                 <TabItem Header="Health" Tag="Health" />
@@ -235,9 +239,10 @@
             <Border x:Name="FirmwareLifecycleSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Firmware &amp; Lifecycle" />
-                    <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Record the observable router state before an upgrade and verify it after the router reconnects. RouterPilot never installs firmware or changes router settings." TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,4" Style="{StaticResource Text.Secondary}" Text="Save a read-only baseline before you upgrade, then compare the router's observed state after it reconnects. RouterPilot does not install firmware or change the router." TextWrapping="Wrap" />
+                    <TextBlock Margin="0,0,0,10" Style="{StaticResource Text.Muted}" Text="Use the GL.iNet administration interface to install firmware. Return here afterwards to run the post-upgrade check." TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal">
-                        <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Prepare for Firmware Upgrade" Click="PrepareFirmwareUpgrade_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
+                        <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Save Pre-Upgrade Baseline" Click="PrepareFirmwareUpgrade_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
                         <Button Style="{DynamicResource Button.Secondary}" Content="Run Post-Upgrade Check" Click="RunPostUpgradeCheck_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
                     </StackPanel>
                     <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding LifecycleStatus}" TextWrapping="Wrap" />
@@ -255,7 +260,8 @@
 
             <Border x:Name="FirmwareSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
-            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router firmware" />
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="System identity" />
+            <TextBlock Margin="0,0,0,10" Style="{StaticResource Text.Muted}" Text="GL.iNet firmware and the underlying OpenWrt/system identity are shown separately where RouterPilot can observe them." TextWrapping="Wrap" />
             <Border Padding="0" BorderThickness="0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -265,11 +271,11 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="CURRENT" />
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="GL.INET FIRMWARE" />
                         <TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding FirmwareCurrentVersion}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="LATEST" />
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="LATEST GL.INET FIRMWARE" />
                         <TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding FirmwareLatestVersion}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">

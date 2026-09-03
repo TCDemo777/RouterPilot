@@ -1304,13 +1304,18 @@ namespace RouterPilot.Views
 
         private void NavigateToMaintenanceFirmware()
         {
+            NavigateToMaintenanceTab(MaintenanceTab.Firmware);
+        }
+
+        public void NavigateToMaintenanceTab(MaintenanceTab tab)
+        {
             MaintenanceView maintenance = PageContent.Content as MaintenanceView ?? new MaintenanceView(
                 _maintenanceViewModel,
                 _viewModel,
                 RefreshNowAsync);
             PageContent.Content = maintenance;
             SelectNavigationButton(MaintenanceButton);
-            maintenance.NavigateToFirmware();
+            maintenance.NavigateToTab(tab);
         }
 
         public void NavigateToGlobalSearchResult(GlobalSearchResult result)
@@ -1342,6 +1347,14 @@ namespace RouterPilot.Views
                 case "analytics": Analytics_Click(this, new RoutedEventArgs()); break;
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
                 case "maintenance": Maintenance_Click(this, new RoutedEventArgs()); break;
+                case "maintenance-overview": NavigateToMaintenanceTab(MaintenanceTab.Overview); break;
+                case "maintenance-diagnostics": NavigateToMaintenanceTab(MaintenanceTab.Diagnostics); break;
+                case "maintenance-health": NavigateToMaintenanceTab(MaintenanceTab.Health); break;
+                case "maintenance-snapshots": NavigateToMaintenanceTab(MaintenanceTab.Snapshots); break;
+                case "maintenance-firmware": NavigateToMaintenanceTab(MaintenanceTab.Firmware); break;
+                case "maintenance-logs": NavigateToMaintenanceTab(MaintenanceTab.LogsEvents); break;
+                case "maintenance-reports": NavigateToMaintenanceTab(MaintenanceTab.Reports); break;
+                case "maintenance-support": NavigateToMaintenanceTab(MaintenanceTab.Support); break;
                 case "about": About_Click(this, new RoutedEventArgs()); break;
                 case "router-logs": NavigateToRouterLogs(); break;
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;

@@ -54,7 +54,7 @@ public partial class MaintenanceView : UserControl
         Set(ReportsSection, tab == MaintenanceTab.Reports);
         Set(SupportSection, tab == MaintenanceTab.Support);
         Set(BackupSection, tab == MaintenanceTab.Support);
-        Set(HistorySection, tab == MaintenanceTab.LogsEvents || tab == MaintenanceTab.Support);
+        Set(HistorySection, tab == MaintenanceTab.LogsEvents);
         Set(ServicesSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
     }
 
