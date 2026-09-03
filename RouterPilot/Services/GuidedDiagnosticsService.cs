@@ -40,6 +40,8 @@ public static class GuidedDiagnosticsService
             {
                 evidence.Add($"Temperature: {dashboard.TemperatureHealthText}.");
                 evidence.Add($"CPU: {dashboard.CpuUsageDisplay}; memory: {dashboard.MemoryUsage}.");
+                evidence.Add($"SQM: {FormatState(dashboard.AdvancedRouterSnapshot.SqmEnabled)} ({dashboard.AdvancedRouterSnapshot.SqmQueueDiscipline}).");
+                evidence.Add($"DPI: configured {FormatState(dashboard.AdvancedRouterSnapshot.DpiConfigured)}, runtime {FormatState(dashboard.AdvancedRouterSnapshot.DpiRunning)}.");
             }
             if (category is DiagnosticCategory.Storage or DiagnosticCategory.NotSure) evidence.Add($"External storage: {dashboard.StorageTelemetryDisplay}.");
             if (category is DiagnosticCategory.Ethernet or DiagnosticCategory.NotSure) evidence.Add("Ethernet port telemetry is available on the Router Ports page.");
@@ -47,6 +49,8 @@ public static class GuidedDiagnosticsService
         }
         return new(category, DateTimeOffset.UtcNow, unavailable.Count > 0 ? "Partial" : "Ready", findings, evidence, unavailable);
     }
+
+    private static string FormatState(bool? value) => value.HasValue ? (value.Value ? "Enabled" : "Disabled") : "Unknown";
 
     public static string BuildReport(GuidedDiagnosticSession? session)
     {

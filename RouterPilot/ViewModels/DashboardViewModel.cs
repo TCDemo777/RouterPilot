@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using RouterPilot.Models;
 using RouterPilot.Presentation;
+using RouterPilot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore;
 using LiveChartsCore.Kernel;
@@ -43,6 +44,9 @@ namespace RouterPilot.ViewModels
             "Waiting for the existing router refresh.",
             []);
 
+        public TrafficProcessingSnapshot TrafficProcessing => TrafficProcessingProjection.Create(AdvancedRouterSnapshot);
+        public string TrafficAccelerationSummary => TrafficProcessingProjection.AccelerationSummary(TrafficProcessing);
+
         public string NetworkHealthViewColour =>
             RouterPilotStatusPresentation.Colour(NetworkHealthView.OverallSeverity);
 
@@ -55,6 +59,12 @@ namespace RouterPilot.ViewModels
         });
 
         public string NetworkHealthInternetSummary => InternetStatusText;
+
+        partial void OnAdvancedRouterSnapshotChanged(RouterAdvancedSnapshot value)
+        {
+            OnPropertyChanged(nameof(TrafficProcessing));
+            OnPropertyChanged(nameof(TrafficAccelerationSummary));
+        }
         public string NetworkHealthWanSummary => InternetConnected ? "Connected" : "Unavailable";
         public string NetworkHealthPublicIpSummary => PublicIpStatus == PublicIpStatus.Available ? "Available" : "Unavailable";
         public string NetworkHealthAdGuardSummary => AdGuardStatusText;

@@ -161,6 +161,7 @@ namespace RouterPilot.ViewModels
         private static readonly (string Title, string Subtitle, string Terms, string Target)[] Pages = [
             ("Overview", "Page", "overview home dashboard", "overview"),
             ("Network Health", "Overview page", "network health health network status troubleshooting troubleshoot internet health wifi health dns health vpn health router health network issues", "health"),
+            ("Traffic Processing", "Network overview", "sqm cake traffic shaping bandwidth shaping dpi traffic processing flow offload flow offloading software offload hardware offload network acceleration hardware acceleration fast path traffic statistics visibility", "network"),
             ("Home Network Report", "Maintenance page", "network report home network report privacy-safe report", "maintenance"),
             ("Clients", "Page", "clients devices", "clients"),
             ("Known Clients", "Clients page", "known clients devices history", "clients"),
