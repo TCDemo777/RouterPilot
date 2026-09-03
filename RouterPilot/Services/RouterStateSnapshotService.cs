@@ -11,11 +11,16 @@ namespace RouterPilot.Services;
 public sealed class RouterStateSnapshotService
 {
     private const int MaxSnapshotsPerProfile = 10;
+    private const int MaxJournalEntriesPerProfile = 25;
     private readonly string _path;
+    private readonly string _journalPath;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    public RouterStateSnapshotService(ApplicationDataPathProvider paths) =>
+    public RouterStateSnapshotService(ApplicationDataPathProvider paths)
+    {
         _path = Path.Combine(paths.CurrentPath, "router-state-snapshots.json");
+        _journalPath = Path.Combine(paths.CurrentPath, "router-state-comparison-journal.json");
+    }
 
     public IReadOnlyList<RouterStateSnapshot> Load(string profileId)
     {
@@ -41,7 +46,7 @@ public sealed class RouterStateSnapshotService
             .SelectMany(group => group.OrderByDescending(item => item.CapturedAt).Take(MaxSnapshotsPerProfile))
             .ToList();
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, JsonSerializer.Serialize(all, _json));
+        AtomicWrite(_path, JsonSerializer.Serialize(all, _json));
     }
 
     public void Delete(string profileId, string snapshotId)
@@ -49,7 +54,49 @@ public sealed class RouterStateSnapshotService
         List<RouterStateSnapshot> all = LoadAll();
         all.RemoveAll(item => item.ProfileId == profileId && item.SnapshotId == snapshotId);
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, JsonSerializer.Serialize(all, _json));
+        AtomicWrite(_path, JsonSerializer.Serialize(all, _json));
+    }
+
+    public IReadOnlyList<RouterStateComparisonJournalEntry> LoadJournal(string profileId)
+    {
+        try
+        {
+            if (!File.Exists(_journalPath)) return [];
+            return (JsonSerializer.Deserialize<List<RouterStateComparisonJournalEntry>>(File.ReadAllText(_journalPath), _json) ?? [])
+                .Where(entry => entry.ProfileId == profileId)
+                .OrderByDescending(entry => entry.ComparedAt)
+                .Take(MaxJournalEntriesPerProfile)
+                .ToList();
+        }
+        catch (JsonException) { return []; }
+        catch (IOException) { return []; }
+    }
+
+    public void AppendJournal(RouterStateComparisonJournalEntry entry)
+    {
+        List<RouterStateComparisonJournalEntry> all;
+        try
+        {
+            all = !File.Exists(_journalPath)
+                ? []
+                : JsonSerializer.Deserialize<List<RouterStateComparisonJournalEntry>>(File.ReadAllText(_journalPath), _json) ?? [];
+        }
+        catch (JsonException) { all = []; }
+        catch (IOException) { all = []; }
+        all.RemoveAll(item => item.JournalId == entry.JournalId);
+        all.Add(entry);
+        all = all.GroupBy(item => item.ProfileId)
+            .SelectMany(group => group.OrderByDescending(item => item.ComparedAt).Take(MaxJournalEntriesPerProfile))
+            .ToList();
+        Directory.CreateDirectory(Path.GetDirectoryName(_journalPath)!);
+        AtomicWrite(_journalPath, JsonSerializer.Serialize(all, _json));
+    }
+
+    private static void AtomicWrite(string path, string content)
+    {
+        string temp = path + ".tmp";
+        File.WriteAllText(temp, content);
+        File.Move(temp, path, true);
     }
 
     private List<RouterStateSnapshot> LoadAll()
@@ -68,7 +115,7 @@ public sealed class RouterStateSnapshotService
     {
         RouterAdvancedSnapshot advanced = dashboard.AdvancedRouterSnapshot;
         return new RouterStateSnapshot(
-            1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, profileId,
+            1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, $"Snapshot — {DateTime.Now:g}", profileId,
             Safe(dashboard.RouterModel), Safe(dashboard.FirmwareVersion),
             new RouterStateSystem(Safe(dashboard.RouterKernelVersion), Safe(dashboard.RouterArchitecture), Safe(advanced.NetworkMode)),
             new RouterStateNetwork(advanced.GuestEnabled, advanced.IoTEnabled, advanced.GuestIgmpSnooping, advanced.IoTIgmpSnooping, advanced.NatMasquerade, advanced.NatMasqueradeIpv6),

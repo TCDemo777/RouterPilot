@@ -87,9 +87,11 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public IReadOnlyList<RouterStateSnapshot> StateSnapshots => _snapshotService.Load(_activeRouter.CurrentProfileId);
     public RouterStateSnapshot? LatestStateSnapshot => StateSnapshots.FirstOrDefault();
     public IReadOnlyList<RouterStateChange> StateChanges { get; private set; } = [];
+    public IReadOnlyList<RouterStateComparisonJournalEntry> ComparisonJournal => _snapshotService.LoadJournal(_activeRouter.CurrentProfileId);
     public bool IsSnapshotBusy => _snapshotBusy;
     public string SnapshotStatus { get; private set; } = "No configuration snapshots yet.";
     public string SnapshotChangeSummary => StateChanges.Count == 0 ? "No comparable changes detected." : $"{StateChanges.Count} observable changes detected.";
+    public string SnapshotComparisonReport => BuildComparisonReport();
     public string HomeNetworkReportText => NetworkHealthCentreProjection.BuildHomeNetworkReport(_dashboard);
 
     public void CaptureStateSnapshot()
@@ -132,6 +134,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             RouterStateSnapshot current = RouterStateSnapshotService.FromDashboard(_activeRouter.CurrentProfileId, _dashboard);
             StateChanges = RouterStateSnapshotComparer.Compare(baseline, current);
             SnapshotStatus = $"Compared with current router at {current.CapturedAt.ToLocalTime():g}.";
+            int notable = StateChanges.Count(change => change.Importance == "Notable");
+            _snapshotService.AppendJournal(new RouterStateComparisonJournalEntry(1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, baseline.ProfileId, baseline.SnapshotId, baseline.FriendlyName, StateChanges.Count, notable, StateChanges.Count - notable, 0));
         }
         catch (OperationCanceledException) { SnapshotStatus = "Snapshot comparison cancelled."; }
         catch (Exception exception)
@@ -146,7 +150,24 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(StateChanges));
             OnPropertyChanged(nameof(SnapshotStatus));
             OnPropertyChanged(nameof(SnapshotChangeSummary));
+            OnPropertyChanged(nameof(ComparisonJournal));
+            OnPropertyChanged(nameof(SnapshotComparisonReport));
         }
+    }
+
+    public string BuildComparisonReport()
+    {
+        RouterStateSnapshot? snapshot = LatestStateSnapshot;
+        StringBuilder report = new();
+        report.AppendLine("RouterPilot Configuration Comparison");
+        report.AppendLine();
+        report.AppendLine($"Snapshot: {snapshot?.FriendlyName ?? "Unavailable"}");
+        if (snapshot is not null) report.AppendLine($"Captured: {snapshot.CapturedAt.ToLocalTime():g}");
+        report.AppendLine($"Observable changes: {StateChanges.Count}");
+        report.AppendLine();
+        foreach (RouterStateChange change in StateChanges)
+            report.AppendLine($"{change.Category}: {change.Field}: {change.OldValue} -> {change.NewValue}");
+        return report.ToString();
     }
 
     public void DeleteLatestStateSnapshot()

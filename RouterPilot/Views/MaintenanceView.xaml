@@ -142,8 +142,15 @@
                         <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Capture Snapshot" Click="CaptureSnapshot_Click" IsEnabled="{Binding Dashboard.RouterConnected}" AutomationProperties.Name="Capture router state snapshot" />
                         <Button Margin="0,0,10,0" Style="{DynamicResource Button.Secondary}" Content="Compare with Current Router" Click="CompareSnapshot_Click" IsEnabled="{Binding Dashboard.RouterConnected}" AutomationProperties.Name="Compare snapshot with current router" />
                         <Button Style="{DynamicResource Button.Secondary}" Content="Delete Snapshot" Click="DeleteSnapshot_Click" AutomationProperties.Name="Delete local router state snapshot" />
+                        <Button Margin="10,0,0,0" Style="{DynamicResource Button.Secondary}" Content="Copy Comparison" Click="CopyComparison_Click" AutomationProperties.Name="Copy privacy-safe configuration comparison" />
                     </StackPanel>
                     <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.Muted}" Text="{Binding SnapshotStatus}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,8,0,3" Style="{StaticResource Text.CardCaption}" Text="SAVED SNAPSHOTS" />
+                    <ItemsControl ItemsSource="{Binding StateSnapshots}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <TextBlock Margin="0,2" Style="{StaticResource Text.Muted}"><Run Text="{Binding FriendlyName}"/><Run Text=" — Firmware "/><Run Text="{Binding FirmwareVersion}"/></TextBlock>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding SnapshotChangeSummary}" />
                     <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding StateChanges}">
                         <ItemsControl.ItemTemplate>
@@ -157,6 +164,12 @@
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Margin="0,14,0,4" Style="{StaticResource Text.CardCaption}" Text="COMPARISON HISTORY" />
+                    <ItemsControl ItemsSource="{Binding ComparisonJournal}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <TextBlock Margin="0,2" Style="{StaticResource Text.Muted}"><Run Text="{Binding ComparedAt, StringFormat={}{0:g}}"/><Run Text=" — "/><Run Text="{Binding SnapshotName}"/><Run Text=" — "/><Run Text="{Binding ChangeCount}"/><Run Text=" changes"/></TextBlock>
+                        </DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
             </Border>

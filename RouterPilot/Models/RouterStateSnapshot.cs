@@ -4,6 +4,7 @@ public sealed record RouterStateSnapshot(
     int SchemaVersion,
     string SnapshotId,
     DateTimeOffset CapturedAt,
+    string FriendlyName,
     string ProfileId,
     string RouterModel,
     string FirmwareVersion,
@@ -43,3 +44,15 @@ public sealed record RouterStateChange(
     string? NewValue,
     string Importance,
     string Destination);
+
+public sealed record RouterStateComparisonJournalEntry(
+    int SchemaVersion,
+    string JournalId,
+    DateTimeOffset ComparedAt,
+    string ProfileId,
+    string SnapshotId,
+    string SnapshotName,
+    int ChangeCount,
+    int NotableCount,
+    int InformationCount,
+    int UnavailableFieldCount);

@@ -94,6 +94,13 @@ public partial class MaintenanceView : UserControl
             viewModel.DeleteLatestStateSnapshot();
     }
 
+    private void CopyComparison_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        try { Clipboard.SetText(viewModel.BuildComparisonReport()); MessageBox.Show("Privacy-safe comparison copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch { MessageBox.Show("The comparison could not be copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
     private void ActionMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu } button)
