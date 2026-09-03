@@ -275,7 +275,7 @@
                     </Border>
                 </Grid>
 
-                <Border Margin="0,0,0,16" Style="{DynamicResource Card}" AutomationProperties.Name="Advanced network configuration">
+                <Border x:Name="AdvancedNetworkConfigurationContent" Margin="0,0,0,16" Style="{DynamicResource Card}" AutomationProperties.Name="Advanced network configuration">
                     <StackPanel>
                         <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Configuration"/>
                         <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Secondary}" Text="Authoritative read-only configuration observed from the router." TextWrapping="Wrap"/>

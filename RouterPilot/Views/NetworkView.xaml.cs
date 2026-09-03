@@ -461,7 +461,7 @@ namespace RouterPilot.Views
         {
             // Selection can change while XAML is constructing the tab headers.
             // Apply visibility only after all named content containers exist.
-            if (OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
+            if (AdvancedNetworkConfigurationContent is null || OverviewSummaryContent is null || OverviewMaintenanceContent is null ||
                 OverviewDetailsContent is null || MapContent is null || WifiContent is null || DhcpContent is null || PortForwardContent is null || HealthContent is null || InternetQualityContent is null)
             {
                 return;
@@ -481,6 +481,7 @@ namespace RouterPilot.Views
             OverviewSummaryContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
             OverviewMaintenanceContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
             OverviewDetailsContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
+            AdvancedNetworkConfigurationContent.Visibility = showMap || showWifi || showDhcp || showPortForward || showHealth || showQuality ? Visibility.Collapsed : Visibility.Visible;
             MapContent.Visibility = showMap ? Visibility.Visible : Visibility.Collapsed;
             WifiContent.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
             DhcpContent.Visibility = showDhcp ? Visibility.Visible : Visibility.Collapsed;
