@@ -10,13 +10,22 @@ public sealed record RouterAdvancedSnapshot(
     bool? NatMasqueradeIpv6,
     bool? SqmEnabled,
     string SqmQueueDiscipline,
+    string SqmDownload,
+    string SqmUpload,
+    bool? DpiConfigured,
     bool? DpiRunning,
-    bool? ZeroTierConfigured,
+    bool? ZeroTierInstalled,
     bool? ZeroTierEnabled,
     bool? WebDavEnabled,
     bool? WebDavWanAccess,
+    bool? WebDavRuntime,
+    bool? DlnaConfigured,
     bool? DlnaRunning,
     DateTimeOffset CapturedAt)
 {
-    public static RouterAdvancedSnapshot Unknown => new("Unknown", null, null, null, null, null, null, null, "Unknown", null, null, null, null, null, null, DateTimeOffset.UtcNow);
+    public static RouterAdvancedSnapshot Unknown => new(
+        "Unknown", null, null, null, null, null, null,
+        null, "Unknown", "Unknown", "Unknown",
+        null, null, null, null, null, null, null, null, null,
+        DateTimeOffset.UtcNow);
 }

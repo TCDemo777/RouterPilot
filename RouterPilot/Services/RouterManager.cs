@@ -161,7 +161,7 @@ namespace RouterPilot.Services
 
         public async Task<RouterAdvancedSnapshot> GetRouterAdvancedTelemetryAsync(CancellationToken cancellationToken = default)
         {
-            const string command = "printf '__GLCONFIG__\\n'; uci -q show glconfig.general 2>/dev/null; printf '__NETWORK__\\n'; uci -q show network.iot network.guest 2>/dev/null; printf '__FIREWALL__\\n'; uci -q show firewall.@zone[1] 2>/dev/null; printf '__SQM__\\n'; uci -q show sqm 2>/dev/null; printf '__ZEROTIER__\\n'; uci -q show zerotier 2>/dev/null; printf '__NAS__\\n'; uci -q show nas.conf 2>/dev/null; printf '__PROCESSES__\\n'; ps w 2>/dev/null | grep -E '[g]l-dpi|[m]inidlnad'";
+            const string command = "printf '__GLCONFIG__\\n'; uci -q show glconfig.general 2>/dev/null; printf '__NETWORK__\\n'; uci -q show network.iot network.guest 2>/dev/null; printf '__FIREWALL__\\n'; uci -q show firewall.@zone[1] 2>/dev/null; printf '__SQM__\\n'; uci -q show sqm 2>/dev/null; printf '__ZEROTIER__\\n'; uci -q show zerotier 2>/dev/null; printf '__NAS__\\n'; uci -q show nas.conf 2>/dev/null; printf '__DPI__\\n'; uci -q show gl_dpi 2>/dev/null; printf '__PROCESSES__\\n'; ps w 2>/dev/null | grep -E '[g]l-dpi|[m]inidlnad|[z]erotier'";
             return RouterAdvancedTelemetryService.Parse(await _ssh.RunCommandAsync(command, cancellationToken).ConfigureAwait(false));
         }
 

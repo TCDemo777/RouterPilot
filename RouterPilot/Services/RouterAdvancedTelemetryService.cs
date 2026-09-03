@@ -9,7 +9,7 @@ internal sealed class RouterAdvancedTelemetryService
 
     public async Task<RouterAdvancedSnapshot> LoadAsync(CancellationToken cancellationToken = default)
     {
-        const string command = "printf '__GLCONFIG__\\n'; uci -q show glconfig.general 2>/dev/null; printf '__NETWORK__\\n'; uci -q show network.iot network.guest 2>/dev/null; printf '__FIREWALL__\\n'; uci -q show firewall.@zone[1] 2>/dev/null; printf '__SQM__\\n'; uci -q show sqm 2>/dev/null; printf '__ZEROTIER__\\n'; uci -q show zerotier 2>/dev/null; printf '__NAS__\\n'; uci -q show nas.conf 2>/dev/null; printf '__PROCESSES__\\n'; ps w 2>/dev/null | grep -E '[g]l-dpi|[m]inidlnad'";
+        const string command = "printf '__GLCONFIG__\\n'; uci -q show glconfig.general 2>/dev/null; printf '__NETWORK__\\n'; uci -q show network.iot network.guest 2>/dev/null; printf '__FIREWALL__\\n'; uci -q show firewall.@zone[1] 2>/dev/null; printf '__SQM__\\n'; uci -q show sqm 2>/dev/null; printf '__ZEROTIER__\\n'; uci -q show zerotier 2>/dev/null; printf '__NAS__\\n'; uci -q show nas.conf 2>/dev/null; printf '__DPI__\\n'; uci -q show gl_dpi 2>/dev/null; printf '__PROCESSES__\\n'; ps w 2>/dev/null | grep -E '[g]l-dpi|[m]inidlnad|[z]erotier'";
         string output = await _ssh.RunCommandAsync(command, cancellationToken).ConfigureAwait(false);
         return Parse(output);
     }
@@ -25,9 +25,9 @@ internal sealed class RouterAdvancedTelemetryService
             Bool("network.guest.disabled") is bool disabledGuest ? !disabledGuest : null,
             Bool("network.guest.igmp_snooping"), Bool("network.iot.igmp_snooping"),
             Bool("firewall.@zone[1].masq"), Bool("firewall.@zone[1].masq6"),
-            Bool("sqm.eth1.enabled"), Value("sqm.eth1.qdisc") is { Length: > 0 } qdisc ? qdisc : "Unknown",
-            hasSection("/usr/bin/eco /usr/bin/gl-dpi"), Bool("zerotier.gl.enabled") is bool z ? true : hasSection("__ZEROTIER__") ? null : null,
-            Bool("zerotier.gl.enabled"), Bool("nas.conf.webdav_enable"), Bool("nas.conf.webdav_wan_access"),
-            hasSection("minidlnad"), DateTimeOffset.UtcNow);
+            Bool("sqm.eth1.enabled"), Value("sqm.eth1.qdisc") is { Length: > 0 } qdisc ? qdisc : "Unknown", Value("sqm.eth1.download") is { Length: > 0 } down ? down : "Unknown", Value("sqm.eth1.upload") is { Length: > 0 } up ? up : "Unknown",
+            Bool("gl_dpi.enabled"), hasSection("/usr/bin/eco /usr/bin/gl-dpi"), hasSection("zerotier.gl=zerotier"),
+            Bool("zerotier.gl.enabled"), Bool("nas.conf.webdav_enable"), Bool("nas.conf.webdav_wan_access"), null,
+            null, hasSection("minidlnad"), DateTimeOffset.UtcNow);
     }
 }

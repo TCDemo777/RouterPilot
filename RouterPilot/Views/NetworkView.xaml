@@ -286,6 +286,9 @@
                             <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.SqmEnabled, TargetNullValue=Unknown}"/></StackPanel>
                         </UniformGrid>
                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmQueueDiscipline, StringFormat=Queue discipline: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmDownload, StringFormat=SQM download: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmUpload, StringFormat=SQM upload: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiConfigured, TargetNullValue=Unknown, StringFormat=DPI configured: {0}}"/>
                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiRunning, StringFormat=DPI runtime: {0}}"/>
                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.WebDavEnabled, StringFormat=WebDAV configured: {0}}"/>
                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DlnaRunning, StringFormat=DLNA runtime: {0}}"/>
