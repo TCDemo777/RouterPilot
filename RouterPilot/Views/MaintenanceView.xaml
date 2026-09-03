@@ -6,7 +6,7 @@
              Foreground="{DynamicResource Brush.TextPrimary}">
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Style="{StaticResource Page.Content}">
+        <StackPanel x:Name="MaintenanceContent" Style="{StaticResource Page.Content}">
             <TextBlock Style="{StaticResource Text.PageTitle}" Text="Maintenance" />
             <TextBlock Margin="0,8,0,24"
                        Style="{StaticResource Text.Secondary}"
@@ -139,13 +139,13 @@
 
             <Border x:Name="RouterLifecycleSummarySection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Router identity &amp; lifecycle" />
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="System Information" />
                     <UniformGrid Columns="3">
                         <StackPanel Margin="0,0,14,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="MODEL"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterIdentityText}"/></StackPanel>
-                        <StackPanel Margin="0,0,14,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="FIRMWARE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterFirmwareText}"/></StackPanel>
-                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="UPTIME"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding RouterUptimeText}"/></StackPanel>
+                        <StackPanel Margin="0,0,14,0"><TextBlock Style="{StaticResource Text.CardCaption}" Text="OPENWRT RELEASE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding Dashboard.FirmwareVersion}"/></StackPanel>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="KERNEL"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding Dashboard.RouterKernelVersion}"/></StackPanel>
                     </UniformGrid>
-                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="RouterPilot observes uptime from the router; a missing or failed sample is not treated as a restart." TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="GL.iNet firmware is the router firmware updated through the GL.iNet interface. OpenWrt and kernel values describe the underlying system layer." TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
@@ -246,7 +246,7 @@
                         <Button Style="{DynamicResource Button.Secondary}" Content="Run Post-Upgrade Check" Click="RunPostUpgradeCheck_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
                     </StackPanel>
                     <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding LifecycleStatus}" TextWrapping="Wrap" />
-                    <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding RouterFirmwareText, StringFormat=Current firmware: {0}}" />
+                    <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding RouterFirmwareText, StringFormat=Current GL.iNet firmware: {0}}" />
                 </StackPanel>
             </Border>
 

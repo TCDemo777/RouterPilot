@@ -301,9 +301,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string RouterIdentityText => string.IsNullOrWhiteSpace(Dashboard.RouterModel) || Dashboard.RouterModel == "-"
         ? RouterPilotStatusPresentation.NotAvailable
         : Dashboard.RouterModel;
-    public string RouterFirmwareText => string.IsNullOrWhiteSpace(Dashboard.FirmwareVersion) || Dashboard.FirmwareVersion == "-"
+    public string RouterFirmwareText => string.IsNullOrWhiteSpace(Dashboard.RouterFirmwareVersion) || Dashboard.RouterFirmwareVersion == "-"
         ? RouterPilotStatusPresentation.NotAvailable
-        : Dashboard.FirmwareVersion;
+        : Dashboard.RouterFirmwareVersion;
     public string RouterUptimeText => string.IsNullOrWhiteSpace(Dashboard.Uptime) || Dashboard.Uptime == "-"
         ? RouterPilotStatusPresentation.NotAvailable
         : Dashboard.Uptime;

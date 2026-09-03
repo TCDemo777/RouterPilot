@@ -41,6 +41,8 @@ public partial class MaintenanceView : UserControl
 
     private void ApplyMaintenanceTab(MaintenanceTab tab)
     {
+        if (tab == MaintenanceTab.Firmware)
+            PlaceFirmwareUpdateFirst();
         Set(OverviewStatusSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(QuickActionsSection, tab == MaintenanceTab.Overview);
@@ -59,6 +61,16 @@ public partial class MaintenanceView : UserControl
     }
 
     private static void Set(UIElement element, bool visible) => element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    private void PlaceFirmwareUpdateFirst()
+    {
+        if (MaintenanceContent.Children.IndexOf(FirmwareSection) < 0)
+            return;
+
+        MaintenanceContent.Children.Remove(FirmwareSection);
+        int tabIndex = MaintenanceContent.Children.IndexOf(MaintenanceTabs);
+        MaintenanceContent.Children.Insert(Math.Max(0, tabIndex + 1), FirmwareSection);
+    }
 
     public void NavigateToTab(MaintenanceTab tab)
     {
