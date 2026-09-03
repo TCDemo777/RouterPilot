@@ -72,6 +72,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IToastNotificationService, WindowsToastNotificationService>();
             serviceCollection.AddSingleton<IRouterManagerProvider,
                 RouterManagerProvider>();
+            serviceCollection.AddSingleton<RouterCapabilityDiscoveryService>();
             serviceCollection.AddSingleton(
                 sp => new NotificationService(
                     Dispatcher,

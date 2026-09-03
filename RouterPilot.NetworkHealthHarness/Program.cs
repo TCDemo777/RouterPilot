@@ -14,6 +14,10 @@ using Renci.SshNet.Common;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+string capabilityFixture = "__SECTION__ SELECTED UCI SCHEMA\nnetwork.lan.ipaddr='192.168.1.1'\nwireless.@wifi-iface[0].ssid='Home WiFi'\nwireless.@wifi-iface[0].key='secret-key'\nservice.endpoint='https://vpn.example.test:443'\nmac='aa:bb:cc:dd:ee:ff'\naddress='2001:db8::1'";
+string sanitizedCapability = RouterCapabilityDiscoveryReportBuilder.Build(capabilityFixture);
+Require(!sanitizedCapability.Contains("192.168.1.1", StringComparison.Ordinal) && !sanitizedCapability.Contains("Home WiFi", StringComparison.Ordinal) && !sanitizedCapability.Contains("secret-key", StringComparison.Ordinal) && !sanitizedCapability.Contains("vpn.example.test", StringComparison.Ordinal) && !sanitizedCapability.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) && !sanitizedCapability.Contains("2001:db8::1", StringComparison.Ordinal), "capability report sanitizer removes network identity and secrets");
+Require(sanitizedCapability.Contains("network.lan.ipaddr", StringComparison.Ordinal) && sanitizedCapability.Contains("wireless.@wifi-iface[0].ssid", StringComparison.Ordinal), "capability report sanitizer preserves schema keys");
 Require(ClientIdentity.EndpointEquals("192.168.1.20", "192.168.1.20"), "IPv4 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("::ffff:192.168.1.20", "192.168.1.20"), "IPv4-mapped IPv6 endpoint correlation");
 Require(ClientIdentity.EndpointEquals("[2001:db8::20]:53", "2001:DB8::20"), "bracketed IPv6 endpoint correlation");

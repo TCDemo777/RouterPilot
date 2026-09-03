@@ -238,6 +238,17 @@
                         <ItemsControl.ItemTemplate><DataTemplate><Border Padding="10,8" Margin="0,0,0,6" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock FontWeight="SemiBold" Text="{Binding Title}"/><TextBlock Grid.Column="1" Text="{Binding State}"/><TextBlock Grid.Column="2" Style="{StaticResource Text.Secondary}" Text="{Binding Summary}" TextWrapping="Wrap"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Button Width="170" Height="36" Style="{DynamicResource Button.Secondary}" Content="Copy Diagnostic Report" Click="CopyDiagnosticReport_Click"/></StackPanel>
+                    <Border Margin="0,14,0,0" Padding="12" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Developer capability discovery"/>
+                            <TextBlock Margin="0,4,0,8" Style="{StaticResource Text.Secondary}" Text="Read-only discovery of available GL.iNet/OpenWrt sources. The generated report is automatically sanitized." TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="CollectCapabilityReportButton" Width="220" Height="36" Content="Collect Sanitized Capability Report" Click="CollectCapabilityReport_Click" AutomationProperties.Name="Collect sanitized router capability report"/>
+                                <Button x:Name="CopyCapabilityReportButton" Width="150" Height="36" Margin="8,0,0,0" Style="{DynamicResource Button.Secondary}" IsEnabled="False" Content="Copy Capability Report" Click="CopyCapabilityReport_Click" AutomationProperties.Name="Copy sanitized capability report"/>
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" Text="{Binding CapabilityReportStatus}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

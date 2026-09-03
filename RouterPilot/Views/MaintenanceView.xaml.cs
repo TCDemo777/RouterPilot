@@ -266,6 +266,22 @@ public partial class MaintenanceView : UserControl
             await viewModel.RunDiagnosticsAsync(_refreshAll);
     }
 
+    private async void CollectCapabilityReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel) return;
+        CollectCapabilityReportButton.IsEnabled = false;
+        await viewModel.CollectCapabilityReportAsync();
+        CollectCapabilityReportButton.IsEnabled = !viewModel.IsCapabilityReportRunning;
+        CopyCapabilityReportButton.IsEnabled = !string.IsNullOrWhiteSpace(viewModel.CapabilityReportText);
+    }
+
+    private void CopyCapabilityReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel || string.IsNullOrWhiteSpace(viewModel.CapabilityReportText)) return;
+        try { Clipboard.SetText(viewModel.CapabilityReportText); MessageBox.Show("Sanitized capability report copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch { MessageBox.Show("Capability report could not be copied.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
     private void CancelDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MaintenanceViewModel viewModel)

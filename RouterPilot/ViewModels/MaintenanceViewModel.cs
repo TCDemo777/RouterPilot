@@ -18,6 +18,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly IBackupRestoreService _backupRestoreService;
     private readonly MaintenanceHistoryService _historyService;
     private readonly FirmwareUpdateService _firmwareUpdateService;
+    private readonly RouterCapabilityDiscoveryService _capabilityDiscovery;
     private DashboardViewModel _dashboard;
     private CancellationTokenSource? _diagnosticsCancellation;
 
@@ -34,12 +35,14 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         MaintenanceOperationService operations,
         MaintenanceHistoryService historyService,
         IBackupRestoreService backupRestoreService,
-        FirmwareUpdateService firmwareUpdateService)
+        FirmwareUpdateService firmwareUpdateService,
+        RouterCapabilityDiscoveryService capabilityDiscovery)
     {
         _operations = operations;
         _backupRestoreService = backupRestoreService;
         _historyService = historyService;
         _firmwareUpdateService = firmwareUpdateService;
+        _capabilityDiscovery = capabilityDiscovery;
         _firmwareUpdateService.PropertyChanged += FirmwareUpdateService_PropertyChanged;
         History = historyService.Entries;
         _historyService.Changed += HistoryService_Changed;
@@ -66,6 +69,29 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public ObservableCollection<DiagnosticCheck> DiagnosticChecks { get; } = new();
     public string DiagnosticsStatus { get; private set; } = "No diagnostic run in this session.";
     public bool IsDiagnosticsRunning { get; private set; }
+    public bool IsCapabilityReportRunning { get; private set; }
+    public string CapabilityReportStatus { get; private set; } = "No capability report collected in this session.";
+    public string CapabilityReportText { get; private set; } = string.Empty;
+
+    public async Task CollectCapabilityReportAsync()
+    {
+        if (IsCapabilityReportRunning) return;
+        IsCapabilityReportRunning = true;
+        CapabilityReportStatus = "Collecting read-only capability evidence…";
+        OnPropertyChanged(nameof(IsCapabilityReportRunning)); OnPropertyChanged(nameof(CapabilityReportStatus));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
+        try
+        {
+            string raw = await _capabilityDiscovery.CollectAsync(timeout.Token);
+            CapabilityReportText = RouterCapabilityDiscoveryReportBuilder.Build(raw);
+            CapabilityReportStatus = "Capability report complete. The report is sanitized and read-only.";
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        { CapabilityReportStatus = "Capability report cancelled or timed out."; }
+        catch (Exception exception)
+        { CapabilityReportStatus = "Capability report unavailable."; System.Diagnostics.Debug.WriteLine($"Capability discovery failed ({exception.GetType().Name})."); }
+        finally { IsCapabilityReportRunning = false; OnPropertyChanged(nameof(IsCapabilityReportRunning)); OnPropertyChanged(nameof(CapabilityReportStatus)); OnPropertyChanged(nameof(CapabilityReportText)); }
+    }
 
     public string BackupFolder => _backupRestoreService.BackupFolder;
 
