@@ -149,6 +149,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<ClientsViewModel>();
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
+            serviceCollection.AddTransient<RouterLogsViewModel>();
             // This is existing Analytics state, retained so read-only surfaces can project it.
             serviceCollection.AddSingleton<DataStatisticsViewModel>();
             // The Overview and Network Health tab project the same read-only state.

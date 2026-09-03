@@ -1288,6 +1288,7 @@ namespace RouterPilot.Views
         }
 
         public void NavigateToRouterOverview() => Router_Click(this, new RoutedEventArgs());
+        public void NavigateToRouterLogs() { PageContent.Content = new RouterLogsView(); SelectNavigationButton(MaintenanceButton); }
 
         private void NavigateToMaintenanceFirmware()
         {
@@ -1330,6 +1331,7 @@ namespace RouterPilot.Views
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
                 case "maintenance": Maintenance_Click(this, new RoutedEventArgs()); break;
                 case "about": About_Click(this, new RoutedEventArgs()); break;
+                case "router-logs": NavigateToRouterLogs(); break;
                 case "settings": NavigationSettings_Click(this, new RoutedEventArgs()); break;
                 case "health": NavigateToHealthTarget("network"); break;
                 case "vpn": Vpn_Click(this, new RoutedEventArgs()); break;
