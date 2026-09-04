@@ -14,6 +14,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly NotificationService _notificationService;
     private readonly TimelineService _timelineService;
+    private readonly GlInetFirmwareCatalogService _catalogService;
     private readonly SemaphoreSlim _checkGate = new(1, 1);
     private FirmwareUpdateCheck _current;
     private bool _isChecking;
@@ -22,18 +23,30 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     public FirmwareUpdateService(SettingsService settingsService,
         IRouterManagerProvider routerManagerProvider,
         NotificationService notificationService,
-        TimelineService timelineService)
+        TimelineService timelineService,
+        GlInetFirmwareCatalogService catalogService)
     {
         _settingsService = settingsService;
         _routerManagerProvider = routerManagerProvider;
         _notificationService = notificationService;
         _timelineService = timelineService;
+        _catalogService = catalogService;
         _current = _settingsService.Load().FirmwareUpdateCheck ?? new FirmwareUpdateCheck();
     }
 
     public FirmwareUpdateCheck Current => _current;
     public bool IsChecking => _isChecking;
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void ResetForRouterSession()
+    {
+        _current = new FirmwareUpdateCheck();
+        _hasAuthoritativeCurrentVersion = false;
+        AppSettings settings = _settingsService.Load();
+        settings.FirmwareUpdateCheck = _current;
+        _settingsService.Save(settings);
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Current)));
+    }
 
     public Task CheckAutomaticallyAsync(RouterManager router,
         CancellationToken cancellationToken = default)
@@ -46,16 +59,17 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
 
         // CheckFirmwareUpdateAsync is the authoritative GL.iNet firmware source.
         // Do not compare its version against LuCI/OpenWrt release information.
-        return CheckAsync(router, null, cancellationToken);
+        return CheckAsync(router, null, null, cancellationToken);
     }
 
     public async Task CheckManuallyAsync(string? knownCurrentVersion = null,
+        string? knownModel = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
-            await CheckAsync(router, knownCurrentVersion, cancellationToken);
+            await CheckAsync(router, knownCurrentVersion, knownModel, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -75,7 +89,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         }
     }
 
-    private async Task CheckAsync(RouterManager router, string? knownCurrentVersion,
+    private async Task CheckAsync(RouterManager router, string? knownCurrentVersion, string? knownModel,
         CancellationToken cancellationToken)
     {
         if (!await _checkGate.WaitAsync(0, cancellationToken))
@@ -88,6 +102,38 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
             FirmwareUpdateCheck result = await router.CheckFirmwareUpdateAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(result.CurrentVersion))
                 result.CurrentVersion = knownCurrentVersion ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(knownModel))
+            {
+                try
+                {
+                    GlInetFirmwareRelease? release = await _catalogService.GetLatestAsync(knownModel, cancellationToken: cancellationToken);
+                    if (release is not null)
+                    {
+                        result.LatestVersion = release.Version;
+                        result.ReleaseDate = release.ReleaseDate;
+                        result.DownloadUrl = release.DownloadUrl;
+                        result.Status = RouterManager.TryCompareFirmwareVersions(result.CurrentVersion, result.LatestVersion, out int comparison)
+                            ? comparison < 0 ? FirmwareUpdateCheckStatus.UpdateAvailable : FirmwareUpdateCheckStatus.UpToDate
+                            : FirmwareUpdateCheckStatus.Error;
+                        result.ErrorCategory = result.Status == FirmwareUpdateCheckStatus.Error ? "version-comparison-unavailable" : null;
+                        System.Diagnostics.Debug.WriteLine($"GL.iNet public firmware lookup completed for model family {GlInetFirmwareCatalogService.NormalizeModel(knownModel)}: {result.Status}.");
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Debug.WriteLine($"GL.iNet public firmware lookup failed ({ClassifyFailure(exception)}).");
+                    if (result.Status == FirmwareUpdateCheckStatus.Error || string.IsNullOrWhiteSpace(result.LatestVersion))
+                    {
+                        result.Status = FirmwareUpdateCheckStatus.Error;
+                        result.ErrorCategory = "catalog-" + ClassifyFailure(exception);
+                    }
+                }
+            }
 
             FirmwareUpdateCheck previous = _current;
             await PersistAsync(result);

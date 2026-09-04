@@ -509,7 +509,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             return;
 
         System.Diagnostics.Debug.WriteLine("Firmware check command invoked.");
-        await _firmwareUpdateService.CheckManuallyAsync(_dashboard.RouterFirmwareVersion);
+        await _firmwareUpdateService.CheckManuallyAsync(_dashboard.RouterFirmwareVersion, _dashboard.RouterModel);
         OnFirmwarePropertiesChanged();
     }
 

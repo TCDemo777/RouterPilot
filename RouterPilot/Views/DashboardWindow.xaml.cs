@@ -649,6 +649,7 @@ namespace RouterPilot.Views
             // its usage gate before starting the normal one-shot refresh path.
             _ = Dispatcher.InvokeAsync(async () =>
             {
+                _firmwareUpdateService.ResetForRouterSession();
                 _viewModel.ClearMapSelection();
                 _healthSourcesReady = false;
                 _initialFirmwareCheckScheduled = false;

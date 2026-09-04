@@ -470,6 +470,16 @@ RouterAdvancedSnapshot advanced = RouterAdvancedTelemetryService.Parse(advancedF
 Require(advanced.IoTEnabled == true && advanced.GuestEnabled == false, "Advanced network segment states were not parsed.");
 Require(advanced.NatMasquerade == true && advanced.NatMasqueradeIpv6 == false, "Firewall masquerade states were not parsed.");
 Require(advanced.SqmEnabled == true && advanced.SqmQueueDiscipline == "cake", "SQM fixture was not parsed.");
+using JsonDocument firmwareCatalog = JsonDocument.Parse("""
+{ "code": 0, "info": [
+  { "model": "mt6000", "version": "4.9.0", "stage": "RELEASE", "release_time": "2026-06-11T12:27:25Z", "download": [{ "link": "https://fw.gl-inet.com/firmware/mt6000/release.bin" }] },
+  { "model": "mt6000", "version": "4.9.1", "stage": "RELEASE", "release_time": "2026-08-05T20:33:07Z", "download": [{ "link": "https://fw.gl-inet.com/firmware/mt6000/release-491.bin" }] },
+  { "model": "mt6000", "version": "4.9.2", "stage": "BETA" }
+] }
+""");
+GlInetFirmwareRelease? latestRelease = GlInetFirmwareCatalogService.ParseLatest(firmwareCatalog.RootElement);
+Require(latestRelease?.Version == "4.9.1", "Public GL.iNet release selection was not semantic or stable-only.");
+Require(GlInetFirmwareCatalogService.NormalizeModel("GL-MT6000") == "MT6000", "GL.iNet model normalization failed.");
 Console.WriteLine("Network Health, notification, blocklist, SSH and router-profile fixtures passed.");
 
 static void RequireThrows(Action action, string message)
