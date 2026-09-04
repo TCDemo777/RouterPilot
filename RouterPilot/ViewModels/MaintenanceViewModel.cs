@@ -100,7 +100,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public DiagnosticCategory SelectedDiagnosticCategory { get; private set; } = DiagnosticCategory.NotSure;
     public GuidedDiagnosticSession? DiagnosticSession { get; private set; }
     public bool IsDiagnosticBusy => _diagnosticBusy;
-    public string DiagnosticStatus => DiagnosticSession is null ? "Diagnostic evidence is not loaded yet." : $"{DiagnosticSession.State} — {DiagnosticSession.Findings.Count} finding(s).";
+    public string DiagnosticStatus => DiagnosticSession is null
+        ? "Diagnostic evidence is not loaded yet. Choose an area to review the evidence RouterPilot already has."
+        : $"{DiagnosticSession.Category} checked from currently loaded evidence • {DiagnosticSession.State} • {DiagnosticSession.Findings.Count} finding(s).";
     public string DiagnosticReport => GuidedDiagnosticsService.BuildReport(DiagnosticSession);
     public string HomeNetworkReportText => NetworkHealthCentreProjection.BuildHomeNetworkReport(_dashboard);
 
@@ -284,18 +286,21 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         ? RouterPilotStatusPresentation.NotAvailable
         : FirmwareUpdate.CurrentVersion;
     public string FirmwareLatestVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.LatestVersion)
-        ? RouterPilotStatusPresentation.NotAvailable
+        ? FirmwareUpdate.Status == FirmwareUpdateCheckStatus.UpToDate
+            ? "No newer version available"
+            : RouterPilotStatusPresentation.NotAvailable
         : FirmwareUpdate.LatestVersion;
     public bool IsFirmwareChecking => _firmwareUpdateService.IsChecking;
     public bool CanCheckFirmware => !IsFirmwareChecking && _dashboard.RouterConnected;
     public string FirmwareStatusText => IsFirmwareChecking
-        ? "Pending"
+        ? "Checking…"
         : FirmwareUpdate.Status switch
         {
-            FirmwareUpdateCheckStatus.UpToDate => "Up to date",
+            FirmwareUpdateCheckStatus.UpToDate => "No update available",
             FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
-            FirmwareUpdateCheckStatus.Error => "Unable to determine",
-            _ => RouterPilotStatusPresentation.NotAvailable
+            FirmwareUpdateCheckStatus.Error => "Unable to check",
+            FirmwareUpdateCheckStatus.Pending or FirmwareUpdateCheckStatus.NotAvailable => "Not checked",
+            _ => "Unavailable"
         };
 
     public string RouterIdentityText => string.IsNullOrWhiteSpace(Dashboard.RouterModel) || Dashboard.RouterModel == "-"

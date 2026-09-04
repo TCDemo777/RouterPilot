@@ -152,7 +152,7 @@
             <Border x:Name="GuidedDiagnosticsSection" Margin="0,0,0,16" Style="{StaticResource SectionContainerStyle}" AutomationProperties.Name="Guided Diagnostics">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Guided Diagnostics" />
-                    <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Choose what you are troubleshooting. RouterPilot correlates currently loaded evidence and does not change router settings." TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,10" Style="{StaticResource Text.Secondary}" Text="Choose the area you are troubleshooting. RouterPilot reviews the evidence it already has, explains what was observed and points you to the relevant page; it does not change router settings." TextWrapping="Wrap" />
                     <WrapPanel>
                         <Button Margin="0,0,6,6" Content="Internet" Click="DiagnosticCategory_Click" Tag="Internet" Style="{DynamicResource Button.Secondary}" />
                         <Button Margin="0,0,6,6" Content="Wi-Fi" Click="DiagnosticCategory_Click" Tag="WiFi" Style="{DynamicResource Button.Secondary}" />

@@ -1314,9 +1314,9 @@
             <TabItem x:Name="ExposureTab" Header="Firewall &amp; Inbound Access">
                 <ScrollViewer x:Name="ExposureScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,0,24,24">
-                        <TextBlock Margin="0,0,0,6" Style="{DynamicResource Text.SectionTitle}" Text="Firewall &amp; Exposure"/>
+                        <TextBlock Margin="0,0,0,6" Style="{DynamicResource Text.SectionTitle}" Text="Inbound forwarding summary"/>
                         <TextBlock Margin="0,0,0,16" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
-                                   Text="Read-only router configuration context. Configured mappings are not proof of reachability from the public Internet."/>
+                                   Text="Read-only forwarding facts from the router. A configured mapping is not proof that a service is reachable from the public Internet."/>
                         <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
                             <TextBlock Style="{DynamicResource Text.Muted}" Text="Firewall telemetry: "/>
                             <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding ExposureTelemetryDisplay, FallbackValue=Unknown, TargetNullValue=Unknown}"/>
@@ -1348,7 +1348,7 @@
 
                         <Border Padding="14" Style="{DynamicResource Card}">
                             <StackPanel>
-                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router observations"/>
+                                <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Other inbound-access observations"/>
                                 <Grid Margin="0,12,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
