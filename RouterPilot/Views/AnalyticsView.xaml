@@ -1065,6 +1065,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="36" />
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" MinWidth="58" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
@@ -1095,6 +1096,8 @@
 
                                                  <TextBlock
                                                      Grid.Column="2"
+                                                     MinWidth="58"
+                                                     TextAlignment="Right"
                                                      VerticalAlignment="Center"
                                                      FontWeight="SemiBold"
                                                      Foreground="{DynamicResource Brush.Danger}"
