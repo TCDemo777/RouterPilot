@@ -2,6 +2,7 @@ namespace RouterPilot.Models;
 
 public enum FirmwareUpdateCheckStatus
 {
+    NotChecked,
     Pending,
     UpToDate,
     UpdateAvailable,
@@ -18,7 +19,7 @@ public sealed class FirmwareUpdateCheck
     public string? ReleaseNotesUrl { get; set; }
     public string? ReleaseNotes { get; set; }
     public string? DownloadUrl { get; set; }
-    public FirmwareUpdateCheckStatus Status { get; set; } = FirmwareUpdateCheckStatus.NotAvailable;
+    public FirmwareUpdateCheckStatus Status { get; set; } = FirmwareUpdateCheckStatus.NotChecked;
     public DateTimeOffset? LastChecked { get; set; }
     public string? ErrorCategory { get; set; }
 }

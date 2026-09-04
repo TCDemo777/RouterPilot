@@ -268,7 +268,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             FirmwareUpdateCheckStatus.UpToDate => "No update available",
             FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
             FirmwareUpdateCheckStatus.Error => "Unable to check",
-            FirmwareUpdateCheckStatus.Pending or FirmwareUpdateCheckStatus.NotAvailable => "Not checked",
+            FirmwareUpdateCheckStatus.NotChecked or FirmwareUpdateCheckStatus.Pending or FirmwareUpdateCheckStatus.NotAvailable => "Not checked",
             _ => "Unavailable"
         };
 
