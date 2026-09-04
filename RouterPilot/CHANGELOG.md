@@ -1,5 +1,109 @@
 # RouterPilot Changelog
 
+## 2.3.0
+
+### Router intelligence
+- Added a dedicated Router workspace with Overview, Ports, Wi-Fi, Multi-WAN, DNS, Performance and Storage views.
+- Added read-only router identity, firmware, uptime and connection-state presentation.
+- Added Ethernet port link, speed, duplex, error and drop telemetry.
+- Added router CPU, memory, load, temperature and storage-resource visibility.
+- Added router-authoritative DNS telemetry independent of AdGuard Home availability.
+- Added Multi-WAN interface, active-path and failover-state visibility.
+- Added clearer loading, unavailable, unsupported and stale-state semantics across router views.
+
+### Network & traffic processing
+- Added Wi-Fi radio, band, channel, signal and client-association intelligence.
+- Added Network Map topology with router, client relationships and selected-node details.
+- Improved DHCP lease, reservation and client-aware navigation.
+- Improved port-forwarding management, validation, enabled-rule presentation and client context.
+- Added Network Health with evidence-based attention observations.
+- Added Internet Quality measurements and bounded latency/DNS timing history.
+- Added read-only Flint 2 advanced network configuration telemetry.
+- Added network mode, Guest/IoT, IGMP, NAT masquerading, SQM, DPI and router-service state visibility where authoritative.
+- Added human-readable SQM queue-discipline and shaping presentation.
+- Added Traffic Processing summaries with capability-aware acceleration semantics.
+- Scoped Network Configuration and Traffic Processing to Network Overview.
+- Preserved unavailable and unknown states instead of fabricating disabled or healthy values.
+
+### Clients
+- Added persistent Known Devices and client-presence history.
+- Improved client identity reconciliation across router, DHCP, Wi-Fi, mDNS and AdGuard observations.
+- Added manufacturer/vendor context without claiming exact hardware models.
+- Added favourites, online/offline filters and visible/total client counts.
+- Added client detail views with DNS activity, Wi-Fi quality and connection history.
+- Added direct client navigation from search, DHCP, port forwarding and DNS activity.
+- Improved handling of randomised/private MAC addresses and missing endpoint data.
+
+### VPN, Tailscale & protection
+- Promoted VPN into a focused workspace with live GL.iNet tunnel telemetry.
+- Added read-only Tailscale status, version, addresses, login/connection state and peer visibility.
+- Added VPN diagnostics and clear unavailable/incompatible states.
+- Expanded Protection and AdGuard Home observability, blocklists, blocked services, filters and DNS rewrites.
+- Added protection insights and direct navigation from blocked domains to DNS activity.
+- Improved distinction between genuine zero DNS activity and unavailable telemetry.
+- Removed the low-value standalone Firewall & Inbound Access presentation while retaining port-forwarding facts in Network.
+
+### Data Statistics
+- Added router DPI application analytics with top applications and full application tables.
+- Added per-application device traffic and application detail views.
+- Added bounded traffic-session history, WAN counter baselines and safe rebaseline handling.
+- Improved Data Statistics loading, disabled, unsupported and unavailable presentation.
+- Preserved explicit application protection controls where supported by the router.
+
+### Maintenance & firmware
+- Redesigned Maintenance as a shared tabbed workspace for Overview, Health, Snapshots, Firmware, Logs & Events, Reports and Support.
+- Added Network Health and configuration insights to the Maintenance Health view.
+- Added configuration snapshots with schema versioning, privacy filtering, persistence and change detection.
+- Added a local change journal with router/profile scoping and bounded persistence.
+- Added Firmware Update presentation that clearly separates installed/latest GL.iNet firmware from OpenWrt system information.
+- Added GL.iNet public firmware catalog lookup and explicit update status semantics.
+- Added pre-upgrade baseline and post-upgrade comparison workflow without firmware mutation.
+- Added an in-app release-notes modal for the selected latest GL.iNet release without downloading notes files.
+- Added Logs & Events as the canonical home for Router Logs, Event Timeline and Maintenance History.
+- Removed duplicate Maintenance History presentation from Support.
+- Added privacy-safe Home Network, configuration comparison and support reports.
+- Added sanitized, read-only GL.iNet/OpenWrt capability discovery for future management planning.
+- Removed the low-value Guided Diagnostics workflow and consolidated useful observations into Health and canonical feature pages.
+
+### Settings & interface
+- Reorganized Settings into General, Router & Connections, Notifications & Refresh and Advanced tabs.
+- Preserved all existing settings keys, defaults, serialization and save behavior.
+- Applied the established RouterPilot tab styling to Settings.
+- Left-aligned Settings content with a shared content boundary and responsive narrow-window behavior.
+- Removed redundant Router, Theme and Save State summary cards from the Settings shell.
+- Improved support action button sizing and wrapping at normal and narrow widths.
+- Added consistent button/card spacing and removed clipped labels in Maintenance Support.
+- Added a dedicated blocked-domain count column so counts and View activity actions remain readable.
+- Improved search aliases and deep links to canonical feature destinations.
+
+### Storage & router services
+- Added external USB/storage discovery from router block topology and mountd data.
+- Added read-only Samba/share visibility, including GL.iNet samba4 configuration parsing.
+- Added WebDAV, DLNA, NAS and related service-state observations where authoritative.
+- Kept service state separate from Traffic Processing presentation.
+
+### Reliability
+- Hardened refresh coordination across navigation, router/profile changes, disconnect/reconnect and Windows sleep/resume.
+- Added stale-result rejection and cancellation safeguards for shared router operations.
+- Preserved application-owned shared ViewModel state when transient views unload.
+- Improved recovery after resume without replaying router mutations or creating probe storms.
+- Added bounded operation gates and safer failure classification for optional router services.
+
+### Installer, dependencies & compatibility
+- Removed legacy NU1701 dependency warnings through targeted package/dependency cleanup.
+- Corrected WiX major-upgrade authoring and eliminated WIX1076/ICE61 warnings.
+- Preserved the public UpgradeCode and normal major-upgrade behavior.
+- Standardized the release build on the supported Windows 10 build 19041 target and Windows 11.
+- Maintained GPL-3.0-only licensing and privacy-safe diagnostics/report exports.
+
+### Fixes & polish
+- Removed duplicate and low-value navigation without deleting the underlying telemetry services.
+- Improved semantic status wording for unknown, unavailable, unsupported, disabled and running states.
+- Fixed live traffic counter source selection and invalid-sample handling.
+- Fixed firmware release-note presentation and latest-version source separation.
+- Improved responsive layouts, content alignment, card density and button sizing across touched pages.
+- Expanded parser, navigation, traffic-session, Data Statistics and Network Health regression fixtures.
+
 # RouterPilot v2.2.0
 
 ## Clients

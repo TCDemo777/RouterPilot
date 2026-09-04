@@ -43,7 +43,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 ## Requirements
 
-- Windows 10 or Windows 11
+- Windows 10 version 2004 (build 19041) or later, or Windows 11
 - A supported GL.iNet router reachable over the local network
 - SSH access enabled on the router
 - AdGuard Home installed on the router for DNS filtering, query activity and protection controls
@@ -60,7 +60,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets will be published as `RouterPilot-2.1.1-x64.msi` and `RouterPilot-2.1.1-win-x64.zip`.
+Release assets are published as `RouterPilot-2.3.0-x64.msi` and `RouterPilot-2.3.0-win-x64.zip`.
 
 ## Upgrading to 2.0
 
@@ -97,4 +97,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-Current RouterPilot development leading to v2.2.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.3.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
