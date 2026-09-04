@@ -198,6 +198,8 @@ namespace RouterPilot.Services
                 "check_firmware_online",
                 cancellationToken);
 
+            System.Diagnostics.Debug.WriteLine($"Firmware RPC response shape: {DescribeFirmwareResponse(document.RootElement)}");
+
             JsonElement root = document.RootElement;
             if (!root.TryGetProperty("result", out JsonElement result))
             {
@@ -208,13 +210,12 @@ namespace RouterPilot.Services
                 throw new InvalidOperationException("The router firmware check returned an invalid result.");
 
             string current = ReadFirmwareValue(result,
-                "current_version", "current_firmware_version", "version");
+                "current_version", "current_firmware_version");
             string latest = ReadFirmwareValue(result,
-                "new_firmware_version", "new_version", "version_new", "latest_version", "firmware_version");
+                "new_firmware_version", "new_version", "version_new", "latest_version");
             string channel = ReadFirmwareValue(result,
                 "new_firmware_type", "current_type", "channel", "firmware_type");
 
-            bool? prompted = ReadNullableBool(result, "prompt");
             bool? updateAvailable = ReadNullableBool(result, "update_available", "has_update", "new_version_available");
 
             var check = new FirmwareUpdateCheck
@@ -238,17 +239,17 @@ namespace RouterPilot.Services
                     ? FirmwareUpdateCheckStatus.UpdateAvailable
                     : FirmwareUpdateCheckStatus.UpToDate;
             }
-            else if (updateAvailable == false || prompted == false)
+            else if (updateAvailable == false)
             {
-                // GL.iNet reports a successful current-version check with no
-                // separate newer-version field on some firmware builds.
+                // Only an explicit negative update flag proves a successful
+                // no-update result. Ambiguous prompt/version fields fail closed.
                 check.Status = FirmwareUpdateCheckStatus.UpToDate;
             }
             else
             {
                 // A router prompt without a comparable concrete version is not enough
                 // to claim an update. Keep the result explicit and safe.
-                check.Status = FirmwareUpdateCheckStatus.NotAvailable;
+                check.Status = FirmwareUpdateCheckStatus.Error;
                 check.ErrorCategory = "version-comparison-unavailable";
             }
 
@@ -283,7 +284,7 @@ namespace RouterPilot.Services
 
             foreach (string name in new[] { "data", "firmware", "upgrade", "info" })
                 if (result.TryGetProperty(name, out JsonElement nested) && nested.ValueKind == JsonValueKind.Object)
-                    if (ReadFirmwareValue(nested, "current_version", "current_firmware_version", "version", "new_firmware_version", "latest_version").Length > 0)
+                    if (ReadFirmwareValue(nested, "current_version", "current_firmware_version", "new_firmware_version", "new_version", "version_new", "latest_version").Length > 0)
                         return nested;
             return result;
         }
@@ -298,6 +299,17 @@ namespace RouterPilot.Services
                 if (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out bool parsed)) return parsed;
             }
             return null;
+        }
+
+        private static string DescribeFirmwareResponse(JsonElement root)
+        {
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("result", out JsonElement result))
+                return $"root={root.ValueKind}; result=missing";
+            JsonElement payload = FirmwarePayload(result);
+            string[] names = payload.ValueKind == JsonValueKind.Object
+                ? payload.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray()
+                : [];
+            return $"root={root.ValueKind}; result={result.ValueKind}; payload={payload.ValueKind}; fields=[{string.Join(",", names)}]";
         }
 
         private static DateTimeOffset? ReadFirmwareDate(JsonElement element, params string[] names)

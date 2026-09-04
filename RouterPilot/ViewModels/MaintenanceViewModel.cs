@@ -268,7 +268,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             FirmwareUpdateCheckStatus.UpToDate => "No update available",
             FirmwareUpdateCheckStatus.UpdateAvailable => "Update available",
             FirmwareUpdateCheckStatus.Error => "Unable to check",
-            FirmwareUpdateCheckStatus.NotChecked or FirmwareUpdateCheckStatus.Pending or FirmwareUpdateCheckStatus.NotAvailable => "Not checked",
+            FirmwareUpdateCheckStatus.NotChecked or FirmwareUpdateCheckStatus.Pending => "Not checked",
+            FirmwareUpdateCheckStatus.NotAvailable => "Unable to check",
             _ => "Unavailable"
         };
 
@@ -507,7 +508,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         if (!CanCheckFirmware)
             return;
 
-        await _firmwareUpdateService.CheckManuallyAsync();
+        System.Diagnostics.Debug.WriteLine("Firmware check command invoked.");
+        await _firmwareUpdateService.CheckManuallyAsync(_dashboard.RouterFirmwareVersion);
         OnFirmwarePropertiesChanged();
     }
 

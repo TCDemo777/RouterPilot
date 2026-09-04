@@ -49,12 +49,13 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         return CheckAsync(router, null, cancellationToken);
     }
 
-    public async Task CheckManuallyAsync(CancellationToken cancellationToken = default)
+    public async Task CheckManuallyAsync(string? knownCurrentVersion = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
-            await CheckAsync(router, null, cancellationToken);
+            await CheckAsync(router, knownCurrentVersion, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
