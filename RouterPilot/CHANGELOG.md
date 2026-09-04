@@ -41,6 +41,7 @@
 - Expanded Protection and AdGuard Home observability, blocklists, blocked services, filters and DNS rewrites.
 - Added protection insights and direct navigation from blocked domains to DNS activity.
 - Improved distinction between genuine zero DNS activity and unavailable telemetry.
+- Improved AdGuard Home availability detection when GL.iNet firmware exposes a running process without a reliable init-script status response.
 - Removed the low-value standalone Firewall & Inbound Access presentation while retaining port-forwarding facts in Network.
 
 ### Data Statistics
