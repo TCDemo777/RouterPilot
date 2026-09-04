@@ -10,6 +10,8 @@ namespace RouterPilot.Models
 
         public long TransmittedBytes { get; set; }
 
+        public bool IsValid { get; set; }
+
         public DateTime CapturedAtUtc { get; set; } = DateTime.UtcNow;
     }
 }

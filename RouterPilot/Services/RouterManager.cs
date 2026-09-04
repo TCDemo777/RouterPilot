@@ -2094,8 +2094,8 @@ namespace RouterPilot.Services
             // GL.iNet/OpenWrt interface layouts.
             string output =
                 await _ssh.RunCommandAsync(
-                    "dev=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null); " +
-                    "[ -n \"$dev\" ] || dev=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.device' 2>/dev/null); " +
+                    "dev=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.device' 2>/dev/null); " +
+                    "[ -n \"$dev\" ] && [ -e /sys/class/net/$dev/statistics/rx_bytes ] || dev=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null); " +
                     "[ -n \"$dev\" ] || dev=$(ip route show default 2>/dev/null | awk 'NR==1 {print $5}'); " +
                     "[ -n \"$dev\" ] || dev=eth1; " +
                     "rx=$(cat /sys/class/net/$dev/statistics/rx_bytes 2>/dev/null || echo 0); " +

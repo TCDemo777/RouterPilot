@@ -180,14 +180,19 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             _loaded = true;
             OnPropertyChanged(nameof(HasLoaded));
             Apply(readResult);
-            if (readResult.TrafficSnapshot is { } traffic)
+            if (readResult.TrafficSnapshot is { IsValid: true } traffic)
             {
+                System.Diagnostics.Debug.WriteLine($"Traffic sample: source={traffic.InterfaceName}; rx={traffic.ReceivedBytes}; tx={traffic.TransmittedBytes}; at={traffic.CapturedAtUtc:O}; priorSamples={_trafficSession.SampleCount}.");
                 TrafficSessionSample? sample = _trafficSession.Add(new NetworkTrafficObservation(
                     traffic.ReceivedBytes, traffic.TransmittedBytes, traffic.CapturedAtUtc, traffic.InterfaceName));
+                System.Diagnostics.Debug.WriteLine(sample is { } accepted
+                    ? $"Traffic delta accepted: rxTotal={_trafficSession.DownloadedBytes}; txTotal={_trafficSession.UploadedBytes}; sample={accepted.TimestampUtc:O}."
+                    : "Traffic baseline captured or re-established.");
                 UpdateTrafficPresentation(sample);
             }
             else
             {
+                System.Diagnostics.Debug.WriteLine("Traffic session sample unavailable; accumulator unchanged.");
                 UpdateTrafficPresentation(null);
             }
             if (readResult.Availability == DataStatisticsAvailability.Available)
