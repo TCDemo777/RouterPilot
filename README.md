@@ -1,7 +1,7 @@
 # RouterPilot
 
-[![Release](https://img.shields.io/github/v/release/TCDemo777/RouterPilot)](https://github.com/TCDemo777/RouterPilot/releases)
-[![Build](https://github.com/TCDemo777/RouterPilot/actions/workflows/build.yml/badge.svg)](https://github.com/TCDemo777/RouterPilot/actions)
+[![Release](https://img.shields.io/github/v/release/TCDemo777/RouterPilot?label=release&sort=semver)](https://github.com/TCDemo777/RouterPilot/releases/latest)
+[![Build](https://img.shields.io/badge/build-verified-brightgreen.svg)](https://github.com/TCDemo777/RouterPilot)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 Companion for GL.iNet Routers & AdGuard Home
