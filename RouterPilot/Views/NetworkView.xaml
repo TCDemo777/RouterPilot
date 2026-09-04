@@ -279,24 +279,26 @@
                     <StackPanel>
                         <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Configuration"/>
                         <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Secondary}" Text="Authoritative read-only configuration observed from the router." TextWrapping="Wrap"/>
-                        <UniformGrid Columns="4">
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.NetworkMode}"/></StackPanel>
+                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="Network &amp; segments"/>
+                        <UniformGrid Columns="4" Margin="0,8,0,0">
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/><TextBlock FontSize="16" Text="{Binding AdvancedNetworkModeDisplay}"/></StackPanel>
                             <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="IoT network"/><TextBlock FontSize="16" Text="{Binding AdvancedIoTDisplay}"/></StackPanel>
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="NAT masquerade"/><TextBlock FontSize="16" Text="{Binding AdvancedNatDisplay}"/></StackPanel>
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedSqmDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Guest network"/><TextBlock FontSize="16" Text="{Binding AdvancedGuestDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="IPv4 NAT"/><TextBlock FontSize="16" Text="{Binding AdvancedNatDisplay}"/></StackPanel>
                         </UniformGrid>
-                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmQueueDiscipline, StringFormat=Queue discipline: {0}}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedSqmDetails}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiConfigured, TargetNullValue=Unknown, StringFormat=DPI configured: {0}}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiRunning, StringFormat=DPI runtime: {0}}"/>
-                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Secondary}" Text="Traffic Processing"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding TrafficAccelerationSummary}" TextWrapping="Wrap"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Software flow offload: Unknown"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Hardware flow offload: Unknown"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Network acceleration: Unknown"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Hardware acceleration: Unknown"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.WebDavEnabled, StringFormat=WebDAV configured: {0}}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DlnaRunning, StringFormat=DLNA runtime: {0}}"/>
+                        <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="IPv6 NAT"/>
+                        <TextBlock FontSize="16" Text="{Binding AdvancedNatIpv6Display}"/>
+                        <TextBlock Margin="0,16,0,0" Style="{DynamicResource Text.Secondary}" Text="Traffic processing"/>
+                        <UniformGrid Columns="3" Margin="0,8,0,0">
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedSqmDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="DPI"/><TextBlock FontSize="16" Text="{Binding AdvancedDpiDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Acceleration"/><TextBlock TextWrapping="Wrap" Text="{Binding TrafficAccelerationSummary}"/></StackPanel>
+                        </UniformGrid>
+                        <UniformGrid Columns="3" Margin="0,10,0,0">
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Queue discipline"/><TextBlock Text="{Binding AdvancedSqmQueueDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Download shaping"/><TextBlock Text="{Binding AdvancedSqmDownloadDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Upload shaping"/><TextBlock Text="{Binding AdvancedSqmUploadDisplay}"/></StackPanel>
+                        </UniformGrid>
                     </StackPanel>
                 </Border>
 

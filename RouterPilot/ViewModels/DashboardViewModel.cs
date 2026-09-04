@@ -46,9 +46,24 @@ namespace RouterPilot.ViewModels
 
         public TrafficProcessingSnapshot TrafficProcessing => TrafficProcessingProjection.Create(AdvancedRouterSnapshot);
         public string TrafficAccelerationSummary => TrafficProcessingProjection.AccelerationSummary(TrafficProcessing);
+        public string AdvancedNetworkModeDisplay => AdvancedRouterSnapshot.NetworkMode switch
+        {
+            "router" => "Router",
+            "ap" or "access_point" or "access-point" => "Access Point",
+            "extender" => "Extender",
+            "wds" => "WDS",
+            "Unknown" or "" => "Unknown",
+            var value => value
+        };
         public string AdvancedIoTDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.IoTEnabled);
+        public string AdvancedGuestDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.GuestEnabled);
         public string AdvancedNatDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.NatMasquerade);
+        public string AdvancedNatIpv6Display => FormatObservedBoolean(AdvancedRouterSnapshot.NatMasqueradeIpv6);
         public string AdvancedSqmDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.SqmEnabled);
+        public string AdvancedSqmQueueDisplay => FormatQueueDiscipline(AdvancedRouterSnapshot.SqmQueueDiscipline);
+        public string AdvancedSqmDownloadDisplay => FormatBandwidth(AdvancedRouterSnapshot.SqmDownload);
+        public string AdvancedSqmUploadDisplay => FormatBandwidth(AdvancedRouterSnapshot.SqmUpload);
+        public string AdvancedDpiDisplay => FormatDpi(AdvancedRouterSnapshot.DpiConfigured, AdvancedRouterSnapshot.DpiRunning);
         public string AdvancedSqmDetails =>
             $"Download shaping: {FormatObservedText(AdvancedRouterSnapshot.SqmDownload)} • Upload shaping: {FormatObservedText(AdvancedRouterSnapshot.SqmUpload)}";
 
@@ -61,6 +76,37 @@ namespace RouterPilot.ViewModels
 
         private static string FormatObservedText(string value) =>
             string.IsNullOrWhiteSpace(value) || value == "Unknown" ? "Unavailable" : value;
+
+        private static string FormatQueueDiscipline(string value) => value.Trim().ToLowerInvariant() switch
+        {
+            "cake" => "CAKE",
+            "fq_codel" or "fq-codel" => "FQ-CoDel",
+            "" or "unknown" => "Unknown",
+            var other => other
+        };
+
+        private static string FormatBandwidth(string value)
+        {
+            if (!long.TryParse(value, out long kbit) || kbit < 0)
+                return FormatObservedText(value);
+            if (kbit % 1000 == 0)
+                return $"{kbit / 1000} Mbps";
+            return $"{kbit / 1000d:0.###} Mbps";
+        }
+
+        private static string FormatRuntime(bool? value) => value switch
+        {
+            true => "Running",
+            false => "Stopped",
+            _ => "Unknown"
+        };
+
+        private static string FormatDpi(bool? configured, bool? running)
+        {
+            string configuredText = configured switch { true => "Enabled", false => "Disabled", _ => "Unknown" };
+            string runtimeText = FormatRuntime(running);
+            return configured is null ? runtimeText : $"{configuredText} · {runtimeText}";
+        }
 
         public string NetworkHealthViewColour =>
             RouterPilotStatusPresentation.Colour(NetworkHealthView.OverallSeverity);
@@ -79,10 +125,16 @@ namespace RouterPilot.ViewModels
         {
             OnPropertyChanged(nameof(TrafficProcessing));
             OnPropertyChanged(nameof(TrafficAccelerationSummary));
+            OnPropertyChanged(nameof(AdvancedNetworkModeDisplay));
             OnPropertyChanged(nameof(AdvancedIoTDisplay));
+            OnPropertyChanged(nameof(AdvancedGuestDisplay));
             OnPropertyChanged(nameof(AdvancedNatDisplay));
+            OnPropertyChanged(nameof(AdvancedNatIpv6Display));
             OnPropertyChanged(nameof(AdvancedSqmDisplay));
-            OnPropertyChanged(nameof(AdvancedSqmDetails));
+            OnPropertyChanged(nameof(AdvancedSqmQueueDisplay));
+            OnPropertyChanged(nameof(AdvancedSqmDownloadDisplay));
+            OnPropertyChanged(nameof(AdvancedSqmUploadDisplay));
+            OnPropertyChanged(nameof(AdvancedDpiDisplay));
         }
         public string NetworkHealthWanSummary => InternetConnected ? "Connected" : "Unavailable";
         public string NetworkHealthPublicIpSummary => PublicIpStatus == PublicIpStatus.Available ? "Available" : "Unavailable";

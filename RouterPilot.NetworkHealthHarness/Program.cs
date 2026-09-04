@@ -446,6 +446,30 @@ using JsonDocument emptyBlocklistDocument = JsonDocument.Parse("{ \"filters\": [
 Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [emptyBlocklistDocument.RootElement])!).Count == 0, "blocklist parser accepts an empty list");
 using JsonDocument malformedBlocklistDocument = JsonDocument.Parse("{ \"filters\": [ { \"name\": \"no URL\" } ] }");
 Require(((List<AdGuardBlocklist>)parseBlocklists.Invoke(null, [malformedBlocklistDocument.RootElement])!).Count == 0, "blocklist parser ignores malformed entries");
+string advancedFixture = """
+__GLCONFIG__
+glconfig.general.mode='router'
+__NETWORK__
+network.iot=interface
+network.iot.disabled='0'
+network.guest=interface
+network.guest.disabled='1'
+__FIREWALL__
+firewall.@zone[1].name='wan'
+firewall.@zone[1].masq='1'
+firewall.@zone[1].masq6='0'
+__SQM__
+sqm.eth1.enabled='1'
+sqm.eth1.qdisc='cake'
+sqm.eth1.download='100000'
+sqm.eth1.upload='88500'
+__PROCESSES__
+/usr/bin/eco /usr/bin/gl-dpi
+""";
+RouterAdvancedSnapshot advanced = RouterAdvancedTelemetryService.Parse(advancedFixture);
+Require(advanced.IoTEnabled == true && advanced.GuestEnabled == false, "Advanced network segment states were not parsed.");
+Require(advanced.NatMasquerade == true && advanced.NatMasqueradeIpv6 == false, "Firewall masquerade states were not parsed.");
+Require(advanced.SqmEnabled == true && advanced.SqmQueueDiscipline == "cake", "SQM fixture was not parsed.");
 Console.WriteLine("Network Health, notification, blocklist, SSH and router-profile fixtures passed.");
 
 static void RequireThrows(Action action, string message)
