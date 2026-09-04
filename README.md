@@ -38,8 +38,6 @@ RouterPilot 2.3.0 expands read-only router intelligence while keeping configurat
 - Hardened refresh, cancellation, router/profile switching, disconnect/reconnect and Windows sleep/resume recovery.
 - Improved semantic status wording, navigation, search, responsive layouts and support/report privacy handling.
 
-RouterPilot v2.1.1 fixes missing magnifying-glass icons across several search fields while retaining the v2.1.0 saved-router management, reliable active-router switching, profile-aware settings, and focused UI polish.
-
 ## Security
 
 RouterPilot includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) and [SECURITY-AUDIT-v1.8.1.md](SECURITY-AUDIT-v1.8.1.md) for the security model and documented compatibility considerations.
