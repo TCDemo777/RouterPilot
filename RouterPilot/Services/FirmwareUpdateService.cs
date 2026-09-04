@@ -38,6 +38,12 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
     public bool IsChecking => _isChecking;
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public async Task<(string? Notes, DateTimeOffset? Date)> GetReleaseNotesAsync(string model, string version, CancellationToken cancellationToken = default)
+    {
+        GlInetFirmwareRelease? release = await _catalogService.GetReleaseAsync(model, version, cancellationToken: cancellationToken);
+        return (release?.ReleaseNotes, release?.ReleaseDate);
+    }
+
     public void ResetForRouterSession()
     {
         _current = new FirmwareUpdateCheck();
@@ -113,6 +119,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
                         result.LatestVersion = release.Version;
                         result.ReleaseDate = release.ReleaseDate;
                         result.DownloadUrl = release.DownloadUrl;
+                        result.ReleaseNotes = release.ReleaseNotes;
                         result.Status = RouterManager.TryCompareFirmwareVersions(result.CurrentVersion, result.LatestVersion, out int comparison)
                             ? comparison < 0 ? FirmwareUpdateCheckStatus.UpdateAvailable : FirmwareUpdateCheckStatus.UpToDate
                             : FirmwareUpdateCheckStatus.Error;

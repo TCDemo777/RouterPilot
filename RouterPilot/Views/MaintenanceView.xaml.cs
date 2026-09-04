@@ -401,17 +401,22 @@ public partial class MaintenanceView : UserControl
         catch { MessageBox.Show("Diagnostic report could not be copied.", "RouterPilot Diagnostics", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
-    private void OpenFirmwarePage_Click(object sender, RoutedEventArgs e)
+    private async void OpenFirmwarePage_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel)
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(viewModel.FirmwareLink))
+        if (sender is Button { Content: string content } && content.Contains("Release Notes", StringComparison.OrdinalIgnoreCase))
         {
-            MessageBox.Show(viewModel.FirmwareUpdate.ReleaseNotes,
-                "Firmware release notes", MessageBoxButton.OK, MessageBoxImage.Information);
+            string version = content.Contains("Installed", StringComparison.OrdinalIgnoreCase) ? viewModel.FirmwareCurrentVersion : viewModel.FirmwareLatestVersion;
+            bool installed = content.Contains("Installed", StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(version) || version is "—" or "Unavailable") return;
+            string model = viewModel.Dashboard.RouterModel;
+            var window = new FirmwareReleaseNotesWindow(version, installed) { Owner = Window.GetWindow(this) };
+            window.Show();
+            await window.LoadAsync(ct => viewModel.GetFirmwareReleaseNotesAsync(model, version, ct));
             return;
         }
 

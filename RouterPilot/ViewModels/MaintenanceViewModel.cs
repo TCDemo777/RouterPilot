@@ -362,6 +362,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
                                             !string.IsNullOrWhiteSpace(FirmwareUpdate.ReleaseNotesUrl) ||
                                             !string.IsNullOrWhiteSpace(FirmwareUpdate.DownloadUrl);
     public string? FirmwareLink => FirmwareUpdate.ReleaseNotesUrl ?? FirmwareUpdate.DownloadUrl;
+    public Task<(string? Notes, DateTimeOffset? Date)> GetFirmwareReleaseNotesAsync(string model, string version, CancellationToken cancellationToken = default) =>
+        _firmwareUpdateService.GetReleaseNotesAsync(model, version, cancellationToken);
 
     public string LastBackupDate => History
         .FirstOrDefault(item => item.Action == MaintenanceAction.CreateBackup)?.TimestampDisplay ?? RouterPilotStatusPresentation.NotAvailable;
