@@ -1101,6 +1101,9 @@ namespace RouterPilot.Views
             _viewModel.FirmwareVersion =
                 "-";
 
+            _viewModel.RouterFirmwareVersion =
+                "-";
+
             _viewModel.RouterKernelVersion =
                 "-";
 
