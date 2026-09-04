@@ -263,7 +263,7 @@
                         <Button x:Name="CheckFirmwareButton" Width="144" Height="36" Margin="0,0,0,10" Style="{DynamicResource Button.Primary}"
                                 Content="Check for Updates" IsEnabled="{Binding CanCheckFirmware}" Click="CheckFirmware_Click" />
                         <Button Width="144" Height="36"
-                                 Content="View Latest Release Notes" Click="OpenFirmwarePage_Click">
+                                 Content="Release Notes" Click="OpenFirmwarePage_Click">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -272,9 +272,6 @@
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
-                        </Button>
-                        <Button Width="144" Height="36" Margin="0,10,0,0" Content="View Installed Notes" Click="OpenFirmwarePage_Click">
-                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource Button.Secondary}"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding FirmwareCurrentVersion}" Value="—"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
                         </Button>
                         <Button Width="144" Height="36" Margin="0,10,0,0"
                                 Content="Open Firmware Page" Click="OpenFirmwarePage_Click">

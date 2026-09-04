@@ -410,8 +410,8 @@ public partial class MaintenanceView : UserControl
 
         if (sender is Button { Content: string content } && content.Contains("Release Notes", StringComparison.OrdinalIgnoreCase))
         {
-            string version = content.Contains("Installed", StringComparison.OrdinalIgnoreCase) ? viewModel.FirmwareCurrentVersion : viewModel.FirmwareLatestVersion;
-            bool installed = content.Contains("Installed", StringComparison.OrdinalIgnoreCase);
+            string version = viewModel.FirmwareLatestVersion;
+            bool installed = false;
             if (string.IsNullOrWhiteSpace(version) || version is "—" or "Unavailable") return;
             string model = viewModel.Dashboard.RouterModel;
             var window = new FirmwareReleaseNotesWindow(version, installed) { Owner = Window.GetWindow(this) };
