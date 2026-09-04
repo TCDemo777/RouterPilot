@@ -281,13 +281,12 @@
                         <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Secondary}" Text="Authoritative read-only configuration observed from the router." TextWrapping="Wrap"/>
                         <UniformGrid Columns="4">
                             <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Mode"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.NetworkMode}"/></StackPanel>
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="IoT network"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.IoTEnabled, TargetNullValue=Unknown}"/></StackPanel>
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="NAT masquerade"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.NatMasquerade, TargetNullValue=Unknown}"/></StackPanel>
-                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedRouterSnapshot.SqmEnabled, TargetNullValue=Unknown}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="IoT network"/><TextBlock FontSize="16" Text="{Binding AdvancedIoTDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="NAT masquerade"/><TextBlock FontSize="16" Text="{Binding AdvancedNatDisplay}"/></StackPanel>
+                            <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="SQM"/><TextBlock FontSize="16" Text="{Binding AdvancedSqmDisplay}"/></StackPanel>
                         </UniformGrid>
                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmQueueDiscipline, StringFormat=Queue discipline: {0}}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmDownload, StringFormat=SQM download: {0}}"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.SqmUpload, StringFormat=SQM upload: {0}}"/>
+                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedSqmDetails}"/>
                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiConfigured, TargetNullValue=Unknown, StringFormat=DPI configured: {0}}"/>
                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding AdvancedRouterSnapshot.DpiRunning, StringFormat=DPI runtime: {0}}"/>
                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Secondary}" Text="Traffic Processing"/>
@@ -301,7 +300,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
+                <Border Margin="0,0,0,16" Style="{DynamicResource Card}" Visibility="Collapsed">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -316,7 +315,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="OverviewMaintenanceContent" Margin="0,0,0,16" Style="{DynamicResource Card}">
+                <Border x:Name="OverviewMaintenanceContent" Margin="0,0,0,16" Style="{DynamicResource Card}" Visibility="Collapsed">
                     <StackPanel>
                         <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Quick maintenance"/>
                         <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"

@@ -379,6 +379,25 @@ namespace RouterPilot.Views
                     info.StorageUsage);
                 _viewModel.UpdateExternalStorage(info.ExternalStorage, info.ExternalStorageInventoryLoaded, info.AttachedStorage, info.SambaShares, info.FileSharingInventoryLoaded);
 
+                // Advanced Network Configuration is one bounded aggregate
+                // read. Keep it on the shared dashboard model so Network
+                // Overview, snapshots and health projections all consume the
+                // same authoritative observation.
+                RouterAdvancedSnapshot advancedSnapshot = RouterAdvancedSnapshot.Unknown;
+                try
+                {
+                    advancedSnapshot = await router.GetRouterAdvancedTelemetryAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    Debug.WriteLine($"Advanced network telemetry unavailable ({exception.GetType().Name}).");
+                }
+                _viewModel.AdvancedRouterSnapshot = advancedSnapshot;
+
                 // Router and AdGuard work are independent. Start both groups
                 // together, then apply each successful result separately.
                 Task wifiTask = RefreshWifiNetworksAsync(router, cancellationToken, routerSession);
@@ -1087,6 +1106,8 @@ namespace RouterPilot.Views
 
             _viewModel.RouterArchitecture =
                 "-";
+
+            _viewModel.AdvancedRouterSnapshot = RouterAdvancedSnapshot.Unknown;
 
             _viewModel.Uptime =
                 "-";

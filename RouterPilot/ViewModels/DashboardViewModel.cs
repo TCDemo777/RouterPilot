@@ -46,6 +46,21 @@ namespace RouterPilot.ViewModels
 
         public TrafficProcessingSnapshot TrafficProcessing => TrafficProcessingProjection.Create(AdvancedRouterSnapshot);
         public string TrafficAccelerationSummary => TrafficProcessingProjection.AccelerationSummary(TrafficProcessing);
+        public string AdvancedIoTDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.IoTEnabled);
+        public string AdvancedNatDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.NatMasquerade);
+        public string AdvancedSqmDisplay => FormatObservedBoolean(AdvancedRouterSnapshot.SqmEnabled);
+        public string AdvancedSqmDetails =>
+            $"Download shaping: {FormatObservedText(AdvancedRouterSnapshot.SqmDownload)} • Upload shaping: {FormatObservedText(AdvancedRouterSnapshot.SqmUpload)}";
+
+        private static string FormatObservedBoolean(bool? value) => value switch
+        {
+            true => "Enabled",
+            false => "Disabled",
+            _ => "Unknown"
+        };
+
+        private static string FormatObservedText(string value) =>
+            string.IsNullOrWhiteSpace(value) || value == "Unknown" ? "Unavailable" : value;
 
         public string NetworkHealthViewColour =>
             RouterPilotStatusPresentation.Colour(NetworkHealthView.OverallSeverity);
@@ -64,6 +79,10 @@ namespace RouterPilot.ViewModels
         {
             OnPropertyChanged(nameof(TrafficProcessing));
             OnPropertyChanged(nameof(TrafficAccelerationSummary));
+            OnPropertyChanged(nameof(AdvancedIoTDisplay));
+            OnPropertyChanged(nameof(AdvancedNatDisplay));
+            OnPropertyChanged(nameof(AdvancedSqmDisplay));
+            OnPropertyChanged(nameof(AdvancedSqmDetails));
         }
         public string NetworkHealthWanSummary => InternetConnected ? "Connected" : "Unavailable";
         public string NetworkHealthPublicIpSummary => PublicIpStatus == PublicIpStatus.Available ? "Available" : "Unavailable";
@@ -898,7 +917,7 @@ namespace RouterPilot.ViewModels
         public bool PortForwardingSupported => RouterCapabilities.PortForwarding.Read;
         public bool PortForwardingWriteSupported => RouterCapabilities.PortForwarding.Write && !PortForwardIsLoading;
 
-        // Firewall & Exposure is intentionally limited to the authoritative
+        // Firewall & Inbound Access is intentionally limited to the authoritative
         // aggregate port-forward snapshot currently available in RouterPilot.
         // Other firewall/UPnP/DMZ surfaces remain unknown until a stable,
         // read-only source is available; absence is never treated as disabled.
@@ -1478,7 +1497,7 @@ namespace RouterPilot.ViewModels
 
         public string BuildFirewallExposureSummary()
         {
-            StringBuilder text = new("RouterPilot Firewall & Exposure Summary\n");
+            StringBuilder text = new("RouterPilot Firewall & Inbound Access Summary\n");
             text.AppendLine($"Port-forward telemetry: {ExposureTelemetryDisplay}");
             text.AppendLine($"Static port forwards: {StaticPortForwardCountDisplay}");
             text.AppendLine($"Enabled static forwards: {EnabledStaticPortForwardCountDisplay}");
