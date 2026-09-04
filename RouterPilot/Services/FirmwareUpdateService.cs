@@ -82,6 +82,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
 
         try
         {
+            System.Diagnostics.Debug.WriteLine("Firmware update check started (GL.iNet read-only RPC).");
             SetChecking(true);
             FirmwareUpdateCheck result = await router.CheckFirmwareUpdateAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(result.CurrentVersion))
@@ -89,6 +90,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
 
             FirmwareUpdateCheck previous = _current;
             await PersistAsync(result);
+            System.Diagnostics.Debug.WriteLine($"Firmware update check completed: {result.Status}; current={(!string.IsNullOrWhiteSpace(result.CurrentVersion) ? "available" : "missing")}; latest={(!string.IsNullOrWhiteSpace(result.LatestVersion) ? "available" : "not returned") }.");
 
             // A persisted value may predate the authoritative GL.iNet firmware
             // source. The first successful result establishes this session's
@@ -171,6 +173,7 @@ public sealed class FirmwareUpdateService : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
+            System.Diagnostics.Debug.WriteLine($"Firmware update check failed ({ClassifyFailure(exception)}).");
             var failed = new FirmwareUpdateCheck
             {
                 CurrentVersion = knownCurrentVersion ?? _current.CurrentVersion,

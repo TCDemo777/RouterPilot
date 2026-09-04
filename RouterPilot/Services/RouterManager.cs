@@ -199,12 +199,13 @@ namespace RouterPilot.Services
                 cancellationToken);
 
             JsonElement root = document.RootElement;
-            if (!root.TryGetProperty("result", out JsonElement result) ||
-                result.ValueKind != JsonValueKind.Object)
+            if (!root.TryGetProperty("result", out JsonElement result))
             {
                 throw new InvalidOperationException("The router firmware check returned no result.");
             }
-
+            result = FirmwarePayload(result);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new InvalidOperationException("The router firmware check returned an invalid result.");
 
             string current = ReadFirmwareValue(result,
                 "current_version", "current_firmware_version", "version");
@@ -213,8 +214,8 @@ namespace RouterPilot.Services
             string channel = ReadFirmwareValue(result,
                 "new_firmware_type", "current_type", "channel", "firmware_type");
 
-            bool prompted = result.TryGetProperty("prompt", out JsonElement prompt) &&
-                prompt.ValueKind is JsonValueKind.True;
+            bool? prompted = ReadNullableBool(result, "prompt");
+            bool? updateAvailable = ReadNullableBool(result, "update_available", "has_update", "new_version_available");
 
             var check = new FirmwareUpdateCheck
             {
@@ -237,14 +238,18 @@ namespace RouterPilot.Services
                     ? FirmwareUpdateCheckStatus.UpdateAvailable
                     : FirmwareUpdateCheckStatus.UpToDate;
             }
+            else if (updateAvailable == false || prompted == false)
+            {
+                // GL.iNet reports a successful current-version check with no
+                // separate newer-version field on some firmware builds.
+                check.Status = FirmwareUpdateCheckStatus.UpToDate;
+            }
             else
             {
                 // A router prompt without a comparable concrete version is not enough
                 // to claim an update. Keep the result explicit and safe.
                 check.Status = FirmwareUpdateCheckStatus.NotAvailable;
-                check.ErrorCategory = prompted
-                    ? "version-comparison-unavailable"
-                    : "version-unavailable";
+                check.ErrorCategory = "version-comparison-unavailable";
             }
 
             return check;
@@ -261,6 +266,38 @@ namespace RouterPilot.Services
                 }
             }
             return string.Empty;
+        }
+
+        private static JsonElement FirmwarePayload(JsonElement result)
+        {
+            if (result.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement item in result.EnumerateArray().Reverse())
+                    if (item.ValueKind == JsonValueKind.Object)
+                        return FirmwarePayload(item);
+                return result;
+            }
+
+            if (result.ValueKind != JsonValueKind.Object)
+                return result;
+
+            foreach (string name in new[] { "data", "firmware", "upgrade", "info" })
+                if (result.TryGetProperty(name, out JsonElement nested) && nested.ValueKind == JsonValueKind.Object)
+                    if (ReadFirmwareValue(nested, "current_version", "current_firmware_version", "version", "new_firmware_version", "latest_version").Length > 0)
+                        return nested;
+            return result;
+        }
+
+        private static bool? ReadNullableBool(JsonElement element, params string[] names)
+        {
+            foreach (string name in names)
+            {
+                if (!element.TryGetProperty(name, out JsonElement value)) continue;
+                if (value.ValueKind is JsonValueKind.True or JsonValueKind.False) return value.GetBoolean();
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number)) return number != 0;
+                if (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out bool parsed)) return parsed;
+            }
+            return null;
         }
 
         private static DateTimeOffset? ReadFirmwareDate(JsonElement element, params string[] names)

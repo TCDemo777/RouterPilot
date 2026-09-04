@@ -1372,7 +1372,6 @@ namespace RouterPilot.Views
                 case "timeline": Timeline_Click(this, new RoutedEventArgs()); break;
                 case "maintenance": Maintenance_Click(this, new RoutedEventArgs()); break;
                 case "maintenance-overview": NavigateToMaintenanceTab(MaintenanceTab.Overview); break;
-                case "maintenance-diagnostics": NavigateToMaintenanceTab(MaintenanceTab.Diagnostics); break;
                 case "maintenance-health": NavigateToMaintenanceTab(MaintenanceTab.Health); break;
                 case "maintenance-snapshots": NavigateToMaintenanceTab(MaintenanceTab.Snapshots); break;
                 case "maintenance-firmware": NavigateToMaintenanceTab(MaintenanceTab.Firmware); break;

@@ -3,7 +3,6 @@ namespace RouterPilot.Models;
 public enum MaintenanceTab
 {
     Overview,
-    Diagnostics,
     Health,
     Snapshots,
     Firmware,
