@@ -53,23 +53,27 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 - Data Statistics application analytics require a router and firmware that expose the required GL.iNet Data Statistics / DPI interface
 - .NET 9 Desktop Runtime when using a framework-dependent build
 
-## Getting started
+## Installing and getting started
 
-1. Download the latest release.
-2. Launch RouterPilot.
-3. Enter the router IP address or hostname, SSH username and password.
-4. Keep **Remember password securely** enabled for automatic startup.
+1. Download the latest release from [GitHub Releases](https://github.com/TCDemo777/RouterPilot/releases/latest).
+2. Run the Windows x64 MSI, or extract the portable Windows x64 ZIP.
+3. Launch RouterPilot and enter the router IP address or hostname, SSH username and password.
+4. Keep **Remember password securely** enabled for automatic startup if desired.
 5. Open the dashboard from the notification-area icon.
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
 Release assets are published as `RouterPilot-2.3.0-x64.msi` and `RouterPilot-2.3.0-win-x64.zip`.
 
-## Upgrading to 2.0
+## Upgrading
 
-When upgrading from v1.9.0, install the MSI or replace the portable application files. Existing `%LocalAppData%\RouterPilot` data remains in place. RouterPilot continues to copy supported legacy AdGuardTray data only when a RouterPilot replacement does not already exist.
+Install the latest MSI over an existing RouterPilot installation, or replace the files in a portable installation. Existing `%LocalAppData%\RouterPilot` settings, profiles and supported application data remain in place.
 
-Data Statistics, VPN, DHCP reservation and port-forwarding capabilities vary by router model, firmware and enabled router services; RouterPilot shows unavailable or unsupported states when the required router interface is not available. Backup files use the portable `.rpb` format and can be created or restored from Maintenance. `.rpb` archives are integrity-checked but not encrypted; store them securely.
+## Compatibility and backups
+
+Available telemetry and controls vary by router model, GL.iNet firmware, OpenWrt environment and enabled router services. RouterPilot reports supported, unsupported, unavailable and unknown capabilities rather than fabricating values.
+
+RouterPilot backup files use the portable `.rpb` format and can be created or restored from Maintenance. Archives are integrity-checked but are not encrypted, so store them securely.
 
 ## Building from source
 
