@@ -29,10 +29,10 @@ Purpose: MVVM observable objects, generated properties and commands.
 Licence: MIT
 https://www.nuget.org/packages/CommunityToolkit.Mvvm/8.4.2
 
-CryptSharpOfficial 2.1.0
+CryptSharpStandard 1.0.0
 Purpose: crypt-compatible password hashing used for router authentication.
 Licence: ISC
-https://www.nuget.org/packages/CryptSharpOfficial/2.1.0
+https://www.nuget.org/packages/CryptSharpStandard/1.0.0
 
 Hardcodet.NotifyIcon.Wpf 2.0.1
 Purpose: Windows notification-area icon and tray interaction.
@@ -137,7 +137,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-CryptSharpOfficial uses its ISC-style permissive licence:
+CryptSharpStandard uses its ISC-style permissive licence:
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

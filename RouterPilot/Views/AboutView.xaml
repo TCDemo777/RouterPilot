@@ -320,7 +320,7 @@
                                     <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,7,12,0" Text="MIT"/>
                                     <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,7,0,0" Text="MVVM helpers"/>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,7,12,0" Text="CryptSharpOfficial 2.1.0"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,7,12,0" Text="CryptSharpStandard 1.0.0"/>
                                     <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,7,12,0" Text="ISC"/>
                                     <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,7,0,0" Text="Router password hashing"/>
 

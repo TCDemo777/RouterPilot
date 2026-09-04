@@ -9,7 +9,6 @@
     Compressed="yes">
 
     <MajorUpgrade
-      AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of RouterPilot is already installed." />
 
     <MediaTemplate EmbedCab="yes" />
