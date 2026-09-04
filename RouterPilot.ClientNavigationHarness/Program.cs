@@ -47,6 +47,12 @@ Require(AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), f
 Require(!AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), false, true) &&
     !AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), true, false),
     "AdGuard transport recovery does not retry repeatedly or after cancellation");
+Require(AdGuardRuntimeStatusParser.IsRunning("service status unavailable", "1234 /usr/bin/AdGuardHome --no-check-update"),
+    "AdGuard process probe establishes running state when init status is unavailable");
+Require(!AdGuardRuntimeStatusParser.IsRunning("not running", ""),
+    "AdGuard stopped state is not mistaken for running");
+Require(AdGuardRuntimeStatusParser.IsRunning("running", ""),
+    "AdGuard init status running state is preserved");
 
 RouterCapabilitySnapshot unknownCapabilities = RouterCapabilitySnapshot.Unknown;
 Require(unknownCapabilities.Temperature == RouterCapabilityState.Unknown &&

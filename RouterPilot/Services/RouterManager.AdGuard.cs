@@ -40,17 +40,15 @@ namespace RouterPilot.Services
             return new AdGuardStatus
             {
                 IsRunning =
-                    service.Contains(
-                        "running",
-                        StringComparison.OrdinalIgnoreCase),
+                    AdGuardRuntimeStatusParser.IsRunning(
+                        service,
+                        process),
 
                 ServiceStatus =
                     service.Trim(),
 
                 Process =
-                    string.IsNullOrWhiteSpace(process)
-                        ? "Not Running"
-                        : process.Trim(),
+                    AdGuardRuntimeStatusParser.ProcessDisplay(process),
 
                 Version =
                     version.Trim()
