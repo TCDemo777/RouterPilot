@@ -139,6 +139,7 @@
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Traffic observed this session" />
                                     <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="Read-only WAN counters from the active router; a new baseline is used after resets or path changes." TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="{Binding TrafficSessionStatus}" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Margin="16,0,0,0" Style="{DynamicResource Button.Secondary}" Content="Reset session" Command="{Binding ResetTrafficSessionCommand}" />
                             </Grid>

@@ -99,6 +99,11 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public string DetailUpload => SelectedDetail is null ? "Unavailable" : FormatBytes(SelectedDetail.TotalUploadBytes);
     public string DetailTotal => SelectedDetail is null ? "Unavailable" : FormatBytes(SelectedDetail.TotalBytes);
     public string DetailBlockState => SelectedDetail?.IsBlocked switch { true => "Blocked", false => "Not blocked", _ => "Status unavailable" };
+    public string TrafficSessionStatus => _trafficSession.SampleCount > 0
+        ? $"{_trafficSession.SampleCount} traffic sample(s) observed."
+        : _trafficSession.StartedUtc is not null
+            ? "Baseline captured. Waiting for the next traffic sample…"
+            : "Waiting for the first traffic sample…";
 
     public DataStatisticsViewModel(DataStatisticsService dataStatisticsService, ClientInventoryState clientInventory,
         ClientProfileService clientProfiles, IActiveRouterContext activeRouter)
@@ -241,6 +246,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         TrafficLastUpdated = sample is { } current ? current.TimestampUtc.ToLocalTime().ToString("g") : TrafficLastUpdated;
         TrafficSource = sample is { } source && !string.IsNullOrWhiteSpace(source.InterfaceName) ? source.InterfaceName : TrafficSource;
         OnPropertyChanged(nameof(TrafficHistory));
+        OnPropertyChanged(nameof(TrafficSessionStatus));
     }
 
     private static string FormatRate(long bytesPerSecond) => $"{FormatBytes(bytesPerSecond)}/s";
