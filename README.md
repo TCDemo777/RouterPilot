@@ -20,18 +20,23 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.0
+## What's new in RouterPilot 2.3.0
 
-RouterPilot 2.0 adds deeper network visibility and management while keeping router configuration changes user initiated.
+RouterPilot 2.3.0 expands read-only router intelligence while keeping configuration changes user initiated. [Read the full release notes](https://github.com/TCDemo777/RouterPilot/releases/tag/v2.3.0).
 
-- Added Network Health, a compact read-only view of current router, WAN, DNS protection, VPN, Wi-Fi, DHCP, resources, firmware and Data Statistics state.
-- Added Data Statistics / DPI application analytics, per-application device traffic and supported application protection controls.
-- Added production DHCP reservation and port-forwarding management, with client-aware navigation and validation.
-- Added live GL.iNet VPN status, management, diagnostics and local VPN schedules.
-- Added Known Devices, favourites, connection history, Internet Speed Test history, public-IP visibility and reliability insights.
-- Expanded Protection with Insights, filter and rewrite management, blocked-service controls and direct DNS-activity navigation.
-- Improved freshness, loading, unavailable and recovery states across dashboard, clients, Network, VPN, Protection and Analytics.
-- Made the Dashboard more adaptable with configurable cards and a compact five-action Quick Actions row.
+- Expanded Router telemetry for identity, ports, Wi-Fi, Multi-WAN, DNS, performance, temperature and storage.
+- Added Network Configuration intelligence covering mode, Guest/IoT, NAT, IGMP, SQM, DPI and traffic processing.
+- Improved Wi-Fi, DHCP, port-forwarding, Network Map and Internet Quality views.
+- Added richer client identification using router, DHCP, Wi-Fi, mDNS, vendor and AdGuard observations.
+- Expanded VPN and read-only Tailscale visibility, including connection state, addresses, version and peers.
+- Expanded Protection and AdGuard Home observability with DNS activity, filters, blocklists, blocked services and rewrites.
+- Improved Data Statistics, DPI application analytics and traffic-session accumulation with safe counter rebaselining.
+- Redesigned Maintenance with Health, snapshots, change history, firmware status, logs, reports and Support tools.
+- Added GL.iNet firmware catalog checks and an in-app release-notes viewer while keeping OpenWrt system information separate.
+- Added external-storage, Samba/share, NAS, WebDAV and DLNA service visibility where authoritative.
+- Reorganized Settings into tabbed, responsive sections while preserving existing settings and persistence.
+- Hardened refresh, cancellation, router/profile switching, disconnect/reconnect and Windows sleep/resume recovery.
+- Improved semantic status wording, navigation, search, responsive layouts and support/report privacy handling.
 
 RouterPilot v2.1.1 fixes missing magnifying-glass icons across several search fields while retaining the v2.1.0 saved-router management, reliable active-router switching, profile-aware settings, and focused UI polish.
 
