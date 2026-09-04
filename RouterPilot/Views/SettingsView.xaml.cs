@@ -34,6 +34,27 @@ namespace RouterPilot.Views
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
         }
 
+        private void SettingsTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.Source is not TabControl tabs || tabs.SelectedItem is not TabItem tab)
+                return;
+            if (RouterSettingsSection is null || GeneralSettingsHeader is null || GeneralSettingsSection is null ||
+                AdGuardSettingsSection is null || NotificationsSettingsHeader is null ||
+                NotificationsSettingsSection is null || DashboardSettingsSection is null)
+                return;
+
+            string selected = tab.Tag as string ?? "General";
+            RouterSettingsSection.Visibility = selected == "Router" ? Visibility.Visible : Visibility.Collapsed;
+            bool general = selected == "General";
+            GeneralSettingsHeader.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
+            GeneralSettingsSection.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
+            AdGuardSettingsSection.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
+            bool notifications = selected == "Notifications";
+            NotificationsSettingsHeader.Visibility = notifications ? Visibility.Visible : Visibility.Collapsed;
+            NotificationsSettingsSection.Visibility = notifications ? Visibility.Visible : Visibility.Collapsed;
+            DashboardSettingsSection.Visibility = selected == "Advanced" ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void SettingsView_Loaded(
             object sender,
             RoutedEventArgs e)

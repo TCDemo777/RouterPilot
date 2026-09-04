@@ -33,6 +33,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="12"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="14"/>
@@ -48,7 +49,14 @@
                     Content="Manage saved routers" Click="ManageRouters_Click"/>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="2"
+        <TabControl Grid.Row="1" Margin="24,0,24,0" Style="{StaticResource RouterPilotTabControlStyle}" ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}" SelectionChanged="SettingsTabs_SelectionChanged">
+            <TabItem Header="General" Tag="General" />
+            <TabItem Header="Router &amp; Connections" Tag="Router" />
+            <TabItem Header="Notifications &amp; Refresh" Tag="Notifications" />
+            <TabItem Header="Advanced" Tag="Advanced" />
+        </TabControl>
+
+        <ScrollViewer Grid.Row="3"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24,0,24,24">
@@ -113,7 +121,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
+                    <StackPanel x:Name="RouterSettingsSection" Grid.Column="0">
                         <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Router" />
                         <Border Style="{DynamicResource Card}">
                             <StackPanel>
@@ -251,8 +259,8 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2">
-                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="General" />
-                        <Border Style="{DynamicResource Card}">
+                        <TextBlock x:Name="GeneralSettingsHeader" Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="General" />
+                        <Border x:Name="GeneralSettingsSection" Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Application"/>
                                 <TextBlock Margin="0,5,0,18" Style="{DynamicResource Text.Secondary}"
@@ -296,7 +304,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,16,0,0" Style="{DynamicResource Card}">
+                        <Border x:Name="AdGuardSettingsSection" Margin="0,16,0,0" Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="AdGuard Home"/>
                                 <TextBlock Margin="0,8,0,0"
@@ -367,8 +375,8 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Notifications" />
-                        <Border Style="{DynamicResource Card}">
+                        <TextBlock x:Name="NotificationsSettingsHeader" Margin="0,24,0,12" Style="{DynamicResource Text.SectionTitle}" Text="Notifications" />
+                        <Border x:Name="NotificationsSettingsSection" Style="{DynamicResource Card}">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Notification Preferences"/>
                                 <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}"
@@ -423,7 +431,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Border Margin="0,16,0,0" Style="{DynamicResource Card}">
+                <Border x:Name="DashboardSettingsSection" Margin="0,16,0,0" Style="{DynamicResource Card}">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -475,7 +483,7 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Padding="12"
                 Background="{DynamicResource Brush.Surface}"
                 BorderBrush="{DynamicResource Brush.Border}"
