@@ -27,7 +27,7 @@
     </UserControl.Resources>
 
     <Grid
-          ClipToBounds="False"
+          ClipToBounds="True"
           Background="{DynamicResource Brush.WindowBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -963,56 +963,5 @@
                 </Border>
             </TabItem>
         </TabControl>
-        <Canvas x:Name="FlightDeckFootnoteOverlay"
-                Grid.RowSpan="3"
-                Width="200"
-                Margin="12,120,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Top"
-                Panel.ZIndex="1000"
-                IsHitTestVisible="False"
-                Visibility="Collapsed">
-            <StackPanel Width="200">
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Bottom">
-                    <!-- Same compact vector vocabulary as the launch-site crew and support vehicle. -->
-                    <Canvas Width="30" Height="52" Margin="0,0,6,0" Opacity="0.82">
-                        <Ellipse Canvas.Left="9" Width="11" Height="11" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="12" Canvas.Top="10" Width="7" Height="25" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Line X1="15" Y1="20" X2="27" Y2="12" Stroke="{DynamicResource Brush.Accent}" StrokeThickness="3"/>
-                        <Rectangle Canvas.Left="8" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="18" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                    </Canvas>
-                    <Canvas Width="30" Height="52" Margin="0,0,8,0" Opacity="0.82">
-                        <Ellipse Canvas.Left="9" Width="11" Height="11" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="12" Canvas.Top="10" Width="7" Height="25" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="4" Canvas.Top="22" Width="11" Height="7" Fill="{DynamicResource Brush.Accent}"/>
-                        <Rectangle Canvas.Left="8" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="18" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                    </Canvas>
-                    <Canvas Width="70" Height="52" Margin="0,0,8,0" Opacity="0.9">
-                        <Rectangle Canvas.Left="6" Canvas.Top="22" Width="58" Height="25" RadiusX="6" RadiusY="6" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
-                        <Polygon Points="17,22 29,9 50,9 60,22" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
-                        <Ellipse Canvas.Left="15" Canvas.Top="39" Width="13" Height="13" Fill="{DynamicResource Brush.Border}"/>
-                        <Ellipse Canvas.Left="45" Canvas.Top="39" Width="13" Height="13" Fill="{DynamicResource Brush.Border}"/>
-                        <TextBlock Canvas.Left="21" Canvas.Top="28" FontSize="8" FontWeight="Bold" Foreground="{DynamicResource Brush.Accent}" Text="RP"/>
-                    </Canvas>
-                    <Canvas Width="30" Height="52" Opacity="0.82">
-                        <Ellipse Canvas.Left="9" Width="11" Height="11" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="12" Canvas.Top="10" Width="7" Height="25" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Line X1="15" Y1="20" X2="3" Y2="28" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="3"/>
-                        <Rectangle Canvas.Left="8" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                        <Rectangle Canvas.Left="18" Canvas.Top="34" Width="5" Height="16" Fill="{DynamicResource Brush.TextPrimary}"/>
-                    </Canvas>
-                </StackPanel>
-                <TextBlock Margin="0,9,0,0"
-                           Width="200"
-                           TextAlignment="Left"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Brush.TextSecondary}"
-                           Text="This Easter Egg took way too long to figure out and barely anyone will see it - lol"/>
-            </StackPanel>
-        </Canvas>
     </Grid>
 </UserControl>

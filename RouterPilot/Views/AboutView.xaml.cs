@@ -28,6 +28,8 @@ namespace RouterPilot.Views
 {
     public partial class AboutView : UserControl
     {
+        public event EventHandler<bool>? FlightDeckActiveChanged;
+
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly SettingsService _settingsService;
         private readonly UpdateService _updateService;
@@ -270,7 +272,7 @@ namespace RouterPilot.Views
                 FlightDeckHost.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
-                UpdateFlightDeckFootnoteVisibility();
+                FlightDeckActiveChanged?.Invoke(this, true);
                 SelectCaptainLog();
                 StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -1176,8 +1178,7 @@ namespace RouterPilot.Views
             }
             if (FlightDeckRoot is not null)
                 FlightDeckRoot.Visibility = Visibility.Collapsed;
-            if (FlightDeckFootnoteOverlay is not null)
-                FlightDeckFootnoteOverlay.Visibility = Visibility.Collapsed;
+            FlightDeckActiveChanged?.Invoke(this, false);
             if (PacketIndicator?.RenderTransform is TranslateTransform packet)
             {
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
@@ -1205,31 +1206,6 @@ namespace RouterPilot.Views
                 AutopilotMessage.BeginAnimation(UIElement.OpacityProperty, null);
                 AutopilotMessage.Visibility = Visibility.Collapsed;
                 AutopilotMessage.Opacity = 0;
-            }
-        }
-
-        private void UpdateFlightDeckFootnoteVisibility()
-        {
-            if (FlightDeckFootnoteOverlay is null)
-                return;
-
-            if (_flightDeckActive)
-            {
-                FlightDeckFootnoteOverlay.BeginAnimation(UIElement.OpacityProperty, null);
-                FlightDeckFootnoteOverlay.Opacity = 1;
-                if (FlightDeckFootnoteOverlay.RenderTransform is TranslateTransform translation)
-                {
-                    translation.BeginAnimation(TranslateTransform.XProperty, null);
-                    translation.BeginAnimation(TranslateTransform.YProperty, null);
-                    translation.X = 0;
-                    translation.Y = 0;
-                }
-                FlightDeckFootnoteOverlay.Visibility = Visibility.Visible;
-                Debug.WriteLine($"FOOTNOTE_SET_VISIBLE visibility={FlightDeckFootnoteOverlay.Visibility} isVisible={FlightDeckFootnoteOverlay.IsVisible} width={FlightDeckFootnoteOverlay.ActualWidth:0.##} height={FlightDeckFootnoteOverlay.ActualHeight:0.##}");
-            }
-            else
-            {
-                FlightDeckFootnoteOverlay.Visibility = Visibility.Collapsed;
             }
         }
 
