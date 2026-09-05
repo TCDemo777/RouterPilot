@@ -665,12 +665,14 @@
                                   VerticalAlignment="Stretch"
                                   SizeChanged="FlightDeckChangelogViewport_SizeChanged"
                                   Background="{DynamicResource Brush.SurfaceMuted}">
-                                <TextBlock x:Name="FlightDeckChangelogText"
-                                           Margin="12"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Top"
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                <StackPanel x:Name="ChangelogDocument"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Top">
+                                    <TextBlock x:Name="FlightDeckChangelogText"
+                                               Margin="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                </StackPanel>
                             </Grid>
                           </Grid>
                         </Border>

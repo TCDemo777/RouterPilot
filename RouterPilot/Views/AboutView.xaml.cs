@@ -116,7 +116,7 @@ namespace RouterPilot.Views
         public AboutView()
         {
             InitializeComponent();
-            FlightDeckChangelogText.RenderTransform = _changelogTranslate;
+            ChangelogDocument.RenderTransform = _changelogTranslate;
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
             _settingsService = ((App)Application.Current).Services
@@ -637,12 +637,12 @@ namespace RouterPilot.Views
                     new Action(() => StartFlightDeckChangelogScroll(false)));
                 return;
             }
-            double bodyWidth = Math.Max(1, FlightDeckChangelogViewport.ActualWidth - FlightDeckChangelogText.Margin.Left - FlightDeckChangelogText.Margin.Right);
-            FlightDeckChangelogText.Width = bodyWidth;
-            FlightDeckChangelogText.Height = double.NaN;
-            FlightDeckChangelogText.Measure(new Size(bodyWidth, double.PositiveInfinity));
-            double contentHeight = FlightDeckChangelogText.DesiredSize.Height;
-            FlightDeckChangelogText.Height = contentHeight;
+            double bodyWidth = Math.Max(1, FlightDeckChangelogViewport.ActualWidth);
+            ChangelogDocument.Width = bodyWidth;
+            ChangelogDocument.Height = double.NaN;
+            ChangelogDocument.Measure(new Size(bodyWidth, double.PositiveInfinity));
+            double contentHeight = ChangelogDocument.DesiredSize.Height;
+            ChangelogDocument.Height = contentHeight;
             FlightDeckChangelogViewport.UpdateLayout();
             const double bottomPadding = 12;
             double distance = Math.Max(0, contentHeight - viewportHeight + bottomPadding);
@@ -1019,8 +1019,8 @@ namespace RouterPilot.Views
                 _flightDeckChangelogScrollingEnabled = false;
                 _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
                 _changelogTranslate.Y = 0;
-                FlightDeckChangelogText.Width = double.NaN;
-                FlightDeckChangelogText.Height = double.NaN;
+                ChangelogDocument.Width = double.NaN;
+                ChangelogDocument.Height = double.NaN;
                 FlightDeckChangelogText.Text = string.Empty;
                 FlightDeckChangelogVersion.Text = string.Empty;
             }
