@@ -1,5 +1,20 @@
 # RouterPilot Changelog
 
+## 2.3.1
+
+### Added
+- Added Connect and Disconnect controls for configured GL.iNet VPN client tunnels.
+- Added Tailscale service management and LAN/WAN access controls with same-tab reconciliation.
+
+### Fixed
+- Fixed configured VPN tunnels disappearing when optional profile or runtime enrichment is unavailable.
+- Fixed VPN disconnect presentation so a disconnect operation is not shown as Connecting.
+- Fixed Tailscale status and statistics being cleared during unrelated VPN operations.
+- Fixed router public IP reporting to use router-authoritative data.
+
+### Reliability
+- Improved AdGuard Home recovery and session rebuilding after long Windows sleep or resume events.
+
 ## 2.3.0
 
 ### Router intelligence

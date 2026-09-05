@@ -20,23 +20,15 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.3.0
+## What's new in RouterPilot 2.3.1
 
-RouterPilot 2.3.0 expands read-only router intelligence while keeping configuration changes user initiated. [Read the full release notes](https://github.com/TCDemo777/RouterPilot/releases/tag/v2.3.0).
+RouterPilot 2.3.1 adds focused VPN controls and reliability fixes. [Read the full release notes](https://github.com/TCDemo777/RouterPilot/releases/tag/v2.3.1).
 
-- Expanded Router telemetry for identity, ports, Wi-Fi, Multi-WAN, DNS, performance, temperature and storage.
-- Added Network Configuration intelligence covering mode, Guest/IoT, NAT, IGMP, SQM, DPI and traffic processing.
-- Improved Wi-Fi, DHCP, port-forwarding, Network Map and Internet Quality views.
-- Added richer client identification using router, DHCP, Wi-Fi, mDNS, vendor and AdGuard observations.
-- Expanded VPN and read-only Tailscale visibility, including connection state, addresses, version and peers.
-- Expanded Protection and AdGuard Home observability with DNS activity, filters, blocklists, blocked services and rewrites.
-- Improved Data Statistics, DPI application analytics and traffic-session accumulation with safe counter rebaselining.
-- Redesigned Maintenance with Health, snapshots, change history, firmware status, logs, reports and Support tools.
-- Added GL.iNet firmware catalog checks and an in-app release-notes viewer while keeping OpenWrt system information separate.
-- Added external-storage, Samba/share, NAS, WebDAV and DLNA service visibility where authoritative.
-- Reorganized Settings into tabbed, responsive sections while preserving existing settings and persistence.
-- Hardened refresh, cancellation, router/profile switching, disconnect/reconnect and Windows sleep/resume recovery.
-- Improved semantic status wording, navigation, search, responsive layouts and support/report privacy handling.
+- Added Connect and Disconnect controls for configured GL.iNet VPN client tunnels.
+- Added Tailscale service management and LAN/WAN access controls with same-tab reconciliation.
+- Fixed VPN inventory loading when optional profile or runtime enrichment is unavailable.
+- Fixed Tailscale state preservation during unrelated VPN operations.
+- Improved AdGuard Home recovery after long Windows sleep or resume events.
 
 ## Security
 
@@ -63,7 +55,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.3.0-x64.msi` and `RouterPilot-2.3.0-win-x64.zip`.
+Release assets are published as `RouterPilot-2.3.1-x64.msi` and `RouterPilot-2.3.1-win-x64.zip`.
 
 ## Upgrading
 
@@ -104,4 +96,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot v2.3.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.3.1 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
