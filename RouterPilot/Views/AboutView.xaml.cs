@@ -578,7 +578,8 @@ namespace RouterPilot.Views
 
             try
             {
-                string[] lines = source.Value.content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+                string normalized = NormalizeChangelogText(source.Value.content);
+                string[] lines = normalized.Split('\n');
                 int firstMeaningfulIndex = Array.FindIndex(lines, line => !string.IsNullOrWhiteSpace(line));
                 if (firstMeaningfulIndex < 0)
                 {
@@ -591,6 +592,7 @@ namespace RouterPilot.Views
                     line => line.StartsWith("## ", StringComparison.Ordinal)
                         && !line[3..].Trim().Equals("Unreleased", StringComparison.OrdinalIgnoreCase));
                 FlightDeckChangelogVersion.Text = latestReleaseIndex >= 0 ? lines[latestReleaseIndex][3..].Trim() : "Release notes";
+                FlightDeckChangelogText.Text = normalized;
                 Debug.WriteLine($"CHANGELOG_SOURCE={source.Value.source}");
                 Debug.WriteLine($"CHANGELOG_SELECTED_VERSION={FlightDeckChangelogVersion.Text}");
                 Debug.WriteLine($"CHANGELOG_RELEASE_SECTIONS={lines.Count(line => line.StartsWith("## ", StringComparison.Ordinal))}");
@@ -617,7 +619,13 @@ namespace RouterPilot.Views
                     else if (line.StartsWith("#", StringComparison.Ordinal)) rendered.AppendLine(line.TrimStart('#', ' '));
                     else rendered.AppendLine(line);
                 }
-                FlightDeckChangelogText.Text = rendered.ToString().Trim().Replace("â€¢", "\u2022", StringComparison.Ordinal);
+                // The Flight Deck body is the canonical source text itself.
+                // Keep formatting-only reconstruction out of the displayed
+                // content so no historical lines can be lost.
+                FlightDeckChangelogText.Text = normalized;
+                Debug.WriteLine($"CHANGELOG_SOURCE_NORMALIZED_CHARS={normalized.Length}");
+                Debug.WriteLine($"CHANGELOG_RENDERED_CHARS={FlightDeckChangelogText.Text.Length}");
+                Debug.WriteLine($"CHANGELOG_CONTENT_EQUAL={string.Equals(normalized, FlightDeckChangelogText.Text, StringComparison.Ordinal)}");
             }
             catch
             {
@@ -625,6 +633,9 @@ namespace RouterPilot.Views
                 FlightDeckChangelogText.Text = "The latest changelog could not be read.";
             }
         }
+
+        private static string NormalizeChangelogText(string value) =>
+            value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
         private static (string source, string content)? ReadCanonicalChangelog()
         {
