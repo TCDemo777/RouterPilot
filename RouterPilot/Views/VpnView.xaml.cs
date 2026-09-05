@@ -33,6 +33,7 @@ public partial class VpnView : UserControl
     private readonly object _operationSync = new();
     private CancellationTokenSource? _refreshCts;
     private CancellationTokenSource? _operationCts;
+    private long _refreshGeneration;
     private bool _eventsAttached;
     private bool _updatingTailscaleControls;
     private string? _tailscaleApplyingField;
@@ -99,10 +100,13 @@ public partial class VpnView : UserControl
             _refreshCts = new CancellationTokenSource();
             refreshCts = _refreshCts;
         }
+        long refreshGeneration = Interlocked.Increment(ref _refreshGeneration);
         CancellationToken token = refreshCts.Token;
         string profileId = _activeRouter.CurrentProfileId;
         long contextVersion = _activeRouter.Version;
-        bool IsCurrent() => profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
+        bool IsCurrent() => refreshGeneration == Interlocked.Read(ref _refreshGeneration)
+            && profileId == _activeRouter.CurrentProfileId
+            && contextVersion == _activeRouter.Version;
         Task tailscaleTask = LoadTailscaleAsync(token, IsCurrent);
         try
         {
@@ -242,7 +246,12 @@ public partial class VpnView : UserControl
                 TailscaleAccessField.Lan => _viewModel.TailscaleConfiguration.LanEnabled == value,
                 _ => _viewModel.TailscaleConfiguration.WanEnabled == value
             };
-            bool runtimeStable = field != TailscaleAccessField.Enabled || !value || _viewModel.TailscaleStatus?.State is TailscaleState.Connected or TailscaleState.NeedsLogin or TailscaleState.Stopped;
+            bool runtimeStable = field switch
+            {
+                TailscaleAccessField.Enabled when value => _viewModel.TailscaleStatus?.State is TailscaleState.Connected or TailscaleState.NeedsLogin,
+                TailscaleAccessField.Enabled => _viewModel.TailscaleStatus?.State is not TailscaleState.Connected,
+                _ => true
+            };
             if (configurationStable && runtimeStable) return;
             if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(350), token);
         }
@@ -252,6 +261,7 @@ public partial class VpnView : UserControl
 
     private void StopRefresh()
     {
+        Interlocked.Increment(ref _refreshGeneration);
         _operationIntent.ClearAll();
         _viewModel.ApplyTransitionIntent();
         lock (_operationSync)
