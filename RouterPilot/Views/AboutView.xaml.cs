@@ -372,21 +372,23 @@ namespace RouterPilot.Views
             if (variation.IsDark)
             {
                 CelestialCardLayer.Children.Clear();
-                CelestialCardLayer.Children.Add(new Rectangle
+                Rectangle celestialBackground = new()
                 {
                     Width = Math.Max(CelestialCardLayer.ActualWidth, 900),
                     Height = Math.Max(CelestialCardLayer.ActualHeight, 500),
                     Fill = sky, Opacity = 0.42,
                     IsHitTestVisible = false
-                });
+                };
+                Panel.SetZIndex(celestialBackground, 0);
+                CelestialCardLayer.Children.Add(celestialBackground);
                 double cardWidth = Math.Max(CelestialCardLayer.ActualWidth, 900);
                 const double moonSize = 46;
                 const double moonPadding = 24;
                 double moonLeft = Math.Max(moonPadding, cardWidth - moonSize - moonPadding);
-                Ellipse moon = new() { Width = moonSize, Height = moonSize, Fill = primary, Opacity = 0.72 };
-                Canvas.SetLeft(moon, moonLeft); Canvas.SetTop(moon, moonPadding); CelestialCardLayer.Children.Add(moon);
-                Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95 };
-                Canvas.SetLeft(moonCutout, moonLeft + 16); Canvas.SetTop(moonCutout, moonPadding - 7); CelestialCardLayer.Children.Add(moonCutout);
+                Ellipse moon = new() { Width = moonSize, Height = moonSize, Fill = primary, Opacity = 0.9, IsHitTestVisible = false };
+                Canvas.SetLeft(moon, moonLeft); Canvas.SetTop(moon, moonPadding); Panel.SetZIndex(moon, 2); CelestialCardLayer.Children.Add(moon);
+                Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95, IsHitTestVisible = false };
+                Canvas.SetLeft(moonCutout, moonLeft + 16); Canvas.SetTop(moonCutout, moonPadding - 7); Panel.SetZIndex(moonCutout, 3); CelestialCardLayer.Children.Add(moonCutout);
                 for (int index = 0; index < variation.StarCount; index++)
                 {
                     double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
@@ -398,6 +400,7 @@ namespace RouterPilot.Views
                     };
                     Canvas.SetLeft(star, 24 + (index * 137) % Math.Max(30, (int)width - 48));
                     Canvas.SetTop(star, 18 + (index * 83) % Math.Max(30, (int)(height * 0.62)));
+                    Panel.SetZIndex(star, 1);
                     CelestialCardLayer.Children.Add(star);
                 }
             }
