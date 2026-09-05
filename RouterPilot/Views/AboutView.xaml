@@ -664,6 +664,12 @@
                                            Margin="12,0,0,0"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource Brush.TextSecondary}"/>
+                                <TextBlock x:Name="FlightDeckChangelogDebugLabel"
+                                           Grid.ColumnSpan="2"
+                                           Margin="0,24,0,0"
+                                           Visibility="Collapsed"
+                                           FontSize="9"
+                                           Foreground="{DynamicResource Brush.TextSecondary}"/>
                             </Grid>
                             <Grid x:Name="FlightDeckChangelogViewport"
                                   Grid.Row="1"
@@ -672,14 +678,16 @@
                                   VerticalAlignment="Stretch"
                                   SizeChanged="FlightDeckChangelogViewport_SizeChanged"
                                   Background="{DynamicResource Brush.SurfaceMuted}">
-                                <StackPanel x:Name="ChangelogDocument"
-                                            HorizontalAlignment="Left"
-                                            VerticalAlignment="Top">
+                                <Canvas x:Name="ChangelogDocument"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        ClipToBounds="False">
                                     <TextBlock x:Name="FlightDeckChangelogText"
-                                               Margin="12"
+                                               Canvas.Left="0"
+                                               Canvas.Top="0"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource Brush.TextPrimary}"/>
-                                </StackPanel>
+                                </Canvas>
                             </Grid>
                           </Grid>
                         </Border>

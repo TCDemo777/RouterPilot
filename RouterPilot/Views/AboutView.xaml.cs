@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -599,6 +600,7 @@ namespace RouterPilot.Views
                     line => line.StartsWith("## ", StringComparison.Ordinal)
                         && !line[3..].Trim().Equals("Unreleased", StringComparison.OrdinalIgnoreCase));
                 FlightDeckChangelogVersion.Text = latestReleaseIndex >= 0 ? lines[latestReleaseIndex][3..].Trim() : "Release notes";
+                RecordChangelogTextDiagnostics("ASSIGNED", normalized, source.Value.source);
                 FlightDeckChangelogText.Text = normalized;
                 Debug.WriteLine($"CHANGELOG_SOURCE={source.Value.source}");
                 Debug.WriteLine($"CHANGELOG_SELECTED_VERSION={FlightDeckChangelogVersion.Text}");
@@ -637,6 +639,9 @@ namespace RouterPilot.Views
                 int loadedLastMeaningfulIndex = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
                 Debug.WriteLine($"CHANGELOG_LOADED_FINAL_MEANINGFUL={(loadedLastMeaningfulIndex >= 0 ? lines[loadedLastMeaningfulIndex].Trim() : "none")}");
                 Debug.WriteLine($"CHANGELOG_CONTENT_EQUAL={string.Equals(normalized, FlightDeckChangelogText.Text, StringComparison.Ordinal)}");
+#if DEBUG
+                FlightDeckChangelogDebugLabel.Text = $"SOURCE: {source.Value.source} · LINES: {normalized.Split('\n').Length} · HASH: {Sha256(normalized)[..8]}";
+#endif
             }
             catch
             {
@@ -651,20 +656,66 @@ namespace RouterPilot.Views
         private static (string source, string content)? ReadCanonicalChangelog()
         {
             Assembly assembly = typeof(AboutView).Assembly;
+            List<string> manifestNames = assembly.GetManifestResourceNames().ToList();
             string? resourceName = assembly.GetManifestResourceNames()
                 .FirstOrDefault(name => name.EndsWith("CHANGELOG.md", StringComparison.OrdinalIgnoreCase));
+            WriteChangelogDiagnostic($"PROCESS_EXE_PATH={Environment.ProcessPath}");
+            WriteChangelogDiagnostic($"ASSEMBLY_LOCATION={assembly.Location}");
+            WriteChangelogDiagnostic($"ASSEMBLY_VERSION={assembly.GetName().Version}");
+            WriteChangelogDiagnostic($"INFORMATIONAL_VERSION={assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}");
+            WriteChangelogDiagnostic("RESOURCE_LOOKUP_ATTEMPTED=CHANGELOG.md");
+            WriteChangelogDiagnostic($"RESOURCE_FOUND={(resourceName is not null ? "YES" : "NO")}");
+            WriteChangelogDiagnostic($"RESOURCE_NAME={resourceName ?? "<none>"}");
+            foreach (string name in manifestNames.Where(name => name.Contains("CHANGELOG", StringComparison.OrdinalIgnoreCase)))
+                WriteChangelogDiagnostic($"MANIFEST_CHANGELOG_RESOURCE={name}");
             if (resourceName is not null)
             {
                 using Stream? stream = assembly.GetManifestResourceStream(resourceName);
                 if (stream is not null)
                 {
                     using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-                    return ($"embedded:{resourceName}", reader.ReadToEnd());
+                    string content = reader.ReadToEnd();
+                    WriteChangelogDiagnostic($"ACTUAL_SOURCE_USED=EMBEDDED");
+                    WriteChangelogDiagnostic($"RESOURCE_LENGTH={content.Length}");
+                    WriteChangelogDiagnostic($"RESOURCE_SHA256={Sha256(NormalizeChangelogText(content))}");
+                    return ($"embedded:{resourceName}", content);
                 }
             }
 
             string? path = FindChangelogPath();
+            WriteChangelogDiagnostic($"EXTERNAL_CHANGELOG_PATH_ATTEMPTED={path ?? "<none>"}");
+            WriteChangelogDiagnostic($"EXTERNAL_CHANGELOG_EXISTS={(path is not null ? "YES" : "NO")}");
             return path is null ? null : (path, File.ReadAllText(path, Encoding.UTF8));
+        }
+
+        private static void RecordChangelogTextDiagnostics(string stage, string text, string source)
+        {
+            string normalized = NormalizeChangelogText(text);
+            string[] lines = normalized.Split('\n');
+            int first = Array.FindIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+            int last = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+            WriteChangelogDiagnostic($"{stage}_SOURCE={source}");
+            WriteChangelogDiagnostic($"{stage}_CHAR_COUNT={text.Length}");
+            WriteChangelogDiagnostic($"{stage}_LINE_COUNT={lines.Length}");
+            WriteChangelogDiagnostic($"{stage}_SHA256={Sha256(normalized)}");
+            WriteChangelogDiagnostic($"{stage}_FIRST_MEANINGFUL_LINE={(first >= 0 ? lines[first].Trim() : "none")}");
+            WriteChangelogDiagnostic($"{stage}_FINAL_MEANINGFUL_LINE={(last >= 0 ? lines[last].Trim() : "none")}");
+        }
+
+        private static string Sha256(string value)
+            => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+        private static void WriteChangelogDiagnostic(string line)
+        {
+            Debug.WriteLine(line);
+#if DEBUG
+            try
+            {
+                string path = Path.Combine(AppContext.BaseDirectory, "flightdeck-loader-debug.txt");
+                File.AppendAllText(path, line + Environment.NewLine, Encoding.UTF8);
+            }
+            catch { }
+#endif
         }
 
         private static string? FindChangelogPath()
@@ -693,6 +744,7 @@ namespace RouterPilot.Views
             // ornamental animations.
             _flightDeckChangelogScrollingEnabled = true;
             FlightDeckChangelogViewport.UpdateLayout();
+            RecordChangelogTextDiagnostics("VISIBLE_TEXT", FlightDeckChangelogText.Text, "FlightDeckChangelogText.Text");
             double viewportHeight = FlightDeckChangelogViewport.ActualHeight;
             Debug.WriteLine($"CHANGELOG_SCROLL_LAYOUT_READY viewport={viewportHeight:0.##} width={FlightDeckChangelogViewport.ActualWidth:0.##}");
             if (viewportHeight <= 1 || FlightDeckChangelogViewport.ActualWidth <= 1)
@@ -702,12 +754,16 @@ namespace RouterPilot.Views
                     new Action(() => StartFlightDeckChangelogScroll(false)));
                 return;
             }
+            const double horizontalPadding = 12;
             double bodyWidth = Math.Max(1, FlightDeckChangelogViewport.ActualWidth);
+            double textWidth = Math.Max(1, bodyWidth - horizontalPadding * 2);
+            FlightDeckChangelogText.Width = textWidth;
+            FlightDeckChangelogText.Height = double.NaN;
+            FlightDeckChangelogText.Measure(new Size(textWidth, double.PositiveInfinity));
+            double contentHeight = FlightDeckChangelogText.DesiredSize.Height;
             ChangelogDocument.Width = bodyWidth;
-            ChangelogDocument.Height = double.NaN;
-            ChangelogDocument.Measure(new Size(bodyWidth, double.PositiveInfinity));
-            double contentHeight = ChangelogDocument.DesiredSize.Height;
             ChangelogDocument.Height = contentHeight;
+            FlightDeckChangelogText.Arrange(new Rect(0, 0, textWidth, contentHeight));
             FlightDeckChangelogViewport.UpdateLayout();
             const double bottomPadding = 16;
             UIElement? lastContent = ChangelogDocument.Children
