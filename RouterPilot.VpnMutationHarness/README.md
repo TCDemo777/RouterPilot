@@ -1,6 +1,6 @@
 # RouterPilot VPN Mutation Harness
 
-Developer-only validation for the single low-risk `lan_enabled` Tailscale
+Developer-only validation for the low-risk `lan_enabled` and `wan_enabled` Tailscale
 setting. The project is not referenced by the installer or production UI.
 
 The runtime path loads the active RouterPilot profile through
@@ -13,9 +13,8 @@ complete supported settings object directly as the `tailscale.set_config` parame
 temporary value, restores the original object in a `finally` path, and reads
 back the original value again.
 
-The runtime result remains **AWAITING LOCAL VALIDATION** until a developer
-runs it against the configured router. Unit tests use fakes and never contact
-a router.
+Both fields are proven on the live Flint 2; the harness remains developer-only
+for future contract checks. Unit tests use fakes and never contact a router.
 
 Run self-tests with:
 

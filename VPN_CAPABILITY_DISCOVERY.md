@@ -93,7 +93,7 @@ firmware exposes the same contract.
 | Advertise Exit Node | `run_exit_node` field and confirmation UI | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Requires safety proof |
 | Use Exit Node | `exit_node_ip` and `get_exit_node_list` | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
 | LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Keep harness evidence; no production UI yet |
-| WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target validation pending | UNPROVEN | `get_config` | Critical | Await local validation |
+| WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Safe for the first production controls |
 | Tailscale SSH | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | Critical | Do not add control |
 | Shields Up | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | High | Do not add control |
 | Device Name | Repository parses `Self.HostName`; daemon stopped | UNAVAILABLE | None | UNAVAILABLE | `status --json` when running | Low | Display when available |
@@ -250,8 +250,9 @@ settings object:
 6. Final authoritative read-back: PASS (`false`).
 7. Router restored: YES.
 
-`wan_enabled` remains **AWAITING LOCAL VALIDATION**. No production VPN UI
-control has been added.
+The same controlled validation subsequently proved `wan_enabled` writable:
+`false -> true` write PASS, read-back PASS, restore PASS, final read-back PASS,
+router restored YES. No other Tailscale field was mutated.
 
 ## Decision gate and next step
 
@@ -265,9 +266,8 @@ also supports OpenVPN, but no OpenVPN tunnel was active in this capture.
 Authoritative read-back after a future write: **YES as a method** (`get_tunnel`),
 but **not exercised after a write** in this read-only run.
 
-Tailscale-specific writable contracts proven safe: **`lan_enabled` only**, on
-the validated live GL-MT6000. `wan_enabled` remains unproven until the same
-controlled harness sequence completes locally. Login/logout, exit-node,
+Tailscale-specific writable contracts proven safe: **`lan_enabled` and
+`wan_enabled`**, on the validated live GL-MT6000. Login/logout, exit-node,
 masquerade, route, and enablement mutations remain unproven and potentially
 disruptive.
 

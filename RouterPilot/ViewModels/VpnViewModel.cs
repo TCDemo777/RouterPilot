@@ -23,6 +23,14 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private TailscaleStatus? tailscaleStatus;
     [ObservableProperty] private bool tailscaleIsLoading;
+    [ObservableProperty] private TailscaleConfigurationSnapshot tailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown;
+    [ObservableProperty] private bool tailscaleSettingsApplying;
+    public bool TailscaleLanEnabled => TailscaleConfiguration.LanEnabled == true;
+    public bool TailscaleWanEnabled => TailscaleConfiguration.WanEnabled == true;
+    public bool TailscaleLanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.LanCapability == TailscaleCapabilityState.Supported;
+    public bool TailscaleWanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.WanCapability == TailscaleCapabilityState.Supported;
+    public string TailscaleLanDisplay => TailscaleConfiguration.LanDisplay;
+    public string TailscaleWanDisplay => TailscaleConfiguration.WanDisplay;
     public VpnViewModel(VpnOperationIntentService? operationIntent = null)
     {
         _operationIntent = operationIntent;
@@ -51,7 +59,9 @@ public sealed partial class VpnViewModel : ObservableObject
         TailscaleStatus = status;
         NotifyTailscale();
     }
-    public void ResetTailscale() { TailscaleStatus = null; _peerStates.Clear(); TailscaleHistory.Clear(); NotifyTailscale(); }
+    public void ResetTailscale() { TailscaleStatus = null; TailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown; _peerStates.Clear(); TailscaleHistory.Clear(); NotifyTailscale(); NotifyTailscaleConfiguration(); }
+    public void ApplyTailscaleConfiguration(TailscaleConfigurationSnapshot configuration)
+    { TailscaleConfiguration = configuration; NotifyTailscaleConfiguration(); }
     public string BuildTailscaleSummary() { StringBuilder text = new("RouterPilot Tailscale Summary\n"); text.AppendLine($"Status: {TailscaleStateDisplay}"); text.AppendLine($"Version: {TailscaleStatus?.Version ?? "—"}"); text.AppendLine($"IPv4 available: {(string.IsNullOrWhiteSpace(TailscaleStatus?.IPv4) ? "No" : "Yes")}"); text.AppendLine($"IPv6 available: {(string.IsNullOrWhiteSpace(TailscaleStatus?.IPv6) ? "No" : "Yes")}"); text.AppendLine($"Peers: {TailscalePeerSummaryDisplay}"); text.AppendLine("Peer identities and addresses omitted."); return text.ToString(); }
     private void AddTailscaleHistory(string message)
     {
@@ -60,6 +70,8 @@ public sealed partial class VpnViewModel : ObservableObject
     }
 
     private void NotifyTailscale() { OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscaleIPv4Display)); OnPropertyChanged(nameof(TailscaleIPv6Display)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); OnPropertyChanged(nameof(TailscaleAttention)); OnPropertyChanged(nameof(TailscaleHistoryText)); }
+    private void NotifyTailscaleConfiguration() { OnPropertyChanged(nameof(TailscaleLanEnabled)); OnPropertyChanged(nameof(TailscaleWanEnabled)); OnPropertyChanged(nameof(TailscaleLanCanEdit)); OnPropertyChanged(nameof(TailscaleWanCanEdit)); OnPropertyChanged(nameof(TailscaleLanDisplay)); OnPropertyChanged(nameof(TailscaleWanDisplay)); }
+    partial void OnTailscaleSettingsApplyingChanged(bool value) => NotifyTailscaleConfiguration();
     [ObservableProperty] private int vpnOperationTunnelId;
     private int? _connectionAttemptTunnelId;
     private int? _connectionAttemptGroupId;

@@ -25,6 +25,7 @@ public partial class VpnView : UserControl
     private readonly VpnScheduleService _vpnScheduleService;
     private readonly IDataFreshnessService _dataFreshnessService;
     private readonly ITailscaleStatusService _tailscale;
+    private readonly ITailscaleConfigurationService _tailscaleConfiguration;
     private readonly VpnOperationIntentService _operationIntent;
     private readonly IActiveRouterContext _activeRouter;
     private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
@@ -33,6 +34,7 @@ public partial class VpnView : UserControl
     private CancellationTokenSource? _refreshCts;
     private CancellationTokenSource? _operationCts;
     private bool _eventsAttached;
+    private bool _updatingTailscaleControls;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -48,6 +50,7 @@ public partial class VpnView : UserControl
         _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
         _dataFreshnessService = ((App)Application.Current).Services.GetRequiredService<IDataFreshnessService>();
         _tailscale = ((App)Application.Current).Services.GetRequiredService<ITailscaleStatusService>();
+        _tailscaleConfiguration = ((App)Application.Current).Services.GetRequiredService<ITailscaleConfigurationService>();
         _operationIntent = ((App)Application.Current).Services.GetRequiredService<VpnOperationIntentService>();
         _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
         DataContext = _viewModel;
@@ -164,11 +167,52 @@ public partial class VpnView : UserControl
         try
         {
             TailscaleStatus status = await _tailscale.GetStatusAsync(token);
-            if (isCurrent()) _viewModel.ApplyTailscaleStatus(status);
+            TailscaleConfigurationSnapshot configuration = await _tailscaleConfiguration.GetConfigurationAsync(token);
+            if (isCurrent()) { _viewModel.ApplyTailscaleStatus(status); _viewModel.ApplyTailscaleConfiguration(configuration); ApplyTailscaleControls(); }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch when (isCurrent()) { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); }
+        catch when (isCurrent()) { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); _viewModel.ApplyTailscaleConfiguration(TailscaleConfigurationSnapshot.Unknown); ApplyTailscaleControls(); }
         finally { _tailscaleRefreshGate.Release(); }
+    }
+
+    private void ApplyTailscaleControls()
+    {
+        _updatingTailscaleControls = true;
+        TailscaleLanToggle.IsChecked = _viewModel.TailscaleLanEnabled;
+        TailscaleWanToggle.IsChecked = _viewModel.TailscaleWanEnabled;
+        TailscaleLanToggle.IsEnabled = _viewModel.TailscaleLanCanEdit;
+        TailscaleWanToggle.IsEnabled = _viewModel.TailscaleWanCanEdit;
+        TailscaleLanState.Text = _viewModel.TailscaleLanDisplay;
+        TailscaleWanState.Text = _viewModel.TailscaleWanDisplay;
+        _updatingTailscaleControls = false;
+    }
+
+    private async void TailscaleAccess_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTailscaleControls || sender is not CheckBox toggle || !toggle.IsEnabled || toggle.Tag is not string tag) return;
+        TailscaleAccessField field = tag == "wan" ? TailscaleAccessField.Wan : TailscaleAccessField.Lan;
+        bool value = toggle.IsChecked == true;
+        _viewModel.TailscaleSettingsApplying = true;
+        ApplyTailscaleControls();
+        try
+        {
+            using CancellationTokenSource mutationCts = new(TimeSpan.FromSeconds(30));
+            lock (_operationSync) _operationCts = mutationCts;
+            TailscaleMutationResult result = await _tailscaleConfiguration.SetAccessAsync(field, value, mutationCts.Token);
+            _viewModel.ApplyTailscaleConfiguration(result.Snapshot);
+            if (!result.Succeeded && !string.IsNullOrWhiteSpace(result.Message)) _viewModel.VpnStatus = result.Message;
+            ApplyTailscaleControls();
+            await RefreshAsync();
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            lock (_operationSync)
+            {
+                _operationCts = null;
+            }
+            _viewModel.TailscaleSettingsApplying = false; ApplyTailscaleControls();
+        }
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();

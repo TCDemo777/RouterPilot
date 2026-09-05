@@ -116,6 +116,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<ILanClientService, LanClientService>();
             serviceCollection.AddSingleton<IVpnService, VpnService>();
             serviceCollection.AddSingleton<ITailscaleStatusService, TailscaleStatusService>();
+            serviceCollection.AddSingleton<ITailscaleConfigurationService, TailscaleConfigurationService>();
             serviceCollection.AddSingleton<IVpnLiveStatusService, VpnLiveStatusService>();
             serviceCollection.AddSingleton<VpnOperationIntentService>();
             serviceCollection.AddSingleton<IVpnSummaryService, VpnSummaryService>();
