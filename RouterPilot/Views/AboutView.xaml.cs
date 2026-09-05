@@ -1208,11 +1208,6 @@ namespace RouterPilot.Views
             }
         }
 
-        private void AboutSurface_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            UpdateFlightDeckFootnoteVisibility();
-        }
-
         private void UpdateFlightDeckFootnoteVisibility()
         {
             if (FlightDeckFootnoteOverlay is null)
@@ -1222,7 +1217,15 @@ namespace RouterPilot.Views
             {
                 FlightDeckFootnoteOverlay.BeginAnimation(UIElement.OpacityProperty, null);
                 FlightDeckFootnoteOverlay.Opacity = 1;
+                if (FlightDeckFootnoteOverlay.RenderTransform is TranslateTransform translation)
+                {
+                    translation.BeginAnimation(TranslateTransform.XProperty, null);
+                    translation.BeginAnimation(TranslateTransform.YProperty, null);
+                    translation.X = 0;
+                    translation.Y = 0;
+                }
                 FlightDeckFootnoteOverlay.Visibility = Visibility.Visible;
+                Debug.WriteLine($"FOOTNOTE_SET_VISIBLE visibility={FlightDeckFootnoteOverlay.Visibility} isVisible={FlightDeckFootnoteOverlay.IsVisible} width={FlightDeckFootnoteOverlay.ActualWidth:0.##} height={FlightDeckFootnoteOverlay.ActualHeight:0.##}");
             }
             else
             {

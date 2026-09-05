@@ -53,8 +53,7 @@
                     BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="0">
             <TabItem Header="About">
-                <Grid x:Name="AboutSurface"
-                      SizeChanged="AboutSurface_SizeChanged">
+                <Grid x:Name="AboutSurface">
                 <ScrollViewer x:Name="AboutContentHost"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,12,24,24">
@@ -970,7 +969,7 @@
                 Margin="12,120,0,0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
-                Panel.ZIndex="30"
+                Panel.ZIndex="1000"
                 IsHitTestVisible="False"
                 Visibility="Collapsed">
             <StackPanel Width="200">
