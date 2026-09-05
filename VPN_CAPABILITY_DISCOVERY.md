@@ -1,10 +1,9 @@
 # RouterPilot VPN management capability discovery
 
-Status: read-only repository audit. No router session was available to this
-workspace during this investigation, so live Flint 2 model, firmware, UCI,
-ubus, frontend and process results are explicitly **UNPROVEN**, not inferred.
-No router command was issued by this document-only pass and no mutation
-contract is approved solely because a generic command may exist.
+Status: bounded, sanitized, read-only Flint 2 capture plus repository audit.
+The active RouterPilot profile reached the router over its existing SSH and
+authenticated GL.iNet session infrastructure. No mutation method was invoked.
+The capture was saved only temporarily for analysis and is not committed.
 
 ## Evidence and current architecture
 
@@ -35,32 +34,43 @@ The Tailscale reads are guarded by a per-view semaphore, cancellation token,
 and `IActiveRouterContext` profile/version checks. Navigation cancels refresh;
 there is no Tailscale polling loop in this discovery pass.
 
-## Live router discovery status
+## Live Flint 2 capture
 
-The repository's existing sanitized capability probe is intentionally bounded,
-but it currently inspects `system`, `network.interface`, `firewall`, `service`
-and `system` ubus schemas plus selected UCI packages (`network`, `wireless`,
-`firewall`, `dhcp`, `mwan3`, `ddns`, `sqm`, `upnp`, `zerotier`, `glconfig`,
-`glinet`, `nas`, `adguard`) and command/service presence. It does **not** yet
-prove Flint 2 Tailscale/WireGuard/OpenVPN management contracts. In particular,
-its command list does not include `tailscale`, `tailscaled`, `wg`,
-`wg-quick`, `openvpn`, or `vpn-policy`.
+The selected profile reached `192.168.1.1` through RouterPilot's existing
+`RouterManagerProvider` and SSH connection factory. The sanitized board result
+proves:
 
-Therefore the following live values remain unknown until a sanitized report is
-collected from the selected router:
+- Model: `GL.iNet GL-MT6000` / board `glinet,gl-mt6000`
+- Kernel: `5.4.238`
+- Architecture/system: `ARMv8 Processor rev 4`, target `mediatek/mt7986`
+- OpenWrt: `21.02-SNAPSHOT`, revision `r15812+1092-46b6ee7ffc`
+- GL.iNet product firmware version: not exposed by `system board` or the
+  bounded version reads; do not substitute the OpenWrt release
+- Tailscale: `/usr/sbin/tailscale`, version `1.92.5-1 (OpenWrt)`
+- `tailscaled` binary exists, but no daemon process was observed and
+  `tailscale.settings.enabled='0'`; `tailscale status --json` and `tailscale
+  ip` returned no status/address data because the service is disabled/stopped
 
-- Model: unknown
-- Firmware/OpenWrt release: unknown
-- Tailscale version: unknown
-- Installed packages, init scripts, GL.iNet frontend/backend files and
-  Tailscale UCI/RPC schema: unknown
-- Whether the GL.iNet GUI wraps Tailscale CLI, UCI, ubus, or another helper:
-  unknown
+Relevant live UCI namespaces are present: `tailscale`, `route_policy`,
+`wireguard`, `openvpn`, `ovpnclient`, `ovpnserver`, and `zerotier`. The live
+Tailscale settings include `enabled=0`, `lan_enabled=0`, `wan_enabled=0`,
+`run_exit_node=0`, and `masq=0`. The live route-policy config contains a
+disabled client rule plus process/tunnel rules; client identities and private
+addresses were redacted.
 
-The safe next discovery operation is one aggregate, read-only capability
-probe expanded to those command names and bounded file/RPC locations. It must
-redact identities, addresses, credentials, keys, cookies and tokens before any
-report leaves the router.
+Relevant live backend files include `/etc/init.d/tailscale`,
+`/usr/bin/gl_tailscale`, `/usr/lib/lua/gl/vpn_client.lua`,
+`/etc/init.d/vpn-client`, and compressed frontend bundles
+`gl-sdk4-ui-tailscaleview.common.js.gz` and
+`gl-sdk4-ui-vpn-client.common.js.gz`.
+
+The GL.iNet frontend bundle explicitly references the Tailscale RPC methods
+`tailscale.get_config`, `tailscale.set_config`, `tailscale.get_status`,
+`tailscale.get_auth_url`, `tailscale.get_exit_node_list`, and
+`tailscale.logout`. It also references `vpn-client.get_tunnel`,
+`vpn-client.set_tunnel`, `vpn-client.add_tunnel`, `vpn-client.stop`, and
+`ovpn-client` group/config methods. These are discovered contracts, not
+permission to invoke writes.
 
 ## Tailscale capability matrix
 
@@ -69,31 +79,31 @@ firmware exposes the same contract.
 
 | Capability | Read source | Read confidence | Write contract | Write confidence | Read-back | Risk | Recommendation |
 |---|---|---:|---|---:|---|---|---|
-| Installed | `command -v tailscale` over SSH | PROVEN | None | UNAVAILABLE | Same command | Low | Keep read-only |
-| Enabled | No independent enabled flag; inferred only from status/process | PARTIAL | None | UNPROVEN | Not defined | Medium | Do not edit |
-| Running | `pidof tailscaled` when status is empty; status backend otherwise | PROVEN | None | UNPROVEN | Status JSON | Medium | Keep read-only |
-| Logged in | `BackendState` (`Running` vs `NeedsLogin`/`NoState`) | PROVEN | None | UNPROVEN | Status JSON | Medium | Keep read-only |
-| Connect | None | UNAVAILABLE | No GL.iNet contract discovered | UNPROVEN | None | High | Do not add control |
-| Disconnect | None | UNAVAILABLE | No GL.iNet contract discovered | UNPROVEN | None | High | Do not add control |
-| Login | None | UNAVAILABLE | Auth-key/browser flow not discovered | UNPROVEN | None | Critical | Never expose credentials |
-| Logout | None | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Do not add control |
-| Accept DNS | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Read-only/unknown |
-| Accept Routes | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Read-only/unknown |
-| Advertised Routes | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Read-only/unknown |
-| Advertise Exit Node | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | Critical | Do not add control |
-| Use Exit Node | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | Critical | Do not add control |
-| LAN Access | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Do not infer |
-| WAN Access | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | Critical | Do not infer |
-| Tailscale SSH | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | Critical | Do not add control |
-| Shields Up | Not parsed from status | UNAVAILABLE | No contract discovered | UNPROVEN | None | High | Do not add control |
-| Device Name | `Self.HostName` | PROVEN | None | UNPROVEN | Status JSON | Low | Display only |
-| Tailnet Identity | No account/tailnet field is parsed | UNAVAILABLE | None | UNAVAILABLE | None | Privacy-sensitive | Do not collect yet |
-| IPv4 | `Self.TailscaleIPs`, fallback `tailscale ip` | PROVEN | None | UNAVAILABLE | Status/CLI | Low | Display only |
-| IPv6 | `Self.TailscaleIPs`, fallback `tailscale ip` | PROVEN | None | UNAVAILABLE | Status/CLI | Low | Display only |
-| Peers | `Peer` object map | PROVEN | None | UNAVAILABLE | Status JSON | Medium | Display read-only |
-| Peer Online | Peer `Online` | PROVEN | None | UNAVAILABLE | Status JSON | Low | Display read-only |
+| Installed | Live `command -v tailscale` -> `/usr/sbin/tailscale` | PROVEN | None | UNAVAILABLE | Same command | Low | Keep read-only |
+| Enabled | Live `tailscale.settings.enabled='0'` | PROVEN | `tailscale.set_config` in GL.iNet frontend | UNPROVEN | `tailscale.get_config` | High | Do not add control yet |
+| Running | No `tailscaled` process; init script present | PROVEN | `tailscale.set_config` may restart service | UNPROVEN | `tailscale.get_status` | High | Keep read-only |
+| Logged in | No backend status while disabled | UNAVAILABLE | `tailscale.get_auth_url`/logout references | UNPROVEN | `get_status` | High | Do not expose auth control |
+| Connect | `get_config`/`get_status` references | PARTIAL | `tailscale.set_config` | UNPROVEN | `get_status` | Critical | Requires controlled test |
+| Disconnect | Init script and `set_config` references | PARTIAL | `tailscale.set_config` or logout | UNPROVEN | `get_status` | Critical | Do not implement |
+| Login | `get_auth_url` frontend reference | OBSERVABLE ONLY | Browser/auth flow not proven | UNPROVEN | `get_status` | Critical | Never handle auth keys |
+| Logout | `tailscale.logout` frontend reference | OBSERVABLE ONLY | `tailscale.logout` | UNPROVEN | `get_status` | Critical | Do not implement |
+| Accept DNS | No field in captured config; helper changes dnsmasq | PARTIAL | `set_config` shape incomplete | UNPROVEN | `get_config` | High | Keep unknown |
+| Accept Routes | Not exposed by captured config | UNAVAILABLE | None proven | UNPROVEN | None | High | Do not infer |
+| Advertised Routes | `gl_tailscale` route helpers only | OBSERVABLE ONLY | No proven UI parameter | UNPROVEN | None | Critical | Do not add control |
+| Advertise Exit Node | `run_exit_node` field and confirmation UI | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Requires safety proof |
+| Use Exit Node | `exit_node_ip` and `get_exit_node_list` | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
+| LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | `set_config` | UNPROVEN | `get_config` | High | Candidate only after test |
+| WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
+| Tailscale SSH | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | Critical | Do not add control |
+| Shields Up | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | High | Do not add control |
+| Device Name | Repository parses `Self.HostName`; daemon stopped | UNAVAILABLE | None | UNAVAILABLE | `status --json` when running | Low | Display when available |
+| Tailnet Identity | No account data captured | UNAVAILABLE | None | UNAVAILABLE | None | Privacy-sensitive | Do not collect |
+| IPv4 | `tailscale ip` returned no value while stopped | UNAVAILABLE | None | UNAVAILABLE | Status/CLI when running | Low | Display when available |
+| IPv6 | `tailscale ip` returned no value while stopped | UNAVAILABLE | None | UNAVAILABLE | Status/CLI when running | Low | Display when available |
+| Peers | No status JSON while stopped | UNAVAILABLE | None | UNAVAILABLE | `status --json` when running | Medium | Display when available |
+| Peer Online | No status JSON while stopped | UNAVAILABLE | None | UNAVAILABLE | `status --json` when running | Low | Display when available |
 | Peer Routes | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not infer from peer addresses |
-| Version | `tailscale version` | PROVEN | None | UNAVAILABLE | CLI output | Low | Display only |
+| Version | Live `tailscale version` -> `1.92.5-1 (OpenWrt)` | PROVEN | None | UNAVAILABLE | CLI output | Low | Display only |
 | Operator | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not expose |
 | Stateful filtering | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not infer |
 | Netfilter mode | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not infer |
@@ -103,8 +113,8 @@ No Tailscale write is approved by this matrix. Generic `tailscale up`,
 
 ## GL.iNet VPN RPC evidence
 
-The source contains these authenticated RPC calls; no mutation call was
-invoked during discovery:
+The live frontend and RouterPilot source contain these authenticated RPC
+calls; no mutation call was invoked during discovery:
 
 | Object | Method | Parameters | Classification | Evidence |
 |---|---|---|---|---|
@@ -112,10 +122,22 @@ invoked during discovery:
 | `vpn-client` | `get_all_config_list` | `{}` | Read | Used for WireGuard/OpenVPN profile metadata |
 | `vpn-client` | `set_tunnel` | `{ tunnel_id, enabled }` | Write | Existing `SetVpnTunnelEnabledAsync`; must be live-tested before expanding |
 
-The inventory exposes tunnel ID/name, enabled state, protocol, interface,
-kill-switch flag, linked profile groups, masquerade, local access and service
-policy fields when present. It does not prove that each field is editable or
-that a setting maps one-to-one to the GL.iNet GUI.
+The live `get_tunnel` read returned one tunnel:
+
+- tunnel ID `38`, protocol `WireGuard`, interface `wgclient1`
+- enabled `false`, kill switch `true`, local access `false`, masquerade `true`
+- linked profile group `5456`
+
+The live `get_all_config_list` read returned 11 WireGuard profile groups; the
+active linked group was `5456` and had one server entry. No OpenVPN tunnel was
+active in this capture. This proves the read path and identifiers, not that a
+write would be safe without a controlled test.
+
+The GL.iNet frontend also references `vpn-client.add_tunnel`,
+`vpn-client.stop`, `vpn-client.set_tap_s2s`, and separate `ovpn-client`
+group/config methods (`get_group_list`, `get_config_list`, `set_group`,
+`add_group`, `remove_group`, `check_config`, `confirm_config`). These methods
+were not invoked; their presence is not approval to use them.
 
 ## WireGuard and OpenVPN
 
@@ -126,11 +148,11 @@ protocol, endpoint/domain, port, virtual address and RX/TX counters.
 
 | Area | Current evidence | Management conclusion |
 |---|---|---|
-| Profiles | `get_all_config_list` | Read contract proven in code; live schema still required |
-| Active profile | Correlated profile-group IDs and live status | Observable, not a write contract |
-| Connected/disconnected | Tunnel `enabled` plus live status `Status == 1` | Read contract proven in code |
+| Profiles | Live `get_all_config_list` (11 WireGuard groups) | Read contract PROVEN on this Flint 2 |
+| Active profile | Live tunnel group `5456`, profile correlation | Observable, not a write contract |
+| Connected/disconnected | Live tunnel `enabled=false`; live status `Status == 1` when available | Read contract proven; this capture did not invoke a write |
 | Endpoint/interface/handshake/RX/TX | Some endpoint/interface and RX/TX fields are parsed; handshake is not | Partial read; do not claim full WireGuard contract |
-| Enable/disable | `set_tunnel` | Existing narrow write; require Flint 2 read-back validation |
+| Enable/disable | `set_tunnel` | Existing narrow write; live identifier/scope is proven, safety/read-back after write is not |
 | Profile selection/connect/disconnect | No RPC method in repository | Unproven; do not implement |
 
 Private keys, preshared keys, certificates and embedded OpenVPN credentials
@@ -138,15 +160,20 @@ are neither collected nor recorded.
 
 ## VPN policy and ZeroTier
 
-VPN policy is only partially observable through tunnel fields such as
-`service_policy`, `local_access`, `masq`, `from`, `to`, linked profiles and
-kill-switch metadata. No authoritative per-client policy read contract was
-found in the repository, and no client identity should be added to diagnostics
-without a privacy review. Policy writes are **UNPROVEN**.
+The live `route_policy` UCI namespace is present. It exposes global policy
+flags (`service_policy_en`, `mode`, `enabled`), a default rule, a disabled
+WireGuard client rule with tunnel/group/peer references, and process policy
+rules. The `gl/vpn_client.lua` helper reads `route_policy.global.service_policy_en`
+and legacy `vpnpolicy.global.service_policy`. This is authoritative router
+configuration evidence for policy state, but not yet a stable aggregate
+per-client UI contract; client identifiers were redacted.
 
-ZeroTier currently has aggregate installed/enabled visibility through advanced
-router snapshots. No ZeroTier management RPC, profile read-back, connect,
-disconnect or settings write contract was found. Keep it read-only.
+VPN policy writes are **UNPROVEN**. Do not edit UCI or call route-policy
+helpers directly.
+
+ZeroTier is installed (`/usr/bin/zerotier-cli`) but the live UCI state is
+`zerotier.gl.enabled='0'`. No ZeroTier management RPC, profile read-back,
+connect, disconnect or settings write contract was found. Keep it read-only.
 
 ## Future page and mutation safety model
 
@@ -199,19 +226,33 @@ contract are available. No per-client polling or speculative UCI editing.
 
 ## Security and operation budget
 
-- Secrets encountered: no live router data was available; no secrets were
-  recorded.
+- Secrets encountered: protected fields were present in router configuration,
+  but were redacted before output; no secret values were recorded.
 - New timers: 0.
 - Per-client probes: 0.
 - N+1 SSH patterns: 0 added.
 - Router mutations: 0.
 - Tailscale/WireGuard/OpenVPN/ZeroTier writes invoked: 0.
 
-## Required live follow-up
+## Decision gate and next step
 
-Run the existing sanitized capability report against the selected Flint 2,
-then add bounded read-only probes for `tailscale`, `tailscaled`, `wg`,
-`wg-quick`, `openvpn`, relevant init scripts, UCI namespaces, GL.iNet RPC
-objects and frontend/backend references. Capture only method names, option
-names, types and redacted values. Do not invoke `set_tunnel` or any candidate
-mutation while discovering contracts.
+`vpn-client.set_tunnel` is **not yet proven safe enough** for a RouterPilot
+enable/disable control: the live tunnel identifier and scope are known, and
+`get_tunnel` is an available authoritative read-back, but no write was
+intentionally invoked and rollback behavior has not been tested on this
+router. The method applies to the live WireGuard tunnel path; the frontend
+also supports OpenVPN, but no OpenVPN tunnel was active in this capture.
+
+Authoritative read-back after a future write: **YES as a method** (`get_tunnel`),
+but **not exercised after a write** in this read-only run.
+
+Tailscale-specific writable contracts proven safe: **NONE**. The GL.iNet
+frontend proves the existence of `tailscale.set_config`, logout and auth URL
+flows, with config fields for enabled/LAN/WAN/exit-node/masquerade, but those
+operations remain unproven and potentially disruptive.
+
+The single largest safe next batch is a controlled, explicitly confirmed
+Phase-A test of the existing WireGuard `set_tunnel` operation on a disposable
+or maintenance window, with generation checks, bounded timeout, immediate
+`get_tunnel` read-back, and a documented rollback plan. No Tailscale writes
+should be implemented before an equivalent contract test.
