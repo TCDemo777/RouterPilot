@@ -210,6 +210,9 @@ using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardV
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
 
 using PublicIpService publicIp = new();
+Require(PublicIpService.ParseRouterObservedAddress("198.51.100.24\n") == "198.51.100.24", "router-side public IP output is parsed from the SSH observation");
+Require(PublicIpService.ParseRouterObservedAddress("ROUTER_PUBLIC_IP_UNAVAILABLE") is null, "router-side lookup failure remains unavailable");
+Require(PublicIpService.ParseRouterObservedAddress("10.0.0.2\n") is null, "a private WAN address is not mislabelled as a public address");
 List<(string? Previous, string Current)> publicIpEvents = [];
 publicIp.PublicIpChanged += (previous, current) => publicIpEvents.Add((previous, current));
 MethodInfo? publish = typeof(PublicIpService).GetMethod("Publish", BindingFlags.Instance | BindingFlags.NonPublic);

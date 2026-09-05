@@ -745,7 +745,8 @@ namespace RouterPilot.Views
 
             if (await RunMaintenanceAsync(async router => await router.RestartWanAsync()))
             {
-                await _publicIpService.RefreshAsync(forceRefresh: true);
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                await _publicIpService.RefreshAsync(router, forceRefresh: true);
             }
         }
 

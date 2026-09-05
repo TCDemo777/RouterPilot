@@ -285,7 +285,7 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Public IP" />
+                                <TextBlock Style="{StaticResource Overview.DetailLabel}" Text="Router public IP" />
                                 <TextBlock Grid.Column="1" Style="{StaticResource Overview.DetailValue}" Text="{Binding PublicIpDisplay}" />
                             </Grid>
                             <Grid Style="{StaticResource Overview.DetailRow}">

@@ -221,6 +221,8 @@
                                        Text="{Binding InternetStatusText}"/>
                             <TextBlock Margin="0,5,0,0"
                                        Style="{DynamicResource Text.Muted}"
+                                       Text="Router public IP"/>
+                            <TextBlock Style="{DynamicResource Text.Muted}"
                                        Text="{Binding PublicIpDisplay}"/>
                         </StackPanel>
                     </Border>
@@ -1155,7 +1157,7 @@
                                        Text="{Binding WanIp}"/>
 
                             <TextBlock Style="{StaticResource Network.Label}"
-                                       Text="PUBLIC INTERNET"/>
+                                       Text="ROUTER PUBLIC IP"/>
                             <TextBlock Style="{StaticResource Network.Value}"
                                        Text="{Binding PublicIpDisplay}"/>
 

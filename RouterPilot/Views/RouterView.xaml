@@ -49,7 +49,7 @@
                             <StackPanel Margin="14">
                                 <TextBlock Text="Internet / WAN" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock FontSize="16" Text="{Binding InternetStatusText}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Public IP" Style="{DynamicResource Text.Muted}"/>
+                                <TextBlock Margin="0,10,0,0" Text="Router public IP" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock Text="{Binding PublicIpDisplay}"/>
                                 <TextBlock Margin="0,10,0,0" Text="DNS server" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock Text="{Binding DnsServer}"/>

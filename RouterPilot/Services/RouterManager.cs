@@ -380,6 +380,21 @@ namespace RouterPilot.Services
                 .GetNetworkInfoAsync();
         }
 
+        /// <summary>
+        /// Observes the router's Internet-facing address from the router
+        /// itself. This is deliberately not a Windows-side HTTP lookup: a
+        /// policy-routed RouterPilot client may use a different egress path.
+        /// </summary>
+        public Task<string> GetRouterPublicIpObservationAsync(
+            CancellationToken cancellationToken = default)
+        {
+            const string command =
+                "if command -v curl >/dev/null 2>&1; then curl -4 -fsS --max-time 5 https://api.ipify.org; " +
+                "elif command -v wget >/dev/null 2>&1; then wget -qO- --timeout=5 https://api.ipify.org; " +
+                "else printf 'ROUTER_PUBLIC_IP_UNAVAILABLE'; fi";
+            return _ssh.RunCommandAsync(command, cancellationToken);
+        }
+
         public async Task<List<WifiRadioInfo>> GetWifiRadiosAsync()
         {
             // Read configured APs first.  GL.iNet's own client service is then

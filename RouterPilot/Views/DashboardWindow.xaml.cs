@@ -1936,7 +1936,8 @@ namespace RouterPilot.Views
 
             try
             {
-                await _publicIpService.RefreshAsync(forceRefresh, cancellationToken);
+                RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(cancellationToken);
+                await _publicIpService.RefreshAsync(router, forceRefresh, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

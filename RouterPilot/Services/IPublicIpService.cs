@@ -13,5 +13,8 @@ public interface IPublicIpService
 
     event Action<string?, string>? PublicIpChanged;
 
-    Task<PublicIpResult> RefreshAsync(bool forceRefresh, CancellationToken cancellationToken = default);
+    Task<PublicIpResult> RefreshAsync(
+        RouterManager router,
+        bool forceRefresh,
+        CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,6 @@
 using System;
 using System.Net;
-using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
@@ -8,26 +8,20 @@ using RouterPilot.Models;
 namespace RouterPilot.Services;
 
 /// <summary>
-/// Reads only the address observed for RouterPilot's current Internet route.
-/// It intentionally does not use WAN, VPN virtual-address, or VPN endpoint data.
+/// Reads the address observed from the router's own Internet route.  The
+/// command is executed through the router's existing read-only SSH channel;
+/// RouterPilot's Windows egress path is never consulted.
 /// </summary>
 public sealed class PublicIpService : IPublicIpService, IDisposable
 {
-    private static readonly Uri ProviderUri = new("https://api64.ipify.org");
     private static readonly TimeSpan LookupTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan FreshFor = TimeSpan.FromMinutes(10);
 
-    private readonly HttpClient _httpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly object _sync = new();
     private PublicIpResult _current = PublicIpResult.Initial;
     private string? _lastConfirmedIp;
     private bool _disposed;
-
-    public PublicIpService()
-    {
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("RouterPilot/1.0");
-    }
 
     public PublicIpResult Current { get { lock (_sync) return _current; } }
 
@@ -35,8 +29,12 @@ public sealed class PublicIpService : IPublicIpService, IDisposable
 
     public event Action<string?, string>? PublicIpChanged;
 
-    public async Task<PublicIpResult> RefreshAsync(bool forceRefresh, CancellationToken cancellationToken = default)
+    public async Task<PublicIpResult> RefreshAsync(
+        RouterManager router,
+        bool forceRefresh,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(router);
         ThrowIfDisposed();
         PublicIpResult snapshot = Current;
         if (!forceRefresh && snapshot.Status == PublicIpStatus.Available &&
@@ -60,12 +58,11 @@ public sealed class PublicIpService : IPublicIpService, IDisposable
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
             try
             {
-                using HttpResponseMessage response = await _httpClient.GetAsync(ProviderUri, linked.Token).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                string text = (await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false)).Trim();
-                if (!IPAddress.TryParse(text, out IPAddress? address))
+                string output = await router.GetRouterPublicIpObservationAsync(linked.Token).ConfigureAwait(false);
+                string? parsed = ParseRouterObservedAddress(output);
+                if (!IPAddress.TryParse(parsed, out IPAddress? address))
                 {
-                    return Publish(new PublicIpResult(null, DateTimeOffset.UtcNow, PublicIpStatus.Unavailable, "The public-IP service returned an invalid address."));
+                    return Publish(new PublicIpResult(null, DateTimeOffset.UtcNow, PublicIpStatus.Unavailable, "The router could not observe a public address."));
                 }
 
                 return Publish(new PublicIpResult(address.ToString(), DateTimeOffset.UtcNow, PublicIpStatus.Available, null));
@@ -80,7 +77,7 @@ public sealed class PublicIpService : IPublicIpService, IDisposable
             }
             catch (Exception)
             {
-                return Publish(new PublicIpResult(null, DateTimeOffset.UtcNow, PublicIpStatus.Unavailable, "The public-IP service is unavailable."));
+                return Publish(new PublicIpResult(null, DateTimeOffset.UtcNow, PublicIpStatus.Unavailable, "The router-side public-IP observation is unavailable."));
             }
         }
         finally
@@ -136,13 +133,42 @@ public sealed class PublicIpService : IPublicIpService, IDisposable
         return IPAddress.TryParse(candidate, out IPAddress? address) ? address.ToString() : null;
     }
 
+    internal static string? ParseRouterObservedAddress(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return null;
+
+        foreach (Match match in Regex.Matches(output, @"(?<![0-9A-Fa-f:.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9A-Fa-f:.])"))
+        {
+            if (IPAddress.TryParse(match.Value, out IPAddress? candidate) &&
+                candidate.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                IsPublicIpv4(candidate))
+            {
+                return candidate.ToString();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsPublicIpv4(IPAddress address)
+    {
+        byte[] bytes = address.GetAddressBytes();
+        int first = bytes[0];
+        int second = bytes[1];
+        return !IPAddress.IsLoopback(address) &&
+            first != 10 &&
+            !(first == 172 && second is >= 16 and <= 31) &&
+            !(first == 192 && second == 168) &&
+            !(first == 100 && second is >= 64 and <= 127) &&
+            first != 0 && first != 127 && first < 224;
+    }
+
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _httpClient.Dispose();
         _refreshGate.Dispose();
     }
 }
