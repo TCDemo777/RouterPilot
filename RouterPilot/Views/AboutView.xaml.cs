@@ -267,6 +267,7 @@ namespace RouterPilot.Views
                 await Task.Delay(900, cancellationToken);
                 await meteors;
                 FlightDeckHost.Visibility = Visibility.Visible;
+                FlightDeckFootnote.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
                 SelectCaptainLog();
@@ -1172,6 +1173,8 @@ namespace RouterPilot.Views
                     deckTranslation.Y = 18;
                 }
             }
+            if (FlightDeckFootnote is not null)
+                FlightDeckFootnote.Visibility = Visibility.Collapsed;
             if (PacketIndicator?.RenderTransform is TranslateTransform packet)
             {
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
