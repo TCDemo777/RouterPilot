@@ -356,15 +356,13 @@ namespace RouterPilot.Views
                 return FadePreflightForReducedMotionAsync(cancellationToken);
             }
 
-            const int ascentMilliseconds = 2700;
+            const int ascentMilliseconds = 3400;
+            double exitTranslation = CalculateLaunchExitTranslation();
             LaunchTranslation.BeginAnimation(TranslateTransform.XProperty,
                 new DoubleAnimation(0, 8, TimeSpan.FromMilliseconds(ascentMilliseconds))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchTranslation.BeginAnimation(TranslateTransform.YProperty,
-                // The logo begins at Canvas.Top 142 and is 104px tall. -380
-                // carries its complete rendered bounds beyond the 430px scene
-                // viewport with additional clearance, rather than fading it out.
-                new DoubleAnimation(0, -380, TimeSpan.FromMilliseconds(ascentMilliseconds))
+                new DoubleAnimation(0, exitTranslation, TimeSpan.FromMilliseconds(ascentMilliseconds))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchRotation.BeginAnimation(RotateTransform.AngleProperty,
                 new DoubleAnimation(0, 5, TimeSpan.FromMilliseconds(ascentMilliseconds)));
@@ -377,6 +375,28 @@ namespace RouterPilot.Views
             LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty, null);
             LaunchMotionGroup.Opacity = 1;
             return Task.Delay(ascentMilliseconds + 80, cancellationToken);
+        }
+
+        private double CalculateLaunchExitTranslation()
+        {
+            const double safetyMargin = 45;
+            try
+            {
+                FlightDeckPreflight.UpdateLayout();
+                Point groupOrigin = LaunchMotionGroup.TransformToAncestor(FlightDeckPreflight).Transform(new Point(0, 0));
+                Point groupOneUnit = LaunchMotionGroup.TransformToAncestor(FlightDeckPreflight).Transform(new Point(0, 1));
+                Point logoBottom = LaunchLogo.TransformToAncestor(FlightDeckPreflight).Transform(new Point(0, LaunchLogo.ActualHeight));
+                double renderedScale = Math.Abs(groupOneUnit.Y - groupOrigin.Y);
+                if (renderedScale > 0.01)
+                    return -(logoBottom.Y + safetyMargin) / renderedScale;
+            }
+            catch (InvalidOperationException)
+            {
+                // Layout can be unavailable during cancellation; the measured
+                // element dimensions still provide a safe local fallback.
+            }
+
+            return -(Canvas.GetTop(LaunchLogo) + Math.Max(LaunchLogo.ActualHeight, 104) + safetyMargin);
         }
 
         private async Task FadePreflightForReducedMotionAsync(CancellationToken cancellationToken)
