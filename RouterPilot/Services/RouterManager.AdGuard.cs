@@ -23,19 +23,19 @@ namespace RouterPilot.Services
         //
 
         public async Task<AdGuardStatus>
-            GetAdGuardStatusAsync()
+            GetAdGuardStatusAsync(CancellationToken cancellationToken = default)
         {
             string service =
                 await _ssh.RunCommandAsync(
-                    "/etc/init.d/adguardhome status");
+                    "/etc/init.d/adguardhome status", cancellationToken);
 
             string process =
                 await _ssh.RunCommandAsync(
-                    "pgrep -a AdGuardHome");
+                    "pgrep -a AdGuardHome", cancellationToken);
 
             string version =
                 await _ssh.RunCommandAsync(
-                    "/usr/bin/AdGuardHome --version");
+                    "/usr/bin/AdGuardHome --version", cancellationToken);
 
             return new AdGuardStatus
             {
@@ -61,29 +61,31 @@ namespace RouterPilot.Services
         //
 
         public async Task<AdGuardProtectionStatus>
-            GetAdGuardProtectionStatusAsync()
+            GetAdGuardProtectionStatusAsync(CancellationToken cancellationToken = default)
         {
             string token =
-                await GetAdminTokenAsync();
+                await GetAdminTokenAsync(cancellationToken);
 
             AdGuardControlResponse response =
                 await RequestAdGuardControlAsync(
                     HttpMethod.Get,
                     "status",
-                    token);
+                    token,
+                    cancellationToken: cancellationToken);
 
             if (response.RequiresNewToken)
             {
                 InvalidateAdminToken();
 
                 token =
-                    await GetAdminTokenAsync();
+                    await GetAdminTokenAsync(cancellationToken);
 
                 response =
                     await RequestAdGuardControlAsync(
                         HttpMethod.Get,
-                        "status",
-                        token);
+                    "status",
+                    token,
+                    cancellationToken: cancellationToken);
             }
 
             if (!response.IsSuccess)
@@ -934,7 +936,7 @@ namespace RouterPilot.Services
         //
 
         public async Task<AdGuardStatistics>
-            GetAdGuardStatisticsAsync()
+            GetAdGuardStatisticsAsync(CancellationToken cancellationToken = default)
         {
             AdGuardStatistics stats =
                 AdGuardStatisticsParser.CreateUnavailableStatistics();
@@ -942,11 +944,12 @@ namespace RouterPilot.Services
             try
             {
                 string token =
-                    await GetAdminTokenAsync();
+                    await GetAdminTokenAsync(cancellationToken);
 
-                AdGuardStatsResponse firstAttempt =
+                    AdGuardStatsResponse firstAttempt =
                     await RequestAdGuardStatisticsAsync(
-                        token);
+                        token,
+                        cancellationToken);
 
                 if (firstAttempt.RequiresNewToken)
                 {
@@ -957,11 +960,12 @@ namespace RouterPilot.Services
                     InvalidateAdminToken();
 
                     token =
-                        await GetAdminTokenAsync();
+                        await GetAdminTokenAsync(cancellationToken);
 
                     AdGuardStatsResponse secondAttempt =
                         await RequestAdGuardStatisticsAsync(
-                            token);
+                            token,
+                            cancellationToken);
 
                     if (!secondAttempt.IsSuccess)
                     {
@@ -987,6 +991,10 @@ namespace RouterPilot.Services
                 return AdGuardStatisticsParser.Parse(
                     firstAttempt.Content,
                     DateTime.Now);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (TaskCanceledException)
             {
@@ -1459,33 +1467,35 @@ namespace RouterPilot.Services
         //
 
         public async Task<List<QueryLogEntry>>
-            GetQueryLogAsync(int limit = 500) =>
-            (await GetQueryLogResultAsync(limit)).Entries;
+            GetQueryLogAsync(int limit = 500, CancellationToken cancellationToken = default) =>
+            (await GetQueryLogResultAsync(limit, cancellationToken)).Entries;
 
         internal async Task<AdGuardQueryLogReadResult>
-            GetQueryLogResultAsync(int limit = 500)
+            GetQueryLogResultAsync(int limit = 500, CancellationToken cancellationToken = default)
         {
             try
             {
                 string token =
-                    await GetAdminTokenAsync();
+                    await GetAdminTokenAsync(cancellationToken);
 
                 AdGuardQueryLogResponse response =
                     await RequestAdGuardQueryLogAsync(
                         token,
-                        limit);
+                        limit,
+                        cancellationToken);
 
                 if (response.RequiresNewToken)
                 {
                     InvalidateAdminToken();
 
                     token =
-                        await GetAdminTokenAsync();
+                        await GetAdminTokenAsync(cancellationToken);
 
                     response =
                         await RequestAdGuardQueryLogAsync(
-                            token,
-                            limit);
+                        token,
+                        limit,
+                        cancellationToken);
                 }
 
                 if (!response.IsSuccess)
@@ -1502,6 +1512,10 @@ namespace RouterPilot.Services
                     IsAvailable: true,
                     Entries: ParseAdGuardQueryLog(
                         response.Content));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (TaskCanceledException)
             {
@@ -2278,7 +2292,7 @@ namespace RouterPilot.Services
         }
 
         private async Task<string>
-            GetAdminTokenAsync()
+            GetAdminTokenAsync(CancellationToken cancellationToken = default)
         {
             if (!string.IsNullOrWhiteSpace(
                     _adminToken))
@@ -2286,7 +2300,7 @@ namespace RouterPilot.Services
                 return _adminToken;
             }
 
-            await _tokenLock.WaitAsync();
+            await _tokenLock.WaitAsync(cancellationToken);
 
             try
             {
@@ -2303,7 +2317,7 @@ namespace RouterPilot.Services
                 string token =
                     await _sessionService
                         .GetAdminTokenAsync(
-                            CancellationToken.None);
+                            cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(
                         token))

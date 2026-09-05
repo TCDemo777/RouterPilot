@@ -60,6 +60,7 @@ namespace RouterPilot.Views
         private readonly TimelineService _timelineService;
         private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
+        private readonly object _refreshSync = new();
         private bool _refreshInProgress;
         private bool _trafficRefreshInProgress;
         private bool _initialFirmwareCheckScheduled;
@@ -69,6 +70,7 @@ namespace RouterPilot.Views
         private bool _routerOnline = true;
         private int _vpnNetworkContextRefreshQueued;
         private CancellationTokenSource? _resumeRecoveryCancellation;
+        private CancellationTokenSource? _dashboardRefreshCancellation;
         private long _resumeGeneration;
         private int _resumeRecoveryActive;
         private readonly SemaphoreSlim _resumeRecoverySignal = new(0, 1);
@@ -276,6 +278,14 @@ namespace RouterPilot.Views
                 return;
             }
 
+            using CancellationTokenSource lifecycleCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            lock (_refreshSync)
+            {
+                _dashboardRefreshCancellation = lifecycleCancellation;
+            }
+            cancellationToken = lifecycleCancellation.Token;
+
             _refreshInProgress = true;
             long routerSession = _activeRouter.Version;
             long resumeGeneration = Volatile.Read(ref _resumeGeneration);
@@ -322,6 +332,8 @@ namespace RouterPilot.Views
                 RouterManager router =
                     await _routerManagerProvider.GetRouterManagerAsync(
                         cancellationToken);
+                if (Volatile.Read(ref _resumeRecoveryActive) != 0)
+                    ResumeTrace("Router manager acquired; invalidated AdGuard transport/session is active");
 
                 RouterInfo info =
                     await router.GetRouterInfoAsync();
@@ -487,6 +499,7 @@ namespace RouterPilot.Views
             catch (OperationCanceledException)
                 when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession) || resumeGeneration != Volatile.Read(ref _resumeGeneration))
             {
+                ResumeTrace("Dashboard refresh cancelled for lifecycle/recovery generation");
             }
             catch (SshAuthenticationException)
             {
@@ -516,6 +529,11 @@ namespace RouterPilot.Views
 
                 _refreshInProgress = false;
                 _viewModel.IsInitialising = false;
+                lock (_refreshSync)
+                {
+                    if (ReferenceEquals(_dashboardRefreshCancellation, lifecycleCancellation))
+                        _dashboardRefreshCancellation = null;
+                }
             }
         }
 
@@ -549,11 +567,12 @@ namespace RouterPilot.Views
             try
             {
                 ResumeTrace("AdGuard recovery started");
-                AdGuardStatus serviceStatus = await router.GetAdGuardStatusAsync();
+                AdGuardStatus serviceStatus = await router.GetAdGuardStatusAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 ThrowIfRouterSessionChanged(routerSession);
                 ThrowIfResumeGenerationChanged(resumeGeneration);
                 ResumeTrace("AdGuard endpoint resolved from active router profile");
+                ResumeTrace($"AdGuard service probe completed: {(serviceStatus.IsRunning ? "running" : "not running")}");
                 _dataFreshnessService.MarkSuccess(AdGuardFreshnessSource);
 
                 _viewModel.AdGuardRunning = serviceStatus.IsRunning;
@@ -568,11 +587,11 @@ namespace RouterPilot.Views
                 }
 
                 Task<AdGuardRefreshResult<AdGuardStatistics>> statisticsTask =
-                    CaptureAdGuardResultAsync(router.GetAdGuardStatisticsAsync(), cancellationToken);
+                    CaptureAdGuardResultAsync(router.GetAdGuardStatisticsAsync(cancellationToken), cancellationToken);
                 Task<AdGuardRefreshResult<List<QueryLogEntry>>> rankingTask =
-                    CaptureAdGuardResultAsync(router.GetQueryLogAsync(), cancellationToken);
+                    CaptureAdGuardResultAsync(router.GetQueryLogAsync(cancellationToken: cancellationToken), cancellationToken);
                 Task<AdGuardRefreshResult<AdGuardProtectionStatus>> protectionTask =
-                    CaptureAdGuardResultAsync(router.GetAdGuardProtectionStatusAsync(), cancellationToken);
+                    CaptureAdGuardResultAsync(router.GetAdGuardProtectionStatusAsync(cancellationToken), cancellationToken);
 
                 await Task.WhenAll(statisticsTask, rankingTask, protectionTask);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -643,7 +662,7 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
-                ResumeTrace($"AdGuard recovery failed ({ex.GetType().Name})");
+                ResumeTrace($"AdGuard recovery failed ({ClassifyAdGuardFailure(ex)}; {ex.GetType().Name})");
                 _dataFreshnessService.MarkUnavailable(AdGuardFreshnessSource);
                 MarkAdGuardUnavailable(ClassifyAdGuardFailure(ex));
             }
@@ -1248,6 +1267,10 @@ namespace RouterPilot.Views
         {
             Interlocked.Exchange(ref _resumeRecoveryActive, 0);
             _resumeRecoveryCancellation?.Cancel();
+            lock (_refreshSync)
+            {
+                _dashboardRefreshCancellation?.Cancel();
+            }
             return _refreshCoordinator.DisposeAsync().AsTask();
         }
 
@@ -1269,6 +1292,8 @@ namespace RouterPilot.Views
                 {
                 }
             }
+            _routerManagerProvider.Invalidate();
+            ResumeTrace("Manual Refresh invalidated transient router/AdGuard state");
             await _refreshCoordinator.RunNowAsync(
                 DashboardRefreshTask);
         }
@@ -1739,6 +1764,11 @@ namespace RouterPilot.Views
                 Interlocked.Increment(ref _resumeGeneration);
                 Interlocked.Exchange(ref _resumeRecoveryActive, 0);
                 _resumeRecoveryCancellation?.Cancel();
+                lock (_refreshSync)
+                {
+                    _dashboardRefreshCancellation?.Cancel();
+                }
+                ResumeTrace("Active dashboard refresh cancellation requested");
                 ResumeTrace("Suspend detected");
                 _trafficAccumulator.ResetBaseline();
                 _routerManagerProvider.Invalidate();
@@ -1840,8 +1870,11 @@ namespace RouterPilot.Views
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        private static void ResumeTrace(string message) =>
+        private static void ResumeTrace(string message)
+        {
+            ResumeRecoveryDiagnostics.Record(message);
             Debug.WriteLine($"[ResumeRecovery {DateTimeOffset.UtcNow:O}] {message}");
+        }
 
         private void VpnSummaryService_SummaryChanged(VpnSummaryState summary)
         {

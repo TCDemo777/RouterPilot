@@ -339,6 +339,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         report.AppendLine($"Internet: {StateForReport(Dashboard.InternetConnected, Dashboard.InternetStatusText)}");
         report.AppendLine($"AdGuard: {StateForReport(Dashboard.IsAdGuardAvailable, Dashboard.AdGuardStatusText)}");
         report.AppendLine($"VPN: {Dashboard.VpnSummary.State}");
+        report.AppendLine("\nResume recovery trace:");
+        report.AppendLine(ResumeRecoveryDiagnostics.Report());
         report.AppendLine($"Firmware: {RouterFirmwareText}");
         report.AppendLine("\nChecks:");
         foreach (DiagnosticCheck check in DiagnosticChecks) report.AppendLine($"- {check.Title}: {check.State} — {check.Summary}");
