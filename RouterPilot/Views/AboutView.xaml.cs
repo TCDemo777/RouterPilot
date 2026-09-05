@@ -642,13 +642,14 @@ namespace RouterPilot.Views
             double contentHeight = FlightDeckChangelogText.DesiredSize.Height;
             FlightDeckChangelogText.Height = contentHeight;
             FlightDeckChangelogViewport.UpdateLayout();
-            double distance = Math.Max(0, contentHeight - viewportHeight);
-            Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} content={contentHeight:0.##} distance={distance:0.##} speed=22");
+            const double bottomPadding = 12;
+            double distance = Math.Max(0, contentHeight - viewportHeight + bottomPadding);
+            Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} content={contentHeight:0.##} distance={distance:0.##} speed=8");
             if (distance <= 1) return;
 
-            int scrollMilliseconds = Math.Clamp((int)(distance / 22.0 * 1000), 5000, 14000);
-            int initialPause = 2000;
-            int bottomPause = 2200;
+            int scrollMilliseconds = Math.Max(3000, (int)(distance / 8.0 * 1000));
+            int initialPause = 3000;
+            int bottomPause = 3000;
             int returnStart = initialPause + scrollMilliseconds + bottomPause;
             DoubleAnimationUsingKeyFrames animation = new() { RepeatBehavior = RepeatBehavior.Forever };
             animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));

@@ -603,21 +603,6 @@
                                     <TextBlock Margin="0,12,0,0" Text="Tail attached ✓"/>
                                 </StackPanel>
                             </Grid>
-                            <Border Margin="0,24,0,0"
-                                    Padding="14"
-                                    Background="{DynamicResource Brush.SurfaceMuted}"
-                                    BorderBrush="{DynamicResource Brush.Border}"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
-                                <StackPanel>
-                                    <TextBlock FontFamily="Cascadia Mono, Consolas"
-                                               FontWeight="Bold"
-                                               Text="CAPTAIN'S LOG"/>
-                                    <TextBlock x:Name="CaptainLogText"
-                                               Margin="0,8,0,0"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
                             <TextBlock x:Name="AutopilotMessage"
                                        Margin="0,18,0,0"
                                        HorizontalAlignment="Center"
@@ -630,15 +615,36 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
-                    <Border x:Name="FlightDeckChangelogCard"
-                            Grid.Column="2"
-                            Margin="0,12,0,24"
-                            Padding="16"
-                            Background="{DynamicResource Brush.Surface}"
-                            BorderBrush="{DynamicResource Brush.Border}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <Grid>
+                    <Grid Grid.Column="2" Margin="0,12,0,24">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0"
+                                Padding="14"
+                                Background="{DynamicResource Brush.Surface}"
+                                BorderBrush="{DynamicResource Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock FontFamily="Cascadia Mono, Consolas"
+                                           FontWeight="Bold"
+                                           Text="CAPTAIN'S LOG"/>
+                                <TextBlock x:Name="CaptainLogText"
+                                           Margin="0,8,0,0"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="FlightDeckChangelogCard"
+                                Grid.Row="2"
+                                Padding="16"
+                                VerticalAlignment="Stretch"
+                                Background="{DynamicResource Brush.Surface}"
+                                BorderBrush="{DynamicResource Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                          <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="10"/>
@@ -668,8 +674,9 @@
                                     <TextBlock.RenderTransform><TranslateTransform x:Name="FlightDeckChangelogTranslation" Y="0"/></TextBlock.RenderTransform>
                                 </TextBlock>
                             </Grid>
-                        </Grid>
-                    </Border>
+                          </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
                 </Grid>
             </TabItem>
