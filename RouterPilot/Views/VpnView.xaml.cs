@@ -35,6 +35,8 @@ public partial class VpnView : UserControl
     private CancellationTokenSource? _operationCts;
     private bool _eventsAttached;
     private bool _updatingTailscaleControls;
+    private string? _tailscaleApplyingField;
+    private bool _tailscaleApplyingValue;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -80,10 +82,10 @@ public partial class VpnView : UserControl
         _liveStatus.StatusChanged += LiveStatusChanged;
     }
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(bool force = false)
     {
         VpnLiveStatusDiagnostics.Record("VpnView.RefreshAsync entered: YES");
-        if (_viewModel.VpnIsLoading)
+        if (_viewModel.VpnIsLoading && !force)
         {
             VpnLiveStatusDiagnostics.Record("VpnView.RefreshAsync returned early: already loading");
             return;
@@ -163,7 +165,7 @@ public partial class VpnView : UserControl
 
     private async Task LoadTailscaleAsync(CancellationToken token, Func<bool> isCurrent)
     {
-        if (!await _tailscaleRefreshGate.WaitAsync(0, token).ConfigureAwait(true)) return;
+        await _tailscaleRefreshGate.WaitAsync(token).ConfigureAwait(true);
         try
         {
             TailscaleStatus status = await _tailscale.GetStatusAsync(token);
@@ -178,23 +180,31 @@ public partial class VpnView : UserControl
     private void ApplyTailscaleControls()
     {
         _updatingTailscaleControls = true;
-        TailscaleLanToggle.IsChecked = _viewModel.TailscaleLanEnabled;
-        TailscaleWanToggle.IsChecked = _viewModel.TailscaleWanEnabled;
-        TailscaleEnabledToggle.IsChecked = _viewModel.TailscaleEnabled;
-        TailscaleEnabledToggle.IsEnabled = _viewModel.TailscaleEnabledCanEdit;
-        TailscaleLanToggle.IsEnabled = _viewModel.TailscaleLanCanEdit;
-        TailscaleWanToggle.IsEnabled = _viewModel.TailscaleWanCanEdit;
         TailscaleLanState.Text = _viewModel.TailscaleLanDisplay;
         TailscaleWanState.Text = _viewModel.TailscaleWanDisplay;
         TailscaleEnabledState.Text = _viewModel.TailscaleEnabledDisplay;
+        SetTailscaleAction(TailscaleEnabledButton, "enabled", _viewModel.TailscaleConfiguration.Enabled, _viewModel.TailscaleEnabledCanEdit);
+        SetTailscaleAction(TailscaleLanButton, "lan", _viewModel.TailscaleConfiguration.LanEnabled, _viewModel.TailscaleLanCanEdit);
+        SetTailscaleAction(TailscaleWanButton, "wan", _viewModel.TailscaleConfiguration.WanEnabled, _viewModel.TailscaleWanCanEdit);
         _updatingTailscaleControls = false;
     }
 
-    private async void TailscaleAccess_Changed(object sender, RoutedEventArgs e)
+    private void SetTailscaleAction(Button button, string field, bool? value, bool canEdit)
     {
-        if (_updatingTailscaleControls || sender is not CheckBox toggle || !toggle.IsEnabled || toggle.Tag is not string tag) return;
+        bool active = string.Equals(_tailscaleApplyingField, field, StringComparison.Ordinal);
+        button.Content = active ? (_tailscaleApplyingValue ? "Enabling…" : "Disabling…") : value switch { true => "Disable", false => "Enable", _ => "Unavailable" };
+        button.IsEnabled = !active && canEdit;
+    }
+
+    private async void TailscaleAccess_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTailscaleControls || sender is not Button button || !button.IsEnabled || button.Tag is not string tag) return;
         TailscaleAccessField field = tag switch { "enabled" => TailscaleAccessField.Enabled, "wan" => TailscaleAccessField.Wan, _ => TailscaleAccessField.Lan };
-        bool value = toggle.IsChecked == true;
+        bool? current = tag switch { "enabled" => _viewModel.TailscaleConfiguration.Enabled, "wan" => _viewModel.TailscaleConfiguration.WanEnabled, _ => _viewModel.TailscaleConfiguration.LanEnabled };
+        if (current is not bool currentValue) return;
+        bool value = !currentValue;
+        _tailscaleApplyingField = tag;
+        _tailscaleApplyingValue = value;
         _viewModel.TailscaleSettingsApplying = true;
         ApplyTailscaleControls();
         try
@@ -205,7 +215,7 @@ public partial class VpnView : UserControl
             _viewModel.ApplyTailscaleConfiguration(result.Snapshot);
             if (!result.Succeeded && !string.IsNullOrWhiteSpace(result.Message)) _viewModel.VpnStatus = result.Message;
             ApplyTailscaleControls();
-            await RefreshAsync();
+            await ReconcileTailscaleAfterActionAsync(field, value, mutationCts.Token);
         }
         catch (OperationCanceledException) { }
         finally
@@ -214,7 +224,27 @@ public partial class VpnView : UserControl
             {
                 _operationCts = null;
             }
+            _tailscaleApplyingField = null;
             _viewModel.TailscaleSettingsApplying = false; ApplyTailscaleControls();
+        }
+    }
+
+    private async Task ReconcileTailscaleAfterActionAsync(TailscaleAccessField field, bool value, CancellationToken token)
+    {
+        const int maxAttempts = 3;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            await RefreshAsync(force: true);
+            token.ThrowIfCancellationRequested();
+            bool configurationStable = field switch
+            {
+                TailscaleAccessField.Enabled => _viewModel.TailscaleConfiguration.Enabled == value,
+                TailscaleAccessField.Lan => _viewModel.TailscaleConfiguration.LanEnabled == value,
+                _ => _viewModel.TailscaleConfiguration.WanEnabled == value
+            };
+            bool runtimeStable = field != TailscaleAccessField.Enabled || !value || _viewModel.TailscaleStatus?.State is TailscaleState.Connected or TailscaleState.NeedsLogin or TailscaleState.Stopped;
+            if (configurationStable && runtimeStable) return;
+            if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(350), token);
         }
     }
 
