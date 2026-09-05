@@ -80,9 +80,9 @@
                                        Source="/Assets/RouterPilotLogo.png">
                                         <Image.RenderTransform>
                                             <TransformGroup>
-                                                <ScaleTransform x:Name="LogoScale" ScaleX="1" ScaleY="1"/>
-                                                <RotateTransform x:Name="LogoRotation" Angle="0"/>
-                                                <TranslateTransform x:Name="LogoTranslation" X="0" Y="0"/>
+                                                <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                <RotateTransform Angle="0"/>
+                                                <TranslateTransform X="0" Y="0"/>
                                             </TransformGroup>
                                         </Image.RenderTransform>
                                     </Image>
@@ -388,22 +388,55 @@
                         BorderBrush="{DynamicResource Brush.Border}"
                         BorderThickness="1"
                         CornerRadius="12">
-                    <StackPanel>
-                        <TextBlock x:Name="PreflightTitle"
-                                   FontFamily="Cascadia Mono, Consolas"
-                                   FontSize="18"
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource Brush.Accent}"
-                                   Text="PRE-FLIGHT CHECKS..."/>
-                        <StackPanel x:Name="PreflightChecksPanel" Margin="0,18,0,0">
-                            <TextBlock x:Name="DnsCheckText" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="DNS ............... OK" Opacity="0"/>
-                            <TextBlock x:Name="RoutingCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="ROUTING ........... OK" Opacity="0"/>
-                            <TextBlock x:Name="PacketsCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="PACKETS ........... BOARDED" Opacity="0"/>
-                            <TextBlock x:Name="CoffeeCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" Text="COFFEE ............ CRITICAL" Opacity="0">
-                                <TextBlock.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1"/></TextBlock.RenderTransform>
-                            </TextBlock>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="230"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                            <TextBlock x:Name="PreflightTitle"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Text="PRE-FLIGHT CHECKS..."/>
+                            <StackPanel x:Name="PreflightChecksPanel" Margin="0,18,18,0">
+                                <TextBlock x:Name="DnsCheckText" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="DNS ............... OK" Opacity="0"/>
+                                <TextBlock x:Name="RoutingCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="ROUTING ........... OK" Opacity="0"/>
+                                <TextBlock x:Name="PacketsCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="PACKETS ........... BOARDED" Opacity="0"/>
+                                <TextBlock x:Name="CoffeeCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" Text="COFFEE ............ CRITICAL" Opacity="0">
+                                    <TextBlock.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1"/></TextBlock.RenderTransform>
+                                </TextBlock>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
+                        <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Rectangle Width="154" Height="1" Margin="0,116,0,0" VerticalAlignment="Top" Fill="{DynamicResource Brush.Border}"/>
+                            <Canvas x:Name="LaunchMotionGroup" Width="170" Height="170" Margin="0,0,0,26" RenderTransformOrigin="0.5,0.5">
+                                <Canvas.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="LaunchScale" ScaleX="1" ScaleY="1"/>
+                                        <RotateTransform x:Name="LaunchRotation" Angle="0"/>
+                                        <TranslateTransform x:Name="LaunchTranslation" X="0" Y="0"/>
+                                    </TransformGroup>
+                                </Canvas.RenderTransform>
+                                <Ellipse x:Name="ThrustOuter" Canvas.Left="5" Canvas.Top="82" Width="48" Height="24" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
+                                <Ellipse x:Name="ThrustInner" Canvas.Left="8" Canvas.Top="87" Width="30" Height="14" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Ellipse x:Name="ThrustParticleOne" Canvas.Left="0" Canvas.Top="72" Width="5" Height="5" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
+                                <Ellipse x:Name="ThrustParticleTwo" Canvas.Left="12" Canvas.Top="112" Width="4" Height="4" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Ellipse x:Name="ThrustParticleThree" Canvas.Left="28" Canvas.Top="66" Width="4" Height="4" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
+                                <Image x:Name="LaunchLogo" Canvas.Left="42" Canvas.Top="18" Width="104" Height="104" Stretch="Uniform" Source="/Assets/RouterPilotLogo.png"/>
+                            </Canvas>
+                            <TextBlock x:Name="CountdownText"
+                                       Margin="0,118,0,0"
+                                       HorizontalAlignment="Center"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="28"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Text="10"
+                                       TextAlignment="Center"/>
+                        </Grid>
+                    </Grid>
                 </Border>
 
                 <ScrollViewer x:Name="FlightDeckHost"

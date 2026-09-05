@@ -122,18 +122,39 @@ namespace RouterPilot.Views
 
             try
             {
-                await AnimateLogoAsync(reducedMotion, cancellationToken);
                 FlightDeckPreflight.Visibility = Visibility.Visible;
+                ResetPreflightVisuals();
 
-                await RevealCheckAsync(DnsCheckText, reducedMotion, cancellationToken);
-                await RevealCheckAsync(RoutingCheckText, reducedMotion, cancellationToken);
-                await RevealCheckAsync(PacketsCheckText, reducedMotion, cancellationToken);
-                await RevealCheckAsync(CoffeeCheckText, reducedMotion, cancellationToken);
+                for (int number = 10; number >= 1; number--)
+                {
+                    await ShowCountdownAsync(number, reducedMotion, cancellationToken);
+                    if (number == 9)
+                        await RevealCheckAsync(DnsCheckText, reducedMotion, cancellationToken);
+                    else if (number == 7)
+                        await RevealCheckAsync(RoutingCheckText, reducedMotion, cancellationToken);
+                    else if (number == 5)
+                        await RevealCheckAsync(PacketsCheckText, reducedMotion, cancellationToken);
+                    else if (number == 3)
+                    {
+                        await RevealCheckAsync(CoffeeCheckText, reducedMotion, cancellationToken);
+                        if (!reducedMotion)
+                            await AnimateCoffeeBeatAsync(cancellationToken);
+                    }
+                    else if (number == 2 && !reducedMotion)
+                    {
+                        await AnimateCoffeeBeatAsync(cancellationToken);
+                    }
+                }
+
+                await AnimateIgnitionAsync(reducedMotion, cancellationToken);
                 if (!reducedMotion)
-                    await AnimateCoffeeBeatAsync(cancellationToken);
-
-                FlightDeckPreflight.Visibility = Visibility.Collapsed;
+                {
+                    FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty,
+                        new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(760))
+                        { BeginTime = TimeSpan.FromMilliseconds(240) });
+                }
                 await AnimateLogoTakeoffAsync(reducedMotion, cancellationToken);
+                FlightDeckPreflight.Visibility = Visibility.Collapsed;
                 AboutContentHost.Visibility = Visibility.Collapsed;
                 FlightDeckHost.Visibility = Visibility.Visible;
                 await AnimateFlightDeckEntranceAsync(reducedMotion, cancellationToken);
@@ -145,20 +166,78 @@ namespace RouterPilot.Views
             }
         }
 
-        private Task AnimateLogoAsync(bool reducedMotion, CancellationToken cancellationToken)
+        private void ResetPreflightVisuals()
+        {
+            LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty, null);
+            LaunchMotionGroup.Opacity = 1;
+            LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            LaunchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            LaunchRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            LaunchTranslation.BeginAnimation(TranslateTransform.XProperty, null);
+            LaunchTranslation.BeginAnimation(TranslateTransform.YProperty, null);
+            LaunchScale.ScaleX = 1;
+            LaunchScale.ScaleY = 1;
+            LaunchRotation.Angle = 0;
+            LaunchTranslation.X = 0;
+            LaunchTranslation.Y = 0;
+            CountdownText.BeginAnimation(UIElement.OpacityProperty, null);
+            CountdownText.Opacity = 1;
+            CountdownText.RenderTransform = new ScaleTransform(1, 1);
+            foreach (TextBlock check in new[] { DnsCheckText, RoutingCheckText, PacketsCheckText, CoffeeCheckText })
+            {
+                check.BeginAnimation(UIElement.OpacityProperty, null);
+                check.Opacity = 0;
+                check.RenderTransform = new TranslateTransform(0, 8);
+            }
+            foreach (UIElement effect in new[] { ThrustOuter, ThrustInner, ThrustParticleOne, ThrustParticleTwo, ThrustParticleThree })
+            {
+                effect.BeginAnimation(UIElement.OpacityProperty, null);
+                effect.Opacity = 0;
+            }
+        }
+
+        private async Task ShowCountdownAsync(int number, bool reducedMotion, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CountdownText.Text = number.ToString();
+            CountdownText.BeginAnimation(UIElement.OpacityProperty, null);
+            CountdownText.Opacity = reducedMotion ? 1 : 0;
+            if (CountdownText.RenderTransform is not ScaleTransform scale)
+            {
+                scale = new ScaleTransform(1, 1);
+                CountdownText.RenderTransform = scale;
+            }
+
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = reducedMotion ? 1 : 1.1;
+            scale.ScaleY = reducedMotion ? 1 : 1.1;
+            if (!reducedMotion)
+            {
+                CountdownText.BeginAnimation(UIElement.OpacityProperty,
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty,
+                    new DoubleAnimation(1.1, 1, TimeSpan.FromMilliseconds(180)));
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty,
+                    new DoubleAnimation(1.1, 1, TimeSpan.FromMilliseconds(180)));
+            }
+
+            await Task.Delay(520, cancellationToken);
+        }
+
+        private async Task AnimateIgnitionAsync(bool reducedMotion, CancellationToken cancellationToken)
         {
             if (reducedMotion)
-                return Task.CompletedTask;
+                return;
 
-            LogoScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-                Keyframes(0.98, 1.04, 1.0, 420));
-            LogoScale.BeginAnimation(ScaleTransform.ScaleYProperty,
-                Keyframes(0.98, 1.04, 1.0, 420));
-            LogoRotation.BeginAnimation(RotateTransform.AngleProperty,
-                Keyframes(-3, 3, 0, 420));
-            LogoTranslation.BeginAnimation(TranslateTransform.XProperty,
-                Keyframes(-4, 4, 0, 420));
-            return Task.Delay(460, cancellationToken);
+            foreach (UIElement effect in new[] { ThrustOuter, ThrustInner, ThrustParticleOne, ThrustParticleTwo, ThrustParticleThree })
+                effect.Opacity = 0;
+            ThrustOuter.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.85, TimeSpan.FromMilliseconds(160)));
+            ThrustInner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(130)));
+            ThrustParticleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.8, TimeSpan.FromMilliseconds(150)));
+            ThrustParticleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.65, TimeSpan.FromMilliseconds(150)));
+            ThrustParticleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.75, TimeSpan.FromMilliseconds(150)));
+            await Task.Delay(180, cancellationToken);
         }
 
         private static DoubleAnimationUsingKeyFrames Keyframes(double first, double middle, double last, int milliseconds)
@@ -208,23 +287,32 @@ namespace RouterPilot.Views
         private Task AnimateLogoTakeoffAsync(bool reducedMotion, CancellationToken cancellationToken)
         {
             if (reducedMotion)
-                return Task.CompletedTask;
+            {
+                return FadePreflightForReducedMotionAsync(cancellationToken);
+            }
 
-            LogoTranslation.BeginAnimation(TranslateTransform.XProperty,
+            LaunchTranslation.BeginAnimation(TranslateTransform.XProperty,
                 new DoubleAnimation(0, 260, TimeSpan.FromMilliseconds(900))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            LogoTranslation.BeginAnimation(TranslateTransform.YProperty,
+            LaunchTranslation.BeginAnimation(TranslateTransform.YProperty,
                 new DoubleAnimation(0, -82, TimeSpan.FromMilliseconds(900))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            LogoRotation.BeginAnimation(RotateTransform.AngleProperty,
+            LaunchRotation.BeginAnimation(RotateTransform.AngleProperty,
                 new DoubleAnimation(0, 14, TimeSpan.FromMilliseconds(900)));
-            LogoScale.BeginAnimation(ScaleTransform.ScaleXProperty,
+            LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty,
                 new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
-            LogoScale.BeginAnimation(ScaleTransform.ScaleYProperty,
+            LaunchScale.BeginAnimation(ScaleTransform.ScaleYProperty,
                 new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
-            RouterPilotLogo.BeginAnimation(UIElement.OpacityProperty,
+            LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty,
                 new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(900)));
             return Task.Delay(940, cancellationToken);
+        }
+
+        private async Task FadePreflightForReducedMotionAsync(CancellationToken cancellationToken)
+        {
+            FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(240)));
+            await Task.Delay(260, cancellationToken);
         }
 
         private async Task AnimateFlightDeckEntranceAsync(bool reducedMotion, CancellationToken cancellationToken)
@@ -297,22 +385,18 @@ namespace RouterPilot.Views
             _logoClickCount = 0;
             _logoClickWindowStartedUtc = default;
             _flightDeckActive = false;
-            LogoScale?.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            LogoScale?.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            LogoRotation?.BeginAnimation(RotateTransform.AngleProperty, null);
-            LogoTranslation?.BeginAnimation(TranslateTransform.XProperty, null);
-            LogoTranslation?.BeginAnimation(TranslateTransform.YProperty, null);
-            LogoScale?.SetValue(ScaleTransform.ScaleXProperty, 1d);
-            LogoScale?.SetValue(ScaleTransform.ScaleYProperty, 1d);
-            LogoRotation?.SetValue(RotateTransform.AngleProperty, 0d);
-            LogoTranslation?.SetValue(TranslateTransform.XProperty, 0d);
-            LogoTranslation?.SetValue(TranslateTransform.YProperty, 0d);
+            if (LaunchMotionGroup is not null)
+                ResetPreflightVisuals();
             if (RouterPilotLogo is not null)
                 RouterPilotLogo.BeginAnimation(OpacityProperty, null);
             if (RouterPilotLogo is not null)
                 RouterPilotLogo.Opacity = 1;
             if (FlightDeckPreflight is not null)
+            {
+                FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty, null);
                 FlightDeckPreflight.Visibility = Visibility.Collapsed;
+                FlightDeckPreflight.Opacity = 1;
+            }
             if (FlightDeckHost is not null)
             {
                 FlightDeckHost.BeginAnimation(UIElement.OpacityProperty, null);
