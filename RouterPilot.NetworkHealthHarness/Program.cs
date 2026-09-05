@@ -45,6 +45,26 @@ tailscaleHistoryVm.ApplyTailscaleStatus(peerOffline);
 Require(tailscaleHistoryVm.TailscaleHistory.Count == 1, "Repeated Tailscale state does not duplicate history");
 tailscaleHistoryVm.ResetTailscale();
 Require(tailscaleHistoryVm.TailscaleHistory.Count == 0, "Tailscale history resets with router context");
+VpnOperationIntentService vpnIntent = new();
+long disconnectGeneration = vpnIntent.Begin(7, connecting: false);
+Require(vpnIntent.GetIntent(7) == VpnTransitionIntent.Disconnecting, "explicit disconnect intent is tracked");
+VpnTunnelInfo disconnectingTunnel = new()
+{
+    TunnelId = 7,
+    Enabled = true,
+    TransitionIntent = vpnIntent.GetIntent(7),
+    LiveStatus = new VpnLiveStatusInfo { TunnelId = 7, Enabled = true, Status = 0 }
+};
+Require(disconnectingTunnel.ConnectionState == "Disconnecting", "disconnect transition does not display Connecting");
+vpnIntent.Clear(7, disconnectGeneration);
+Require(vpnIntent.GetIntent(7) == VpnTransitionIntent.None, "disconnect intent clears after authoritative completion");
+Require(new VpnLiveStatusInfo { Enabled = true, Status = 0 }.ConnectionState == "Transitioning", "ambiguous backend state is neutral without explicit intent");
+long connectGeneration = vpnIntent.Begin(7, connecting: true);
+Require(vpnIntent.GetIntent(7) == VpnTransitionIntent.Connecting, "explicit connect intent is tracked");
+Require(vpnIntent.GetIntent(7) == VpnTransitionIntent.Connecting, "connect transition remains bounded to active operation");
+vpnIntent.Clear(7, disconnectGeneration);
+Require(vpnIntent.GetIntent(7) == VpnTransitionIntent.Connecting, "stale completion cannot clear a newer operation");
+vpnIntent.Clear(7, connectGeneration);
 Require(new VpnLiveStatusInfo { RxBytes = 0, TxBytes = 0 }.DownloadDisplay == "0 B" && new VpnLiveStatusInfo().UploadDisplay == "—", "VPN counters distinguish genuine zero from unavailable");
 Type portParser = typeof(RouterManager).Assembly.GetType("RouterPilot.Services.RouterPortTelemetryParser")!;
 MethodInfo parsePorts = portParser.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public)!;
@@ -66,6 +86,11 @@ Require(protectionSession.AdGuardSessionSamplesDisplay == "0", "Protection sessi
 Require(observedZeroDns.TotalQueriesDisplay == "0" && observedZeroDns.BlockedQueriesDisplay == "0", "authoritative zero DNS activity remains distinguishable");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("bypass", StringComparison.OrdinalIgnoreCase), "zero DNS tooltip explains AdGuard observation scope");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("upstream DNS", StringComparison.OrdinalIgnoreCase), "encrypted AdGuard upstream remains observable");
+var vpnPresentation = new DashboardViewModel();
+vpnPresentation.VpnSummary = new VpnSummaryState { State = "Disconnecting" };
+Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Disconnecting" && vpnPresentation.VpnFooterStatusText == "Disconnecting", "main VPN surfaces share disconnecting presentation");
+vpnPresentation.VpnSummary = new VpnSummaryState { State = "Connecting" };
+Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Connecting", "main VPN surfaces preserve connecting presentation");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("DoH", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoT", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoQ", StringComparison.OrdinalIgnoreCase), "direct encrypted-DNS bypass is explained");
 ClientInfo unavailableDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
 Require(unavailableDns.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "unmatched DNS activity is presented as unavailable");

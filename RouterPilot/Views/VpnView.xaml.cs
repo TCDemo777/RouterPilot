@@ -25,10 +25,13 @@ public partial class VpnView : UserControl
     private readonly VpnScheduleService _vpnScheduleService;
     private readonly IDataFreshnessService _dataFreshnessService;
     private readonly ITailscaleStatusService _tailscale;
+    private readonly VpnOperationIntentService _operationIntent;
     private readonly IActiveRouterContext _activeRouter;
     private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
     private readonly object _refreshSync = new();
+    private readonly object _operationSync = new();
     private CancellationTokenSource? _refreshCts;
+    private CancellationTokenSource? _operationCts;
     private bool _eventsAttached;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
@@ -45,6 +48,7 @@ public partial class VpnView : UserControl
         _vpnScheduleService = ((App)Application.Current).Services.GetRequiredService<VpnScheduleService>();
         _dataFreshnessService = ((App)Application.Current).Services.GetRequiredService<IDataFreshnessService>();
         _tailscale = ((App)Application.Current).Services.GetRequiredService<ITailscaleStatusService>();
+        _operationIntent = ((App)Application.Current).Services.GetRequiredService<VpnOperationIntentService>();
         _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
         DataContext = _viewModel;
         VpnSchedulePanel.DataContext = _vpnScheduleService;
@@ -171,6 +175,13 @@ public partial class VpnView : UserControl
 
     private void StopRefresh()
     {
+        _operationIntent.ClearAll();
+        _viewModel.ApplyTransitionIntent();
+        lock (_operationSync)
+        {
+            _operationCts?.Cancel();
+            _operationCts = null;
+        }
         lock (_refreshSync)
         {
             _refreshCts?.Cancel();
@@ -465,21 +476,40 @@ public partial class VpnView : UserControl
         }
         if (!target && MessageBox.Show($"Disconnect {tunnel.Name}? Network traffic using this tunnel may be interrupted.", "Disconnect VPN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         if (!target) _viewModel.MarkExplicitDisconnect(tunnel.TunnelId);
+        long operationGeneration = _operationIntent.Begin(tunnel.TunnelId, target);
+        _viewModel.ApplyTransitionIntent();
         Button? button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _viewModel.VpnIsLoading = true; _viewModel.VpnOperationTunnelId = tunnel.TunnelId;
+        using CancellationTokenSource operationCts = new(TimeSpan.FromSeconds(30));
+        lock (_operationSync) _operationCts = operationCts;
         try
         {
-            VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, CancellationToken.None);
-            if (!result.Success) { MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, operationCts.Token);
+            if (!result.Success)
+            {
+                MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
+                await RefreshAsync();
+                return;
+            }
             if (target) _viewModel.BeginConnectionAttempt(tunnel);
             _viewModel.VpnIsLoading = false;
             await RefreshAsync();
         }
+        catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
+        {
+            _viewModel.VpnStatus = "VPN operation cancelled.";
+        }
         finally
         {
+            _operationIntent.Clear(tunnel.TunnelId, operationGeneration);
+            _viewModel.ApplyTransitionIntent();
             _viewModel.VpnOperationTunnelId = 0;
             _viewModel.VpnIsLoading = false;
+            lock (_operationSync)
+            {
+                if (ReferenceEquals(_operationCts, operationCts)) _operationCts = null;
+            }
             if (button is not null) button.IsEnabled = true;
         }
     }

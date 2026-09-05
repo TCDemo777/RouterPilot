@@ -72,7 +72,7 @@ public static class NetworkHealthViewProjection
             return Check("VPN", "Error", string.IsNullOrWhiteSpace(x.VpnDetail) ? x.VpnState : x.VpnDetail, RouterPilotStatus.Error, "vpn");
         bool disconnected = x.VpnState == "Disconnected";
         return Check("VPN", x.VpnState, string.IsNullOrWhiteSpace(x.VpnDetail) ? "VPN tunnel status." : x.VpnDetail,
-            x.VpnState == "Connected" ? RouterPilotStatus.Connected : x.VpnState == "Connecting" ? RouterPilotStatus.Pending : disconnected ? RouterPilotStatus.Disabled : RouterPilotStatus.NotAvailable, "vpn", false);
+            x.VpnState == "Connected" ? RouterPilotStatus.Connected : x.VpnState is "Connecting" or "Disconnecting" or "Transitioning" ? RouterPilotStatus.Pending : disconnected ? RouterPilotStatus.Disabled : RouterPilotStatus.NotAvailable, "vpn", false);
     }
 
     private static bool IsExplicitVpnFailure(string state) =>

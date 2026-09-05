@@ -117,6 +117,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<IVpnService, VpnService>();
             serviceCollection.AddSingleton<ITailscaleStatusService, TailscaleStatusService>();
             serviceCollection.AddSingleton<IVpnLiveStatusService, VpnLiveStatusService>();
+            serviceCollection.AddSingleton<VpnOperationIntentService>();
             serviceCollection.AddSingleton<IVpnSummaryService, VpnSummaryService>();
             serviceCollection.AddSingleton(sp => new VpnScheduleService(
                 Dispatcher,

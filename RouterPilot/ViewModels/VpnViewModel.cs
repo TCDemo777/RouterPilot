@@ -10,6 +10,7 @@ namespace RouterPilot.ViewModels;
 
 public sealed partial class VpnViewModel : ObservableObject
 {
+    private readonly VpnOperationIntentService? _operationIntent;
     private readonly Dictionary<string, bool?> _peerStates = new(StringComparer.OrdinalIgnoreCase);
     public ObservableCollection<string> TailscaleHistory { get; } = new();
     public string TailscaleHistoryText => TailscaleHistory.Count == 0 ? "No Tailscale state changes observed this session." : string.Join("\n", TailscaleHistory);
@@ -22,6 +23,10 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private TailscaleStatus? tailscaleStatus;
     [ObservableProperty] private bool tailscaleIsLoading;
+    public VpnViewModel(VpnOperationIntentService? operationIntent = null)
+    {
+        _operationIntent = operationIntent;
+    }
     public string TailscaleStateDisplay => TailscaleStatus?.State switch { TailscaleState.Connected => "Connected", TailscaleState.NeedsLogin => "Needs login", TailscaleState.Stopped => "Stopped", TailscaleState.NotInstalled => "Not installed", TailscaleState.Incompatible => "Incompatible", _ => "Unavailable" };
     public string TailscaleAddressDisplay => TailscaleStatus is { Addresses.Count: > 0 } status ? string.Join("\n", status.Addresses) : "—";
     public string TailscaleIPv4Display => string.IsNullOrWhiteSpace(TailscaleStatus?.IPv4) ? "—" : TailscaleStatus.IPv4;
@@ -134,6 +139,7 @@ public sealed partial class VpnViewModel : ObservableObject
                 ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy,
                 ServerConfigCount=tunnel.ServerConfigCount,
                 HasConnectionAttemptFailure=hasConnectionFailure,
+                TransitionIntent=_operationIntent?.GetIntent(tunnel.TunnelId) ?? VpnTransitionIntent.None,
                 // A disconnected status can still carry the authoritative group
                 // association needed to recognise an unlinked profile. It is not
                 // presented as a live connection unless Status == Connected.
@@ -143,6 +149,27 @@ public sealed partial class VpnViewModel : ObservableObject
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
         VpnLiveStatusDiagnostics.Record("VpnTunnel live properties updated: YES");
     }
+
+    public void ApplyTransitionIntent()
+    {
+        if (_operationIntent is null) return;
+        var updated = VpnTunnels.Select(tunnel => CopyTunnel(tunnel, _operationIntent.GetIntent(tunnel.TunnelId))).ToList();
+        VpnTunnels.Clear();
+        foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
+    }
+
+    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent) => new()
+    {
+        Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
+        Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds,
+        SelectedProfileGroupId=tunnel.SelectedProfileGroupId, SelectedProfileGroupExists=tunnel.SelectedProfileGroupExists,
+        ActiveProfileName=tunnel.ActiveProfileName, LinkedProfilesDisplay=tunnel.LinkedProfilesDisplay,
+        ConfiguredProfileName=tunnel.ConfiguredProfileName, ConfiguredLocation=tunnel.ConfiguredLocation,
+        FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess,
+        ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=tunnel.ServerConfigCount, LiveStatus=tunnel.LiveStatus,
+        ConfigurationHealth=tunnel.ConfigurationHealth, HasConnectionAttemptFailure=tunnel.HasConnectionAttemptFailure,
+        TransitionIntent=intent
+    };
 
     private bool UpdateConnectionAttemptState(int tunnelId, int? groupId, string location, VpnConfigurationHealth configurationHealth, VpnLiveStatusInfo? status, bool fromLiveStatusEvent)
     {

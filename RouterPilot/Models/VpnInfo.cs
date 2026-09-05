@@ -42,11 +42,17 @@ public sealed class VpnTunnelInfo
     public VpnConfigurationHealth ConfigurationHealth { get; init; } = VpnConfigurationHealth.Unknown;
     public bool HasConfigurationAttention => ConfigurationHealth == VpnConfigurationHealth.Unlinked;
     public bool HasConnectionAttemptFailure { get; init; }
+    public VpnTransitionIntent TransitionIntent { get; init; }
     public string ConfigurationAttentionTitle => "VPN profile is not linked to the Primary Tunnel.";
     public string ConfigurationAttentionDetail => "The VPN provider profile is available, but the router's Primary Tunnel is not currently associated with it.";
     public string ConnectionFailureTitle => "VPN connection did not complete";
     public string ConnectionFailureDetail => "The selected VPN server or location may be unavailable. You can retry or choose another location.";
-    public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : HasConnectionAttemptFailure ? "Connection did not complete" : LiveStatus?.ConnectionState ?? (Enabled ? "Connecting" : "Disconnected");
+    public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : HasConnectionAttemptFailure ? "Connection did not complete" : TransitionIntent switch
+    {
+        VpnTransitionIntent.Connecting => "Connecting",
+        VpnTransitionIntent.Disconnecting => "Disconnecting",
+        _ => LiveStatus?.ConnectionState ?? (Enabled ? "Transitioning" : "Disconnected")
+    };
     public bool HasLiveConnection => LiveStatus?.IsConnected == true;
     public string LiveLocation => LiveStatus?.LocationDisplay ?? string.Empty;
     public string LiveServerName => LiveStatus?.ServerName ?? string.Empty;
@@ -83,7 +89,7 @@ public sealed class VpnLiveStatusInfo
     public string? LocationDisplay { get; init; }
     public string? ServerName { get; init; }
     public bool IsConnected => Status == 1;
-    public string ConnectionState => IsConnected ? "Connected" : Enabled ? "Connecting" : "Disconnected";
+    public string ConnectionState => IsConnected ? "Connected" : Enabled ? "Transitioning" : "Disconnected";
     public string EndpointDisplay => Domains.Count == 0 ? string.Empty : string.Join(", ", Domains) + (Port is > 0 ? $" : {Port}" : string.Empty);
     public string DownloadDisplay => FormatBytes(RxBytes);
     public string UploadDisplay => FormatBytes(TxBytes);

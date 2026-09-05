@@ -15,17 +15,20 @@ public sealed class VpnSummaryService : IVpnSummaryService
 {
     private readonly IVpnService _vpnService;
     private readonly IVpnLiveStatusService _liveStatus;
+    private readonly VpnOperationIntentService _operationIntent;
     private readonly object _sync = new();
     private IReadOnlyList<VpnTunnelInfo> _tunnels = [];
     private IReadOnlyList<VpnClientProfileInfo> _profiles = [];
     private IReadOnlyList<VpnLiveStatusInfo> _statuses = [];
     private VpnSummaryState _current = new();
 
-    public VpnSummaryService(IVpnService vpnService, IVpnLiveStatusService liveStatus)
+    public VpnSummaryService(IVpnService vpnService, IVpnLiveStatusService liveStatus, VpnOperationIntentService operationIntent)
     {
         _vpnService = vpnService;
         _liveStatus = liveStatus;
+        _operationIntent = operationIntent;
         _liveStatus.StatusChanged += OnLiveStatusChanged;
+        _operationIntent.Changed += OnOperationIntentChanged;
     }
 
     public event Action<VpnSummaryState>? SummaryChanged;
@@ -77,6 +80,8 @@ public sealed class VpnSummaryService : IVpnSummaryService
         Publish();
     }
 
+    private void OnOperationIntentChanged() => Publish();
+
     private void Publish()
     {
         VpnSummaryState summary;
@@ -94,12 +99,19 @@ public sealed class VpnSummaryService : IVpnSummaryService
                 VpnLiveStatusInfo? status = _statuses.FirstOrDefault(item => item.TunnelId == tunnel.TunnelId);
                 bool connected = status?.IsConnected == true;
                 bool connecting = !connected && (status?.Enabled == true || tunnel.Enabled);
+                VpnTransitionIntent intent = _operationIntent.GetIntent(tunnel.TunnelId);
+                string state = intent switch
+                {
+                    VpnTransitionIntent.Connecting => "Connecting",
+                    VpnTransitionIntent.Disconnecting => "Disconnecting",
+                    _ => connected ? "Connected" : connecting ? "Transitioning" : "Disconnected"
+                };
                 string profile = tunnel.ProfileGroupIds.Select(id => _profiles.FirstOrDefault(item => item.GroupId == id)?.Name).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? string.Empty;
                 _current = new VpnSummaryState
                 {
                     IsAvailable = true,
                     IsConfigured = true,
-                    State = connected ? "Connected" : connecting ? "Connecting" : "Disconnected",
+                    State = state,
                     Protocol = tunnel.Protocol,
                     TunnelName = tunnel.Name,
                     ProfileName = profile,

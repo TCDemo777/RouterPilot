@@ -868,6 +868,8 @@ namespace RouterPilot.ViewModels
             "Connected" when !string.IsNullOrWhiteSpace(VpnSummary.Location) => $"VPN: {VpnSummary.Location}",
             "Connected" => "VPN: On",
             "Connecting" => "VPN: Connecting",
+            "Disconnecting" => "VPN: Disconnecting",
+            "Transitioning" => "VPN: Transitioning",
             _ => "VPN: Off"
         };
 
@@ -894,7 +896,7 @@ namespace RouterPilot.ViewModels
         public string VpnStatusColour => RouterPilotStatusPresentation.Colour(VpnSummary.State switch
         {
             "Connected" => RouterPilotStatus.Connected,
-            "Connecting" => RouterPilotStatus.Pending,
+            "Connecting" or "Disconnecting" or "Transitioning" => RouterPilotStatus.Pending,
             "Disconnected" => RouterPilotStatus.Disabled,
             _ => RouterPilotStatus.NotAvailable
         });
