@@ -12,6 +12,10 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Navigation;
+using Ellipse = System.Windows.Shapes.Ellipse;
+using Line = System.Windows.Shapes.Line;
+using Polygon = System.Windows.Shapes.Polygon;
+using Rectangle = System.Windows.Shapes.Rectangle;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -37,6 +41,17 @@ namespace RouterPilot.Views
         private bool _flightDeckActive;
         private CancellationTokenSource? _flightDeckCancellation;
         private CancellationTokenSource? _autopilotCancellation;
+        private LaunchSceneVariation? _launchSceneVariation;
+
+        private sealed record LaunchSceneVariation(
+            int CrowdCount,
+            IReadOnlyList<Point> CrowdSlots,
+            bool VehicleVisible,
+            int TreeCount,
+            IReadOnlyList<Point> TreeSlots,
+            bool IsDark,
+            int StarCount,
+            bool ShootingStarEnabled);
 
         public AboutView()
         {
@@ -129,6 +144,11 @@ namespace RouterPilot.Views
                 FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty, null);
                 FlightDeckPreflight.Opacity = 1;
                 ResetPreflightVisuals();
+                _launchSceneVariation = CreateLaunchSceneVariation(IsDarkTheme());
+                RenderLaunchScene(_launchSceneVariation);
+                Task shootingStar = !reducedMotion && _launchSceneVariation.ShootingStarEnabled
+                    ? AnimateShootingStarAsync(cancellationToken)
+                    : Task.CompletedTask;
 
                 for (int number = 10; number >= 1; number--)
                 {
@@ -171,6 +191,7 @@ namespace RouterPilot.Views
                 FadeResidualSmoke();
                 // Let the empty launch scene breathe before the slow direct crossfade.
                 await Task.Delay(900, cancellationToken);
+                await shootingStar;
                 FlightDeckHost.Visibility = Visibility.Visible;
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -183,6 +204,10 @@ namespace RouterPilot.Views
 
         private void ResetPreflightVisuals()
         {
+            RandomSceneBackground.Children.Clear();
+            RandomSceneForeground.Children.Clear();
+            StaticVehicleGroup.Visibility = Visibility.Visible;
+            _launchSceneVariation = null;
             LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty, null);
             LaunchMotionGroup.Opacity = 1;
             LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -223,6 +248,126 @@ namespace RouterPilot.Views
             LiftOffText.BeginAnimation(UIElement.OpacityProperty, null);
             LiftOffText.Opacity = 0;
         }
+
+        private static bool IsDarkTheme()
+        {
+            if (string.Equals(ThemeService.SelectedTheme, ThemeService.DarkTheme, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(ThemeService.SelectedTheme, ThemeService.LightTheme, StringComparison.OrdinalIgnoreCase)) return false;
+            return Application.Current.TryFindResource("Brush.WindowBackground") is SolidColorBrush brush
+                && brush.Color.R < 128;
+        }
+
+        private static LaunchSceneVariation CreateLaunchSceneVariation(bool isDark)
+        {
+            Point[] crowdSlots =
+            [
+                new(640, 300), new(680, 285), new(720, 305), new(760, 280),
+                new(800, 305), new(840, 282), new(292, 305)
+            ];
+            Point[] treeSlots = [new(248, 264), new(636, 244), new(856, 246)];
+            List<Point> selectedCrowd = SelectSlots(crowdSlots, Random.Shared.Next(2, 8));
+            List<Point> selectedTrees = SelectSlots(treeSlots, Random.Shared.Next(0, treeSlots.Length + 1));
+            int stars = isDark ? Random.Shared.Next(12, 31) : 0;
+            return new(
+                selectedCrowd.Count,
+                selectedCrowd,
+                Random.Shared.NextDouble() < 0.7,
+                selectedTrees.Count,
+                selectedTrees,
+                isDark,
+                stars,
+                isDark && Random.Shared.Next(12) == 0);
+        }
+
+        private static List<Point> SelectSlots(IReadOnlyList<Point> slots, int count)
+        {
+            List<Point> shuffled = slots.ToList();
+            for (int index = shuffled.Count - 1; index > 0; index--)
+            {
+                int swap = Random.Shared.Next(index + 1);
+                (shuffled[index], shuffled[swap]) = (shuffled[swap], shuffled[index]);
+            }
+            return shuffled.Take(Math.Clamp(count, 0, slots.Count)).ToList();
+        }
+
+        private void RenderLaunchScene(LaunchSceneVariation variation)
+        {
+            StaticVehicleGroup.Visibility = variation.VehicleVisible ? Visibility.Visible : Visibility.Collapsed;
+            Brush sky = FindSceneBrush("Brush.WindowBackground", "Brush.SurfaceMuted");
+            Brush muted = FindSceneBrush("Brush.TextMuted", "Brush.Border");
+            Brush primary = FindSceneBrush("Brush.TextPrimary", "Brush.TextSecondary");
+            Brush accent = FindSceneBrush("Brush.Accent", "Brush.Primary");
+
+            if (variation.IsDark)
+            {
+                RandomSceneBackground.Children.Add(new Rectangle
+                {
+                    Width = 900, Height = 430, Fill = sky, Opacity = 0.42,
+                    IsHitTestVisible = false
+                });
+                Ellipse moon = new() { Width = 46, Height = 46, Fill = primary, Opacity = 0.72 };
+                Canvas.SetLeft(moon, 784); Canvas.SetTop(moon, 30); RandomSceneBackground.Children.Add(moon);
+                Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95 };
+                Canvas.SetLeft(moonCutout, 800); Canvas.SetTop(moonCutout, 23); RandomSceneBackground.Children.Add(moonCutout);
+                for (int index = 0; index < variation.StarCount; index++)
+                {
+                    int column = index % 10;
+                    int row = index / 10;
+                    Ellipse star = new()
+                    {
+                        Width = 2 + (index % 3), Height = 2 + (index % 3),
+                        Fill = primary, Opacity = 0.38 + (index % 4) * 0.12
+                    };
+                    Canvas.SetLeft(star, 34 + column * 91 + (index * 17) % 28);
+                    Canvas.SetTop(star, 22 + row * 34 + (index * 11) % 20);
+                    RandomSceneBackground.Children.Add(star);
+                }
+            }
+
+            foreach (Point tree in variation.TreeSlots)
+            {
+                Polygon canopy = new() { Points = new PointCollection { new(0, 34), new(18, 0), new(36, 34) }, Fill = muted, Opacity = 0.44 };
+                Canvas.SetLeft(canopy, tree.X); Canvas.SetTop(canopy, tree.Y); RandomSceneBackground.Children.Add(canopy);
+                Rectangle trunk = new() { Width = 6, Height = 18, Fill = muted, Opacity = 0.5 };
+                Canvas.SetLeft(trunk, tree.X + 15); Canvas.SetTop(trunk, tree.Y + 29); RandomSceneBackground.Children.Add(trunk);
+            }
+
+            foreach ((Point slot, int index) in variation.CrowdSlots.Select((point, index) => (point, index)))
+                AddCrewMember(slot, index, primary, accent);
+        }
+
+        private void AddCrewMember(Point slot, int index, Brush primary, Brush accent)
+        {
+            Canvas person = new() { Width = 38, Height = 58, Opacity = 0.82 };
+            person.Children.Add(new Ellipse { Width = 12, Height = 12, Fill = primary, Margin = new Thickness(13, 0, 0, 0) });
+            person.Children.Add(new Rectangle { Width = 7, Height = 28, Fill = primary, Margin = new Thickness(16, 11, 0, 0) });
+            if (index % 3 == 0)
+                person.Children.Add(new Line { X1 = 19, Y1 = 21, X2 = 35, Y2 = 12, Stroke = accent, StrokeThickness = 3 });
+            else if (index % 3 == 1)
+                person.Children.Add(new Rectangle { Width = 12, Height = 8, Fill = accent, Margin = new Thickness(4, 25, 0, 0) });
+            else
+                person.Children.Add(new Line { X1 = 19, Y1 = 22, X2 = 5, Y2 = 31, Stroke = primary, StrokeThickness = 3 });
+            person.Children.Add(new Rectangle { Width = 5, Height = 17, Fill = primary, Margin = new Thickness(11, 38, 0, 0) });
+            person.Children.Add(new Rectangle { Width = 5, Height = 17, Fill = primary, Margin = new Thickness(22, 38, 0, 0) });
+            Canvas.SetLeft(person, slot.X); Canvas.SetTop(person, slot.Y); RandomSceneForeground.Children.Add(person);
+        }
+
+        private async Task AnimateShootingStarAsync(CancellationToken cancellationToken)
+        {
+            Line trail = new() { X1 = 0, Y1 = 0, X2 = 28, Y2 = 0, Stroke = FindSceneBrush("Brush.TextPrimary", "Brush.Accent"), StrokeThickness = 2, Opacity = 0 };
+            Canvas.SetLeft(trail, 90); Canvas.SetTop(trail, 92); RandomSceneBackground.Children.Add(trail);
+            trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.82, TimeSpan.FromMilliseconds(120)));
+            trail.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(90, 220, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            trail.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(92, 150, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            await Task.Delay(760, cancellationToken);
+            trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.82, 0, TimeSpan.FromMilliseconds(180)));
+            await Task.Delay(220, cancellationToken);
+        }
+
+        private static Brush FindSceneBrush(string primaryKey, string fallbackKey)
+            => (Application.Current.TryFindResource(primaryKey) as Brush)
+                ?? (Application.Current.TryFindResource(fallbackKey) as Brush)
+                ?? Brushes.White;
 
         private async Task ShowCountdownAsync(int number, bool reducedMotion, CancellationToken cancellationToken)
         {

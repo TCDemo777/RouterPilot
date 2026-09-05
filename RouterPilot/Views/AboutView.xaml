@@ -412,6 +412,7 @@
                         </StackPanel>
                         <Viewbox Grid.Row="1" Margin="0,22,0,0" Stretch="Uniform" MaxHeight="460">
                             <Canvas Width="900" Height="430" ClipToBounds="False" Background="Transparent">
+                                <Canvas x:Name="RandomSceneBackground" Width="900" Height="430" IsHitTestVisible="False"/>
                                 <!-- road and site boundary -->
                                 <Rectangle Canvas.Left="16" Canvas.Top="374" Width="868" Height="34" RadiusX="8" RadiusY="8" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
                                 <Rectangle Canvas.Left="26" Canvas.Top="390" Width="848" Height="2" Fill="{DynamicResource Brush.Border}" Opacity="0.65"/>
@@ -446,21 +447,16 @@
                                 <!-- safety line and spectators -->
                                 <Rectangle Canvas.Left="676" Canvas.Top="334" Width="196" Height="3" Fill="{DynamicResource Brush.Warning}" Opacity="0.7"/>
                                 <TextBlock Canvas.Left="698" Canvas.Top="340" FontFamily="Cascadia Mono, Consolas" FontSize="10" Foreground="{DynamicResource Brush.Warning}" Text="KEEP CLEAR"/>
-                                <Ellipse Canvas.Left="720" Canvas.Top="292" Width="14" Height="14" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="724" Canvas.Top="305" Width="6" Height="28" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="710" Canvas.Top="309" Width="32" Height="4" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Ellipse Canvas.Left="770" Canvas.Top="286" Width="14" Height="14" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="774" Canvas.Top="299" Width="6" Height="34" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="760" Canvas.Top="305" Width="32" Height="4" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Ellipse Canvas.Left="820" Canvas.Top="296" Width="14" Height="14" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="824" Canvas.Top="309" Width="6" Height="24" Fill="{DynamicResource Brush.TextPrimary}"/>
-                                <Rectangle Canvas.Left="812" Canvas.Top="312" Width="30" Height="4" Fill="{DynamicResource Brush.TextPrimary}"/>
+                                <Canvas x:Name="StaticSpectatorsGroup" Visibility="Collapsed"/>
                                 <!-- parked support vehicle -->
+                                <Canvas x:Name="StaticVehicleGroup">
                                 <Rectangle Canvas.Left="602" Canvas.Top="337" Width="62" Height="28" RadiusX="6" RadiusY="6" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
                                 <Polygon Points="614,337 628,322 650,322 660,337" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
                                 <Ellipse Canvas.Left="612" Canvas.Top="357" Width="14" Height="14" Fill="{DynamicResource Brush.Border}"/>
                                 <Ellipse Canvas.Left="642" Canvas.Top="357" Width="14" Height="14" Fill="{DynamicResource Brush.Border}"/>
                                 <TextBlock Canvas.Left="616" Canvas.Top="343" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Brush.Accent}" Text="RP"/>
+                                </Canvas>
+                                <Canvas x:Name="RandomSceneForeground" Width="900" Height="430" IsHitTestVisible="False"/>
                                 <!-- static launch structure -->
                                 <Rectangle Canvas.Left="378" Canvas.Top="282" Width="224" Height="6" RadiusX="3" RadiusY="3" Fill="{DynamicResource Brush.Border}"/>
                                 <Rectangle Canvas.Left="395" Canvas.Top="288" Width="190" Height="5" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush.Accent}"/>
