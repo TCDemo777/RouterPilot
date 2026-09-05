@@ -656,9 +656,12 @@
                             <Grid x:Name="FlightDeckChangelogViewport"
                                   Grid.Row="2"
                                   ClipToBounds="True"
+                                  SizeChanged="FlightDeckChangelogViewport_SizeChanged"
                                   Background="{DynamicResource Brush.SurfaceMuted}">
                                 <TextBlock x:Name="FlightDeckChangelogText"
                                            Margin="12"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Top"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource Brush.TextPrimary}">
                                     <TextBlock.RenderTransform><TranslateTransform x:Name="FlightDeckChangelogTranslation" Y="0"/></TextBlock.RenderTransform>

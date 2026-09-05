@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using Ellipse = System.Windows.Shapes.Ellipse;
 using Line = System.Windows.Shapes.Line;
 using Polygon = System.Windows.Shapes.Polygon;
@@ -43,6 +44,7 @@ namespace RouterPilot.Views
         private CancellationTokenSource? _autopilotCancellation;
         private LaunchSceneVariation? _launchSceneVariation;
         private int _previousCaptainLogIndex = -1;
+        private bool _flightDeckChangelogScrollingEnabled;
 
         private static readonly string[] CaptainLogs =
         [
@@ -548,10 +550,25 @@ namespace RouterPilot.Views
         {
             FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
             FlightDeckChangelogTranslation.Y = 0;
+            _flightDeckChangelogScrollingEnabled = !reducedMotion;
             if (reducedMotion) return;
             FlightDeckChangelogViewport.UpdateLayout();
-            FlightDeckChangelogText.UpdateLayout();
-            double distance = Math.Max(0, FlightDeckChangelogText.ActualHeight - FlightDeckChangelogViewport.ActualHeight);
+            double viewportHeight = FlightDeckChangelogViewport.ActualHeight;
+            if (viewportHeight <= 1 || FlightDeckChangelogViewport.ActualWidth <= 1)
+            {
+                FlightDeckChangelogViewport.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Loaded,
+                    new Action(() => StartFlightDeckChangelogScroll(false)));
+                return;
+            }
+            double bodyWidth = Math.Max(1, FlightDeckChangelogViewport.ActualWidth - FlightDeckChangelogText.Margin.Left - FlightDeckChangelogText.Margin.Right);
+            FlightDeckChangelogText.Width = bodyWidth;
+            FlightDeckChangelogText.Height = double.NaN;
+            FlightDeckChangelogText.Measure(new Size(bodyWidth, double.PositiveInfinity));
+            double contentHeight = FlightDeckChangelogText.DesiredSize.Height;
+            FlightDeckChangelogText.Height = contentHeight;
+            FlightDeckChangelogViewport.UpdateLayout();
+            double distance = Math.Max(0, contentHeight - viewportHeight);
             if (distance <= 1) return;
 
             int scrollMilliseconds = Math.Clamp((int)(distance / 22.0 * 1000), 5000, 14000);
@@ -565,6 +582,12 @@ namespace RouterPilot.Views
             animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart))));
             animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
             FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, animation);
+        }
+
+        private void FlightDeckChangelogViewport_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_flightDeckChangelogScrollingEnabled && FlightDeckHost.Visibility == Visibility.Visible && FlightDeckHost.Opacity > 0)
+                StartFlightDeckChangelogScroll(false);
         }
 
         private void ApplySceneContrast(bool dark, Brush surface, Brush window, Brush border, Brush primary, Brush accent)
@@ -902,8 +925,11 @@ namespace RouterPilot.Views
             }
             if (FlightDeckChangelogTranslation is not null)
             {
+                _flightDeckChangelogScrollingEnabled = false;
                 FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
                 FlightDeckChangelogTranslation.Y = 0;
+                FlightDeckChangelogText.Width = double.NaN;
+                FlightDeckChangelogText.Height = double.NaN;
                 FlightDeckChangelogText.Text = string.Empty;
                 FlightDeckChangelogVersion.Text = string.Empty;
             }
