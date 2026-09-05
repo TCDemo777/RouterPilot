@@ -20,6 +20,23 @@ internal sealed record ValidationResult(
     bool RestorationFailed,
     string? Error);
 
+internal static class TailscaleConfigParser
+{
+    public static void EnsureSuccess(JsonElement root)
+    {
+        if (root.TryGetProperty("error", out JsonElement error))
+            throw new InvalidOperationException($"GL.iNet RPC error ({error.ValueKind}).");
+    }
+
+    public static JsonObject ExtractSettings(JsonElement root)
+    {
+        EnsureSuccess(root);
+        if (!root.TryGetProperty("result", out JsonElement result) || result.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("WRITE CONTRACT NOT PROVEN: get_config did not return result.");
+        return JsonNode.Parse(result.GetRawText())!.AsObject();
+    }
+}
+
 internal sealed class MutationCoordinator
 {
     private readonly ITailscaleConfigTransport _transport;
@@ -155,27 +172,20 @@ internal sealed class RouterTransport : ITailscaleConfigTransport
     private readonly RouterManager _manager;
     public RouterTransport(RouterManager manager) => _manager = manager;
 
+    public Task<JsonDocument> ReadRawAsync(CancellationToken cancellationToken) =>
+        _manager.GetTailscaleConfigAsync(cancellationToken);
+
     public async Task<JsonObject> ReadSettingsAsync(CancellationToken cancellationToken)
     {
         using JsonDocument document = await _manager.GetTailscaleConfigAsync(cancellationToken);
-        ThrowIfError(document.RootElement);
-        if (!document.RootElement.TryGetProperty("result", out JsonElement result) ||
-            !result.TryGetProperty("settings", out JsonElement settings) || settings.ValueKind != JsonValueKind.Object)
-            throw new InvalidOperationException("WRITE CONTRACT NOT PROVEN: get_config did not return result.settings.");
-        return JsonNode.Parse(settings.GetRawText())!.AsObject();
+        return TailscaleConfigParser.ExtractSettings(document.RootElement);
     }
 
     public async Task WriteSettingsAsync(JsonObject settings, CancellationToken cancellationToken)
     {
         using JsonDocument document = await _manager.SetTailscaleConfigAsync(
             JsonSerializer.SerializeToElement(settings), cancellationToken);
-        ThrowIfError(document.RootElement);
-    }
-
-    private static void ThrowIfError(JsonElement root)
-    {
-        if (root.TryGetProperty("error", out JsonElement error))
-            throw new InvalidOperationException($"GL.iNet RPC error ({error.GetRawText().Length} bytes).");
+        TailscaleConfigParser.EnsureSuccess(document.RootElement);
     }
 }
 
@@ -195,6 +205,18 @@ internal static class Program
     private static void RunUnitTests()
     {
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
+
+        using (JsonDocument valid = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"enabled\":false,\"lan_enabled\":false,\"wan_enabled\":false,\"run_exit_node\":false,\"masq\":false,\"extra\":\"ignored\"}}"))
+        {
+            JsonObject parsed = TailscaleConfigParser.ExtractSettings(valid.RootElement);
+            Require(parsed["lan_enabled"]!.GetValue<bool>() == false && parsed["extra"]!.GetValue<string>() == "ignored", "live result envelope parses and preserves extras");
+        }
+        using (JsonDocument error = JsonDocument.Parse("{\"error\":{\"code\":-1,\"message\":\"failure\"}}"))
+            RequireThrows(() => TailscaleConfigParser.ExtractSettings(error.RootElement), "RPC error response is rejected");
+        using (JsonDocument missing = JsonDocument.Parse("{\"result\":{\"enabled\":false}}"))
+            RequireThrows(() => new MutationCoordinator(new FakeTransport(TailscaleConfigParser.ExtractSettings(missing.RootElement)), () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult(), "missing target field is rejected");
+        using (JsonDocument wrongType = JsonDocument.Parse("{\"result\":{\"lan_enabled\":\"maybe\"}}"))
+            RequireThrows(() => new MutationCoordinator(new FakeTransport(TailscaleConfigParser.ExtractSettings(wrongType.RootElement)), () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult(), "unexpected target type is rejected");
 
         var fake = new FakeTransport(Settings(0));
         var coordinator = new MutationCoordinator(fake, () => 1, _ => { });
@@ -267,6 +289,11 @@ internal static class Program
             }
 
             var transport = new RouterTransport(manager);
+            using (JsonDocument rawConfig = await transport.ReadRawAsync(timeout.Token))
+            {
+                Console.WriteLine("GET_CONFIG: PASS");
+                PrintSanitizedShape(rawConfig.RootElement, "root", 0);
+            }
             JsonObject original = await transport.ReadSettingsAsync(timeout.Token);
             if (!MutationCoordinator.TryReadBoolean(original, "lan_enabled", out bool originalValue, out _))
             {
@@ -328,6 +355,47 @@ internal static class Program
     }
 
     private static string Sanitize(string value) => value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+
+    private static void PrintSanitizedShape(JsonElement value, string path, int depth)
+    {
+        if (depth > 5)
+        {
+            Console.WriteLine($"{path}: {value.ValueKind} <redacted>");
+            return;
+        }
+
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            Console.WriteLine($"{path}: object");
+            foreach (JsonProperty property in value.EnumerateObject())
+            {
+                string childPath = path + "." + property.Name;
+                if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    PrintSanitizedShape(property.Value, childPath, depth + 1);
+                else if (property.Name is "enabled" or "lan_enabled" or "wan_enabled" or "run_exit_node" or "masq")
+                    Console.WriteLine($"{childPath}: {property.Value.ValueKind} {property.Value.GetRawText()}");
+                else
+                    Console.WriteLine($"{childPath}: {property.Value.ValueKind} <redacted>");
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+        {
+            Console.WriteLine($"{path}: array");
+            Console.WriteLine($"{path}.length: {value.GetArrayLength()}");
+        }
+        else
+        {
+            Console.WriteLine($"{path}: {value.ValueKind} <redacted>");
+        }
+    }
+
     private static void Require(bool condition, string message)
     { if (!condition) throw new InvalidOperationException($"Harness test failed: {message}"); }
+
+    private static void RequireThrows(Action action, string message)
+    {
+        try { action(); }
+        catch (InvalidOperationException) { return; }
+        throw new InvalidOperationException($"Harness test failed: {message}");
+    }
 }
