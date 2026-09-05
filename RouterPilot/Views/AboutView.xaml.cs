@@ -270,7 +270,7 @@ namespace RouterPilot.Views
                 FlightDeckHost.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
-                FlightDeckFootnoteOverlay.Visibility = Visibility.Visible;
+                UpdateFlightDeckFootnoteVisibility();
                 SelectCaptainLog();
                 StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -1206,6 +1206,21 @@ namespace RouterPilot.Views
                 AutopilotMessage.Visibility = Visibility.Collapsed;
                 AutopilotMessage.Opacity = 0;
             }
+        }
+
+        private void AboutSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateFlightDeckFootnoteVisibility();
+        }
+
+        private void UpdateFlightDeckFootnoteVisibility()
+        {
+            if (FlightDeckFootnoteOverlay is null)
+                return;
+
+            FlightDeckFootnoteOverlay.Visibility = _flightDeckActive && AboutSurface.ActualWidth >= 900
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void DiagnosticsHistory_CollectionChanged(
