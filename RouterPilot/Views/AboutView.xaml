@@ -524,13 +524,22 @@
                     </Grid>
                 </Border>
 
-                <Grid x:Name="FlightDeckHost"
+                <Grid x:Name="FlightDeckRoot"
                       Visibility="Collapsed"
-                      Opacity="0"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Top"
-                      Height="620"
-                      RenderTransformOrigin="0.5,0">
+                      HorizontalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="20"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="FlightDeckHost"
+                          Grid.Row="0"
+                          Visibility="Collapsed"
+                          Opacity="0"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Top"
+                          Height="620"
+                          RenderTransformOrigin="0.5,0">
                     <Grid.RenderTransform>
                         <TranslateTransform Y="18"/>
                     </Grid.RenderTransform>
@@ -694,8 +703,9 @@
                     </Grid>
                 </Grid>
                 <StackPanel x:Name="FlightDeckFootnote"
+                            Grid.Row="2"
                             Visibility="Collapsed"
-                            Margin="0,28,24,24"
+                            Margin="0,0,24,24"
                             HorizontalAlignment="Stretch">
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Center"
@@ -738,6 +748,7 @@
                                Foreground="{DynamicResource Brush.TextSecondary}"
                                Text="This Easter Egg took way too long to figure out and barely anyone will see it - lol"/>
                 </StackPanel>
+                </Grid>
                 </Grid>
             </TabItem>
 

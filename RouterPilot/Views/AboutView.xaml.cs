@@ -266,10 +266,11 @@ namespace RouterPilot.Views
                 // Let the empty launch scene breathe before the slow direct crossfade.
                 await Task.Delay(900, cancellationToken);
                 await meteors;
+                FlightDeckRoot.Visibility = Visibility.Visible;
                 FlightDeckHost.Visibility = Visibility.Visible;
-                FlightDeckFootnote.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
+                FlightDeckFootnote.Visibility = Visibility.Visible;
                 SelectCaptainLog();
                 StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -1173,6 +1174,8 @@ namespace RouterPilot.Views
                     deckTranslation.Y = 18;
                 }
             }
+            if (FlightDeckRoot is not null)
+                FlightDeckRoot.Visibility = Visibility.Collapsed;
             if (FlightDeckFootnote is not null)
                 FlightDeckFootnote.Visibility = Visibility.Collapsed;
             if (PacketIndicator?.RenderTransform is TranslateTransform packet)
