@@ -45,6 +45,11 @@ namespace RouterPilot.Views
         private LaunchSceneVariation? _launchSceneVariation;
         private int _previousCaptainLogIndex = -1;
         private bool _flightDeckChangelogScrollingEnabled;
+        private bool _changelogScrollPreparing;
+        private bool _changelogScrollRestartPending;
+        private int _changelogScrollStartCount;
+        private double _lastChangelogViewportWidth;
+        private double _lastChangelogViewportHeight;
         private readonly TranslateTransform _changelogTranslate = new();
 
         private static readonly string[] CaptainLogs =
@@ -117,6 +122,8 @@ namespace RouterPilot.Views
         {
             InitializeComponent();
             ChangelogDocument.RenderTransform = _changelogTranslate;
+            Debug.WriteLine("CHANGELOG_TRANSFORM_CREATED=TranslateTransform");
+            Debug.WriteLine("CHANGELOG_TRANSFORM_ASSIGNED=ChangelogDocument.RenderTransform");
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
             _settingsService = ((App)Application.Current).Services
@@ -668,10 +675,19 @@ namespace RouterPilot.Views
 
         private void StartFlightDeckChangelogScroll(bool reducedMotion)
         {
+            if (!_flightDeckActive || _changelogScrollPreparing)
+                return;
+
+            _changelogScrollPreparing = true;
+            try
+            {
             _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
             _changelogTranslate.Y = 0;
-            _flightDeckChangelogScrollingEnabled = !reducedMotion;
-            if (reducedMotion) return;
+            Debug.WriteLine("CHANGELOG_TRANSFORM_Y_SET=0");
+            // The changelog is a readability feature, not launch decoration.
+            // Keep it moving even when reduced-motion suppresses the scene's
+            // ornamental animations.
+            _flightDeckChangelogScrollingEnabled = true;
             FlightDeckChangelogViewport.UpdateLayout();
             double viewportHeight = FlightDeckChangelogViewport.ActualHeight;
             Debug.WriteLine($"CHANGELOG_SCROLL_LAYOUT_READY viewport={viewportHeight:0.##} width={FlightDeckChangelogViewport.ActualWidth:0.##}");
@@ -713,6 +729,8 @@ namespace RouterPilot.Views
             double fullContentExtent = Math.Max(contentHeight, lastContentBottom + bottomPadding);
             ChangelogDocument.Height = fullContentExtent;
             double distance = Math.Max(0, fullContentExtent - viewportHeight);
+            _lastChangelogViewportWidth = FlightDeckChangelogViewport.ActualWidth;
+            _lastChangelogViewportHeight = viewportHeight;
             Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} documentActual={ChangelogDocument.ActualHeight:0.##} documentDesired={contentHeight:0.##} lastBottom={lastContentBottom:0.##} padding={bottomPadding:0.##} extent={fullContentExtent:0.##} distance={distance:0.##} speed=8");
             if (distance <= 1) return;
 
@@ -739,13 +757,31 @@ namespace RouterPilot.Views
                 catch (OperationCanceledException) { }
             };
             _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, animation, HandoffBehavior.SnapshotAndReplace);
-            Debug.WriteLine($"CHANGELOG_SCROLL_STARTED duration={scrollMilliseconds / 1000.0:0.##}s target={-distance:0.##}");
+            _changelogScrollStartCount++;
+            Debug.WriteLine($"CHANGELOG_SCROLL_STARTED count={_changelogScrollStartCount} duration={scrollMilliseconds / 1000.0:0.##}s target={-distance:0.##} checkAccess={Dispatcher.CheckAccess()}");
+            }
+            finally
+            {
+                _changelogScrollPreparing = false;
+            }
         }
 
         private void FlightDeckChangelogViewport_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (_flightDeckChangelogScrollingEnabled && FlightDeckHost.Visibility == Visibility.Visible && FlightDeckHost.Opacity > 0)
-                StartFlightDeckChangelogScroll(false);
+            if (!_flightDeckChangelogScrollingEnabled || _changelogScrollPreparing
+                || FlightDeckHost.Visibility != Visibility.Visible || FlightDeckHost.Opacity <= 0)
+                return;
+            if (Math.Abs(e.NewSize.Width - _lastChangelogViewportWidth) < 0.5
+                && Math.Abs(e.NewSize.Height - _lastChangelogViewportHeight) < 0.5)
+                return;
+            if (_changelogScrollRestartPending) return;
+            _changelogScrollRestartPending = true;
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                _changelogScrollRestartPending = false;
+                if (_flightDeckChangelogScrollingEnabled)
+                    StartFlightDeckChangelogScroll(false);
+            }));
         }
 
         private void ApplySceneContrast(bool dark, Brush surface, Brush window, Brush border, Brush primary, Brush accent)
@@ -1084,6 +1120,11 @@ namespace RouterPilot.Views
             if (_changelogTranslate is not null)
             {
                 _flightDeckChangelogScrollingEnabled = false;
+                _changelogScrollRestartPending = false;
+                _changelogScrollPreparing = false;
+                _changelogScrollStartCount = 0;
+                _lastChangelogViewportWidth = 0;
+                _lastChangelogViewportHeight = 0;
                 _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
                 _changelogTranslate.Y = 0;
                 ChangelogDocument.Width = double.NaN;
