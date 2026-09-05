@@ -537,9 +537,10 @@
                     <Grid Width="900">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="3*"/>
+                            <ColumnDefinition Width="16"/>
                             <ColumnDefinition Width="2*"/>
                         </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Margin="0,12,8,24"
+                    <Border Grid.Column="0" Margin="0,12,0,24"
                             Padding="16"
                             Background="{DynamicResource Brush.Surface}"
                             BorderBrush="{DynamicResource Brush.Border}"
@@ -631,8 +632,8 @@
                         </StackPanel>
                     </Border>
                     <Border x:Name="FlightDeckChangelogCard"
-                            Grid.Column="1"
-                            Margin="8,12,0,24"
+                            Grid.Column="2"
+                            Margin="0,12,0,24"
                             Padding="16"
                             Background="{DynamicResource Brush.Surface}"
                             BorderBrush="{DynamicResource Brush.Border}"

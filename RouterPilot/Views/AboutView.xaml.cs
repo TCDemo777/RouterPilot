@@ -108,6 +108,8 @@ namespace RouterPilot.Views
             int StarCount,
             int MeteorCount);
 
+        private readonly record struct MeteorPath(Point Start, Point End, double DurationMilliseconds);
+
         public AboutView()
         {
             InitializeComponent();
@@ -446,31 +448,41 @@ namespace RouterPilot.Views
         private async Task AnimateMeteorAsync(int index, CancellationToken cancellationToken)
         {
             double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
-            (Point start, Point end)[] paths =
+            MeteorPath[] paths =
             [
-                (new(width - 150, 60), new(width * 0.36, 170)),
-                (new(80, 76), new(width * 0.52, 132)),
-                (new(width * 0.43, 66), new(width - 96, 210)),
-                (new(width - 84, 190), new(width * 0.54, 70))
+                new(new(width - 150, 60), new(width * 0.36, 170), 760),
+                new(new(80, 76), new(width * 0.52, 132), 760),
+                new(new(width * 0.43, 66), new(width - 96, 210), 760),
+                new(new(width - 84, 190), new(width * 0.54, 70), 760)
             ];
-            (Point start, Point end) path = paths[(Random.Shared.Next(paths.Length) + index) % paths.Length];
+            MeteorPath path = paths[(Random.Shared.Next(paths.Length) + index) % paths.Length];
+            double angle = CalculateMeteorAngle(path.Start, path.End);
+            const double headX = 136;
+            const double headY = 27;
             Canvas meteor = new() { Width = 150, Height = 54, Opacity = 0, IsHitTestVisible = false };
+            meteor.RenderTransformOrigin = new Point(headX / 150, headY / 54);
+            meteor.RenderTransform = new RotateTransform(angle);
             Brush primary = FindSceneBrush("Brush.TextPrimary", "Brush.Accent");
             Brush accent = FindSceneBrush("Brush.Accent", "Brush.TextPrimary");
-            meteor.Children.Add(new Polygon { Points = new PointCollection { new(7, 27), new(122, 18), new(122, 36) }, Fill = accent, Opacity = 0.22 });
-            meteor.Children.Add(new Polygon { Points = new PointCollection { new(8, 27), new(104, 22), new(104, 32) }, Fill = primary, Opacity = 0.7 });
-            meteor.Children.Add(new Ellipse { Width = 18, Height = 18, Fill = accent, Opacity = 0.22, Margin = new Thickness(0, 18, 0, 0) });
-            meteor.Children.Add(new Polygon { Points = new PointCollection { new(9, 18), new(19, 27), new(9, 36), new(0, 27) }, Fill = primary, Opacity = 0.98 });
-            meteor.Children.Add(new Ellipse { Width = 5, Height = 5, Fill = Brushes.White, Margin = new Thickness(7, 24, 0, 0) });
-            Canvas.SetLeft(meteor, path.start.X); Canvas.SetTop(meteor, path.start.Y); CelestialCardLayer.Children.Add(meteor);
+            // The base visual points toward +X: its bright head is at the leading right edge,
+            // while each tapered trail layer extends behind it toward -X.
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(4, 27), new(122, 19), new(122, 35) }, Fill = accent, Opacity = 0.22 });
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(12, 27), new(126, 22), new(126, 32) }, Fill = primary, Opacity = 0.7 });
+            meteor.Children.Add(new Ellipse { Width = 20, Height = 20, Fill = accent, Opacity = 0.22, Margin = new Thickness(126, 17, 0, 0) });
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(126, 16), new(143, 27), new(126, 38), new(116, 27) }, Fill = primary, Opacity = 0.98 });
+            meteor.Children.Add(new Ellipse { Width = 6, Height = 6, Fill = Brushes.White, Margin = new Thickness(135, 24, 0, 0) });
+            Canvas.SetLeft(meteor, path.Start.X - headX); Canvas.SetTop(meteor, path.Start.Y - headY); CelestialCardLayer.Children.Add(meteor);
             meteor.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(110)));
-            meteor.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(path.start.X, path.end.X, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            meteor.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(path.start.Y, path.end.Y, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            await Task.Delay(760, cancellationToken);
+            meteor.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(path.Start.X - headX, path.End.X - headX, TimeSpan.FromMilliseconds(path.DurationMilliseconds)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            meteor.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(path.Start.Y - headY, path.End.Y - headY, TimeSpan.FromMilliseconds(path.DurationMilliseconds)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            await Task.Delay(TimeSpan.FromMilliseconds(path.DurationMilliseconds), cancellationToken);
             meteor.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)));
             await Task.Delay(220, cancellationToken);
             CelestialCardLayer.Children.Remove(meteor);
         }
+
+        private static double CalculateMeteorAngle(Point start, Point end)
+            => Math.Atan2(end.Y - start.Y, end.X - start.X) * 180 / Math.PI;
 
         private static Brush FindSceneBrush(string primaryKey, string fallbackKey)
             => (Application.Current.TryFindResource(primaryKey) as Brush)
@@ -539,10 +551,10 @@ namespace RouterPilot.Views
             if (reducedMotion) return;
             FlightDeckChangelogViewport.UpdateLayout();
             FlightDeckChangelogText.UpdateLayout();
-            double distance = FlightDeckChangelogText.ActualHeight - FlightDeckChangelogViewport.ActualHeight + 8;
+            double distance = Math.Max(0, FlightDeckChangelogText.ActualHeight - FlightDeckChangelogViewport.ActualHeight);
             if (distance <= 1) return;
 
-            int scrollMilliseconds = Math.Clamp((int)(distance * 32), 5000, 14000);
+            int scrollMilliseconds = Math.Clamp((int)(distance / 22.0 * 1000), 5000, 14000);
             int initialPause = 2000;
             int bottomPause = 2200;
             int returnStart = initialPause + scrollMilliseconds + bottomPause;
