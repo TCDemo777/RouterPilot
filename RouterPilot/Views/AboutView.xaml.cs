@@ -1218,9 +1218,16 @@ namespace RouterPilot.Views
             if (FlightDeckFootnoteOverlay is null)
                 return;
 
-            FlightDeckFootnoteOverlay.Visibility = _flightDeckActive && AboutSurface.ActualWidth >= 900
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (_flightDeckActive)
+            {
+                FlightDeckFootnoteOverlay.BeginAnimation(UIElement.OpacityProperty, null);
+                FlightDeckFootnoteOverlay.Opacity = 1;
+                FlightDeckFootnoteOverlay.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                FlightDeckFootnoteOverlay.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void DiagnosticsHistory_CollectionChanged(
