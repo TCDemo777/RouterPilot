@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,6 +59,7 @@ public partial class VpnView : UserControl
         _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
         DataContext = _viewModel;
         VpnLiveStatusDiagnostics.Record("VpnView DataContext assigned to shared VpnViewModel: YES");
+        VpnLiveStatusDiagnostics.Record($"VPN_VM_INSTANCE={RuntimeHelpers.GetHashCode(_viewModel)}");
         VpnSchedulePanel.DataContext = _vpnScheduleService;
         AttachEvents();
         UpdateVpnScheduleEmptyState();
@@ -103,6 +105,7 @@ public partial class VpnView : UserControl
             refreshCts = _refreshCts;
         }
         long refreshGeneration = Interlocked.Increment(ref _refreshGeneration);
+        VpnLiveStatusDiagnostics.Record($"REFRESH_GENERATION_STARTED={refreshGeneration}; VM={RuntimeHelpers.GetHashCode(_viewModel)}");
         CancellationToken token = refreshCts.Token;
         string profileId = _activeRouter.CurrentProfileId;
         long contextVersion = _activeRouter.Version;
@@ -205,6 +208,7 @@ public partial class VpnView : UserControl
             VpnLiveStatusDiagnostics.Record($"Tailscale runtime result published: {status.State}");
             VpnLiveStatusDiagnostics.Record("Tailscale snapshot assigned to active VPN ViewModel: YES");
             VpnLiveStatusDiagnostics.Record("Tailscale UI property publication: YES");
+            VpnLiveStatusDiagnostics.Record($"SNAPSHOT_PUBLISHED_VM={RuntimeHelpers.GetHashCode(_viewModel)}");
         });
     }
 
@@ -240,6 +244,7 @@ public partial class VpnView : UserControl
         ApplyTailscaleControls();
         try
         {
+            VpnLiveStatusDiagnostics.Record($"ENABLE_DISABLE_CLICK field={field}; value={value}; VM={RuntimeHelpers.GetHashCode(_viewModel)}");
             using CancellationTokenSource mutationCts = new(TimeSpan.FromSeconds(30));
             lock (_operationSync) _operationCts = mutationCts;
             TailscaleMutationResult result = await _tailscaleConfiguration.SetFieldAsync(field, value, mutationCts.Token);
@@ -247,6 +252,7 @@ public partial class VpnView : UserControl
             if (!result.Succeeded && !string.IsNullOrWhiteSpace(result.Message)) _viewModel.VpnStatus = result.Message;
             ApplyTailscaleControls();
             VpnLiveStatusDiagnostics.Record($"Tailscale action read-back: {(result.Succeeded ? "PASS" : "FAIL")}");
+            VpnLiveStatusDiagnostics.Record($"MUTATION_RESULT={(result.Succeeded ? "SUCCESS" : "FAILURE")}; VM={RuntimeHelpers.GetHashCode(_viewModel)}");
             await ReconcileTailscaleAfterActionAsync(field, value, mutationCts.Token);
         }
         catch (OperationCanceledException) { }
@@ -278,7 +284,12 @@ public partial class VpnView : UserControl
             };
             bool runtimeStable = field switch
             {
-                TailscaleAccessField.Enabled when value => _viewModel.TailscaleStatus?.State is TailscaleState.Connected or TailscaleState.NeedsLogin,
+                // After Enable, the daemon can briefly report an empty status
+                // as NeedsLogin while it is joining the Tailnet. Keep the
+                // active-tab reconciliation alive until an authoritative
+                // Connected result arrives; the bounded attempt limit still
+                // allows a genuine login-required state to settle.
+                TailscaleAccessField.Enabled when value => _viewModel.TailscaleStatus?.State is TailscaleState.Connected,
                 TailscaleAccessField.Enabled => _viewModel.TailscaleStatus?.State is not TailscaleState.Connected,
                 _ => true
             };
@@ -290,6 +301,7 @@ public partial class VpnView : UserControl
     private async Task RefreshTailscaleStateAsync(CancellationToken token)
     {
         long refreshGeneration = Interlocked.Increment(ref _refreshGeneration);
+        VpnLiveStatusDiagnostics.Record($"REFRESH_GENERATION_STARTED={refreshGeneration}; VM={RuntimeHelpers.GetHashCode(_viewModel)}");
         string profileId = _activeRouter.CurrentProfileId;
         long contextVersion = _activeRouter.Version;
         bool IsCurrent() => refreshGeneration == Interlocked.Read(ref _refreshGeneration)
