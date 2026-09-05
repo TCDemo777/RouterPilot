@@ -410,7 +410,7 @@
                             </StackPanel>
                         </StackPanel>
                         <Viewbox Grid.Row="1" Margin="0,22,0,0" Stretch="Uniform" MaxHeight="460">
-                            <Canvas Width="900" Height="430" Background="Transparent">
+                            <Canvas Width="900" Height="430" ClipToBounds="True" Background="Transparent">
                                 <!-- road and site boundary -->
                                 <Rectangle Canvas.Left="16" Canvas.Top="374" Width="868" Height="34" RadiusX="8" RadiusY="8" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Border}" StrokeThickness="1"/>
                                 <Rectangle Canvas.Left="26" Canvas.Top="390" Width="848" Height="2" Fill="{DynamicResource Brush.Border}" Opacity="0.65"/>
@@ -518,14 +518,15 @@
                     </Grid>
                 </Border>
 
-                <ScrollViewer x:Name="FlightDeckHost"
+                <Viewbox x:Name="FlightDeckHost"
                               Visibility="Collapsed"
                               Opacity="0"
+                              Stretch="Uniform"
+                              StretchDirection="DownOnly"
                               RenderTransformOrigin="0.5,0">
-                    <ScrollViewer.RenderTransform>
+                    <Viewbox.RenderTransform>
                         <TranslateTransform Y="18"/>
-                    </ScrollViewer.RenderTransform>
-                    <ScrollViewer.VerticalScrollBarVisibility>Auto</ScrollViewer.VerticalScrollBarVisibility>
+                    </Viewbox.RenderTransform>
                     <Border Margin="0,12,24,24"
                             Padding="24"
                             Background="{DynamicResource Brush.Surface}"
@@ -617,7 +618,7 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
-                </ScrollViewer>
+                </Viewbox>
                 </Grid>
             </TabItem>
 

@@ -356,22 +356,27 @@ namespace RouterPilot.Views
                 return FadePreflightForReducedMotionAsync(cancellationToken);
             }
 
+            const int ascentMilliseconds = 2700;
             LaunchTranslation.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(0, 8, TimeSpan.FromMilliseconds(1500))
+                new DoubleAnimation(0, 8, TimeSpan.FromMilliseconds(ascentMilliseconds))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchTranslation.BeginAnimation(TranslateTransform.YProperty,
-                new DoubleAnimation(0, -285, TimeSpan.FromMilliseconds(1500))
+                // The logo begins at Canvas.Top 142 and is 104px tall. -380
+                // carries its complete rendered bounds beyond the 430px scene
+                // viewport with additional clearance, rather than fading it out.
+                new DoubleAnimation(0, -380, TimeSpan.FromMilliseconds(ascentMilliseconds))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchRotation.BeginAnimation(RotateTransform.AngleProperty,
-                new DoubleAnimation(0, 5, TimeSpan.FromMilliseconds(1500)));
+                new DoubleAnimation(0, 5, TimeSpan.FromMilliseconds(ascentMilliseconds)));
             LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(1500)));
+                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(ascentMilliseconds)));
             LaunchScale.BeginAnimation(ScaleTransform.ScaleYProperty,
-                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(1500)));
-            LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty,
-                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(1500))
-                { BeginTime = TimeSpan.FromMilliseconds(650) });
-            return Task.Delay(1550, cancellationToken);
+                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(ascentMilliseconds)));
+            // Keep the rocket opaque for the entire physical ascent. The
+            // clipped launch viewport removes it only after it has exited.
+            LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty, null);
+            LaunchMotionGroup.Opacity = 1;
+            return Task.Delay(ascentMilliseconds + 80, cancellationToken);
         }
 
         private async Task FadePreflightForReducedMotionAsync(CancellationToken cancellationToken)
