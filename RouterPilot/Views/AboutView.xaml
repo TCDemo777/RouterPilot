@@ -647,19 +647,26 @@
                           <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="10"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <TextBlock FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource Brush.Accent}"
-                                       Text="LATEST CHANGELOG"/>
-                            <TextBlock x:Name="FlightDeckChangelogVersion"
-                                       Grid.Row="1"
-                                       Foreground="{DynamicResource Brush.TextSecondary}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontFamily="Cascadia Mono, Consolas"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource Brush.Accent}"
+                                           Text="LATEST CHANGELOG"/>
+                                <TextBlock x:Name="FlightDeckChangelogVersion"
+                                           Grid.Column="1"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Brush.TextSecondary}"/>
+                            </Grid>
                             <Grid x:Name="FlightDeckChangelogViewport"
-                                  Grid.Row="2"
+                                  Grid.Row="1"
                                   ClipToBounds="True"
                                   HorizontalAlignment="Stretch"
                                   VerticalAlignment="Stretch"

@@ -579,28 +579,40 @@ namespace RouterPilot.Views
             try
             {
                 string[] lines = File.ReadAllLines(path, Encoding.UTF8);
-                int headingIndex = Array.FindIndex(lines, line => line.StartsWith("## ", StringComparison.Ordinal));
-                if (headingIndex < 0)
+                int firstHeadingIndex = Array.FindIndex(lines, line => line.StartsWith("## ", StringComparison.Ordinal));
+                if (firstHeadingIndex < 0)
                 {
                     FlightDeckChangelogVersion.Text = "Release notes";
                     FlightDeckChangelogText.Text = "No release section was found.";
                     return;
                 }
 
-                int end = headingIndex + 1;
-                while (end < lines.Length && !lines[end].StartsWith("## ", StringComparison.Ordinal)) end++;
-                FlightDeckChangelogVersion.Text = lines[headingIndex][3..].Trim();
+                int latestReleaseIndex = Array.FindIndex(lines, firstHeadingIndex, lines.Length - firstHeadingIndex,
+                    line => line.StartsWith("## ", StringComparison.Ordinal)
+                        && !line[3..].Trim().Equals("Unreleased", StringComparison.OrdinalIgnoreCase));
+                if (latestReleaseIndex < 0) latestReleaseIndex = firstHeadingIndex;
+                FlightDeckChangelogVersion.Text = lines[latestReleaseIndex][3..].Trim();
+                Debug.WriteLine($"CHANGELOG_SOURCE={path}");
+                Debug.WriteLine($"CHANGELOG_SELECTED_VERSION={FlightDeckChangelogVersion.Text}");
+                Debug.WriteLine($"CHANGELOG_RELEASE_SECTIONS={lines.Count(line => line.StartsWith("## ", StringComparison.Ordinal))}");
+                Debug.WriteLine($"CHANGELOG_TOTAL_LINES={lines.Length - firstHeadingIndex}");
                 StringBuilder rendered = new();
-                for (int index = headingIndex + 1; index < end; index++)
+                for (int index = firstHeadingIndex; index < lines.Length; index++)
                 {
                     string line = lines[index].Trim();
                     if (line.Length == 0)
                     {
                         if (rendered.Length > 0 && rendered[^1] != '\n') rendered.AppendLine();
                     }
+                    else if (line.StartsWith("## ", StringComparison.Ordinal))
+                    {
+                        if (rendered.Length > 0) rendered.AppendLine();
+                        rendered.AppendLine(line[3..].Trim());
+                    }
                     else if (line.StartsWith("### ", StringComparison.Ordinal)) rendered.AppendLine(line[4..].ToUpperInvariant());
                     else if (line.StartsWith("- ", StringComparison.Ordinal)) rendered.AppendLine("• " + line[2..]);
-                    else if (!line.StartsWith("#", StringComparison.Ordinal)) rendered.AppendLine(line);
+                    else if (line.StartsWith("#", StringComparison.Ordinal)) rendered.AppendLine(line.TrimStart('#', ' '));
+                    else rendered.AppendLine(line);
                 }
                 FlightDeckChangelogText.Text = rendered.ToString().Trim().Replace("â€¢", "\u2022", StringComparison.Ordinal);
             }
