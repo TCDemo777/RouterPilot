@@ -1212,12 +1212,29 @@ namespace RouterPilot.Views
             if (FlightDeckCrewOverlay is null)
                 return;
 
+            if (visible)
+                PositionFlightDeckCrewOverlay();
+
             FlightDeckCrewOverlay.BeginAnimation(UIElement.OpacityProperty, null);
             FlightDeckCrewOverlay.Opacity = visible ? 1 : 0;
             FlightDeckCrewOverlay.Visibility = visible
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             Debug.WriteLine($"FOOTNOTE_SET_VISIBLE={visible} VISIBILITY={FlightDeckCrewOverlay.Visibility} IS_VISIBLE={FlightDeckCrewOverlay.IsVisible} ACTUAL_WIDTH={FlightDeckCrewOverlay.ActualWidth:0.##} ACTUAL_HEIGHT={FlightDeckCrewOverlay.ActualHeight:0.##}");
+        }
+
+        private void PositionFlightDeckCrewOverlay()
+        {
+            AboutRoot.UpdateLayout();
+            if (!CaptainLogCard.IsLoaded || FlightDeckCrewBox is null)
+                return;
+
+            Point captainTop = CaptainLogCard.TransformToAncestor(AboutRoot).Transform(new Point(0, 0));
+            double left = Math.Max(0, AboutRoot.ActualWidth - FlightDeckCrewBox.Width - 24);
+            double top = Math.Max(0, Math.Min(24, captainTop.Y - FlightDeckCrewBox.Height - 12));
+            Canvas.SetLeft(FlightDeckCrewBox, left);
+            Canvas.SetTop(FlightDeckCrewBox, top);
+            Debug.WriteLine($"FOOTNOTE_GEOMETRY left={left:0.##} top={top:0.##} right={left + FlightDeckCrewBox.Width:0.##} bottom={top + FlightDeckCrewBox.Height:0.##} captainTop={captainTop.Y:0.##} rootRight={AboutRoot.ActualWidth:0.##}");
         }
 
         private void DiagnosticsHistory_CollectionChanged(
