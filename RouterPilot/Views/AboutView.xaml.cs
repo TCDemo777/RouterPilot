@@ -28,8 +28,6 @@ namespace RouterPilot.Views
 {
     public partial class AboutView : UserControl
     {
-        public event EventHandler<bool>? FlightDeckActiveChanged;
-
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly SettingsService _settingsService;
         private readonly UpdateService _updateService;
@@ -272,7 +270,7 @@ namespace RouterPilot.Views
                 FlightDeckHost.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
-                FlightDeckActiveChanged?.Invoke(this, true);
+                SetFlightDeckCrewOverlayVisible(true);
                 SelectCaptainLog();
                 StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -1178,7 +1176,7 @@ namespace RouterPilot.Views
             }
             if (FlightDeckRoot is not null)
                 FlightDeckRoot.Visibility = Visibility.Collapsed;
-            FlightDeckActiveChanged?.Invoke(this, false);
+            SetFlightDeckCrewOverlayVisible(false);
             if (PacketIndicator?.RenderTransform is TranslateTransform packet)
             {
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
@@ -1207,6 +1205,19 @@ namespace RouterPilot.Views
                 AutopilotMessage.Visibility = Visibility.Collapsed;
                 AutopilotMessage.Opacity = 0;
             }
+        }
+
+        private void SetFlightDeckCrewOverlayVisible(bool visible)
+        {
+            if (FlightDeckCrewOverlay is null)
+                return;
+
+            FlightDeckCrewOverlay.BeginAnimation(UIElement.OpacityProperty, null);
+            FlightDeckCrewOverlay.Opacity = visible ? 1 : 0;
+            FlightDeckCrewOverlay.Visibility = visible
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            Debug.WriteLine($"FOOTNOTE_SET_VISIBLE={visible} VISIBILITY={FlightDeckCrewOverlay.Visibility} IS_VISIBLE={FlightDeckCrewOverlay.IsVisible} ACTUAL_WIDTH={FlightDeckCrewOverlay.ActualWidth:0.##} ACTUAL_HEIGHT={FlightDeckCrewOverlay.ActualHeight:0.##}");
         }
 
         private void DiagnosticsHistory_CollectionChanged(

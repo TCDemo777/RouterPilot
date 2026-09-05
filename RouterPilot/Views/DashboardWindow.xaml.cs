@@ -1653,20 +1653,8 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
-            AboutView aboutView = new();
-            aboutView.FlightDeckActiveChanged += AboutView_FlightDeckActiveChanged;
-            PageContent.Content = aboutView;
+            PageContent.Content = new AboutView();
             SelectNavigationButton(AboutButton);
-        }
-
-        private void AboutView_FlightDeckActiveChanged(object? sender, bool active)
-        {
-            FlightDeckCrewOverlay.BeginAnimation(UIElement.OpacityProperty, null);
-            FlightDeckCrewOverlay.Opacity = active ? 1 : 0;
-            FlightDeckCrewOverlay.Visibility = active
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            Debug.WriteLine($"FOOTNOTE_SET_VISIBLE active={active} visibility={FlightDeckCrewOverlay.Visibility} isVisible={FlightDeckCrewOverlay.IsVisible} width={FlightDeckCrewOverlay.ActualWidth:0.##} height={FlightDeckCrewOverlay.ActualHeight:0.##}");
         }
 
         private void SelectNavigationButton(
