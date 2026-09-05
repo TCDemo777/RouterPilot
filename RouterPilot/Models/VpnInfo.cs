@@ -53,6 +53,14 @@ public sealed class VpnTunnelInfo
         VpnTransitionIntent.Disconnecting => "Disconnecting",
         _ => LiveStatus?.ConnectionState ?? (Enabled ? "Transitioning" : "Disconnected")
     };
+    public string ActionDisplay => ConnectionState switch
+    {
+        "Connecting" => "Connecting…",
+        "Disconnecting" => "Disconnecting…",
+        _ when Enabled => "Disconnect",
+        _ => "Connect"
+    };
+    public bool CanToggle => TransitionIntent == VpnTransitionIntent.None && (Enabled || CanConnect);
     public bool HasLiveConnection => LiveStatus?.IsConnected == true;
     public string LiveLocation => LiveStatus?.LocationDisplay ?? string.Empty;
     public string LiveServerName => LiveStatus?.ServerName ?? string.Empty;

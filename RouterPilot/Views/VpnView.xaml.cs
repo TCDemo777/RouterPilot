@@ -642,12 +642,14 @@ public partial class VpnView : UserControl
             if (!result.Success)
             {
                 MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
-                await RefreshAsync();
+                await RefreshAsync(force: true);
                 return;
             }
             if (target) _viewModel.BeginConnectionAttempt(tunnel);
+            bool runtimeReachedTarget = await WaitForTunnelRuntimeAsync(tunnel.TunnelId, target, operationCts.Token);
+            VpnLiveStatusDiagnostics.Record($"VPN tunnel runtime reconciliation: {(runtimeReachedTarget ? "PASS" : "TIMEOUT")}; target={(target ? "Connected" : "Disconnected")}");
             _viewModel.VpnIsLoading = false;
-            await RefreshAsync();
+            await RefreshAsync(force: true);
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
@@ -666,6 +668,33 @@ public partial class VpnView : UserControl
             if (button is not null) button.IsEnabled = true;
         }
     }
+
+    private async Task<bool> WaitForTunnelRuntimeAsync(int tunnelId, bool enabled, CancellationToken token)
+    {
+        VpnLiveStatusInfo? current = _liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnelId);
+        if (current is not null && current.Enabled == enabled && (enabled ? current.IsConnected : !current.IsConnected))
+            return true;
+
+        TaskCompletionSource<bool> reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnStatusChanged(IReadOnlyList<VpnLiveStatusInfo> statuses)
+        {
+            VpnLiveStatusInfo? status = statuses.SingleOrDefault(item => item.TunnelId == tunnelId);
+            if (status is not null && status.Enabled == enabled && (enabled ? status.IsConnected : !status.IsConnected))
+                reached.TrySetResult(true);
+        }
+
+        _liveStatus.StatusChanged += OnStatusChanged;
+        try
+        {
+            current = _liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnelId);
+            if (current is not null && current.Enabled == enabled && (enabled ? current.IsConnected : !current.IsConnected))
+                return true;
+            Task completed = await Task.WhenAny(reached.Task, Task.Delay(TimeSpan.FromSeconds(12), token));
+            return completed == reached.Task;
+        }
+        finally { _liveStatus.StatusChanged -= OnStatusChanged; }
+    }
+
     private async void VpnTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.Source != VpnTabs) return;

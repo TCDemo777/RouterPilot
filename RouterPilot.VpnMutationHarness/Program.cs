@@ -365,32 +365,58 @@ internal static class Program
             }
 
             bool original = selected.Enabled;
-            bool temporary = !original;
-            bool write = false;
-            bool readBack = false;
+            VpnLiveStatusService live = new(provider);
+            await live.EnsureSubscribedAsync(timeout.Token);
+            VpnLiveStatusInfo? baselineRuntime = await WaitForTunnelRuntimeAsync(live, selected.TunnelId, original, timeout.Token, allowCurrent: true);
+            Console.WriteLine($"Before runtime: {DescribeRuntime(baselineRuntime)}");
+            if (baselineRuntime is null)
+            {
+                Console.WriteLine("ABORT: authoritative live runtime state was not observed.");
+                return;
+            }
+
             bool restore = false;
             bool final = false;
+            bool allRuntimeChecks = true;
+            bool[] sequence = original ? [false, true] : [true, false];
             try
             {
-                write = await manager.SetVpnTunnelEnabledAsync(selected.TunnelId, temporary, timeout.Token);
-                Console.WriteLine($"Write: {(write ? "PASS" : "FAIL")}");
-                if (!write) return;
-                IReadOnlyList<VpnTunnelInfo> changed = await manager.GetVpnTunnelsAsync(timeout.Token);
-                VpnTunnelInfo? changedTunnel = changed.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId);
-                readBack = changedTunnel?.Enabled == temporary;
-                Console.WriteLine($"Read-back: {(readBack ? "PASS" : "FAIL")}");
+                foreach (bool target in sequence)
+                {
+                    bool write = await manager.SetVpnTunnelEnabledAsync(selected.TunnelId, target, timeout.Token);
+                    Console.WriteLine($"{(target ? "Enable" : "Disable")} write: {(write ? "PASS" : "FAIL")}");
+                    if (!write) { allRuntimeChecks = false; break; }
+                    IReadOnlyList<VpnTunnelInfo> changed = await manager.GetVpnTunnelsAsync(timeout.Token);
+                    bool readBack = changed.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId)?.Enabled == target;
+                    VpnLiveStatusInfo? runtime = await WaitForTunnelRuntimeAsync(live, selected.TunnelId, target, timeout.Token);
+                    bool runtimePass = runtime is not null;
+                    allRuntimeChecks &= readBack && runtimePass;
+                    Console.WriteLine($"{(target ? "Enable" : "Disable")} inventory read-back: {(readBack ? "PASS" : "FAIL")}");
+                    Console.WriteLine($"{(target ? "Enable" : "Disable")} runtime: {(runtimePass ? "PASS" : "FAIL")} ({DescribeRuntime(runtime)})");
+                    if (!readBack || !runtimePass) break;
+                }
             }
             finally
             {
-                if (write)
+                IReadOnlyList<VpnTunnelInfo> current = await manager.GetVpnTunnelsAsync(CancellationToken.None);
+                bool currentValue = current.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId)?.Enabled ?? original;
+                if (currentValue != original)
                 {
                     restore = await manager.SetVpnTunnelEnabledAsync(selected.TunnelId, original, CancellationToken.None);
                     IReadOnlyList<VpnTunnelInfo> restored = await manager.GetVpnTunnelsAsync(CancellationToken.None);
                     final = restored.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId)?.Enabled == original;
+                    final &= await WaitForTunnelRuntimeAsync(live, selected.TunnelId, original, CancellationToken.None) is not null;
+                }
+                else
+                {
+                    restore = true;
+                    final = await WaitForTunnelRuntimeAsync(live, selected.TunnelId, original, CancellationToken.None) is not null;
                 }
             }
+            Console.WriteLine($"Runtime connected proven: {(allRuntimeChecks && sequence.Contains(true) ? "YES" : "NO")}");
+            Console.WriteLine($"Runtime disconnected proven: {(allRuntimeChecks && sequence.Contains(false) ? "YES" : "NO")}");
             Console.WriteLine($"Restore: {(restore ? "PASS" : "FAIL")}");
-            Console.WriteLine($"Final read-back: {(final ? "PASS" : "FAIL")}");
+            Console.WriteLine($"Final read-back and runtime: {(final ? "PASS" : "FAIL")}");
             Console.WriteLine($"ROUTER RESTORED: {(restore && final ? "YES" : "NO")}");
             if (!(restore && final)) Console.WriteLine("STOP: restoration was not proven.");
         }
@@ -403,6 +429,29 @@ internal static class Program
             Console.WriteLine($"Runtime validation unavailable: {Sanitize(exception.Message)}");
         }
     }
+
+    private static async Task<VpnLiveStatusInfo?> WaitForTunnelRuntimeAsync(
+        VpnLiveStatusService live,
+        int tunnelId,
+        bool enabled,
+        CancellationToken cancellationToken,
+        bool allowCurrent = false)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(12);
+        do
+        {
+            VpnLiveStatusInfo? status = live.Current.SingleOrDefault(item => item.TunnelId == tunnelId);
+            if (status is not null && status.Enabled == enabled && (allowCurrent || (enabled ? status.IsConnected : !status.IsConnected)))
+                return status;
+            await Task.Delay(250, cancellationToken);
+        }
+        while (DateTime.UtcNow < deadline);
+        return null;
+    }
+
+    private static string DescribeRuntime(VpnLiveStatusInfo? status) => status is null
+        ? "unobserved"
+        : $"enabled={status.Enabled}; status={status.Status}; state={status.ConnectionState}";
 
     private static int ParseTunnelId(string[] args)
     {
