@@ -678,9 +678,31 @@ namespace RouterPilot.Views
             double contentHeight = ChangelogDocument.DesiredSize.Height;
             ChangelogDocument.Height = contentHeight;
             FlightDeckChangelogViewport.UpdateLayout();
-            const double bottomPadding = 12;
-            double distance = Math.Max(0, contentHeight - viewportHeight + bottomPadding);
-            Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} content={contentHeight:0.##} distance={distance:0.##} speed=8");
+            const double bottomPadding = 16;
+            UIElement? lastContent = ChangelogDocument.Children
+                .OfType<UIElement>()
+                .LastOrDefault(element => element.Visibility == Visibility.Visible);
+            double lastContentBottom = contentHeight;
+            if (lastContent is not null)
+            {
+                double renderedHeight = lastContent is FrameworkElement frameworkElement && frameworkElement.ActualHeight > 0
+                    ? frameworkElement.ActualHeight
+                    : lastContent.DesiredSize.Height;
+                try
+                {
+                    Point bottom = lastContent.TransformToAncestor(ChangelogDocument)
+                        .Transform(new Point(0, renderedHeight));
+                    lastContentBottom = bottom.Y;
+                }
+                catch (InvalidOperationException)
+                {
+                    lastContentBottom = contentHeight;
+                }
+            }
+            double fullContentExtent = Math.Max(contentHeight, lastContentBottom + bottomPadding);
+            ChangelogDocument.Height = fullContentExtent;
+            double distance = Math.Max(0, fullContentExtent - viewportHeight);
+            Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} documentActual={ChangelogDocument.ActualHeight:0.##} documentDesired={contentHeight:0.##} lastBottom={lastContentBottom:0.##} padding={bottomPadding:0.##} extent={fullContentExtent:0.##} distance={distance:0.##} speed=8");
             if (distance <= 1) return;
 
             int scrollMilliseconds = Math.Max(3000, (int)(distance / 8.0 * 1000));
