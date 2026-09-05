@@ -632,6 +632,10 @@ namespace RouterPilot.Views
                 FlightDeckChangelogText.Text = normalized;
                 Debug.WriteLine($"CHANGELOG_SOURCE_NORMALIZED_CHARS={normalized.Length}");
                 Debug.WriteLine($"CHANGELOG_RENDERED_CHARS={FlightDeckChangelogText.Text.Length}");
+                Debug.WriteLine($"CHANGELOG_LOADED_LINE_COUNT={normalized.Split('\n').Length}");
+                Debug.WriteLine($"CHANGELOG_LOADED_CHAR_COUNT={source.Value.content.Length}");
+                int loadedLastMeaningfulIndex = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+                Debug.WriteLine($"CHANGELOG_LOADED_FINAL_MEANINGFUL={(loadedLastMeaningfulIndex >= 0 ? lines[loadedLastMeaningfulIndex].Trim() : "none")}");
                 Debug.WriteLine($"CHANGELOG_CONTENT_EQUAL={string.Equals(normalized, FlightDeckChangelogText.Text, StringComparison.Ordinal)}");
             }
             catch

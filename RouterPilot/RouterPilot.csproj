@@ -40,7 +40,8 @@
     </Content>
 
     <Content Include="CHANGELOG.md">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
 
     <Content Include="..\LICENSE" Link="LICENSE">
@@ -51,7 +52,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
-    <EmbeddedResource Include="CHANGELOG.md" />
+    <EmbeddedResource Include="CHANGELOG.md">
+      <LogicalName>$(RootNamespace).CHANGELOG.md</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
