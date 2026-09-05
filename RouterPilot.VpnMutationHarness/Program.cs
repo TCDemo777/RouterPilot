@@ -493,6 +493,7 @@ internal static class Program
 
     private static void RunUnitTests()
     {
+        RunVpnControlPresentationTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
         using (JsonDocument valid = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"enabled\":false,\"lan_enabled\":false,\"wan_enabled\":false,\"run_exit_node\":false,\"masq\":false,\"extra\":\"ignored\"}}"))
@@ -575,6 +576,43 @@ internal static class Program
             ["auth_key"] = "never-send"
         });
         Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
+    }
+
+    private static void RunVpnControlPresentationTests()
+    {
+        VpnTunnelInfo disabled = new() { TunnelId = 38, Name = "Test tunnel", Protocol = "WireGuard", Enabled = false,
+            LiveStatus = new VpnLiveStatusInfo { TunnelId = 38, Enabled = false, Status = 0 } };
+        Require(disabled.ConnectionState == "Disconnected" && disabled.ActionDisplay == "Connect" && disabled.CanToggle,
+            "disabled tunnel presents Connect");
+
+        VpnTunnelInfo connecting = new() { TunnelId = 38, Name = "Test tunnel", Protocol = "WireGuard", Enabled = true,
+            TransitionIntent = VpnTransitionIntent.Connecting,
+            LiveStatus = new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 0 } };
+        Require(connecting.ConnectionState == "Connecting" && connecting.ActionDisplay == "Connecting…" && !connecting.CanToggle,
+            "connect operation presents bounded Connecting state");
+
+        VpnTunnelInfo connected = new() { TunnelId = 38, Name = "Test tunnel", Protocol = "WireGuard", Enabled = true,
+            LiveStatus = new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 1 } };
+        Require(connected.ConnectionState == "Connected" && connected.ActionDisplay == "Disconnect" && connected.CanToggle,
+            "authoritative Connected state presents Disconnect");
+
+        VpnTunnelInfo disconnecting = new() { TunnelId = 38, Name = "Test tunnel", Protocol = "WireGuard", Enabled = true,
+            TransitionIntent = VpnTransitionIntent.Disconnecting,
+            LiveStatus = new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 1 } };
+        Require(disconnecting.ConnectionState == "Disconnecting" && disconnecting.ActionDisplay == "Disconnecting…" && !disconnecting.CanToggle,
+            "disconnect operation never presents Connecting");
+
+        Require(connecting.ConnectionState == "Connecting", "slow connect remains truthful while runtime is pending");
+
+        VpnOperationIntentService intents = new();
+        long connectGeneration = intents.Begin(38, connecting: true);
+        long disconnectGeneration = intents.Begin(38, connecting: false);
+        intents.Clear(38, connectGeneration);
+        Require(intents.GetIntent(38) == VpnTransitionIntent.Disconnecting,
+            "stale connect completion cannot clear newer disconnect intent");
+        intents.Clear(38, disconnectGeneration);
+        Require(intents.GetIntent(38) == VpnTransitionIntent.None,
+            "current operation completion clears its intent");
     }
 
     private static async Task RunRuntimeValidationAsync(string targetField)

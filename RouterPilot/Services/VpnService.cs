@@ -76,12 +76,17 @@ public sealed class VpnService : IVpnService
             VpnTunnelInfo? verified = await ReadBackAsync(manager, tunnelId, enabled, token);
             if (applied && verified is not null) return await CompleteAsync(new VpnOperationResult { Success = true, TunnelId = tunnelId }, verified, enabled, token);
 
-            bool rollbackAttempted = enabled;
+            // Once the router has accepted the write, restore the exact
+            // baseline value regardless of the requested direction.  A
+            // failed read-back must never leave a disable mutation applied
+            // simply because the old implementation only rolled back
+            // enable attempts.
+            bool rollbackAttempted = applied;
             bool rollbackVerified = false;
             if (rollbackAttempted)
             {
-                bool rollbackApplied = await manager.SetVpnTunnelEnabledAsync(tunnelId, false, token);
-                rollbackVerified = rollbackApplied && await ReadBackAsync(manager, tunnelId, false, token) is not null;
+                bool rollbackApplied = await manager.SetVpnTunnelEnabledAsync(tunnelId, original.Enabled, token);
+                rollbackVerified = rollbackApplied && await ReadBackAsync(manager, tunnelId, original.Enabled, token) is not null;
             }
             return await CompleteAsync(new VpnOperationResult { TunnelId = tunnelId, FailureCategory = "VerificationFailed", Message = "RouterPilot could not verify the VPN tunnel state.", RollbackAttempted = rollbackAttempted, RollbackVerified = rollbackVerified }, original, enabled, token);
         }
