@@ -270,7 +270,7 @@ namespace RouterPilot.Views
                 FlightDeckHost.Visibility = Visibility.Visible;
                 PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
-                FlightDeckFootnote.Visibility = Visibility.Visible;
+                FlightDeckFootnoteOverlay.Visibility = Visibility.Visible;
                 SelectCaptainLog();
                 StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
@@ -1176,8 +1176,8 @@ namespace RouterPilot.Views
             }
             if (FlightDeckRoot is not null)
                 FlightDeckRoot.Visibility = Visibility.Collapsed;
-            if (FlightDeckFootnote is not null)
-                FlightDeckFootnote.Visibility = Visibility.Collapsed;
+            if (FlightDeckFootnoteOverlay is not null)
+                FlightDeckFootnoteOverlay.Visibility = Visibility.Collapsed;
             if (PacketIndicator?.RenderTransform is TranslateTransform packet)
             {
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
