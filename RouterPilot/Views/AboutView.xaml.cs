@@ -1231,7 +1231,7 @@ namespace RouterPilot.Views
 
             Point captainTop = CaptainLogCard.TransformToAncestor(AboutRoot).Transform(new Point(0, 0));
             double left = Math.Max(0, AboutRoot.ActualWidth - FlightDeckCrewBox.Width - 24);
-            double top = Math.Max(0, Math.Min(24, captainTop.Y - FlightDeckCrewBox.Height - 12));
+            double top = Math.Max(0, Math.Min(94, captainTop.Y - FlightDeckCrewBox.Height - 12));
             Canvas.SetLeft(FlightDeckCrewBox, left);
             Canvas.SetTop(FlightDeckCrewBox, top);
             Debug.WriteLine($"FOOTNOTE_GEOMETRY left={left:0.##} top={top:0.##} right={left + FlightDeckCrewBox.Width:0.##} bottom={top + FlightDeckCrewBox.Height:0.##} captainTop={captainTop.Y:0.##} rootRight={AboutRoot.ActualWidth:0.##}");
