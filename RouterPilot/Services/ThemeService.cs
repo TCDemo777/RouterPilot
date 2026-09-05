@@ -20,6 +20,10 @@ namespace RouterPilot.Services
 
         public static string SelectedTheme => _selectedTheme;
 
+        public static bool IsDarkActive =>
+            _selectedTheme == DarkTheme ||
+            (_selectedTheme == SystemTheme && IsWindowsDarkTheme());
+
         public static void Initialize(string? selectedTheme)
         {
             _selectedTheme = Normalize(selectedTheme);
@@ -56,11 +60,7 @@ namespace RouterPilot.Services
 
         private static void ApplySelectedTheme()
         {
-            bool useDarkTheme =
-                _selectedTheme == DarkTheme ||
-                (_selectedTheme == SystemTheme && IsWindowsDarkTheme());
-
-            ApplyPalette(useDarkTheme ? DarkThemePath : LightThemePath);
+            ApplyPalette(IsDarkActive ? DarkThemePath : LightThemePath);
         }
 
         private static void ApplyPalette(string palettePath)

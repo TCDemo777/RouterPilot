@@ -319,12 +319,7 @@ namespace RouterPilot.Views
         }
 
         private static bool IsDarkTheme()
-        {
-            if (string.Equals(ThemeService.SelectedTheme, ThemeService.DarkTheme, StringComparison.OrdinalIgnoreCase)) return true;
-            if (string.Equals(ThemeService.SelectedTheme, ThemeService.LightTheme, StringComparison.OrdinalIgnoreCase)) return false;
-            return Application.Current.TryFindResource("Brush.WindowBackground") is SolidColorBrush brush
-                && brush.Color.R < 128;
-        }
+            => ThemeService.IsDarkActive;
 
         private static LaunchSceneVariation CreateLaunchSceneVariation(bool isDark)
         {
@@ -373,45 +368,7 @@ namespace RouterPilot.Views
             Brush lightWindow = variation.IsDark ? FindSceneBrush("Brush.Surface", "Brush.SurfaceMuted") : SolidColorBrush(0xF4, 0xF8, 0xFA);
             ApplySceneContrast(variation.IsDark, lightSurface, lightWindow, border, primary, accent);
 
-            if (variation.IsDark)
-            {
-                CelestialCardLayer.Children.Clear();
-                Rectangle celestialBackground = new()
-                {
-                    Width = Math.Max(CelestialCardLayer.ActualWidth, 900),
-                    Height = Math.Max(CelestialCardLayer.ActualHeight, 500),
-                    Fill = sky, Opacity = 0.42,
-                    IsHitTestVisible = false
-                };
-                Panel.SetZIndex(celestialBackground, 0);
-                CelestialCardLayer.Children.Add(celestialBackground);
-                double cardWidth = Math.Max(CelestialCardLayer.ActualWidth, 900);
-                const double moonSize = 46;
-                const double moonPadding = 24;
-                double moonLeft = Math.Max(moonPadding, cardWidth - moonSize - moonPadding);
-                Ellipse moon = new() { Width = moonSize, Height = moonSize, Fill = primary, Opacity = 0.9, IsHitTestVisible = false };
-                Canvas.SetLeft(moon, moonLeft); Canvas.SetTop(moon, moonPadding); Panel.SetZIndex(moon, 2); CelestialCardLayer.Children.Add(moon);
-                Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95, IsHitTestVisible = false };
-                Canvas.SetLeft(moonCutout, moonLeft + 16); Canvas.SetTop(moonCutout, moonPadding - 7); Panel.SetZIndex(moonCutout, 3); CelestialCardLayer.Children.Add(moonCutout);
-                for (int index = 0; index < variation.StarCount; index++)
-                {
-                    double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
-                    double height = Math.Max(CelestialCardLayer.ActualHeight, 500);
-                    Ellipse star = new()
-                    {
-                        Width = 2 + (index % 3), Height = 2 + (index % 3),
-                        Fill = primary, Opacity = 0.38 + (index % 4) * 0.12
-                    };
-                    Canvas.SetLeft(star, 24 + (index * 137) % Math.Max(30, (int)width - 48));
-                    Canvas.SetTop(star, 18 + (index * 83) % Math.Max(30, (int)(height * 0.62)));
-                    Panel.SetZIndex(star, 1);
-                    CelestialCardLayer.Children.Add(star);
-                }
-            }
-            else
-            {
-                CelestialCardLayer.Children.Clear();
-            }
+            RenderCelestialTheme(variation, sky, primary, accent);
 
             foreach (Point tree in variation.TreeSlots)
             {
@@ -423,6 +380,115 @@ namespace RouterPilot.Views
 
             foreach ((Point slot, int index) in variation.CrowdSlots.Select((point, index) => (point, index)))
                 AddCrewMember(slot, index, primary, accent);
+        }
+
+        private void RenderCelestialTheme(LaunchSceneVariation variation, Brush sky, Brush primary, Brush accent)
+        {
+            CelestialCardLayer.Children.Clear();
+            double width = CelestialCardLayer.ActualWidth > 1 ? CelestialCardLayer.ActualWidth : 900;
+            double height = CelestialCardLayer.ActualHeight > 1 ? CelestialCardLayer.ActualHeight : 500;
+            Rectangle background = new()
+            {
+                Width = width,
+                Height = height,
+                Fill = variation.IsDark ? sky : Brushes.Transparent,
+                Opacity = variation.IsDark ? 0.42 : 1,
+                IsHitTestVisible = false
+            };
+            Panel.SetZIndex(background, 0);
+            CelestialCardLayer.Children.Add(background);
+
+            const double padding = 24;
+            if (variation.IsDark)
+            {
+                Ellipse moon = new()
+                {
+                    Width = 62,
+                    Height = 62,
+                    Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0xF1, 0xD0)),
+                    Opacity = 0.98,
+                    IsHitTestVisible = false
+                };
+                Point moonPosition = PlaceCelestialBody(width, height, 62, 62, padding, upperRight: true);
+                Canvas.SetLeft(moon, moonPosition.X); Canvas.SetTop(moon, moonPosition.Y);
+                Panel.SetZIndex(moon, 20);
+                CelestialCardLayer.Children.Add(moon);
+
+                Ellipse moonCutout = new()
+                {
+                    Width = 56,
+                    Height = 56,
+                    Fill = sky,
+                    Opacity = 0.98,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(moonCutout, moonPosition.X + 21);
+                Canvas.SetTop(moonCutout, moonPosition.Y - 6);
+                Panel.SetZIndex(moonCutout, 21);
+                CelestialCardLayer.Children.Add(moonCutout);
+
+                for (int index = 0; index < variation.StarCount; index++)
+                {
+                    Ellipse star = new()
+                    {
+                        Width = 2 + (index % 3), Height = 2 + (index % 3),
+                        Fill = primary, Opacity = 0.38 + (index % 4) * 0.12,
+                        IsHitTestVisible = false
+                    };
+                    Canvas.SetLeft(star, padding + (index * 137) % Math.Max(30, (int)width - 48));
+                    Canvas.SetTop(star, 18 + (index * 83) % Math.Max(30, (int)(height * 0.62)));
+                    Panel.SetZIndex(star, 10);
+                    CelestialCardLayer.Children.Add(star);
+                }
+            }
+            else
+            {
+                Point sunPosition = PlaceCelestialBody(width, height, 58, 58, padding, upperRight: true);
+                Ellipse sunGlow = new()
+                {
+                    Width = 82, Height = 82,
+                    Fill = new SolidColorBrush(Color.FromArgb(70, 0xFF, 0xC8, 0x4A)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(sunGlow, sunPosition.X - 12); Canvas.SetTop(sunGlow, sunPosition.Y - 12);
+                Panel.SetZIndex(sunGlow, 10); CelestialCardLayer.Children.Add(sunGlow);
+                Ellipse sun = new()
+                {
+                    Width = 58, Height = 58,
+                    Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0xC8, 0x4A)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(0xE8, 0x92, 0x2E)),
+                    StrokeThickness = 2,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(sun, sunPosition.X); Canvas.SetTop(sun, sunPosition.Y);
+                Panel.SetZIndex(sun, 20); CelestialCardLayer.Children.Add(sun);
+                for (int ray = 0; ray < 8; ray++)
+                {
+                    double angle = ray * Math.PI / 4;
+                    double centerX = sunPosition.X + 29;
+                    double centerY = sunPosition.Y + 29;
+                    Line line = new()
+                    {
+                        X1 = centerX + Math.Cos(angle) * 36,
+                        Y1 = centerY + Math.Sin(angle) * 36,
+                        X2 = centerX + Math.Cos(angle) * 44,
+                        Y2 = centerY + Math.Sin(angle) * 44,
+                        Stroke = new SolidColorBrush(Color.FromRgb(0xE8, 0x92, 0x2E)),
+                        StrokeThickness = 2,
+                        IsHitTestVisible = false
+                    };
+                    Panel.SetZIndex(line, 20); CelestialCardLayer.Children.Add(line);
+                }
+            }
+        }
+
+        private static Point PlaceCelestialBody(double cardWidth, double cardHeight, double bodyWidth, double bodyHeight, double padding, bool upperRight)
+        {
+            double x = upperRight ? cardWidth - bodyWidth - padding : padding;
+            double y = padding;
+            return new(
+                Math.Clamp(double.IsFinite(x) ? x : padding, padding, Math.Max(padding, cardWidth - bodyWidth - padding)),
+                Math.Clamp(double.IsFinite(y) ? y : padding, padding, Math.Max(padding, cardHeight - bodyHeight - padding)));
         }
 
         private void AddCrewMember(Point slot, int index, Brush primary, Brush accent)
