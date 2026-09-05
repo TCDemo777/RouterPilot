@@ -534,7 +534,12 @@
                     <Viewbox.RenderTransform>
                         <TranslateTransform Y="18"/>
                     </Viewbox.RenderTransform>
-                    <Border Margin="0,12,12,24"
+                    <Grid Width="900">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*"/>
+                            <ColumnDefinition Width="2*"/>
+                        </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Margin="0,12,8,24"
                             Padding="16"
                             Background="{DynamicResource Brush.Surface}"
                             BorderBrush="{DynamicResource Brush.Border}"
@@ -625,6 +630,42 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
+                    <Border x:Name="FlightDeckChangelogCard"
+                            Grid.Column="1"
+                            Margin="8,12,0,24"
+                            Padding="16"
+                            Background="{DynamicResource Brush.Surface}"
+                            BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="10"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Text="LATEST CHANGELOG"/>
+                            <TextBlock x:Name="FlightDeckChangelogVersion"
+                                       Grid.Row="1"
+                                       Foreground="{DynamicResource Brush.TextSecondary}"/>
+                            <Grid x:Name="FlightDeckChangelogViewport"
+                                  Grid.Row="2"
+                                  ClipToBounds="True"
+                                  Background="{DynamicResource Brush.SurfaceMuted}">
+                                <TextBlock x:Name="FlightDeckChangelogText"
+                                           Margin="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Brush.TextPrimary}">
+                                    <TextBlock.RenderTransform><TranslateTransform x:Name="FlightDeckChangelogTranslation" Y="0"/></TextBlock.RenderTransform>
+                                </TextBlock>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    </Grid>
                 </Viewbox>
                 </Grid>
             </TabItem>

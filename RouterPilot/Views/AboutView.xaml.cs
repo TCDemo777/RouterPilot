@@ -106,7 +106,7 @@ namespace RouterPilot.Views
             IReadOnlyList<Point> TreeSlots,
             bool IsDark,
             int StarCount,
-            bool ShootingStarEnabled);
+            int MeteorCount);
 
         public AboutView()
         {
@@ -202,8 +202,8 @@ namespace RouterPilot.Views
                 _launchSceneVariation = CreateLaunchSceneVariation(IsDarkTheme());
                 FlightDeckPreflight.UpdateLayout();
                 RenderLaunchScene(_launchSceneVariation);
-                Task shootingStar = !reducedMotion && _launchSceneVariation.ShootingStarEnabled
-                    ? AnimateShootingStarAsync(cancellationToken)
+                Task meteors = !reducedMotion && _launchSceneVariation.MeteorCount > 0
+                    ? AnimateMeteorsAsync(_launchSceneVariation.MeteorCount, cancellationToken)
                     : Task.CompletedTask;
 
                 for (int number = 10; number >= 1; number--)
@@ -247,10 +247,12 @@ namespace RouterPilot.Views
                 FadeResidualSmoke();
                 // Let the empty launch scene breathe before the slow direct crossfade.
                 await Task.Delay(900, cancellationToken);
-                await shootingStar;
+                await meteors;
                 FlightDeckHost.Visibility = Visibility.Visible;
+                PrepareFlightDeckChangelog();
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
                 SelectCaptainLog();
+                StartFlightDeckChangelogScroll(reducedMotion);
                 StartAmbientPacketAnimation(reducedMotion);
             }
             catch (OperationCanceledException)
@@ -327,6 +329,8 @@ namespace RouterPilot.Views
             List<Point> selectedCrowd = SelectSlots(crowdSlots, Random.Shared.Next(2, 8));
             List<Point> selectedTrees = SelectSlots(treeSlots, Random.Shared.Next(0, treeSlots.Length + 1));
             int stars = isDark ? Random.Shared.Next(12, 31) : 0;
+            double meteorRoll = Random.Shared.NextDouble();
+            int meteors = !isDark ? 0 : meteorRoll < 0.20 ? 0 : meteorRoll < 0.65 ? 1 : meteorRoll < 0.90 ? 2 : 3;
             return new(
                 selectedCrowd.Count,
                 selectedCrowd,
@@ -335,7 +339,7 @@ namespace RouterPilot.Views
                 selectedTrees,
                 isDark,
                 stars,
-                isDark && Random.Shared.Next(12) == 0);
+                meteors);
         }
 
         private static List<Point> SelectSlots(IReadOnlyList<Point> slots, int count)
@@ -371,10 +375,14 @@ namespace RouterPilot.Views
                     Fill = sky, Opacity = 0.42,
                     IsHitTestVisible = false
                 });
-                Ellipse moon = new() { Width = 46, Height = 46, Fill = primary, Opacity = 0.72 };
-                Canvas.SetLeft(moon, Math.Max(CelestialCardLayer.ActualWidth, 900) - 116); Canvas.SetTop(moon, 28); CelestialCardLayer.Children.Add(moon);
+                double cardWidth = Math.Max(CelestialCardLayer.ActualWidth, 900);
+                const double moonSize = 46;
+                const double moonPadding = 24;
+                double moonLeft = Math.Max(moonPadding, cardWidth - moonSize - moonPadding);
+                Ellipse moon = new() { Width = moonSize, Height = moonSize, Fill = primary, Opacity = 0.72 };
+                Canvas.SetLeft(moon, moonLeft); Canvas.SetTop(moon, moonPadding); CelestialCardLayer.Children.Add(moon);
                 Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95 };
-                Canvas.SetLeft(moonCutout, Math.Max(CelestialCardLayer.ActualWidth, 900) - 100); Canvas.SetTop(moonCutout, 21); CelestialCardLayer.Children.Add(moonCutout);
+                Canvas.SetLeft(moonCutout, moonLeft + 16); Canvas.SetTop(moonCutout, moonPadding - 7); CelestialCardLayer.Children.Add(moonCutout);
                 for (int index = 0; index < variation.StarCount; index++)
                 {
                     double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
@@ -422,23 +430,130 @@ namespace RouterPilot.Views
             Canvas.SetLeft(person, slot.X); Canvas.SetTop(person, slot.Y); RandomSceneForeground.Children.Add(person);
         }
 
-        private async Task AnimateShootingStarAsync(CancellationToken cancellationToken)
+        private async Task AnimateMeteorsAsync(int meteorCount, CancellationToken cancellationToken)
         {
-            Line trail = new() { X1 = 0, Y1 = 0, X2 = 28, Y2 = 0, Stroke = FindSceneBrush("Brush.TextPrimary", "Brush.Accent"), StrokeThickness = 2, Opacity = 0 };
+            int[] offsets = meteorCount switch { 1 => [700], 2 => [700, 2200], _ => [700, 2200, 3600] };
+            int elapsed = 0;
+            for (int index = 0; index < Math.Min(meteorCount, 3); index++)
+            {
+                int wait = offsets[index] - elapsed;
+                if (wait > 0) await Task.Delay(wait, cancellationToken);
+                await AnimateMeteorAsync(index, cancellationToken);
+                elapsed = offsets[index] + 980;
+            }
+        }
+
+        private async Task AnimateMeteorAsync(int index, CancellationToken cancellationToken)
+        {
             double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
-            Canvas.SetLeft(trail, width - 220); Canvas.SetTop(trail, 100); CelestialCardLayer.Children.Add(trail);
-            trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.82, TimeSpan.FromMilliseconds(120)));
-            trail.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(width - 220, width - 40, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            trail.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(100, 220, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            (Point start, Point end)[] paths =
+            [
+                (new(width - 150, 60), new(width * 0.36, 170)),
+                (new(80, 76), new(width * 0.52, 132)),
+                (new(width * 0.43, 66), new(width - 96, 210)),
+                (new(width - 84, 190), new(width * 0.54, 70))
+            ];
+            (Point start, Point end) path = paths[(Random.Shared.Next(paths.Length) + index) % paths.Length];
+            Canvas meteor = new() { Width = 150, Height = 54, Opacity = 0, IsHitTestVisible = false };
+            Brush primary = FindSceneBrush("Brush.TextPrimary", "Brush.Accent");
+            Brush accent = FindSceneBrush("Brush.Accent", "Brush.TextPrimary");
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(7, 27), new(122, 18), new(122, 36) }, Fill = accent, Opacity = 0.22 });
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(8, 27), new(104, 22), new(104, 32) }, Fill = primary, Opacity = 0.7 });
+            meteor.Children.Add(new Ellipse { Width = 18, Height = 18, Fill = accent, Opacity = 0.22, Margin = new Thickness(0, 18, 0, 0) });
+            meteor.Children.Add(new Polygon { Points = new PointCollection { new(9, 18), new(19, 27), new(9, 36), new(0, 27) }, Fill = primary, Opacity = 0.98 });
+            meteor.Children.Add(new Ellipse { Width = 5, Height = 5, Fill = Brushes.White, Margin = new Thickness(7, 24, 0, 0) });
+            Canvas.SetLeft(meteor, path.start.X); Canvas.SetTop(meteor, path.start.Y); CelestialCardLayer.Children.Add(meteor);
+            meteor.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(110)));
+            meteor.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(path.start.X, path.end.X, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            meteor.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(path.start.Y, path.end.Y, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             await Task.Delay(760, cancellationToken);
-            trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.82, 0, TimeSpan.FromMilliseconds(180)));
+            meteor.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)));
             await Task.Delay(220, cancellationToken);
+            CelestialCardLayer.Children.Remove(meteor);
         }
 
         private static Brush FindSceneBrush(string primaryKey, string fallbackKey)
             => (Application.Current.TryFindResource(primaryKey) as Brush)
                 ?? (Application.Current.TryFindResource(fallbackKey) as Brush)
                 ?? Brushes.White;
+
+        private void PrepareFlightDeckChangelog()
+        {
+            string? path = FindChangelogPath();
+            if (path is null)
+            {
+                FlightDeckChangelogVersion.Text = "Unavailable";
+                FlightDeckChangelogText.Text = "The latest changelog is not available.";
+                return;
+            }
+
+            try
+            {
+                string[] lines = File.ReadAllLines(path, Encoding.UTF8);
+                int headingIndex = Array.FindIndex(lines, line => line.StartsWith("## ", StringComparison.Ordinal));
+                if (headingIndex < 0)
+                {
+                    FlightDeckChangelogVersion.Text = "Release notes";
+                    FlightDeckChangelogText.Text = "No release section was found.";
+                    return;
+                }
+
+                int end = headingIndex + 1;
+                while (end < lines.Length && !lines[end].StartsWith("## ", StringComparison.Ordinal)) end++;
+                FlightDeckChangelogVersion.Text = lines[headingIndex][3..].Trim();
+                StringBuilder rendered = new();
+                for (int index = headingIndex + 1; index < end; index++)
+                {
+                    string line = lines[index].Trim();
+                    if (line.Length == 0)
+                    {
+                        if (rendered.Length > 0 && rendered[^1] != '\n') rendered.AppendLine();
+                    }
+                    else if (line.StartsWith("### ", StringComparison.Ordinal)) rendered.AppendLine(line[4..].ToUpperInvariant());
+                    else if (line.StartsWith("- ", StringComparison.Ordinal)) rendered.AppendLine("• " + line[2..]);
+                    else if (!line.StartsWith("#", StringComparison.Ordinal)) rendered.AppendLine(line);
+                }
+                FlightDeckChangelogText.Text = rendered.ToString().Trim().Replace("â€¢", "\u2022", StringComparison.Ordinal);
+            }
+            catch
+            {
+                FlightDeckChangelogVersion.Text = "Unavailable";
+                FlightDeckChangelogText.Text = "The latest changelog could not be read.";
+            }
+        }
+
+        private static string? FindChangelogPath()
+        {
+            string[] paths =
+            [
+                Path.Combine(AppContext.BaseDirectory, "CHANGELOG.md"),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "CHANGELOG.md")
+            ];
+            return paths.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
+        }
+
+        private void StartFlightDeckChangelogScroll(bool reducedMotion)
+        {
+            FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
+            FlightDeckChangelogTranslation.Y = 0;
+            if (reducedMotion) return;
+            FlightDeckChangelogViewport.UpdateLayout();
+            FlightDeckChangelogText.UpdateLayout();
+            double distance = FlightDeckChangelogText.ActualHeight - FlightDeckChangelogViewport.ActualHeight + 8;
+            if (distance <= 1) return;
+
+            int scrollMilliseconds = Math.Clamp((int)(distance * 32), 5000, 14000);
+            int initialPause = 2000;
+            int bottomPause = 2200;
+            int returnStart = initialPause + scrollMilliseconds + bottomPause;
+            DoubleAnimationUsingKeyFrames animation = new() { RepeatBehavior = RepeatBehavior.Forever };
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(initialPause))));
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(initialPause + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart))));
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
+            FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, animation);
+        }
 
         private void ApplySceneContrast(bool dark, Brush surface, Brush window, Brush border, Brush primary, Brush accent)
         {
@@ -772,6 +887,13 @@ namespace RouterPilot.Views
             {
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
                 packet.X = 0;
+            }
+            if (FlightDeckChangelogTranslation is not null)
+            {
+                FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
+                FlightDeckChangelogTranslation.Y = 0;
+                FlightDeckChangelogText.Text = string.Empty;
+                FlightDeckChangelogVersion.Text = string.Empty;
             }
             if (AboutContentHost is not null)
                 AboutContentHost.Visibility = Visibility.Visible;
