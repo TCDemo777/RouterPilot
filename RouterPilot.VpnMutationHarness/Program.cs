@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using RouterPilot.Configuration;
 using RouterPilot.Models;
 using RouterPilot.Services;
+using RouterPilot.ViewModels;
 
 namespace RouterPilot.VpnMutationHarness;
 
@@ -613,6 +614,23 @@ internal static class Program
         intents.Clear(38, disconnectGeneration);
         Require(intents.GetIntent(38) == VpnTransitionIntent.None,
             "current operation completion clears its intent");
+
+        TailscaleStatus authoritativeTailscale = new(
+            TailscaleState.Connected,
+            "connected",
+            "1.2.3",
+            "router",
+            "router.tailnet",
+            ["192.0.2.10"],
+            []);
+        VpnViewModel page = new();
+        page.ApplyTailscaleStatus(authoritativeTailscale);
+        page.Replace([disabled], []);
+        page.ApplyLiveStatuses([], vpnInventoryAuthoritative: false);
+        Require(ReferenceEquals(page.TailscaleStatus, authoritativeTailscale) && page.VpnTunnels.Count == 1,
+            "Unified VPN partial refresh preserves authoritative Tailscale state");
+        page.ApplyTailscaleStatus(TailscaleStatus.Unavailable("temporary read failure"));
+        Require(page.VpnTunnels.Count == 1, "Tailscale refresh does not clear Unified VPN inventory");
     }
 
     private static async Task RunRuntimeValidationAsync(string targetField)

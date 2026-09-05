@@ -88,7 +88,7 @@ public partial class VpnView : UserControl
         _liveStatus.StatusChanged += LiveStatusChanged;
     }
 
-    private async Task RefreshAsync(bool force = false)
+    private async Task RefreshAsync(bool force = false, bool refreshTailscale = true)
     {
         VpnLiveStatusDiagnostics.Record("VpnView.RefreshAsync entered: YES");
         if (_viewModel.VpnIsLoading && !force)
@@ -113,7 +113,10 @@ public partial class VpnView : UserControl
         bool IsCurrent() => refreshGeneration == Interlocked.Read(ref _refreshGeneration)
             && profileId == _activeRouter.CurrentProfileId
             && contextVersion == _activeRouter.Version;
-        Task tailscaleTask = LoadTailscaleAsync(token, IsCurrent);
+        // Unified VPN mutations reconcile only their own subsystem.  Starting
+        // a second Tailscale read here would let a transient optional read
+        // failure replace a valid top-of-page snapshot with Unavailable.
+        Task tailscaleTask = refreshTailscale ? LoadTailscaleAsync(token, IsCurrent) : Task.CompletedTask;
         try
         {
             (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _service.GetInventoryAsync(token);
@@ -642,14 +645,14 @@ public partial class VpnView : UserControl
             if (!result.Success)
             {
                 MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
-                await RefreshAsync(force: true);
+                await RefreshAsync(force: true, refreshTailscale: false);
                 return;
             }
             if (target) _viewModel.BeginConnectionAttempt(tunnel);
             bool runtimeReachedTarget = await WaitForTunnelRuntimeAsync(tunnel.TunnelId, target, operationCts.Token);
             VpnLiveStatusDiagnostics.Record($"VPN tunnel runtime reconciliation: {(runtimeReachedTarget ? "PASS" : "TIMEOUT")}; target={(target ? "Connected" : "Disconnected")}");
             _viewModel.VpnIsLoading = false;
-            await RefreshAsync(force: true);
+            await RefreshAsync(force: true, refreshTailscale: false);
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
