@@ -39,6 +39,7 @@ public partial class VpnView : UserControl
     private bool _updatingTailscaleControls;
     private string? _tailscaleApplyingField;
     private bool _tailscaleApplyingValue;
+    private TailscaleStatus? _lastTailscaleReadStatus;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
     private int _vpnStateCaptureNumber;
@@ -172,14 +173,14 @@ public partial class VpnView : UserControl
         }
     }
 
-    private async Task LoadTailscaleAsync(CancellationToken token, Func<bool> isCurrent)
+    private async Task LoadTailscaleAsync(CancellationToken token, Func<bool> isCurrent, bool preserveConnectedRuntime = false)
     {
         await _tailscaleRefreshGate.WaitAsync(token).ConfigureAwait(true);
         try
         {
             TailscaleStatus status = await _tailscale.GetStatusAsync(token);
             TailscaleConfigurationSnapshot configuration = await _tailscaleConfiguration.GetConfigurationAsync(token);
-            await PublishTailscaleStateAsync(status, configuration, isCurrent, token);
+            await PublishTailscaleStateAsync(status, configuration, isCurrent, token, preserveConnectedRuntime);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch when (isCurrent())
@@ -188,7 +189,8 @@ public partial class VpnView : UserControl
                 TailscaleStatus.Unavailable("Tailscale status is currently unavailable."),
                 TailscaleConfigurationSnapshot.Unknown,
                 isCurrent,
-                token);
+                token,
+                preserveConnectedRuntime);
         }
         finally { _tailscaleRefreshGate.Release(); }
     }
@@ -197,15 +199,21 @@ public partial class VpnView : UserControl
         TailscaleStatus status,
         TailscaleConfigurationSnapshot configuration,
         Func<bool> isCurrent,
-        CancellationToken token)
+        CancellationToken token,
+        bool preserveConnectedRuntime = false)
     {
         await Dispatcher.InvokeAsync(() =>
         {
             if (!isCurrent() || token.IsCancellationRequested) return;
-            _viewModel.ApplyTailscaleStatus(status);
+            _lastTailscaleReadStatus = status;
+            bool preserve = preserveConnectedRuntime
+                && _viewModel.TailscaleStatus?.State == TailscaleState.Connected
+                && status.State != TailscaleState.Connected;
+            if (!preserve) _viewModel.ApplyTailscaleStatus(status);
             _viewModel.ApplyTailscaleConfiguration(configuration);
             ApplyTailscaleControls();
             VpnLiveStatusDiagnostics.Record($"Tailscale runtime result published: {status.State}");
+            VpnLiveStatusDiagnostics.Record($"TAILSCALE_PUBLISH_KIND={(preserve ? "PRESERVED_RUNTIME" : "FULL")}; visible={_viewModel.TailscaleStatus?.State}");
             VpnLiveStatusDiagnostics.Record("Tailscale snapshot assigned to active VPN ViewModel: YES");
             VpnLiveStatusDiagnostics.Record("Tailscale UI property publication: YES");
             VpnLiveStatusDiagnostics.Record($"SNAPSHOT_PUBLISHED_VM={RuntimeHelpers.GetHashCode(_viewModel)}");
@@ -274,7 +282,8 @@ public partial class VpnView : UserControl
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
             VpnLiveStatusDiagnostics.Record($"Tailscale action reconciliation attempt {attempt + 1}/{maxAttempts}");
-            await RefreshTailscaleStateAsync(token);
+            bool accessMutation = field is TailscaleAccessField.Lan or TailscaleAccessField.Wan;
+            await RefreshTailscaleStateAsync(token, preserveConnectedRuntime: accessMutation && attempt < maxAttempts - 1);
             token.ThrowIfCancellationRequested();
             bool configurationStable = field switch
             {
@@ -291,14 +300,15 @@ public partial class VpnView : UserControl
                 // allows a genuine login-required state to settle.
                 TailscaleAccessField.Enabled when value => _viewModel.TailscaleStatus?.State is TailscaleState.Connected,
                 TailscaleAccessField.Enabled => _viewModel.TailscaleStatus?.State is not TailscaleState.Connected,
-                _ => true
+                _ => _lastTailscaleReadStatus is null
+                    || _lastTailscaleReadStatus.State == _viewModel.TailscaleStatus?.State
             };
             if (configurationStable && runtimeStable) return;
             if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(followUpDelayMilliseconds), token);
         }
     }
 
-    private async Task RefreshTailscaleStateAsync(CancellationToken token)
+    private async Task RefreshTailscaleStateAsync(CancellationToken token, bool preserveConnectedRuntime = false)
     {
         long refreshGeneration = Interlocked.Increment(ref _refreshGeneration);
         VpnLiveStatusDiagnostics.Record($"REFRESH_GENERATION_STARTED={refreshGeneration}; VM={RuntimeHelpers.GetHashCode(_viewModel)}");
@@ -309,7 +319,7 @@ public partial class VpnView : UserControl
             && contextVersion == _activeRouter.Version;
 
         VpnLiveStatusDiagnostics.Record("Tailscale canonical state refresh started: YES");
-        await LoadTailscaleAsync(token, IsCurrent);
+        await LoadTailscaleAsync(token, IsCurrent, preserveConnectedRuntime);
         VpnLiveStatusDiagnostics.Record("Tailscale canonical state refresh completed: YES");
     }
 
