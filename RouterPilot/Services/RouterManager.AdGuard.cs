@@ -296,6 +296,8 @@ namespace RouterPilot.Services
             catch (HttpRequestException exception) when (
                 IsCertificateValidationFailure(exception))
             {
+                Debug.WriteLine(
+                    $"AdGuard transport failure: TLS ({exception.HttpRequestError}).");
                 _adGuardTransportSecurity.MarkUnavailable(
                     "AdGuard Home HTTPS certificate validation failed.");
                 throw new InvalidOperationException(
@@ -303,8 +305,10 @@ namespace RouterPilot.Services
                     "Verify the configured endpoint and certificate.",
                     exception);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException exception)
             {
+                Debug.WriteLine(
+                    $"AdGuard transport failure: {exception.HttpRequestError} ({exception.GetType().Name}).");
                 _adGuardTransportSecurity.MarkUnavailable(
                     "AdGuard Home transport is unavailable.");
                 throw;
@@ -312,6 +316,7 @@ namespace RouterPilot.Services
             catch (TaskCanceledException)
                 when (!cancellationToken.IsCancellationRequested)
             {
+                Debug.WriteLine("AdGuard transport failure: request timeout.");
                 _adGuardTransportSecurity.MarkUnavailable(
                     "AdGuard Home transport timed out.");
                 throw;

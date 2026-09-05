@@ -53,6 +53,14 @@ Require(!AdGuardRuntimeStatusParser.IsRunning("not running", ""),
     "AdGuard stopped state is not mistaken for running");
 Require(AdGuardRuntimeStatusParser.IsRunning("running", ""),
     "AdGuard init status running state is preserved");
+Require(ResumeRecoveryPolicy.Delays.Length == 3 &&
+    ResumeRecoveryPolicy.Delays[0] < ResumeRecoveryPolicy.Delays[1] &&
+    ResumeRecoveryPolicy.Delays[1] < ResumeRecoveryPolicy.Delays[2],
+    "Resume recovery uses a bounded increasing retry sequence");
+Require(ResumeRecoveryPolicy.IsRecovered(true, true) &&
+    !ResumeRecoveryPolicy.IsRecovered(true, false) &&
+    !ResumeRecoveryPolicy.IsRecovered(false, true),
+    "Resume recovery requires both router and AdGuard availability");
 
 RouterCapabilitySnapshot unknownCapabilities = RouterCapabilitySnapshot.Unknown;
 Require(unknownCapabilities.Temperature == RouterCapabilityState.Unknown &&

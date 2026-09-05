@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,6 +70,8 @@ namespace RouterPilot.Views
         private int _vpnNetworkContextRefreshQueued;
         private CancellationTokenSource? _resumeRecoveryCancellation;
         private long _resumeGeneration;
+        private int _resumeRecoveryActive;
+        private readonly SemaphoreSlim _resumeRecoverySignal = new(0, 1);
         private bool _healthSourcesReady;
         private bool? _observedInternetState;
         private bool _vpnStateObserved;
@@ -156,6 +159,7 @@ namespace RouterPilot.Views
             _dataFreshnessService.Changed += DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged += MetricHistoryService_AvailabilityHistoryChanged;
             SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
+            NetworkChange.NetworkAvailabilityChanged += NetworkAvailabilityChanged;
             _viewModel.VpnSummary = _vpnSummaryService.Current;
             ApplyPublicIpResult(_publicIpService.Current);
             _viewModel.NetworkHealth = _networkHealthService.Current;
@@ -403,7 +407,7 @@ namespace RouterPilot.Views
                 Task wifiTask = RefreshWifiNetworksAsync(router, cancellationToken, routerSession);
                 Task dhcpTask = RefreshDhcpAsync(router, cancellationToken, forceConfigurationRefresh: false, routerSession: routerSession);
                 Task<NetworkInfo> networkTask = router.GetNetworkInfoAsync();
-                Task adGuardTask = RefreshAdGuardAsync(router, cancellationToken, routerSession);
+                Task adGuardTask = RefreshAdGuardAsync(router, cancellationToken, routerSession, resumeGeneration);
 
                 NetworkInfo? network = null;
                 Exception? networkFailure = null;
@@ -539,13 +543,17 @@ namespace RouterPilot.Views
         private async Task RefreshAdGuardAsync(
             RouterManager router,
             CancellationToken cancellationToken,
-            long routerSession)
+            long routerSession,
+            long resumeGeneration)
         {
             try
             {
+                ResumeTrace("AdGuard recovery started");
                 AdGuardStatus serviceStatus = await router.GetAdGuardStatusAsync();
                 cancellationToken.ThrowIfCancellationRequested();
                 ThrowIfRouterSessionChanged(routerSession);
+                ThrowIfResumeGenerationChanged(resumeGeneration);
+                ResumeTrace("AdGuard endpoint resolved from active router profile");
                 _dataFreshnessService.MarkSuccess(AdGuardFreshnessSource);
 
                 _viewModel.AdGuardRunning = serviceStatus.IsRunning;
@@ -569,6 +577,7 @@ namespace RouterPilot.Views
                 await Task.WhenAll(statisticsTask, rankingTask, protectionTask);
                 cancellationToken.ThrowIfCancellationRequested();
                 ThrowIfRouterSessionChanged(routerSession);
+                ThrowIfResumeGenerationChanged(resumeGeneration);
 
                 AdGuardRefreshResult<AdGuardStatistics> statistics = await statisticsTask;
                 AdGuardRefreshResult<List<QueryLogEntry>> rankings = await rankingTask;
@@ -576,6 +585,7 @@ namespace RouterPilot.Views
 
                 if (protection.Value is { } protectionStatus)
                 {
+                    ThrowIfResumeGenerationChanged(resumeGeneration);
                     await _protectionNotificationTracker.ProcessProtectionStateAsync(
                         protectionStatus.IsEnabled,
                         ProtectionStateSource.Refresh);
@@ -590,6 +600,7 @@ namespace RouterPilot.Views
 
                 if (statistics.Value is { } statisticsValue)
                 {
+                    ThrowIfResumeGenerationChanged(resumeGeneration);
                     _viewModel.UpdateAdGuardStatistics(statisticsValue);
                     _viewModel.AdGuardQueries = statisticsValue.TotalQueries < 0
                         ? "-"
@@ -605,14 +616,17 @@ namespace RouterPilot.Views
 
                 if (rankings.Value is { } rankingEntries)
                 {
+                    ThrowIfResumeGenerationChanged(resumeGeneration);
                     _viewModel.UpdateRankingsFromQueryLog(rankingEntries, onlyWhenEmpty: false);
                 }
 
                 Exception? failure = protection.Error ?? statistics.Error ?? rankings.Error;
                 if (failure is null)
                 {
+                    ThrowIfResumeGenerationChanged(resumeGeneration);
                     _viewModel.AdGuardAvailability = AdGuardAvailabilityState.Available;
                     _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Available);
+                    ResumeTrace("AdGuard API probes succeeded; canonical state Available");
                     ResolveInitialAdGuardHealthPreference();
                     if (_adGuardMaintenanceStateService.State == AdGuardMaintenanceState.Failed)
                     {
@@ -623,12 +637,13 @@ namespace RouterPilot.Views
 
                 MarkAdGuardUnavailable(ClassifyAdGuardFailure(failure));
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession))
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession) || resumeGeneration != Volatile.Read(ref _resumeGeneration))
             {
                 throw;
             }
             catch (Exception ex)
             {
+                ResumeTrace($"AdGuard recovery failed ({ex.GetType().Name})");
                 _dataFreshnessService.MarkUnavailable(AdGuardFreshnessSource);
                 MarkAdGuardUnavailable(ClassifyAdGuardFailure(ex));
             }
@@ -636,6 +651,7 @@ namespace RouterPilot.Views
 
         private void MarkAdGuardUnavailable(AdGuardAvailabilityState state)
         {
+            ResumeTrace($"AdGuard canonical state changed to {state}");
             _viewModel.AdGuardAvailability = state;
             _adGuardAvailabilityService.SetState(state);
             _viewModel.AdGuardRunning = false;
@@ -1230,6 +1246,7 @@ namespace RouterPilot.Views
 
         public Task PrepareForShutdownAsync()
         {
+            Interlocked.Exchange(ref _resumeRecoveryActive, 0);
             _resumeRecoveryCancellation?.Cancel();
             return _refreshCoordinator.DisposeAsync().AsTask();
         }
@@ -1238,6 +1255,20 @@ namespace RouterPilot.Views
             object sender,
             RoutedEventArgs e)
         {
+            if (Volatile.Read(ref _resumeRecoveryActive) != 0)
+            {
+                ResumeTrace("Manual Refresh nudged active resume recovery");
+                try
+                {
+                    _resumeRecoverySignal.Release();
+                }
+                catch (SemaphoreFullException)
+                {
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
             await _refreshCoordinator.RunNowAsync(
                 DashboardRefreshTask);
         }
@@ -1693,8 +1724,10 @@ namespace RouterPilot.Views
             _dataFreshnessService.Changed -= DataFreshnessService_Changed;
             _metricHistoryService.AvailabilityHistoryChanged -= MetricHistoryService_AvailabilityHistoryChanged;
             SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
+            NetworkChange.NetworkAvailabilityChanged -= NetworkAvailabilityChanged;
 
             _routerManagerUsageGate.Dispose();
+            _resumeRecoverySignal.Dispose();
 
             base.OnClosed(e);
         }
@@ -1704,7 +1737,9 @@ namespace RouterPilot.Views
             if (e.Mode == PowerModes.Suspend)
             {
                 Interlocked.Increment(ref _resumeGeneration);
+                Interlocked.Exchange(ref _resumeRecoveryActive, 0);
                 _resumeRecoveryCancellation?.Cancel();
+                ResumeTrace("Suspend detected");
                 _trafficAccumulator.ResetBaseline();
                 _routerManagerProvider.Invalidate();
                 return;
@@ -1716,7 +1751,29 @@ namespace RouterPilot.Views
             _resumeRecoveryCancellation?.Cancel();
             _resumeRecoveryCancellation?.Dispose();
             _resumeRecoveryCancellation = new CancellationTokenSource();
+            Interlocked.Exchange(ref _resumeRecoveryActive, 1);
+            ResumeTrace($"Resume detected; recovery generation {generation} started");
             _ = RecoverAfterResumeAsync(generation, _resumeRecoveryCancellation.Token);
+        }
+
+        private void NetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+        {
+            if (!e.IsAvailable || Volatile.Read(ref _resumeRecoveryActive) == 0)
+                return;
+
+            ResumeTrace("NetworkAvailable event received; nudging resume recovery");
+            try
+            {
+                _resumeRecoverySignal.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // A signal is already pending; the recovery remains coalesced.
+            }
+            catch (ObjectDisposedException)
+            {
+                // Shutdown won the race with the network notification.
+            }
         }
 
         private void ThrowIfResumeGenerationChanged(long generation)
@@ -1729,16 +1786,59 @@ namespace RouterPilot.Views
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-                if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded) return;
-                await _refreshCoordinator.RunNowAsync(DashboardRefreshTask, cancellationToken);
+                for (int attempt = 0; attempt < ResumeRecoveryPolicy.Delays.Length; attempt++)
+                {
+                    await WaitForResumeRecoverySignalOrDelayAsync(
+                        ResumeRecoveryPolicy.Delays[attempt],
+                        cancellationToken);
+
+                    if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
+                        return;
+
+                    ResumeTrace($"Resume recovery attempt {attempt + 1}/{ResumeRecoveryPolicy.Delays.Length} started");
+                    await _refreshCoordinator.RunNowAsync(
+                        DashboardRefreshTask,
+                        cancellationToken);
+
+                    if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
+                        return;
+
+                    if (ResumeRecoveryPolicy.IsRecovered(
+                        _viewModel.RouterConnected,
+                        _adGuardAvailabilityService.IsAvailable))
+                    {
+                        ResumeTrace($"Resume recovery generation {generation} completed");
+                        return;
+                    }
+
+                    ResumeTrace($"Resume recovery attempt {attempt + 1} did not restore Router/AdGuard");
+                }
+
+                ResumeTrace($"Resume recovery generation {generation} exhausted bounded attempts");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
             catch (Exception exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Post-resume recovery failed ({exception.GetType().Name}). Manual Refresh remains available.");
+                ResumeTrace($"Resume recovery failed ({exception.GetType().Name}); manual Refresh remains available");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _resumeRecoveryActive, 0);
             }
         }
+
+        private async Task WaitForResumeRecoverySignalOrDelayAsync(
+            TimeSpan delay,
+            CancellationToken cancellationToken)
+        {
+            Task delayTask = Task.Delay(delay, cancellationToken);
+            Task signalTask = _resumeRecoverySignal.WaitAsync(cancellationToken);
+            await Task.WhenAny(delayTask, signalTask);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        private static void ResumeTrace(string message) =>
+            Debug.WriteLine($"[ResumeRecovery {DateTimeOffset.UtcNow:O}] {message}");
 
         private void VpnSummaryService_SummaryChanged(VpnSummaryState summary)
         {
