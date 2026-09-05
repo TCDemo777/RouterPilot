@@ -8,7 +8,8 @@ The runtime path loads the active RouterPilot profile through
 `tailscale.get_config`, which returns the configuration directly under
 `result`, and
 requires the exact confirmation text `VALIDATE` before writing. It sends the
-complete settings object directly as the `tailscale.set_config` parameters, reads back the
+complete supported settings object directly as the `tailscale.set_config` parameters
+(`enabled`, `lan_enabled`, `wan_enabled`, and `exit_node_ip` only when reported), reads back the
 temporary value, restores the original object in a `finally` path, and reads
 back the original value again.
 

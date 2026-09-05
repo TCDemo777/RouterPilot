@@ -15,17 +15,70 @@ internal interface ITailscaleConfigTransport
 internal sealed record ValidationResult(
     bool WriteSucceeded,
     bool ReadBackSucceeded,
+    bool RestorationRequired,
     bool RestoreSucceeded,
     bool FinalReadBackSucceeded,
     bool RestorationFailed,
-    string? Error);
+    string? Error,
+    string? RpcErrorCode = null,
+    string? RpcErrorMessage = null,
+    string? RpcErrorDataShape = null);
 
 internal static class TailscaleConfigParser
 {
+    internal sealed class RpcFailure : Exception
+    {
+        public string Code { get; }
+        public string SafeMessage { get; }
+        public string DataShape { get; }
+
+        public RpcFailure(JsonElement error)
+            : base("GL.iNet RPC request failed.")
+        {
+            Code = error.TryGetProperty("code", out JsonElement code)
+                ? SafeScalar(code)
+                : "<missing>";
+            SafeMessage = error.TryGetProperty("message", out JsonElement message) && message.ValueKind == JsonValueKind.String
+                ? SafeMessageText(message.GetString())
+                : "<redacted>";
+            DataShape = error.TryGetProperty("data", out JsonElement data)
+                ? DescribeShape(data, "data", 0)
+                : "<absent>";
+        }
+
+        private static string SafeMessageText(string? message)
+        {
+            string value = (message ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ').Trim();
+            string lower = value.ToLowerInvariant();
+            return value.Length is 0 or > 200 || new[] { "password", "token", "cookie", "secret", "private", "auth", "session", "url" }.Any(lower.Contains)
+                ? "<redacted>"
+                : value;
+        }
+
+        private static string SafeScalar(JsonElement value) => value.ValueKind switch
+        {
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.String => "<string>",
+            JsonValueKind.True or JsonValueKind.False => value.GetRawText(),
+            _ => "<redacted>"
+        };
+
+        private static string DescribeShape(JsonElement value, string path, int depth)
+        {
+            if (depth > 3) return path + ": " + value.ValueKind;
+            if (value.ValueKind == JsonValueKind.Object)
+                return string.Join(", ", value.EnumerateObject().Select(property =>
+                    DescribeShape(property.Value, path + "." + property.Name, depth + 1)));
+            if (value.ValueKind == JsonValueKind.Array)
+                return path + ": array";
+            return path + ": " + value.ValueKind + " <redacted>";
+        }
+    }
+
     public static void EnsureSuccess(JsonElement root)
     {
         if (root.TryGetProperty("error", out JsonElement error))
-            throw new InvalidOperationException($"GL.iNet RPC error ({error.ValueKind}).");
+            throw new RpcFailure(error);
     }
 
     public static JsonObject ExtractSettings(JsonElement root)
@@ -34,6 +87,32 @@ internal static class TailscaleConfigParser
         if (!root.TryGetProperty("result", out JsonElement result) || result.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("WRITE CONTRACT NOT PROVEN: get_config did not return result.");
         return JsonNode.Parse(result.GetRawText())!.AsObject();
+    }
+}
+
+internal static class TailscaleConfigRequestBuilder
+{
+    private static readonly string[] BooleanFields = ["enabled", "lan_enabled", "wan_enabled"];
+
+    public static JsonObject Build(JsonObject current)
+    {
+        var request = new JsonObject();
+        foreach (string field in BooleanFields)
+        {
+            if (!MutationCoordinator.TryReadBoolean(current, field, out bool value, out _))
+                throw new InvalidOperationException($"SET_CONFIG CONTRACT NOT PROVEN: required field {field} is absent or invalid.");
+            request[field] = value;
+        }
+
+        // The GL.iNet UI includes this optional string when the router reports
+        // it. Never invent or clear an exit-node value.
+        if (current["exit_node_ip"] is JsonNode exitNode)
+        {
+            if (exitNode is not JsonValue jsonValue || !jsonValue.TryGetValue<string>(out string? value))
+                throw new InvalidOperationException("SET_CONFIG CONTRACT NOT PROVEN: exit_node_ip has an unexpected type.");
+            request["exit_node_ip"] = value;
+        }
+        return request;
     }
 }
 
@@ -61,25 +140,35 @@ internal sealed class MutationCoordinator
         temporary["lan_enabled"] = valueKind == JsonValueKind.String
             ? (JsonNode)(originalValue ? "0" : "1")
             : originalValue ? 0 : 1;
-        bool mutationAttempted = false;
         bool writeSucceeded = false;
         bool readBackSucceeded = false;
+        bool restorationRequired = false;
         bool restoreSucceeded = false;
         bool finalReadBackSucceeded = false;
         bool restorationFailed = false;
         string? error = null;
+        string? rpcErrorCode = null;
+        string? rpcErrorMessage = null;
+        string? rpcErrorDataShape = null;
 
         try
         {
             EnsureGeneration(capturedGeneration);
-            mutationAttempted = true;
             await _transport.WriteSettingsAsync(temporary, cancellationToken);
             writeSucceeded = true;
+            restorationRequired = true;
 
             JsonObject changed = await _transport.ReadSettingsAsync(cancellationToken);
             readBackSucceeded = TryReadBoolean(changed, "lan_enabled", out bool changedValue, out _) && changedValue != originalValue;
             if (!readBackSucceeded)
                 throw new InvalidOperationException("Temporary lan_enabled read-back did not match the requested value.");
+        }
+        catch (TailscaleConfigParser.RpcFailure exception)
+        {
+            error = exception.Message;
+            rpcErrorCode = exception.Code;
+            rpcErrorMessage = exception.SafeMessage;
+            rpcErrorDataShape = exception.DataShape;
         }
         catch (Exception exception)
         {
@@ -87,7 +176,7 @@ internal sealed class MutationCoordinator
         }
         finally
         {
-            if (mutationAttempted)
+            if (restorationRequired)
             {
                 try
                 {
@@ -108,7 +197,7 @@ internal sealed class MutationCoordinator
             }
         }
 
-        return new ValidationResult(writeSucceeded, readBackSucceeded, restoreSucceeded, finalReadBackSucceeded, restorationFailed, error);
+        return new ValidationResult(writeSucceeded, readBackSucceeded, restorationRequired, restoreSucceeded, finalReadBackSucceeded, restorationFailed, error, rpcErrorCode, rpcErrorMessage, rpcErrorDataShape);
     }
 
     private void EnsureGeneration(long capturedGeneration)
@@ -183,8 +272,9 @@ internal sealed class RouterTransport : ITailscaleConfigTransport
 
     public async Task WriteSettingsAsync(JsonObject settings, CancellationToken cancellationToken)
     {
+        JsonObject request = TailscaleConfigRequestBuilder.Build(settings);
         using JsonDocument document = await _manager.SetTailscaleConfigAsync(
-            JsonSerializer.SerializeToElement(settings), cancellationToken);
+            JsonSerializer.SerializeToElement(request), cancellationToken);
         TailscaleConfigParser.EnsureSuccess(document.RootElement);
     }
 }
@@ -212,7 +302,21 @@ internal static class Program
             Require(parsed["lan_enabled"]!.GetValue<bool>() == false && parsed["extra"]!.GetValue<string>() == "ignored", "live result envelope parses and preserves extras");
         }
         using (JsonDocument error = JsonDocument.Parse("{\"error\":{\"code\":-1,\"message\":\"failure\"}}"))
-            RequireThrows(() => TailscaleConfigParser.ExtractSettings(error.RootElement), "RPC error response is rejected");
+        {
+            try { _ = TailscaleConfigParser.ExtractSettings(error.RootElement); }
+            catch (TailscaleConfigParser.RpcFailure failure)
+            {
+                Require(failure.Code == "-1" && failure.SafeMessage == "failure" && failure.DataShape == "<absent>", "safe RPC error details are extracted");
+            }
+        }
+        using (JsonDocument secretError = JsonDocument.Parse("{\"error\":{\"code\":-2,\"message\":\"token rejected\",\"data\":{\"auth_key\":\"secret-value\",\"reason\":\"bad\"}}}"))
+        {
+            try { _ = TailscaleConfigParser.ExtractSettings(secretError.RootElement); }
+            catch (TailscaleConfigParser.RpcFailure failure)
+            {
+                Require(failure.SafeMessage == "<redacted>" && !failure.DataShape.Contains("secret-value", StringComparison.Ordinal) && failure.DataShape.Contains("data.auth_key", StringComparison.Ordinal), "secret-bearing RPC errors are redacted");
+            }
+        }
         using (JsonDocument missing = JsonDocument.Parse("{\"result\":{\"enabled\":false}}"))
             RequireThrows(() => new MutationCoordinator(new FakeTransport(TailscaleConfigParser.ExtractSettings(missing.RootElement)), () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult(), "missing target field is rejected");
         using (JsonDocument wrongType = JsonDocument.Parse("{\"result\":{\"lan_enabled\":\"maybe\"}}"))
@@ -221,16 +325,16 @@ internal static class Program
         var fake = new FakeTransport(Settings(0));
         var coordinator = new MutationCoordinator(fake, () => 1, _ => { });
         ValidationResult result = coordinator.ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
-        Require(result.WriteSucceeded && result.ReadBackSucceeded && result.RestoreSucceeded && result.FinalReadBackSucceeded, "happy path");
+        Require(result.WriteSucceeded && result.ReadBackSucceeded && result.RestorationRequired && result.RestoreSucceeded && result.FinalReadBackSucceeded, "happy path");
         Require(fake.Writes[0]["enabled"]!.GetValue<int>() == 0 && fake.Writes[1]["enabled"]!.GetValue<int>() == 0, "unrelated fields preserved");
 
         var failed = new FakeTransport(Settings(0), failWrite: true);
         result = new MutationCoordinator(failed, () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
-        Require(!result.WriteSucceeded && failed.WriteCount == 2, "write failure is not reported as success");
+        Require(!result.WriteSucceeded && !result.RestorationRequired && failed.WriteCount == 1, "write failure is not reported as success");
 
         var mismatch = new FakeTransport(Settings(0), mismatchReadBack: true);
         result = new MutationCoordinator(mismatch, () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
-        Require(!result.ReadBackSucceeded && result.RestoreSucceeded && result.FinalReadBackSucceeded, "read-back mismatch restores");
+        Require(!result.ReadBackSucceeded && result.RestorationRequired && result.RestoreSucceeded && result.FinalReadBackSucceeded, "read-back mismatch restores");
 
         long generation = 1;
         var generationChanged = new FakeTransport(Settings(0));
@@ -258,6 +362,14 @@ internal static class Program
         var secrets = new FakeTransport(new JsonObject { ["lan_enabled"] = 0, ["auth_key"] = "never-log" });
         _ = new MutationCoordinator(secrets, () => 1, message => logged += message).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
         Require(!logged.Contains("never-log", StringComparison.Ordinal), "secret values never enter diagnostics");
+
+        JsonObject request = TailscaleConfigRequestBuilder.Build(new JsonObject
+        {
+            ["enabled"] = false, ["lan_enabled"] = true, ["wan_enabled"] = false,
+            ["masq"] = false, ["run_exit_node"] = false, ["lan_ip"] = "192.0.2.1",
+            ["auth_key"] = "never-send"
+        });
+        Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
     }
 
     private static async Task RunRuntimeValidationAsync()
@@ -330,8 +442,16 @@ internal static class Program
             Console.WriteLine($"Temporary: {(originalValue ? 0 : 1)}");
             Console.WriteLine($"Write: {(result.WriteSucceeded ? "PASS" : "FAIL")}");
             Console.WriteLine($"Read-back: {(result.ReadBackSucceeded ? "PASS" : "FAIL")}");
+            if (result.RpcErrorCode is not null)
+            {
+                Console.WriteLine($"RPC error code: {result.RpcErrorCode}");
+                Console.WriteLine($"RPC error message: {result.RpcErrorMessage}");
+                Console.WriteLine($"RPC error data shape: {result.RpcErrorDataShape}");
+                Console.WriteLine("Mutation confirmed applied: NO");
+            }
+            Console.WriteLine($"Restoration required: {(result.RestorationRequired ? "YES" : "NO")}");
             Console.WriteLine("Backend/UCI consistency: NOT RUN");
-            Console.WriteLine($"Restore: {(result.RestoreSucceeded ? "PASS" : "FAIL")}");
+            Console.WriteLine($"Restore: {(result.RestorationRequired ? (result.RestoreSucceeded ? "PASS" : "FAIL") : "NOT REQUIRED")}");
             Console.WriteLine($"Final read-back: {(result.FinalReadBackSucceeded ? "PASS" : "FAIL")}");
             Console.WriteLine($"ROUTER RESTORED: {(result.FinalReadBackSucceeded ? "YES" : "NO")}");
             if (result.RestorationFailed)
@@ -395,7 +515,7 @@ internal static class Program
     private static void RequireThrows(Action action, string message)
     {
         try { action(); }
-        catch (InvalidOperationException) { return; }
+        catch (Exception) { return; }
         throw new InvalidOperationException($"Harness test failed: {message}");
     }
 }
