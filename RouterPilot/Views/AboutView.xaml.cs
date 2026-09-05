@@ -122,7 +122,12 @@ namespace RouterPilot.Views
 
             try
             {
+                // Enter the dedicated launch state before hiding its backdrop so
+                // normal About content can never flash underneath the fade.
+                AboutContentHost.Visibility = Visibility.Collapsed;
                 FlightDeckPreflight.Visibility = Visibility.Visible;
+                FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty, null);
+                FlightDeckPreflight.Opacity = 1;
                 ResetPreflightVisuals();
 
                 for (int number = 10; number >= 1; number--)
@@ -138,26 +143,24 @@ namespace RouterPilot.Views
                     {
                         await RevealCheckAsync(CoffeeCheckText, reducedMotion, cancellationToken);
                         if (!reducedMotion)
+                        {
                             await AnimateCoffeeBeatAsync(cancellationToken);
+                            PrepareLaunchEffects(3);
+                        }
                     }
                     else if (number == 2 && !reducedMotion)
                     {
                         await AnimateCoffeeBeatAsync(cancellationToken);
+                        PrepareLaunchEffects(2);
                     }
                 }
 
                 await AnimateIgnitionAsync(reducedMotion, cancellationToken);
-                if (!reducedMotion)
-                {
-                    FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty,
-                        new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(760))
-                        { BeginTime = TimeSpan.FromMilliseconds(240) });
-                }
                 await AnimateLogoTakeoffAsync(reducedMotion, cancellationToken);
-                FlightDeckPreflight.Visibility = Visibility.Collapsed;
-                AboutContentHost.Visibility = Visibility.Collapsed;
+                // Let the empty launch scene breathe before the slow direct crossfade.
+                await Task.Delay(900, cancellationToken);
                 FlightDeckHost.Visibility = Visibility.Visible;
-                await AnimateFlightDeckEntranceAsync(reducedMotion, cancellationToken);
+                await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
                 StartAmbientPacketAnimation(reducedMotion);
             }
             catch (OperationCanceledException)
@@ -193,6 +196,11 @@ namespace RouterPilot.Views
             {
                 effect.BeginAnimation(UIElement.OpacityProperty, null);
                 effect.Opacity = 0;
+            }
+            foreach (UIElement sparkle in new[] { SparkleOne, SparkleTwo, SparkleThree, SparkleFour })
+            {
+                sparkle.BeginAnimation(UIElement.OpacityProperty, null);
+                sparkle.Opacity = 0;
             }
         }
 
@@ -230,14 +238,30 @@ namespace RouterPilot.Views
             if (reducedMotion)
                 return;
 
-            foreach (UIElement effect in new[] { ThrustOuter, ThrustInner, ThrustParticleOne, ThrustParticleTwo, ThrustParticleThree })
-                effect.Opacity = 0;
-            ThrustOuter.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.85, TimeSpan.FromMilliseconds(160)));
-            ThrustInner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(130)));
-            ThrustParticleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.8, TimeSpan.FromMilliseconds(150)));
-            ThrustParticleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.65, TimeSpan.FromMilliseconds(150)));
-            ThrustParticleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.75, TimeSpan.FromMilliseconds(150)));
+            ThrustOuter.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustOuter.Opacity, 0.95, TimeSpan.FromMilliseconds(160)));
+            ThrustInner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustInner.Opacity, 1, TimeSpan.FromMilliseconds(130)));
+            ThrustParticleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustParticleOne.Opacity, 0.8, TimeSpan.FromMilliseconds(150)));
+            ThrustParticleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustParticleTwo.Opacity, 0.65, TimeSpan.FromMilliseconds(150)));
+            ThrustParticleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustParticleThree.Opacity, 0.75, TimeSpan.FromMilliseconds(150)));
+            SparkleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleOne.Opacity, 0.9, TimeSpan.FromMilliseconds(120)));
+            SparkleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleTwo.Opacity, 0.8, TimeSpan.FromMilliseconds(150)));
+            SparkleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleThree.Opacity, 0.75, TimeSpan.FromMilliseconds(140)));
+            SparkleFour.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleFour.Opacity, 0.85, TimeSpan.FromMilliseconds(160)));
             await Task.Delay(180, cancellationToken);
+        }
+
+        private void PrepareLaunchEffects(int stage)
+        {
+            double glow = stage == 3 ? 0.22 : 0.4;
+            ThrustOuter.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(ThrustOuter.Opacity, glow, TimeSpan.FromMilliseconds(180)));
+            if (stage == 2)
+            {
+                SparkleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.55, TimeSpan.FromMilliseconds(180)));
+                SparkleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.5, TimeSpan.FromMilliseconds(210)));
+                SparkleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.45, TimeSpan.FromMilliseconds(160)));
+                SparkleFour.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.5, TimeSpan.FromMilliseconds(200)));
+            }
         }
 
         private static DoubleAnimationUsingKeyFrames Keyframes(double first, double middle, double last, int milliseconds)
@@ -292,42 +316,52 @@ namespace RouterPilot.Views
             }
 
             LaunchTranslation.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(0, 260, TimeSpan.FromMilliseconds(900))
+                new DoubleAnimation(0, 8, TimeSpan.FromMilliseconds(1500))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchTranslation.BeginAnimation(TranslateTransform.YProperty,
-                new DoubleAnimation(0, -82, TimeSpan.FromMilliseconds(900))
+                new DoubleAnimation(0, -285, TimeSpan.FromMilliseconds(1500))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             LaunchRotation.BeginAnimation(RotateTransform.AngleProperty,
-                new DoubleAnimation(0, 14, TimeSpan.FromMilliseconds(900)));
+                new DoubleAnimation(0, 5, TimeSpan.FromMilliseconds(1500)));
             LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-                new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
+                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(1500)));
             LaunchScale.BeginAnimation(ScaleTransform.ScaleYProperty,
-                new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
+                new DoubleAnimation(1, 0.88, TimeSpan.FromMilliseconds(1500)));
             LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty,
-                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(900)));
-            return Task.Delay(940, cancellationToken);
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(1500))
+                { BeginTime = TimeSpan.FromMilliseconds(650) });
+            return Task.Delay(1550, cancellationToken);
         }
 
         private async Task FadePreflightForReducedMotionAsync(CancellationToken cancellationToken)
         {
-            FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty,
-                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(240)));
-            await Task.Delay(260, cancellationToken);
+            LaunchTranslation.BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(0, -250, TimeSpan.FromMilliseconds(500)));
+            LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(500)));
+            await Task.Delay(560, cancellationToken);
         }
 
-        private async Task AnimateFlightDeckEntranceAsync(bool reducedMotion, CancellationToken cancellationToken)
+        private async Task CrossfadeToFlightDeckAsync(bool reducedMotion, CancellationToken cancellationToken)
         {
             if (FlightDeckHost.RenderTransform is not TranslateTransform translation)
                 return;
 
-            FlightDeckHost.Opacity = reducedMotion ? 1 : 0;
-            translation.Y = reducedMotion ? 0 : 18;
-            if (reducedMotion)
-                return;
-
-            FlightDeckHost.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(420)));
-            translation.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(420)));
-            await Task.Delay(450, cancellationToken);
+            const int crossfadeMilliseconds = 3000;
+            FlightDeckHost.BeginAnimation(UIElement.OpacityProperty, null);
+            FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty, null);
+            FlightDeckHost.Opacity = 0;
+            FlightDeckPreflight.Opacity = 1;
+            translation.BeginAnimation(TranslateTransform.YProperty, null);
+            translation.Y = 0;
+            FlightDeckHost.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(crossfadeMilliseconds))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
+            FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(crossfadeMilliseconds))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
+            await Task.Delay(crossfadeMilliseconds + 80, cancellationToken);
+            FlightDeckPreflight.Visibility = Visibility.Collapsed;
         }
 
         private void StartAmbientPacketAnimation(bool reducedMotion)
