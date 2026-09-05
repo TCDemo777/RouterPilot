@@ -42,6 +42,61 @@ namespace RouterPilot.Views
         private CancellationTokenSource? _flightDeckCancellation;
         private CancellationTokenSource? _autopilotCancellation;
         private LaunchSceneVariation? _launchSceneVariation;
+        private int _previousCaptainLogIndex = -1;
+
+        private static readonly string[] CaptainLogs =
+        [
+            "There are 10 types of people in the world: those who understand binary and those who don't.",
+            "The router requested a coffee break. Packets were rerouted to the galley.",
+            "Flight computer says the next hop is scenic.",
+            "Today's forecast: light winds and a 90% chance of DNS.",
+            "The crew has checked the checklist twice. The checklist is pleased.",
+            "Packets prefer window seats, especially on long-haul routes.",
+            "A good launch has three things: fuel, focus, and a backup gateway.",
+            "The moon is out, so the night shift has officially begun.",
+            "Our route is clear, our NAT is polite, and our coffee is not.",
+            "Never argue with a router that has already chosen its next hop.",
+            "The tiny antenna is listening for interesting weather.",
+            "Crew note: please do not feed the firewall after midnight.",
+            "A packet walked into a bar. The bartender said, ‘Sorry, wrong port.’",
+            "The launchpad is level. The network is mostly level.",
+            "Every great journey begins with a surprisingly specific subnet.",
+            "Tailwinds are good. Tailnets are better.",
+            "Control reports all systems nominal, including the snack drawer.",
+            "The rocket has a destination. The DNS resolver has opinions.",
+            "Today’s mission: reach orbit without touching the guest network.",
+            "If found, return this packet to its nearest gateway.",
+            "The crew salutes every successful handshake.",
+            "A quiet router is a router plotting something interesting.",
+            "Ground control approves this route with a small blue light.",
+            "The launch window is open. Please keep the firewall closed.",
+            "One small hop for a packet, one giant leap for the tailnet.",
+            "The best route is the one that arrives with snacks.",
+            "No clouds, no collisions, no mysterious captive portals.",
+            "The navigation display says: go up, then keep going up.",
+            "A little redundancy makes every adventure more relaxing.",
+            "The crew has permission to be cautiously optimistic.",
+            "This launch is sponsored by stable firmware and strong coffee.",
+            "The runway is imaginary, but the packets are real enough.",
+            "Please remain seated until the final hop has completed.",
+            "The router knows the way. The router will not be taking questions.",
+            "A clean route is a beautiful thing.",
+            "Control has confirmed: no gremlins detected in the cable tray.",
+            "Every star in the sky is just a very distant status light.",
+            "The crew packed spare cables and one excellent map.",
+            "When in doubt, inspect the gateway and blame the coffee.",
+            "The launch sequence is deterministic. The snacks are not.",
+            "Our packets are punctual, well-mannered, and slightly aerodynamic.",
+            "The network has achieved a comfortable cruising altitude.",
+            "A good pilot watches the horizon and the error log.",
+            "The signal is strong enough to tell a good story.",
+            "Control says the route is clear for whimsical departure.",
+            "There is no turbulence, only enthusiastic packet movement.",
+            "The crew agrees: this is a very small but respectable space program.",
+            "The next stop is somewhere beyond the default gateway.",
+            "Remember: every timeout is an opportunity to check the cable.",
+            "Captain's note: keep the engines warm and the settings truthful."
+        ];
 
         private sealed record LaunchSceneVariation(
             int CrowdCount,
@@ -145,6 +200,7 @@ namespace RouterPilot.Views
                 FlightDeckPreflight.Opacity = 1;
                 ResetPreflightVisuals();
                 _launchSceneVariation = CreateLaunchSceneVariation(IsDarkTheme());
+                FlightDeckPreflight.UpdateLayout();
                 RenderLaunchScene(_launchSceneVariation);
                 Task shootingStar = !reducedMotion && _launchSceneVariation.ShootingStarEnabled
                     ? AnimateShootingStarAsync(cancellationToken)
@@ -194,6 +250,7 @@ namespace RouterPilot.Views
                 await shootingStar;
                 FlightDeckHost.Visibility = Visibility.Visible;
                 await CrossfadeToFlightDeckAsync(reducedMotion, cancellationToken);
+                SelectCaptainLog();
                 StartAmbientPacketAnimation(reducedMotion);
             }
             catch (OperationCanceledException)
@@ -206,8 +263,10 @@ namespace RouterPilot.Views
         {
             RandomSceneBackground.Children.Clear();
             RandomSceneForeground.Children.Clear();
+            CelestialCardLayer.Children.Clear();
             StaticVehicleGroup.Visibility = Visibility.Visible;
             _launchSceneVariation = null;
+            CaptainLogText.Text = string.Empty;
             LaunchMotionGroup.BeginAnimation(UIElement.OpacityProperty, null);
             LaunchMotionGroup.Opacity = 1;
             LaunchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -294,34 +353,45 @@ namespace RouterPilot.Views
         {
             StaticVehicleGroup.Visibility = variation.VehicleVisible ? Visibility.Visible : Visibility.Collapsed;
             Brush sky = FindSceneBrush("Brush.WindowBackground", "Brush.SurfaceMuted");
-            Brush muted = FindSceneBrush("Brush.TextMuted", "Brush.Border");
-            Brush primary = FindSceneBrush("Brush.TextPrimary", "Brush.TextSecondary");
+            Brush muted = variation.IsDark ? FindSceneBrush("Brush.TextMuted", "Brush.Border") : SolidColorBrush(0x4E, 0x63, 0x70);
+            Brush primary = variation.IsDark ? FindSceneBrush("Brush.TextPrimary", "Brush.TextSecondary") : SolidColorBrush(0x23, 0x35, 0x43);
             Brush accent = FindSceneBrush("Brush.Accent", "Brush.Primary");
+            Brush border = variation.IsDark ? FindSceneBrush("Brush.Border", "Brush.TextMuted") : SolidColorBrush(0x51, 0x67, 0x74);
+            Brush lightSurface = variation.IsDark ? FindSceneBrush("Brush.SurfaceMuted", "Brush.Surface") : SolidColorBrush(0xD6, 0xE2, 0xE8);
+            Brush lightWindow = variation.IsDark ? FindSceneBrush("Brush.Surface", "Brush.SurfaceMuted") : SolidColorBrush(0xF4, 0xF8, 0xFA);
+            ApplySceneContrast(variation.IsDark, lightSurface, lightWindow, border, primary, accent);
 
             if (variation.IsDark)
             {
-                RandomSceneBackground.Children.Add(new Rectangle
+                CelestialCardLayer.Children.Clear();
+                CelestialCardLayer.Children.Add(new Rectangle
                 {
-                    Width = 900, Height = 430, Fill = sky, Opacity = 0.42,
+                    Width = Math.Max(CelestialCardLayer.ActualWidth, 900),
+                    Height = Math.Max(CelestialCardLayer.ActualHeight, 500),
+                    Fill = sky, Opacity = 0.42,
                     IsHitTestVisible = false
                 });
                 Ellipse moon = new() { Width = 46, Height = 46, Fill = primary, Opacity = 0.72 };
-                Canvas.SetLeft(moon, 784); Canvas.SetTop(moon, 30); RandomSceneBackground.Children.Add(moon);
+                Canvas.SetLeft(moon, Math.Max(CelestialCardLayer.ActualWidth, 900) - 116); Canvas.SetTop(moon, 28); CelestialCardLayer.Children.Add(moon);
                 Ellipse moonCutout = new() { Width = 42, Height = 42, Fill = sky, Opacity = 0.95 };
-                Canvas.SetLeft(moonCutout, 800); Canvas.SetTop(moonCutout, 23); RandomSceneBackground.Children.Add(moonCutout);
+                Canvas.SetLeft(moonCutout, Math.Max(CelestialCardLayer.ActualWidth, 900) - 100); Canvas.SetTop(moonCutout, 21); CelestialCardLayer.Children.Add(moonCutout);
                 for (int index = 0; index < variation.StarCount; index++)
                 {
-                    int column = index % 10;
-                    int row = index / 10;
+                    double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
+                    double height = Math.Max(CelestialCardLayer.ActualHeight, 500);
                     Ellipse star = new()
                     {
                         Width = 2 + (index % 3), Height = 2 + (index % 3),
                         Fill = primary, Opacity = 0.38 + (index % 4) * 0.12
                     };
-                    Canvas.SetLeft(star, 34 + column * 91 + (index * 17) % 28);
-                    Canvas.SetTop(star, 22 + row * 34 + (index * 11) % 20);
-                    RandomSceneBackground.Children.Add(star);
+                    Canvas.SetLeft(star, 24 + (index * 137) % Math.Max(30, (int)width - 48));
+                    Canvas.SetTop(star, 18 + (index * 83) % Math.Max(30, (int)(height * 0.62)));
+                    CelestialCardLayer.Children.Add(star);
                 }
+            }
+            else
+            {
+                CelestialCardLayer.Children.Clear();
             }
 
             foreach (Point tree in variation.TreeSlots)
@@ -355,10 +425,11 @@ namespace RouterPilot.Views
         private async Task AnimateShootingStarAsync(CancellationToken cancellationToken)
         {
             Line trail = new() { X1 = 0, Y1 = 0, X2 = 28, Y2 = 0, Stroke = FindSceneBrush("Brush.TextPrimary", "Brush.Accent"), StrokeThickness = 2, Opacity = 0 };
-            Canvas.SetLeft(trail, 90); Canvas.SetTop(trail, 92); RandomSceneBackground.Children.Add(trail);
+            double width = Math.Max(CelestialCardLayer.ActualWidth, 900);
+            Canvas.SetLeft(trail, width - 220); Canvas.SetTop(trail, 100); CelestialCardLayer.Children.Add(trail);
             trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.82, TimeSpan.FromMilliseconds(120)));
-            trail.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(90, 220, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-            trail.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(92, 150, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            trail.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(width - 220, width - 40, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            trail.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(100, 220, TimeSpan.FromMilliseconds(760)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
             await Task.Delay(760, cancellationToken);
             trail.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.82, 0, TimeSpan.FromMilliseconds(180)));
             await Task.Delay(220, cancellationToken);
@@ -368,6 +439,50 @@ namespace RouterPilot.Views
             => (Application.Current.TryFindResource(primaryKey) as Brush)
                 ?? (Application.Current.TryFindResource(fallbackKey) as Brush)
                 ?? Brushes.White;
+
+        private void ApplySceneContrast(bool dark, Brush surface, Brush window, Brush border, Brush primary, Brush accent)
+        {
+            LaunchControlBody.Fill = surface;
+            LaunchControlBody.Stroke = border;
+            LaunchControlRoof.Fill = window;
+            LaunchControlRoof.Stroke = border;
+            LaunchControlWindowOne.Fill = window;
+            LaunchControlWindowTwo.Fill = window;
+            LaunchControlWindowThree.Fill = window;
+            LaunchControlWindowOne.Stroke = border;
+            LaunchControlWindowTwo.Stroke = border;
+            LaunchControlWindowThree.Stroke = border;
+            LaunchControlDoor.Fill = window;
+            LaunchControlDoor.Stroke = border;
+            LaunchControlLabel.Foreground = dark ? accent : primary;
+            LaunchRoad.Fill = dark ? FindSceneBrush("Brush.SurfaceMuted", "Brush.Border") : SolidColorBrush(0xB8, 0xC6, 0xCD);
+            LaunchRoad.Stroke = border;
+            LaunchRoadEdge.Fill = dark ? border : SolidColorBrush(0x6C, 0x80, 0x8B);
+            SupportVehicleBody.Fill = surface;
+            SupportVehicleBody.Stroke = border;
+            SupportVehicleCab.Fill = window;
+            SupportVehicleCab.Stroke = border;
+            SupportVehicleWheelOne.Fill = border;
+            SupportVehicleWheelTwo.Fill = border;
+            SupportVehicleMark.Foreground = dark ? accent : primary;
+        }
+
+        private static SolidColorBrush SolidColorBrush(byte red, byte green, byte blue)
+            => new(Color.FromRgb(red, green, blue));
+
+        private void SelectCaptainLog()
+        {
+            if (CaptainLogs.Length != 50) throw new InvalidOperationException("Captain log pool must contain exactly 50 entries.");
+            int candidate;
+            do
+            {
+                candidate = Random.Shared.Next(CaptainLogs.Length);
+            }
+            while (CaptainLogs.Length > 1 && candidate == _previousCaptainLogIndex);
+
+            _previousCaptainLogIndex = candidate;
+            CaptainLogText.Text = CaptainLogs[candidate];
+        }
 
         private async Task ShowCountdownAsync(int number, bool reducedMotion, CancellationToken cancellationToken)
         {
