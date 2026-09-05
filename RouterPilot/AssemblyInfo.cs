@@ -2,6 +2,7 @@ using System.Windows;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("RouterPilot.NetworkHealthHarness")]
+[assembly: InternalsVisibleTo("RouterPilot.VpnMutationHarness")]
 
 [assembly: ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located

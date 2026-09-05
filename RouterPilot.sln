@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.8.12021.73
@@ -12,6 +12,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RouterPilot.DataStatisticsHarness", "RouterPilot.DataStatisticsHarness\RouterPilot.DataStatisticsHarness.csproj", "{B2FE364A-EB0E-4D94-8402-8553B2A6AEEB}"
 EndProject
 Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "RouterPilot.Installer", "RouterPilot.Installer\RouterPilot.Installer.wixproj", "{26B39750-CE59-4536-AEF0-2E5C68FC5680}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RouterPilot.VpnMutationHarness", "RouterPilot.VpnMutationHarness\RouterPilot.VpnMutationHarness.csproj", "{88CF3359-2301-40A0-A78A-8A9AC8941179}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -105,6 +107,22 @@ Global
 		{26B39750-CE59-4536-AEF0-2E5C68FC5680}.Release|x64.Build.0 = Release|x64
 		{26B39750-CE59-4536-AEF0-2E5C68FC5680}.Release|x86.ActiveCfg = Release|x86
 		{26B39750-CE59-4536-AEF0-2E5C68FC5680}.Release|x86.Build.0 = Release|x86
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|x64.Build.0 = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Debug|x86.Build.0 = Debug|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|ARM64.Build.0 = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|x64.ActiveCfg = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|x64.Build.0 = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|x86.ActiveCfg = Release|Any CPU
+		{88CF3359-2301-40A0-A78A-8A9AC8941179}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
