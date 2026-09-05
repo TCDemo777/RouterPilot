@@ -411,15 +411,25 @@
                         </StackPanel>
                         <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Height="340">
                             <TextBlock x:Name="CountdownText"
-                                       Margin="0,0,0,274"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
+                                       Margin="0,0,0,4"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Bottom"
                                        FontFamily="Cascadia Mono, Consolas"
                                        FontSize="28"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource Brush.Accent}"
                                        Text="10"
                                        TextAlignment="Center"/>
+                            <TextBlock Margin="0,0,0,28" HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Cascadia Mono, Consolas" FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="LAUNCH CONTROL"/>
+                            <TextBlock x:Name="LiftOffText" Margin="0,0,0,4" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontFamily="Cascadia Mono, Consolas" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Brush.Accent}" Text="LIFT OFF" Opacity="0"/>
+                            <Canvas x:Name="IgnitionSmokeGroup" Width="180" Height="340" HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False">
+                                <Ellipse x:Name="SmokeOne" Canvas.Left="38" Canvas.Top="260" Width="34" Height="22" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Ellipse x:Name="SmokeTwo" Canvas.Left="108" Canvas.Top="258" Width="30" Height="20" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Ellipse x:Name="SmokeThree" Canvas.Left="52" Canvas.Top="278" Width="44" Height="25" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Ellipse x:Name="SmokeFour" Canvas.Left="88" Canvas.Top="276" Width="38" Height="24" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Ellipse x:Name="SmokeFive" Canvas.Left="24" Canvas.Top="286" Width="28" Height="18" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Ellipse x:Name="SmokeSix" Canvas.Left="126" Canvas.Top="284" Width="26" Height="18" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                            </Canvas>
                             <Canvas x:Name="LaunchMotionGroup" Width="180" Height="330" HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="0.5,0.5">
                                 <Canvas.RenderTransform>
                                     <TransformGroup>
@@ -428,8 +438,9 @@
                                         <TranslateTransform x:Name="LaunchTranslation" X="0" Y="0"/>
                                     </TransformGroup>
                                 </Canvas.RenderTransform>
-                                <Ellipse x:Name="ThrustOuter" Canvas.Left="66" Canvas.Top="252" Width="48" Height="30" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
-                                <Ellipse x:Name="ThrustInner" Canvas.Left="75" Canvas.Top="256" Width="30" Height="20" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Border x:Name="EngineGlow" Canvas.Left="70" Canvas.Top="250" Width="40" Height="18" CornerRadius="9" Background="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Rectangle x:Name="ThrustOuter" Canvas.Left="72" Canvas.Top="260" Width="36" Height="28" RadiusX="18" RadiusY="18" Fill="{DynamicResource Brush.TextMuted}" Opacity="0"/>
+                                <Rectangle x:Name="ThrustInner" Canvas.Left="79" Canvas.Top="258" Width="22" Height="25" RadiusX="11" RadiusY="11" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
                                 <Ellipse x:Name="ThrustParticleOne" Canvas.Left="58" Canvas.Top="246" Width="5" Height="5" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
                                 <Ellipse x:Name="ThrustParticleTwo" Canvas.Left="112" Canvas.Top="265" Width="4" Height="4" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
                                 <Ellipse x:Name="ThrustParticleThree" Canvas.Left="126" Canvas.Top="240" Width="4" Height="4" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
@@ -437,13 +448,21 @@
                                 <Ellipse x:Name="SparkleTwo" Canvas.Left="124" Canvas.Top="220" Width="4" Height="4" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
                                 <Ellipse x:Name="SparkleThree" Canvas.Left="44" Canvas.Top="258" Width="4" Height="4" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
                                 <Ellipse x:Name="SparkleFour" Canvas.Left="136" Canvas.Top="254" Width="5" Height="5" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
+                                <Rectangle x:Name="SparkleFive" Canvas.Left="67" Canvas.Top="278" Width="3" Height="12" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Rectangle x:Name="SparkleSix" Canvas.Left="110" Canvas.Top="274" Width="3" Height="10" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
+                                <Ellipse x:Name="SparkleSeven" Canvas.Left="60" Canvas.Top="264" Width="4" Height="4" Fill="{DynamicResource Brush.Accent}" Opacity="0"/>
+                                <Ellipse x:Name="SparkleEight" Canvas.Left="116" Canvas.Top="264" Width="4" Height="4" Fill="{DynamicResource Brush.Warning}" Opacity="0"/>
                                 <Image x:Name="LaunchLogo" Canvas.Left="38" Canvas.Top="142" Width="104" Height="104" Stretch="Uniform" Source="/Assets/RouterPilotLogo.png"/>
                             </Canvas>
                             <Canvas Width="180" Height="340" HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False">
-                                <Rectangle Canvas.Left="42" Canvas.Top="274" Width="96" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Brush.Border}"/>
-                                <Rectangle Canvas.Left="56" Canvas.Top="277" Width="3" Height="14" Fill="{DynamicResource Brush.Border}"/>
-                                <Rectangle Canvas.Left="121" Canvas.Top="277" Width="3" Height="14" Fill="{DynamicResource Brush.Border}"/>
-                                <Rectangle Canvas.Left="32" Canvas.Top="291" Width="116" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Brush.Accent}"/>
+                                <Rectangle Canvas.Left="28" Canvas.Top="282" Width="124" Height="5" RadiusX="2.5" RadiusY="2.5" Fill="{DynamicResource Brush.Border}"/>
+                                <Rectangle Canvas.Left="39" Canvas.Top="287" Width="102" Height="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush.Accent}"/>
+                                <Rectangle Canvas.Left="45" Canvas.Top="291" Width="7" Height="24" Fill="{DynamicResource Brush.Border}"/>
+                                <Rectangle Canvas.Left="128" Canvas.Top="291" Width="7" Height="24" Fill="{DynamicResource Brush.Border}"/>
+                                <Rectangle Canvas.Left="32" Canvas.Top="313" Width="116" Height="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush.Border}"/>
+                                <Polygon Points="39,287 26,307 31,307 48,291" Fill="{DynamicResource Brush.Border}"/>
+                                <Polygon Points="141,287 154,307 149,307 132,291" Fill="{DynamicResource Brush.Border}"/>
+                                <Rectangle Canvas.Left="66" Canvas.Top="276" Width="48" Height="6" RadiusX="3" RadiusY="3" Fill="{DynamicResource Brush.SurfaceMuted}" Stroke="{DynamicResource Brush.Accent}" StrokeThickness="1"/>
                             </Canvas>
                         </Grid>
                     </Grid>

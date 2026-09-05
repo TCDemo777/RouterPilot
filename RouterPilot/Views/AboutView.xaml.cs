@@ -155,8 +155,20 @@ namespace RouterPilot.Views
                     }
                 }
 
+                // Let the controller's final call disappear before the launch cue.
+                CountdownText.BeginAnimation(UIElement.OpacityProperty,
+                    reducedMotion ? null : new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(180)));
+                if (reducedMotion) CountdownText.Opacity = 0;
+                await Task.Delay(320, cancellationToken);
+                LiftOffText.BeginAnimation(UIElement.OpacityProperty, null);
+                LiftOffText.Opacity = reducedMotion ? 1 : 0;
+                if (!reducedMotion)
+                    LiftOffText.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+                await Task.Delay(650, cancellationToken);
+
                 await AnimateIgnitionAsync(reducedMotion, cancellationToken);
                 await AnimateLogoTakeoffAsync(reducedMotion, cancellationToken);
+                FadeResidualSmoke();
                 // Let the empty launch scene breathe before the slow direct crossfade.
                 await Task.Delay(900, cancellationToken);
                 FlightDeckHost.Visibility = Visibility.Visible;
@@ -192,16 +204,24 @@ namespace RouterPilot.Views
                 check.Opacity = 0;
                 check.RenderTransform = new TranslateTransform(0, 8);
             }
-            foreach (UIElement effect in new[] { ThrustOuter, ThrustInner, ThrustParticleOne, ThrustParticleTwo, ThrustParticleThree })
+            foreach (UIElement effect in new UIElement[] { EngineGlow, ThrustOuter, ThrustInner, ThrustParticleOne, ThrustParticleTwo, ThrustParticleThree })
             {
                 effect.BeginAnimation(UIElement.OpacityProperty, null);
                 effect.Opacity = 0;
             }
-            foreach (UIElement sparkle in new[] { SparkleOne, SparkleTwo, SparkleThree, SparkleFour })
+            foreach (UIElement sparkle in new UIElement[] { SparkleOne, SparkleTwo, SparkleThree, SparkleFour, SparkleFive, SparkleSix, SparkleSeven, SparkleEight })
             {
                 sparkle.BeginAnimation(UIElement.OpacityProperty, null);
                 sparkle.Opacity = 0;
             }
+            foreach (UIElement smoke in new[] { SmokeOne, SmokeTwo, SmokeThree, SmokeFour, SmokeFive, SmokeSix })
+            {
+                smoke.BeginAnimation(UIElement.OpacityProperty, null);
+                smoke.Opacity = 0;
+                smoke.RenderTransform = new TranslateTransform(0, 0);
+            }
+            LiftOffText.BeginAnimation(UIElement.OpacityProperty, null);
+            LiftOffText.Opacity = 0;
         }
 
         private async Task ShowCountdownAsync(int number, bool reducedMotion, CancellationToken cancellationToken)
@@ -238,6 +258,7 @@ namespace RouterPilot.Views
             if (reducedMotion)
                 return;
 
+            EngineGlow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.75, TimeSpan.FromMilliseconds(220)));
             ThrustOuter.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustOuter.Opacity, 0.95, TimeSpan.FromMilliseconds(160)));
             ThrustInner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustInner.Opacity, 1, TimeSpan.FromMilliseconds(130)));
             ThrustParticleOne.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(ThrustParticleOne.Opacity, 0.8, TimeSpan.FromMilliseconds(150)));
@@ -247,7 +268,21 @@ namespace RouterPilot.Views
             SparkleTwo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleTwo.Opacity, 0.8, TimeSpan.FromMilliseconds(150)));
             SparkleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleThree.Opacity, 0.75, TimeSpan.FromMilliseconds(140)));
             SparkleFour.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(SparkleFour.Opacity, 0.85, TimeSpan.FromMilliseconds(160)));
-            await Task.Delay(180, cancellationToken);
+            SparkleFive.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.9, TimeSpan.FromMilliseconds(130)));
+            SparkleSix.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.85, TimeSpan.FromMilliseconds(160)));
+            SparkleSeven.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.8, TimeSpan.FromMilliseconds(120)));
+            SparkleEight.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.75, TimeSpan.FromMilliseconds(150)));
+            UIElement[] smoke = [SmokeOne, SmokeTwo, SmokeThree, SmokeFour, SmokeFive, SmokeSix];
+            for (int index = 0; index < smoke.Length; index++)
+            {
+                smoke[index].BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.18 + (index % 3) * 0.06, TimeSpan.FromMilliseconds(180 + index * 25)));
+                if (smoke[index].RenderTransform is TranslateTransform drift)
+                {
+                    drift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, index % 2 == 0 ? -12 : 12, TimeSpan.FromMilliseconds(850)));
+                    drift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, -8, TimeSpan.FromMilliseconds(850)));
+                }
+            }
+            await Task.Delay(360, cancellationToken);
         }
 
         private void PrepareLaunchEffects(int stage)
@@ -262,6 +297,12 @@ namespace RouterPilot.Views
                 SparkleThree.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.45, TimeSpan.FromMilliseconds(160)));
                 SparkleFour.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.5, TimeSpan.FromMilliseconds(200)));
             }
+        }
+
+        private void FadeResidualSmoke()
+        {
+            foreach (UIElement smoke in new[] { SmokeOne, SmokeTwo, SmokeThree, SmokeFour, SmokeFive, SmokeSix })
+                smoke.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(smoke.Opacity, 0, TimeSpan.FromMilliseconds(1100)));
         }
 
         private static DoubleAnimationUsingKeyFrames Keyframes(double first, double middle, double last, int milliseconds)
