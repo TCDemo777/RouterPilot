@@ -53,7 +53,8 @@
                     BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="0">
             <TabItem Header="About">
-                <ScrollViewer
+                <Grid x:Name="AboutSurface">
+                <ScrollViewer x:Name="AboutContentHost"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,12,24,24">
                         <Border Style="{DynamicResource Card}">
@@ -73,7 +74,14 @@
                                     <Image Width="120"
                                        Height="120"
                                        Stretch="Uniform"
-                                       Source="/Assets/RouterPilotLogo.png"/>
+                                       x:Name="RouterPilotLogo"
+                                       RenderTransformOrigin="0.5,0.5"
+                                       MouseLeftButtonUp="RouterPilotLogo_Changed"
+                                       Source="/Assets/RouterPilotLogo.png">
+                                        <Image.RenderTransform>
+                                            <TranslateTransform/>
+                                        </Image.RenderTransform>
+                                    </Image>
                                 </Border>
 
                                 <StackPanel Grid.Column="2">
@@ -367,6 +375,115 @@
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
+
+                <Border x:Name="FlightDeckPreflight"
+                        Visibility="Collapsed"
+                        Margin="0,12,24,24"
+                        Padding="24"
+                        Background="{DynamicResource Brush.Surface}"
+                        BorderBrush="{DynamicResource Brush.Border}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock x:Name="PreflightTitle"
+                                   FontFamily="Cascadia Mono, Consolas"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource Brush.Accent}"
+                                   Text="PRE-FLIGHT CHECKS..."/>
+                        <TextBlock x:Name="PreflightLines"
+                                   Margin="0,18,0,0"
+                                   FontFamily="Cascadia Mono, Consolas"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer x:Name="FlightDeckHost"
+                              Visibility="Collapsed"
+                              VerticalScrollBarVisibility="Auto">
+                    <Border Margin="0,12,24,24"
+                            Padding="24"
+                            Background="{DynamicResource Brush.Surface}"
+                            BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                        <StackPanel>
+                            <Image Width="42"
+                                   Height="42"
+                                   HorizontalAlignment="Left"
+                                   Stretch="Uniform"
+                                   Cursor="Hand"
+                                   MouseLeftButtonUp="RouterPilotLogo_Changed"
+                                   Source="/Assets/RouterPilotLogo.png"/>
+                            <TextBlock FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Text="ROUTERPILOT FLIGHT DECK"/>
+                            <TextBlock Margin="0,4,0,20"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextSecondary}"
+                                       Text="CLEARANCE GRANTED"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="Aircraft"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Callsign"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Flight Mode"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Cabin Wi-Fi"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="DNS Turbulence"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Packet Altitude"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="NAT"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Firewall"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="AdGuard"/>
+                                    <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Tailscale"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="GL.iNet Interceptor"/>
+                                    <TextBlock Margin="0,12,0,0" Text="RP-777"/>
+                                    <TextBlock Margin="0,12,0,0" Text="ROUTER"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Obviously"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Nominal"/>
+                                    <TextBlock Margin="0,12,0,0" Text="35,000 hops"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Cleared for departure"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Doors armed"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Watching the airspace"/>
+                                    <TextBlock Margin="0,12,0,0" Text="Tail attached ✓"/>
+                                </StackPanel>
+                            </Grid>
+                            <Border Margin="0,24,0,0"
+                                    Padding="14"
+                                    Background="{DynamicResource Brush.SurfaceMuted}"
+                                    BorderBrush="{DynamicResource Brush.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                <StackPanel>
+                                    <TextBlock FontFamily="Cascadia Mono, Consolas"
+                                               FontWeight="Bold"
+                                               Text="CAPTAIN'S LOG"/>
+                                    <TextBlock Margin="0,8,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="There are 10 types of people in the world: those who understand binary and those who don't."/>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock x:Name="AutopilotMessage"
+                                       Margin="0,18,0,0"
+                                       HorizontalAlignment="Center"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Warning}"
+                                       TextAlignment="Center"
+                                       Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="Diagnostics">

@@ -5,9 +5,12 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Navigation;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -29,6 +32,10 @@ namespace RouterPilot.Views
         private readonly StringBuilder _supportLog =
             new StringBuilder();
         private bool _diagnosticsHistorySubscribed;
+        private int _logoClickCount;
+        private DateTime _logoClickWindowStartedUtc;
+        private bool _flightDeckActive;
+        private CancellationTokenSource? _flightDeckCancellation;
 
         public AboutView()
         {
@@ -70,6 +77,7 @@ namespace RouterPilot.Views
 
         private void AboutView_Unloaded(object sender, RoutedEventArgs e)
         {
+            ResetFlightDeck();
             if (!_diagnosticsHistorySubscribed)
             {
                 return;
@@ -78,6 +86,164 @@ namespace RouterPilot.Views
             _diagnosticsHistoryService.HistoryChanged -=
                 DiagnosticsHistory_CollectionChanged;
             _diagnosticsHistorySubscribed = false;
+        }
+
+        private async void RouterPilotLogo_Changed(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (_flightDeckActive)
+            {
+                await ShowAutopilotUnavailableAsync();
+                return;
+            }
+
+            DateTime now = DateTime.UtcNow;
+            if (_logoClickWindowStartedUtc == default ||
+                now - _logoClickWindowStartedUtc > TimeSpan.FromSeconds(3))
+            {
+                _logoClickWindowStartedUtc = now;
+                _logoClickCount = 0;
+            }
+
+            _logoClickCount++;
+            if (_logoClickCount == 7)
+                await ActivateFlightDeckAsync();
+        }
+
+        private async Task ActivateFlightDeckAsync()
+        {
+            _flightDeckActive = true;
+            _flightDeckCancellation?.Cancel();
+            _flightDeckCancellation?.Dispose();
+            _flightDeckCancellation = new CancellationTokenSource();
+            CancellationToken cancellationToken = _flightDeckCancellation.Token;
+            bool reducedMotion = !SystemParameters.ClientAreaAnimation;
+
+            try
+            {
+                FlightDeckPreflight.Visibility = Visibility.Visible;
+                PreflightLines.Text = string.Empty;
+                await AnimateLogoAsync(reducedMotion, cancellationToken);
+
+                string[] checks =
+                {
+                    "DNS ............... OK",
+                    "ROUTING ........... OK",
+                    "PACKETS ........... BOARDED",
+                    "COFFEE ............ CRITICAL"
+                };
+                foreach (string check in checks)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PreflightLines.Text += (PreflightLines.Text.Length == 0 ? string.Empty : Environment.NewLine) + check;
+                    if (!reducedMotion)
+                        await Task.Delay(230, cancellationToken);
+                }
+
+                if (!reducedMotion)
+                    await Task.Delay(280, cancellationToken);
+
+                FlightDeckPreflight.Visibility = Visibility.Collapsed;
+                await AnimateLogoTakeoffAsync(reducedMotion, cancellationToken);
+                AboutContentHost.Visibility = Visibility.Collapsed;
+                FlightDeckHost.Visibility = Visibility.Visible;
+            }
+            catch (OperationCanceledException)
+            {
+                // Navigation away owns cancellation and resets the transient state.
+            }
+        }
+
+        private Task AnimateLogoAsync(bool reducedMotion, CancellationToken cancellationToken)
+        {
+            if (reducedMotion)
+                return Task.CompletedTask;
+
+            if (RouterPilotLogo.RenderTransform is not TranslateTransform transform)
+                return Task.CompletedTask;
+
+            TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            DoubleAnimation shake = new()
+            {
+                From = -5,
+                To = 5,
+                Duration = TimeSpan.FromMilliseconds(70),
+                AutoReverse = true,
+                RepeatBehavior = new RepeatBehavior(3)
+            };
+            shake.Completed += (_, _) => completion.TrySetResult(true);
+            transform.BeginAnimation(TranslateTransform.XProperty, shake);
+            cancellationToken.Register(() =>
+            {
+                transform.BeginAnimation(TranslateTransform.XProperty, null);
+                completion.TrySetCanceled(cancellationToken);
+            });
+            return completion.Task;
+        }
+
+        private Task AnimateLogoTakeoffAsync(bool reducedMotion, CancellationToken cancellationToken)
+        {
+            if (reducedMotion || RouterPilotLogo.RenderTransform is not TranslateTransform transform)
+                return Task.CompletedTask;
+
+            TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            DoubleAnimation takeoff = new()
+            {
+                To = 240,
+                Duration = TimeSpan.FromMilliseconds(480),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            DoubleAnimation fade = new()
+            {
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(480)
+            };
+            takeoff.Completed += (_, _) => completion.TrySetResult(true);
+            transform.BeginAnimation(TranslateTransform.XProperty, takeoff);
+            RouterPilotLogo.BeginAnimation(OpacityProperty, fade);
+            cancellationToken.Register(() =>
+            {
+                transform.BeginAnimation(TranslateTransform.XProperty, null);
+                RouterPilotLogo.BeginAnimation(OpacityProperty, null);
+                completion.TrySetCanceled(cancellationToken);
+            });
+            return completion.Task;
+        }
+
+        private async Task ShowAutopilotUnavailableAsync()
+        {
+            if (AutopilotMessage is null)
+                return;
+
+            AutopilotMessage.Text = "AUTOPILOT UNAVAILABLE\n\nHave you tried turning the router off and on again?";
+            AutopilotMessage.Visibility = Visibility.Visible;
+            await Task.Delay(SystemParameters.ClientAreaAnimation ? 1800 : 900);
+            if (_flightDeckActive)
+                AutopilotMessage.Visibility = Visibility.Collapsed;
+        }
+
+        private void ResetFlightDeck()
+        {
+            _flightDeckCancellation?.Cancel();
+            _flightDeckCancellation?.Dispose();
+            _flightDeckCancellation = null;
+            _logoClickCount = 0;
+            _logoClickWindowStartedUtc = default;
+            _flightDeckActive = false;
+            if (RouterPilotLogo?.RenderTransform is TranslateTransform transform)
+                transform.BeginAnimation(TranslateTransform.XProperty, null);
+            if (RouterPilotLogo is not null)
+                RouterPilotLogo.BeginAnimation(OpacityProperty, null);
+            if (RouterPilotLogo is not null)
+                RouterPilotLogo.Opacity = 1;
+            if (FlightDeckPreflight is not null)
+                FlightDeckPreflight.Visibility = Visibility.Collapsed;
+            if (FlightDeckHost is not null)
+                FlightDeckHost.Visibility = Visibility.Collapsed;
+            if (AboutContentHost is not null)
+                AboutContentHost.Visibility = Visibility.Visible;
+            if (AutopilotMessage is not null)
+                AutopilotMessage.Visibility = Visibility.Collapsed;
         }
 
         private void DiagnosticsHistory_CollectionChanged(
