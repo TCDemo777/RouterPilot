@@ -45,6 +45,7 @@ namespace RouterPilot.Views
         private LaunchSceneVariation? _launchSceneVariation;
         private int _previousCaptainLogIndex = -1;
         private bool _flightDeckChangelogScrollingEnabled;
+        private readonly TranslateTransform _changelogTranslate = new();
 
         private static readonly string[] CaptainLogs =
         [
@@ -115,6 +116,7 @@ namespace RouterPilot.Views
         public AboutView()
         {
             InitializeComponent();
+            FlightDeckChangelogText.RenderTransform = _changelogTranslate;
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
             _settingsService = ((App)Application.Current).Services
@@ -621,8 +623,8 @@ namespace RouterPilot.Views
 
         private void StartFlightDeckChangelogScroll(bool reducedMotion)
         {
-            FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
-            FlightDeckChangelogTranslation.Y = 0;
+            _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            _changelogTranslate.Y = 0;
             _flightDeckChangelogScrollingEnabled = !reducedMotion;
             if (reducedMotion) return;
             FlightDeckChangelogViewport.UpdateLayout();
@@ -630,7 +632,7 @@ namespace RouterPilot.Views
             Debug.WriteLine($"CHANGELOG_SCROLL_LAYOUT_READY viewport={viewportHeight:0.##} width={FlightDeckChangelogViewport.ActualWidth:0.##}");
             if (viewportHeight <= 1 || FlightDeckChangelogViewport.ActualWidth <= 1)
             {
-                FlightDeckChangelogViewport.Dispatcher.BeginInvoke(
+                _ = FlightDeckChangelogViewport.Dispatcher.BeginInvoke(
                     DispatcherPriority.Render,
                     new Action(() => StartFlightDeckChangelogScroll(false)));
                 return;
@@ -650,14 +652,26 @@ namespace RouterPilot.Views
             int scrollMilliseconds = Math.Max(3000, (int)(distance / 8.0 * 1000));
             int initialPause = 3000;
             int bottomPause = 3000;
-            int returnStart = initialPause + scrollMilliseconds + bottomPause;
-            DoubleAnimationUsingKeyFrames animation = new() { RepeatBehavior = RepeatBehavior.Forever };
-            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(initialPause))));
-            animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(initialPause + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
-            animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart))));
-            animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
-            FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, animation);
+            DoubleAnimation animation = new(0, -distance, TimeSpan.FromMilliseconds(scrollMilliseconds))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(initialPause),
+                FillBehavior = FillBehavior.HoldEnd,
+                EasingFunction = null
+            };
+            animation.Completed += async (_, _) =>
+            {
+                if (!_flightDeckChangelogScrollingEnabled) return;
+                try
+                {
+                    await Task.Delay(bottomPause, _flightDeckCancellation?.Token ?? CancellationToken.None);
+                    if (!_flightDeckChangelogScrollingEnabled) return;
+                    _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                    _changelogTranslate.Y = 0;
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() => StartFlightDeckChangelogScroll(false)));
+                }
+                catch (OperationCanceledException) { }
+            };
+            _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, animation, HandoffBehavior.SnapshotAndReplace);
             Debug.WriteLine($"CHANGELOG_SCROLL_STARTED duration={scrollMilliseconds / 1000.0:0.##}s target={-distance:0.##}");
         }
 
@@ -1000,11 +1014,11 @@ namespace RouterPilot.Views
                 packet.BeginAnimation(TranslateTransform.XProperty, null);
                 packet.X = 0;
             }
-            if (FlightDeckChangelogTranslation is not null)
+            if (_changelogTranslate is not null)
             {
                 _flightDeckChangelogScrollingEnabled = false;
-                FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, null);
-                FlightDeckChangelogTranslation.Y = 0;
+                _changelogTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                _changelogTranslate.Y = 0;
                 FlightDeckChangelogText.Width = double.NaN;
                 FlightDeckChangelogText.Height = double.NaN;
                 FlightDeckChangelogText.Text = string.Empty;

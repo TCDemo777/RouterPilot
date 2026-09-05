@@ -670,9 +670,7 @@
                                            HorizontalAlignment="Left"
                                            VerticalAlignment="Top"
                                            TextWrapping="Wrap"
-                                           Foreground="{DynamicResource Brush.TextPrimary}">
-                                    <TextBlock.RenderTransform><TranslateTransform x:Name="FlightDeckChangelogTranslation" Y="0"/></TextBlock.RenderTransform>
-                                </TextBlock>
+                                           Foreground="{DynamicResource Brush.TextPrimary}"/>
                             </Grid>
                           </Grid>
                         </Border>
