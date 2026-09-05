@@ -554,10 +554,11 @@ namespace RouterPilot.Views
             if (reducedMotion) return;
             FlightDeckChangelogViewport.UpdateLayout();
             double viewportHeight = FlightDeckChangelogViewport.ActualHeight;
+            Debug.WriteLine($"CHANGELOG_SCROLL_LAYOUT_READY viewport={viewportHeight:0.##} width={FlightDeckChangelogViewport.ActualWidth:0.##}");
             if (viewportHeight <= 1 || FlightDeckChangelogViewport.ActualWidth <= 1)
             {
                 FlightDeckChangelogViewport.Dispatcher.BeginInvoke(
-                    DispatcherPriority.Loaded,
+                    DispatcherPriority.Render,
                     new Action(() => StartFlightDeckChangelogScroll(false)));
                 return;
             }
@@ -569,6 +570,7 @@ namespace RouterPilot.Views
             FlightDeckChangelogText.Height = contentHeight;
             FlightDeckChangelogViewport.UpdateLayout();
             double distance = Math.Max(0, contentHeight - viewportHeight);
+            Debug.WriteLine($"CHANGELOG_SCROLL viewport={viewportHeight:0.##} content={contentHeight:0.##} distance={distance:0.##} speed=22");
             if (distance <= 1) return;
 
             int scrollMilliseconds = Math.Clamp((int)(distance / 22.0 * 1000), 5000, 14000);
@@ -582,6 +584,7 @@ namespace RouterPilot.Views
             animation.KeyFrames.Add(new EasingDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart))));
             animation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(returnStart + scrollMilliseconds))) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut } });
             FlightDeckChangelogTranslation.BeginAnimation(TranslateTransform.YProperty, animation);
+            Debug.WriteLine($"CHANGELOG_SCROLL_STARTED duration={scrollMilliseconds / 1000.0:0.##}s target={-distance:0.##}");
         }
 
         private void FlightDeckChangelogViewport_SizeChanged(object sender, SizeChangedEventArgs e)
