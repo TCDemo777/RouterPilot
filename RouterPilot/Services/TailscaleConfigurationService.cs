@@ -30,7 +30,7 @@ public sealed class TailscaleConfigurationService : ITailscaleConfigurationServi
         catch { return TailscaleConfigurationSnapshot.Unknown; }
     }
 
-    public async Task<TailscaleMutationResult> SetAccessAsync(TailscaleAccessField field, bool value, CancellationToken cancellationToken = default)
+    public async Task<TailscaleMutationResult> SetFieldAsync(TailscaleAccessField field, bool value, CancellationToken cancellationToken = default)
     {
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -39,7 +39,7 @@ public sealed class TailscaleConfigurationService : ITailscaleConfigurationServi
             RouterManager router = await _provider.GetRouterManagerAsync(cancellationToken).ConfigureAwait(false);
             using JsonDocument currentDocument = await router.GetTailscaleConfigAsync(cancellationToken).ConfigureAwait(false);
             JsonObject current = ExtractSettings(currentDocument.RootElement);
-            string property = field == TailscaleAccessField.Lan ? "lan_enabled" : "wan_enabled";
+            string property = field switch { TailscaleAccessField.Enabled => "enabled", TailscaleAccessField.Lan => "lan_enabled", _ => "wan_enabled" };
             if (!TryBoolean(current[property], out _)) return new(false, Snapshot(current), "This Tailscale setting is currently unknown.");
             if (profile != _active.CurrentProfileId || version != _active.Version) return new(false, TailscaleConfigurationSnapshot.Unknown, "The active router changed before the setting could be applied.");
             JsonObject requested = (JsonObject)current.DeepClone(); requested[property] = value;
@@ -63,7 +63,7 @@ public sealed class TailscaleConfigurationService : ITailscaleConfigurationServi
     }
     private static TailscaleConfigurationSnapshot Parse(JsonElement root)
     { return Snapshot((JsonNode.Parse(root.TryGetProperty("result", out JsonElement result) && result.ValueKind == JsonValueKind.Object ? result.GetRawText() : "{}") ?? new JsonObject()).AsObject()); }
-    private static TailscaleConfigurationSnapshot Snapshot(JsonObject settings) => new(ReadBool(settings["lan_enabled"]), ReadBool(settings["wan_enabled"]), Capability(settings["lan_enabled"]), Capability(settings["wan_enabled"]));
+    private static TailscaleConfigurationSnapshot Snapshot(JsonObject settings) => new(ReadBool(settings["enabled"]), ReadBool(settings["lan_enabled"]), ReadBool(settings["wan_enabled"]), Capability(settings["enabled"]), Capability(settings["lan_enabled"]), Capability(settings["wan_enabled"]));
     private static TailscaleCapabilityState Capability(JsonNode? node) => TryBoolean(node, out _) ? TailscaleCapabilityState.Supported : TailscaleCapabilityState.Unknown;
     private static bool? ReadBool(JsonNode? node) => TryBoolean(node, out bool value) ? value : null;
     private static bool TryBoolean(JsonNode? node, out bool value)

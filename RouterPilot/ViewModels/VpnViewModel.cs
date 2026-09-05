@@ -25,10 +25,13 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool tailscaleIsLoading;
     [ObservableProperty] private TailscaleConfigurationSnapshot tailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown;
     [ObservableProperty] private bool tailscaleSettingsApplying;
+    public bool TailscaleEnabled => TailscaleConfiguration.Enabled == true;
+    public bool TailscaleEnabledCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.EnabledCapability == TailscaleCapabilityState.Supported;
     public bool TailscaleLanEnabled => TailscaleConfiguration.LanEnabled == true;
     public bool TailscaleWanEnabled => TailscaleConfiguration.WanEnabled == true;
-    public bool TailscaleLanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.LanCapability == TailscaleCapabilityState.Supported;
-    public bool TailscaleWanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.WanCapability == TailscaleCapabilityState.Supported;
+    public bool TailscaleLanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.Enabled == true && TailscaleConfiguration.LanCapability == TailscaleCapabilityState.Supported;
+    public bool TailscaleWanCanEdit => !TailscaleSettingsApplying && TailscaleConfiguration.Enabled == true && TailscaleConfiguration.WanCapability == TailscaleCapabilityState.Supported;
+    public string TailscaleEnabledDisplay => TailscaleConfiguration.EnabledDisplay;
     public string TailscaleLanDisplay => TailscaleConfiguration.LanDisplay;
     public string TailscaleWanDisplay => TailscaleConfiguration.WanDisplay;
     public VpnViewModel(VpnOperationIntentService? operationIntent = null)
@@ -70,7 +73,7 @@ public sealed partial class VpnViewModel : ObservableObject
     }
 
     private void NotifyTailscale() { OnPropertyChanged(nameof(TailscaleStateDisplay)); OnPropertyChanged(nameof(TailscaleAddressDisplay)); OnPropertyChanged(nameof(TailscaleIPv4Display)); OnPropertyChanged(nameof(TailscaleIPv6Display)); OnPropertyChanged(nameof(TailscalePeerCountDisplay)); OnPropertyChanged(nameof(TailscaleOnlinePeerCountDisplay)); OnPropertyChanged(nameof(TailscalePeerSummaryDisplay)); OnPropertyChanged(nameof(TailscaleAttention)); OnPropertyChanged(nameof(TailscaleHistoryText)); }
-    private void NotifyTailscaleConfiguration() { OnPropertyChanged(nameof(TailscaleLanEnabled)); OnPropertyChanged(nameof(TailscaleWanEnabled)); OnPropertyChanged(nameof(TailscaleLanCanEdit)); OnPropertyChanged(nameof(TailscaleWanCanEdit)); OnPropertyChanged(nameof(TailscaleLanDisplay)); OnPropertyChanged(nameof(TailscaleWanDisplay)); }
+    private void NotifyTailscaleConfiguration() { OnPropertyChanged(nameof(TailscaleEnabled)); OnPropertyChanged(nameof(TailscaleEnabledCanEdit)); OnPropertyChanged(nameof(TailscaleEnabledDisplay)); OnPropertyChanged(nameof(TailscaleLanEnabled)); OnPropertyChanged(nameof(TailscaleWanEnabled)); OnPropertyChanged(nameof(TailscaleLanCanEdit)); OnPropertyChanged(nameof(TailscaleWanCanEdit)); OnPropertyChanged(nameof(TailscaleLanDisplay)); OnPropertyChanged(nameof(TailscaleWanDisplay)); }
     partial void OnTailscaleSettingsApplyingChanged(bool value) => NotifyTailscaleConfiguration();
     [ObservableProperty] private int vpnOperationTunnelId;
     private int? _connectionAttemptTunnelId;

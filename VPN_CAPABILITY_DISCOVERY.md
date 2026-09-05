@@ -80,7 +80,7 @@ firmware exposes the same contract.
 | Capability | Read source | Read confidence | Write contract | Write confidence | Read-back | Risk | Recommendation |
 |---|---|---:|---|---:|---|---|---|
 | Installed | Live `command -v tailscale` -> `/usr/sbin/tailscale` | PROVEN | None | UNAVAILABLE | Same command | Low | Keep read-only |
-| Enabled | Live `tailscale.settings.enabled='0'` | PROVEN | `tailscale.set_config` in GL.iNet frontend | UNPROVEN | `tailscale.get_config` | High | Do not add control yet |
+| Enabled | Live `tailscale.settings.enabled='0'` | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Safe for the first production controls |
 | Running | No `tailscaled` process; init script present | PROVEN | `tailscale.set_config` may restart service | UNPROVEN | `tailscale.get_status` | High | Keep read-only |
 | Logged in | No backend status while disabled | UNAVAILABLE | `tailscale.get_auth_url`/logout references | UNPROVEN | `get_status` | High | Do not expose auth control |
 | Connect | `get_config`/`get_status` references | PARTIAL | `tailscale.set_config` | UNPROVEN | `get_status` | Critical | Requires controlled test |
@@ -254,6 +254,12 @@ The same controlled validation subsequently proved `wan_enabled` writable:
 `false -> true` write PASS, read-back PASS, restore PASS, final read-back PASS,
 router restored YES. No other Tailscale field was mutated.
 
+The controlled validation then proved `enabled` writable using the same
+complete-settings-object contract:
+`false -> true` write PASS, read-back PASS, restore PASS, final read-back PASS,
+router restored YES. The production card may therefore expose the service
+enable control; all three booleans are reconciled from `get_config`.
+
 ## Decision gate and next step
 
 `vpn-client.set_tunnel` is **not yet proven safe enough** for a RouterPilot
@@ -266,8 +272,8 @@ also supports OpenVPN, but no OpenVPN tunnel was active in this capture.
 Authoritative read-back after a future write: **YES as a method** (`get_tunnel`),
 but **not exercised after a write** in this read-only run.
 
-Tailscale-specific writable contracts proven safe: **`lan_enabled` and
-`wan_enabled`**, on the validated live GL-MT6000. Login/logout, exit-node,
+Tailscale-specific writable contracts proven safe: **`enabled`, `lan_enabled`
+and `wan_enabled`**, on the validated live GL-MT6000. Login/logout, exit-node,
 masquerade, route, and enablement mutations remain unproven and potentially
 disruptive.
 

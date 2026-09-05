@@ -180,17 +180,20 @@ public partial class VpnView : UserControl
         _updatingTailscaleControls = true;
         TailscaleLanToggle.IsChecked = _viewModel.TailscaleLanEnabled;
         TailscaleWanToggle.IsChecked = _viewModel.TailscaleWanEnabled;
+        TailscaleEnabledToggle.IsChecked = _viewModel.TailscaleEnabled;
+        TailscaleEnabledToggle.IsEnabled = _viewModel.TailscaleEnabledCanEdit;
         TailscaleLanToggle.IsEnabled = _viewModel.TailscaleLanCanEdit;
         TailscaleWanToggle.IsEnabled = _viewModel.TailscaleWanCanEdit;
         TailscaleLanState.Text = _viewModel.TailscaleLanDisplay;
         TailscaleWanState.Text = _viewModel.TailscaleWanDisplay;
+        TailscaleEnabledState.Text = _viewModel.TailscaleEnabledDisplay;
         _updatingTailscaleControls = false;
     }
 
     private async void TailscaleAccess_Changed(object sender, RoutedEventArgs e)
     {
         if (_updatingTailscaleControls || sender is not CheckBox toggle || !toggle.IsEnabled || toggle.Tag is not string tag) return;
-        TailscaleAccessField field = tag == "wan" ? TailscaleAccessField.Wan : TailscaleAccessField.Lan;
+        TailscaleAccessField field = tag switch { "enabled" => TailscaleAccessField.Enabled, "wan" => TailscaleAccessField.Wan, _ => TailscaleAccessField.Lan };
         bool value = toggle.IsChecked == true;
         _viewModel.TailscaleSettingsApplying = true;
         ApplyTailscaleControls();
@@ -198,7 +201,7 @@ public partial class VpnView : UserControl
         {
             using CancellationTokenSource mutationCts = new(TimeSpan.FromSeconds(30));
             lock (_operationSync) _operationCts = mutationCts;
-            TailscaleMutationResult result = await _tailscaleConfiguration.SetAccessAsync(field, value, mutationCts.Token);
+            TailscaleMutationResult result = await _tailscaleConfiguration.SetFieldAsync(field, value, mutationCts.Token);
             _viewModel.ApplyTailscaleConfiguration(result.Snapshot);
             if (!result.Succeeded && !string.IsNullOrWhiteSpace(result.Message)) _viewModel.VpnStatus = result.Message;
             ApplyTailscaleControls();

@@ -137,8 +137,8 @@ internal sealed class MutationCoordinator
 
     public async Task<ValidationResult> ValidateFieldAsync(string field, CancellationToken cancellationToken)
     {
-        if (field is not ("lan_enabled" or "wan_enabled"))
-            throw new ArgumentOutOfRangeException(nameof(field), "Only lan_enabled and wan_enabled are supported.");
+        if (field is not ("enabled" or "lan_enabled" or "wan_enabled"))
+            throw new ArgumentOutOfRangeException(nameof(field), "Only enabled, lan_enabled and wan_enabled are supported.");
         long capturedGeneration = _generation();
         JsonObject original = await _transport.ReadSettingsAsync(cancellationToken);
         if (!TryReadBoolean(original, field, out bool originalValue, out JsonValueKind valueKind))
@@ -423,9 +423,9 @@ internal static class Program
                 PrintSanitizedShape(rawConfig.RootElement, "root", 0);
             }
             JsonObject original = await transport.ReadSettingsAsync(timeout.Token);
-            if (targetField is not ("lan_enabled" or "wan_enabled"))
+            if (targetField is not ("enabled" or "lan_enabled" or "wan_enabled"))
             {
-                Console.WriteLine("ABORT: field must be lan_enabled or wan_enabled.");
+                Console.WriteLine("ABORT: field must be enabled, lan_enabled or wan_enabled.");
                 return;
             }
             if (!MutationCoordinator.TryReadBoolean(original, targetField, out bool originalValue, out _))

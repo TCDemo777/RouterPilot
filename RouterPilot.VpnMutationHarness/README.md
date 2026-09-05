@@ -1,6 +1,6 @@
 # RouterPilot VPN Mutation Harness
 
-Developer-only validation for the low-risk `lan_enabled` and `wan_enabled` Tailscale
+Developer-only validation for the proven `enabled`, `lan_enabled` and `wan_enabled` Tailscale
 setting. The project is not referenced by the installer or production UI.
 
 The runtime path loads the active RouterPilot profile through
