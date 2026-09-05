@@ -79,7 +79,11 @@
                                        MouseLeftButtonUp="RouterPilotLogo_Changed"
                                        Source="/Assets/RouterPilotLogo.png">
                                         <Image.RenderTransform>
-                                            <TranslateTransform/>
+                                            <TransformGroup>
+                                                <ScaleTransform x:Name="LogoScale" ScaleX="1" ScaleY="1"/>
+                                                <RotateTransform x:Name="LogoRotation" Angle="0"/>
+                                                <TranslateTransform x:Name="LogoTranslation" X="0" Y="0"/>
+                                            </TransformGroup>
                                         </Image.RenderTransform>
                                     </Image>
                                 </Border>
@@ -391,18 +395,25 @@
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource Brush.Accent}"
                                    Text="PRE-FLIGHT CHECKS..."/>
-                        <TextBlock x:Name="PreflightLines"
-                                   Margin="0,18,0,0"
-                                   FontFamily="Cascadia Mono, Consolas"
-                                   FontSize="14"
-                                   Foreground="{DynamicResource Brush.TextPrimary}"
-                                   TextWrapping="Wrap"/>
+                        <StackPanel x:Name="PreflightChecksPanel" Margin="0,18,0,0">
+                            <TextBlock x:Name="DnsCheckText" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="DNS ............... OK" Opacity="0"/>
+                            <TextBlock x:Name="RoutingCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="ROUTING ........... OK" Opacity="0"/>
+                            <TextBlock x:Name="PacketsCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" Foreground="{DynamicResource Brush.TextPrimary}" Text="PACKETS ........... BOARDED" Opacity="0"/>
+                            <TextBlock x:Name="CoffeeCheckText" Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" Text="COFFEE ............ CRITICAL" Opacity="0">
+                                <TextBlock.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1"/></TextBlock.RenderTransform>
+                            </TextBlock>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <ScrollViewer x:Name="FlightDeckHost"
                               Visibility="Collapsed"
-                              VerticalScrollBarVisibility="Auto">
+                              Opacity="0"
+                              RenderTransformOrigin="0.5,0">
+                    <ScrollViewer.RenderTransform>
+                        <TranslateTransform Y="18"/>
+                    </ScrollViewer.RenderTransform>
+                    <ScrollViewer.VerticalScrollBarVisibility>Auto</ScrollViewer.VerticalScrollBarVisibility>
                     <Border Margin="0,12,24,24"
                             Padding="24"
                             Background="{DynamicResource Brush.Surface}"
@@ -427,6 +438,16 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource Brush.TextSecondary}"
                                        Text="CLEARANCE GRANTED"/>
+                            <Grid Height="22" Margin="0,0,0,20" ClipToBounds="True">
+                                <Rectangle Height="1" VerticalAlignment="Center" Fill="{DynamicResource Brush.Border}"/>
+                                <Ellipse x:Name="PacketIndicator"
+                                         Width="7" Height="7"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource Brush.Accent}">
+                                    <Ellipse.RenderTransform><TranslateTransform X="0"/></Ellipse.RenderTransform>
+                                </Ellipse>
+                            </Grid>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="170"/>
@@ -479,7 +500,9 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource Brush.Warning}"
                                        TextAlignment="Center"
-                                       Visibility="Collapsed"/>
+                                       Visibility="Collapsed">
+                                <TextBlock.RenderTransform><TranslateTransform Y="8"/></TextBlock.RenderTransform>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>

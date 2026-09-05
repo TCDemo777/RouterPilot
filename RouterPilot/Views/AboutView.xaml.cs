@@ -36,6 +36,7 @@ namespace RouterPilot.Views
         private DateTime _logoClickWindowStartedUtc;
         private bool _flightDeckActive;
         private CancellationTokenSource? _flightDeckCancellation;
+        private CancellationTokenSource? _autopilotCancellation;
 
         public AboutView()
         {
@@ -121,32 +122,22 @@ namespace RouterPilot.Views
 
             try
             {
-                FlightDeckPreflight.Visibility = Visibility.Visible;
-                PreflightLines.Text = string.Empty;
                 await AnimateLogoAsync(reducedMotion, cancellationToken);
+                FlightDeckPreflight.Visibility = Visibility.Visible;
 
-                string[] checks =
-                {
-                    "DNS ............... OK",
-                    "ROUTING ........... OK",
-                    "PACKETS ........... BOARDED",
-                    "COFFEE ............ CRITICAL"
-                };
-                foreach (string check in checks)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    PreflightLines.Text += (PreflightLines.Text.Length == 0 ? string.Empty : Environment.NewLine) + check;
-                    if (!reducedMotion)
-                        await Task.Delay(230, cancellationToken);
-                }
-
+                await RevealCheckAsync(DnsCheckText, reducedMotion, cancellationToken);
+                await RevealCheckAsync(RoutingCheckText, reducedMotion, cancellationToken);
+                await RevealCheckAsync(PacketsCheckText, reducedMotion, cancellationToken);
+                await RevealCheckAsync(CoffeeCheckText, reducedMotion, cancellationToken);
                 if (!reducedMotion)
-                    await Task.Delay(280, cancellationToken);
+                    await AnimateCoffeeBeatAsync(cancellationToken);
 
                 FlightDeckPreflight.Visibility = Visibility.Collapsed;
                 await AnimateLogoTakeoffAsync(reducedMotion, cancellationToken);
                 AboutContentHost.Visibility = Visibility.Collapsed;
                 FlightDeckHost.Visibility = Visibility.Visible;
+                await AnimateFlightDeckEntranceAsync(reducedMotion, cancellationToken);
+                StartAmbientPacketAnimation(reducedMotion);
             }
             catch (OperationCanceledException)
             {
@@ -159,55 +150,107 @@ namespace RouterPilot.Views
             if (reducedMotion)
                 return Task.CompletedTask;
 
-            if (RouterPilotLogo.RenderTransform is not TranslateTransform transform)
-                return Task.CompletedTask;
+            LogoScale.BeginAnimation(ScaleTransform.ScaleXProperty,
+                Keyframes(0.98, 1.04, 1.0, 420));
+            LogoScale.BeginAnimation(ScaleTransform.ScaleYProperty,
+                Keyframes(0.98, 1.04, 1.0, 420));
+            LogoRotation.BeginAnimation(RotateTransform.AngleProperty,
+                Keyframes(-3, 3, 0, 420));
+            LogoTranslation.BeginAnimation(TranslateTransform.XProperty,
+                Keyframes(-4, 4, 0, 420));
+            return Task.Delay(460, cancellationToken);
+        }
 
-            TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            DoubleAnimation shake = new()
+        private static DoubleAnimationUsingKeyFrames Keyframes(double first, double middle, double last, int milliseconds)
+        {
+            DoubleAnimationUsingKeyFrames animation = new();
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(first, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(middle, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(milliseconds / 2))));
+            animation.KeyFrames.Add(new EasingDoubleKeyFrame(last, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(milliseconds))));
+            return animation;
+        }
+
+        private async Task RevealCheckAsync(TextBlock check, bool reducedMotion, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            check.Opacity = 0;
+            if (check.RenderTransform is not TranslateTransform translation)
             {
-                From = -5,
-                To = 5,
-                Duration = TimeSpan.FromMilliseconds(70),
-                AutoReverse = true,
-                RepeatBehavior = new RepeatBehavior(3)
-            };
-            shake.Completed += (_, _) => completion.TrySetResult(true);
-            transform.BeginAnimation(TranslateTransform.XProperty, shake);
-            cancellationToken.Register(() =>
+                translation = new TranslateTransform(0, 8);
+                check.RenderTransform = translation;
+            }
+
+            if (reducedMotion)
             {
-                transform.BeginAnimation(TranslateTransform.XProperty, null);
-                completion.TrySetCanceled(cancellationToken);
-            });
-            return completion.Task;
+                check.Opacity = 1;
+                translation.Y = 0;
+                return;
+            }
+
+            check.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+            translation.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(220)));
+            await Task.Delay(270, cancellationToken);
+        }
+
+        private async Task AnimateCoffeeBeatAsync(CancellationToken cancellationToken)
+        {
+            if (CoffeeCheckText.RenderTransform is not ScaleTransform scale)
+            {
+                scale = new ScaleTransform(1, 1);
+                CoffeeCheckText.RenderTransform = scale;
+            }
+
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, Keyframes(1, 1.06, 1, 360));
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, Keyframes(1, 1.06, 1, 360));
+            await Task.Delay(390, cancellationToken);
         }
 
         private Task AnimateLogoTakeoffAsync(bool reducedMotion, CancellationToken cancellationToken)
         {
-            if (reducedMotion || RouterPilotLogo.RenderTransform is not TranslateTransform transform)
+            if (reducedMotion)
                 return Task.CompletedTask;
 
-            TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            DoubleAnimation takeoff = new()
+            LogoTranslation.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(0, 260, TimeSpan.FromMilliseconds(900))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            LogoTranslation.BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(0, -82, TimeSpan.FromMilliseconds(900))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+            LogoRotation.BeginAnimation(RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 14, TimeSpan.FromMilliseconds(900)));
+            LogoScale.BeginAnimation(ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
+            LogoScale.BeginAnimation(ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(1, 0.9, TimeSpan.FromMilliseconds(900)));
+            RouterPilotLogo.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(900)));
+            return Task.Delay(940, cancellationToken);
+        }
+
+        private async Task AnimateFlightDeckEntranceAsync(bool reducedMotion, CancellationToken cancellationToken)
+        {
+            if (FlightDeckHost.RenderTransform is not TranslateTransform translation)
+                return;
+
+            FlightDeckHost.Opacity = reducedMotion ? 1 : 0;
+            translation.Y = reducedMotion ? 0 : 18;
+            if (reducedMotion)
+                return;
+
+            FlightDeckHost.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(420)));
+            translation.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(420)));
+            await Task.Delay(450, cancellationToken);
+        }
+
+        private void StartAmbientPacketAnimation(bool reducedMotion)
+        {
+            if (reducedMotion || PacketIndicator.RenderTransform is not TranslateTransform packet)
+                return;
+
+            packet.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 310, TimeSpan.FromMilliseconds(2600))
             {
-                To = 240,
-                Duration = TimeSpan.FromMilliseconds(480),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
-            };
-            DoubleAnimation fade = new()
-            {
-                To = 0,
-                Duration = TimeSpan.FromMilliseconds(480)
-            };
-            takeoff.Completed += (_, _) => completion.TrySetResult(true);
-            transform.BeginAnimation(TranslateTransform.XProperty, takeoff);
-            RouterPilotLogo.BeginAnimation(OpacityProperty, fade);
-            cancellationToken.Register(() =>
-            {
-                transform.BeginAnimation(TranslateTransform.XProperty, null);
-                RouterPilotLogo.BeginAnimation(OpacityProperty, null);
-                completion.TrySetCanceled(cancellationToken);
+                RepeatBehavior = RepeatBehavior.Forever
             });
-            return completion.Task;
         }
 
         private async Task ShowAutopilotUnavailableAsync()
@@ -215,11 +258,32 @@ namespace RouterPilot.Views
             if (AutopilotMessage is null)
                 return;
 
+            _autopilotCancellation?.Cancel();
+            _autopilotCancellation?.Dispose();
+            _autopilotCancellation = new CancellationTokenSource();
+            CancellationToken cancellationToken = _autopilotCancellation.Token;
             AutopilotMessage.Text = "AUTOPILOT UNAVAILABLE\n\nHave you tried turning the router off and on again?";
+            AutopilotMessage.Opacity = 0;
             AutopilotMessage.Visibility = Visibility.Visible;
-            await Task.Delay(SystemParameters.ClientAreaAnimation ? 1800 : 900);
-            if (_flightDeckActive)
-                AutopilotMessage.Visibility = Visibility.Collapsed;
+            if (AutopilotMessage.RenderTransform is TranslateTransform translation)
+            {
+                translation.Y = 8;
+                if (SystemParameters.ClientAreaAnimation)
+                {
+                    AutopilotMessage.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+                    translation.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(220)));
+                    await Task.Delay(1800, cancellationToken);
+                    AutopilotMessage.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220)));
+                    await Task.Delay(240, cancellationToken);
+                }
+                else
+                {
+                    AutopilotMessage.Opacity = 1;
+                    translation.Y = 0;
+                    await Task.Delay(900, cancellationToken);
+                }
+            }
+            AutopilotMessage.Visibility = Visibility.Collapsed;
         }
 
         private void ResetFlightDeck()
@@ -227,11 +291,22 @@ namespace RouterPilot.Views
             _flightDeckCancellation?.Cancel();
             _flightDeckCancellation?.Dispose();
             _flightDeckCancellation = null;
+            _autopilotCancellation?.Cancel();
+            _autopilotCancellation?.Dispose();
+            _autopilotCancellation = null;
             _logoClickCount = 0;
             _logoClickWindowStartedUtc = default;
             _flightDeckActive = false;
-            if (RouterPilotLogo?.RenderTransform is TranslateTransform transform)
-                transform.BeginAnimation(TranslateTransform.XProperty, null);
+            LogoScale?.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            LogoScale?.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            LogoRotation?.BeginAnimation(RotateTransform.AngleProperty, null);
+            LogoTranslation?.BeginAnimation(TranslateTransform.XProperty, null);
+            LogoTranslation?.BeginAnimation(TranslateTransform.YProperty, null);
+            LogoScale?.SetValue(ScaleTransform.ScaleXProperty, 1d);
+            LogoScale?.SetValue(ScaleTransform.ScaleYProperty, 1d);
+            LogoRotation?.SetValue(RotateTransform.AngleProperty, 0d);
+            LogoTranslation?.SetValue(TranslateTransform.XProperty, 0d);
+            LogoTranslation?.SetValue(TranslateTransform.YProperty, 0d);
             if (RouterPilotLogo is not null)
                 RouterPilotLogo.BeginAnimation(OpacityProperty, null);
             if (RouterPilotLogo is not null)
@@ -239,11 +314,29 @@ namespace RouterPilot.Views
             if (FlightDeckPreflight is not null)
                 FlightDeckPreflight.Visibility = Visibility.Collapsed;
             if (FlightDeckHost is not null)
+            {
+                FlightDeckHost.BeginAnimation(UIElement.OpacityProperty, null);
                 FlightDeckHost.Visibility = Visibility.Collapsed;
+                FlightDeckHost.Opacity = 0;
+                if (FlightDeckHost.RenderTransform is TranslateTransform deckTranslation)
+                {
+                    deckTranslation.BeginAnimation(TranslateTransform.YProperty, null);
+                    deckTranslation.Y = 18;
+                }
+            }
+            if (PacketIndicator?.RenderTransform is TranslateTransform packet)
+            {
+                packet.BeginAnimation(TranslateTransform.XProperty, null);
+                packet.X = 0;
+            }
             if (AboutContentHost is not null)
                 AboutContentHost.Visibility = Visibility.Visible;
             if (AutopilotMessage is not null)
+            {
+                AutopilotMessage.BeginAnimation(UIElement.OpacityProperty, null);
                 AutopilotMessage.Visibility = Visibility.Collapsed;
+                AutopilotMessage.Opacity = 0;
+            }
         }
 
         private void DiagnosticsHistory_CollectionChanged(
