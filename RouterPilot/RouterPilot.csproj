@@ -50,6 +50,8 @@
     <Content Include="THIRD_PARTY_NOTICES.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+
+    <EmbeddedResource Include="CHANGELOG.md" />
   </ItemGroup>
 
   <ItemGroup>

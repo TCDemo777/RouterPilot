@@ -568,8 +568,8 @@ namespace RouterPilot.Views
 
         private void PrepareFlightDeckChangelog()
         {
-            string? path = FindChangelogPath();
-            if (path is null)
+            (string source, string content)? source = ReadCanonicalChangelog();
+            if (source is null)
             {
                 FlightDeckChangelogVersion.Text = "Unavailable";
                 FlightDeckChangelogText.Text = "The latest changelog is not available.";
@@ -578,26 +578,29 @@ namespace RouterPilot.Views
 
             try
             {
-                string[] lines = File.ReadAllLines(path, Encoding.UTF8);
-                int firstHeadingIndex = Array.FindIndex(lines, line => line.StartsWith("## ", StringComparison.Ordinal));
-                if (firstHeadingIndex < 0)
+                string[] lines = source.Value.content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+                int firstMeaningfulIndex = Array.FindIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+                if (firstMeaningfulIndex < 0)
                 {
                     FlightDeckChangelogVersion.Text = "Release notes";
                     FlightDeckChangelogText.Text = "No release section was found.";
                     return;
                 }
 
-                int latestReleaseIndex = Array.FindIndex(lines, firstHeadingIndex, lines.Length - firstHeadingIndex,
+                int latestReleaseIndex = Array.FindIndex(lines, firstMeaningfulIndex, lines.Length - firstMeaningfulIndex,
                     line => line.StartsWith("## ", StringComparison.Ordinal)
                         && !line[3..].Trim().Equals("Unreleased", StringComparison.OrdinalIgnoreCase));
-                if (latestReleaseIndex < 0) latestReleaseIndex = firstHeadingIndex;
-                FlightDeckChangelogVersion.Text = lines[latestReleaseIndex][3..].Trim();
-                Debug.WriteLine($"CHANGELOG_SOURCE={path}");
+                FlightDeckChangelogVersion.Text = latestReleaseIndex >= 0 ? lines[latestReleaseIndex][3..].Trim() : "Release notes";
+                Debug.WriteLine($"CHANGELOG_SOURCE={source.Value.source}");
                 Debug.WriteLine($"CHANGELOG_SELECTED_VERSION={FlightDeckChangelogVersion.Text}");
                 Debug.WriteLine($"CHANGELOG_RELEASE_SECTIONS={lines.Count(line => line.StartsWith("## ", StringComparison.Ordinal))}");
-                Debug.WriteLine($"CHANGELOG_TOTAL_LINES={lines.Length - firstHeadingIndex}");
+                Debug.WriteLine($"CHANGELOG_TOTAL_LINES={lines.Length - firstMeaningfulIndex}");
+                Debug.WriteLine($"CHANGELOG_TOTAL_CHARS={source.Value.content.Length}");
+                Debug.WriteLine($"CHANGELOG_FIRST_MEANINGFUL={lines[firstMeaningfulIndex].Trim()}");
+                int lastMeaningfulIndex = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+                Debug.WriteLine($"CHANGELOG_LAST_MEANINGFUL={(lastMeaningfulIndex >= 0 ? lines[lastMeaningfulIndex].Trim() : "none")}");
                 StringBuilder rendered = new();
-                for (int index = firstHeadingIndex; index < lines.Length; index++)
+                for (int index = firstMeaningfulIndex; index < lines.Length; index++)
                 {
                     string line = lines[index].Trim();
                     if (line.Length == 0)
@@ -621,6 +624,25 @@ namespace RouterPilot.Views
                 FlightDeckChangelogVersion.Text = "Unavailable";
                 FlightDeckChangelogText.Text = "The latest changelog could not be read.";
             }
+        }
+
+        private static (string source, string content)? ReadCanonicalChangelog()
+        {
+            Assembly assembly = typeof(AboutView).Assembly;
+            string? resourceName = assembly.GetManifestResourceNames()
+                .FirstOrDefault(name => name.EndsWith("CHANGELOG.md", StringComparison.OrdinalIgnoreCase));
+            if (resourceName is not null)
+            {
+                using Stream? stream = assembly.GetManifestResourceStream(resourceName);
+                if (stream is not null)
+                {
+                    using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                    return ($"embedded:{resourceName}", reader.ReadToEnd());
+                }
+            }
+
+            string? path = FindChangelogPath();
+            return path is null ? null : (path, File.ReadAllText(path, Encoding.UTF8));
         }
 
         private static string? FindChangelogPath()
