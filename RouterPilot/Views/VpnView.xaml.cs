@@ -57,6 +57,7 @@ public partial class VpnView : UserControl
         _operationIntent = ((App)Application.Current).Services.GetRequiredService<VpnOperationIntentService>();
         _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
         DataContext = _viewModel;
+        VpnLiveStatusDiagnostics.Record("VpnView DataContext assigned to shared VpnViewModel: YES");
         VpnSchedulePanel.DataContext = _vpnScheduleService;
         AttachEvents();
         UpdateVpnScheduleEmptyState();
@@ -175,11 +176,36 @@ public partial class VpnView : UserControl
         {
             TailscaleStatus status = await _tailscale.GetStatusAsync(token);
             TailscaleConfigurationSnapshot configuration = await _tailscaleConfiguration.GetConfigurationAsync(token);
-            if (isCurrent()) { _viewModel.ApplyTailscaleStatus(status); _viewModel.ApplyTailscaleConfiguration(configuration); ApplyTailscaleControls(); }
+            await PublishTailscaleStateAsync(status, configuration, isCurrent, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch when (isCurrent()) { _viewModel.ApplyTailscaleStatus(TailscaleStatus.Unavailable("Tailscale status is currently unavailable.")); _viewModel.ApplyTailscaleConfiguration(TailscaleConfigurationSnapshot.Unknown); ApplyTailscaleControls(); }
+        catch when (isCurrent())
+        {
+            await PublishTailscaleStateAsync(
+                TailscaleStatus.Unavailable("Tailscale status is currently unavailable."),
+                TailscaleConfigurationSnapshot.Unknown,
+                isCurrent,
+                token);
+        }
         finally { _tailscaleRefreshGate.Release(); }
+    }
+
+    private async Task PublishTailscaleStateAsync(
+        TailscaleStatus status,
+        TailscaleConfigurationSnapshot configuration,
+        Func<bool> isCurrent,
+        CancellationToken token)
+    {
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (!isCurrent() || token.IsCancellationRequested) return;
+            _viewModel.ApplyTailscaleStatus(status);
+            _viewModel.ApplyTailscaleConfiguration(configuration);
+            ApplyTailscaleControls();
+            VpnLiveStatusDiagnostics.Record($"Tailscale runtime result published: {status.State}");
+            VpnLiveStatusDiagnostics.Record("Tailscale snapshot assigned to active VPN ViewModel: YES");
+            VpnLiveStatusDiagnostics.Record("Tailscale UI property publication: YES");
+        });
     }
 
     private void ApplyTailscaleControls()
@@ -242,7 +268,7 @@ public partial class VpnView : UserControl
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
             VpnLiveStatusDiagnostics.Record($"Tailscale action reconciliation attempt {attempt + 1}/{maxAttempts}");
-            await RefreshAsync(force: true);
+            await RefreshTailscaleStateAsync(token);
             token.ThrowIfCancellationRequested();
             bool configurationStable = field switch
             {
@@ -259,6 +285,20 @@ public partial class VpnView : UserControl
             if (configurationStable && runtimeStable) return;
             if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(followUpDelayMilliseconds), token);
         }
+    }
+
+    private async Task RefreshTailscaleStateAsync(CancellationToken token)
+    {
+        long refreshGeneration = Interlocked.Increment(ref _refreshGeneration);
+        string profileId = _activeRouter.CurrentProfileId;
+        long contextVersion = _activeRouter.Version;
+        bool IsCurrent() => refreshGeneration == Interlocked.Read(ref _refreshGeneration)
+            && profileId == _activeRouter.CurrentProfileId
+            && contextVersion == _activeRouter.Version;
+
+        VpnLiveStatusDiagnostics.Record("Tailscale canonical state refresh started: YES");
+        await LoadTailscaleAsync(token, IsCurrent);
+        VpnLiveStatusDiagnostics.Record("Tailscale canonical state refresh completed: YES");
     }
 
     internal Task RefreshForHostAsync() => RefreshAsync();
