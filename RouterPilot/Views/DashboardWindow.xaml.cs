@@ -1823,7 +1823,10 @@ namespace RouterPilot.Views
             }
             finally
             {
-                Interlocked.Exchange(ref _resumeRecoveryActive, 0);
+                if (generation == Volatile.Read(ref _resumeGeneration))
+                {
+                    Interlocked.Exchange(ref _resumeRecoveryActive, 0);
+                }
             }
         }
 
