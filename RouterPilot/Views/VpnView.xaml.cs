@@ -117,7 +117,6 @@ public partial class VpnView : UserControl
         try
         {
             (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _service.GetInventoryAsync(token);
-            await tailscaleTask;
             token.ThrowIfCancellationRequested();
             if (!IsCurrent()) return;
             var profilesByGroup = profiles.ToDictionary(profile => profile.GroupId);
@@ -143,6 +142,7 @@ public partial class VpnView : UserControl
 #if DEBUG
             _viewModel.VpnStatus = VpnLiveStatusDiagnostics.Last;
 #endif
+            await tailscaleTask;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

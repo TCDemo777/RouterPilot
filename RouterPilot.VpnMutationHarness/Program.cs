@@ -301,10 +301,42 @@ internal static class Program
             await RunTunnelValidationAsync(args);
             return;
         }
+        if (args.Any(argument => string.Equals(argument, "--inventory", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunInventoryReadAsync();
+            return;
+        }
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
         string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
             ?? "lan_enabled";
         await RunRuntimeValidationAsync(targetField);
+    }
+
+    private static async Task RunInventoryReadAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            RouterInfo identity = await manager.GetRouterInfoAsync();
+            IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(timeout.Token);
+            Console.WriteLine($"Router: {Sanitize(identity.Model)}");
+            Console.WriteLine($"GET_TUNNEL_RAW_RPC: PASS; RAW_TUNNEL_COUNT={tunnels.Count}");
+            IReadOnlyList<VpnClientProfileInfo> profilesRead = await manager.GetVpnProfilesAsync(tunnels, timeout.Token);
+            Console.WriteLine($"GET_ALL_CONFIG_LIST_RAW_RPC: PASS; RAW_PROFILE_COUNT={profilesRead.Count}");
+            Console.WriteLine($"PARSED_TUNNEL_COUNT={tunnels.Count}; PARSED_PROFILE_COUNT={profilesRead.Count}");
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"READ_ONLY_INVENTORY_FAILURE: {Sanitize(exception.Message)}");
+        }
     }
 
     private static async Task RunTunnelValidationAsync(string[] args)

@@ -18,7 +18,20 @@ public sealed class VpnService : IVpnService
     {
         RouterManager manager = await _provider.GetRouterManagerAsync(token);
         IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(token);
-        IReadOnlyList<VpnClientProfileInfo> profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+        IReadOnlyList<VpnClientProfileInfo> profiles;
+        try
+        {
+            profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"VPN profile inventory unavailable; preserving tunnel inventory ({DiagnosticRedactor.FailureCategory(exception)}).");
+            profiles = [];
+        }
         return (tunnels, Correlate(tunnels, profiles));
     }
     public async Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken token) => await (await _provider.GetRouterManagerAsync(token)).GetVpnTunnelsAsync(token);
@@ -26,7 +39,20 @@ public sealed class VpnService : IVpnService
     {
         RouterManager manager = await _provider.GetRouterManagerAsync(token);
         IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(token);
-        IReadOnlyList<VpnClientProfileInfo> profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+        IReadOnlyList<VpnClientProfileInfo> profiles;
+        try
+        {
+            profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"VPN profile inventory unavailable; preserving tunnel inventory ({DiagnosticRedactor.FailureCategory(exception)}).");
+            profiles = [];
+        }
         return Correlate(tunnels, profiles);
     }
 
