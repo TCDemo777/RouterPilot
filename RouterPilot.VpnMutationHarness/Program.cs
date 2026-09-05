@@ -129,15 +129,23 @@ internal sealed class MutationCoordinator
         _log = log;
     }
 
-    public async Task<ValidationResult> ValidateLanEnabledAsync(CancellationToken cancellationToken)
+    public Task<ValidationResult> ValidateLanEnabledAsync(CancellationToken cancellationToken) =>
+        ValidateFieldAsync("lan_enabled", cancellationToken);
+
+    public Task<ValidationResult> ValidateWanEnabledAsync(CancellationToken cancellationToken) =>
+        ValidateFieldAsync("wan_enabled", cancellationToken);
+
+    public async Task<ValidationResult> ValidateFieldAsync(string field, CancellationToken cancellationToken)
     {
+        if (field is not ("lan_enabled" or "wan_enabled"))
+            throw new ArgumentOutOfRangeException(nameof(field), "Only lan_enabled and wan_enabled are supported.");
         long capturedGeneration = _generation();
         JsonObject original = await _transport.ReadSettingsAsync(cancellationToken);
-        if (!TryReadBoolean(original, "lan_enabled", out bool originalValue, out JsonValueKind valueKind))
-            throw new InvalidOperationException("WRITE CONTRACT NOT PROVEN: lan_enabled was not a boolean/0/1 setting.");
+        if (!TryReadBoolean(original, field, out bool originalValue, out JsonValueKind valueKind))
+            throw new InvalidOperationException($"WRITE CONTRACT NOT PROVEN: {field} was not a boolean/0/1 setting.");
 
         JsonObject temporary = (JsonObject)original.DeepClone();
-        temporary["lan_enabled"] = valueKind == JsonValueKind.String
+        temporary[field] = valueKind == JsonValueKind.String
             ? (JsonNode)(originalValue ? "0" : "1")
             : originalValue ? 0 : 1;
         bool writeSucceeded = false;
@@ -159,9 +167,9 @@ internal sealed class MutationCoordinator
             restorationRequired = true;
 
             JsonObject changed = await _transport.ReadSettingsAsync(cancellationToken);
-            readBackSucceeded = TryReadBoolean(changed, "lan_enabled", out bool changedValue, out _) && changedValue != originalValue;
+            readBackSucceeded = TryReadBoolean(changed, field, out bool changedValue, out _) && changedValue != originalValue;
             if (!readBackSucceeded)
-                throw new InvalidOperationException("Temporary lan_enabled read-back did not match the requested value.");
+                throw new InvalidOperationException($"Temporary {field} read-back did not match the requested value.");
         }
         catch (TailscaleConfigParser.RpcFailure exception)
         {
@@ -184,9 +192,9 @@ internal sealed class MutationCoordinator
                     await _transport.WriteSettingsAsync(original, CancellationToken.None);
                     restoreSucceeded = true;
                     JsonObject restored = await _transport.ReadSettingsAsync(CancellationToken.None);
-                    finalReadBackSucceeded = TryReadBoolean(restored, "lan_enabled", out bool finalValue, out _) && finalValue == originalValue;
+                    finalReadBackSucceeded = TryReadBoolean(restored, field, out bool finalValue, out _) && finalValue == originalValue;
                     if (!finalReadBackSucceeded)
-                        throw new InvalidOperationException("Final lan_enabled read-back did not match the original value.");
+                        throw new InvalidOperationException($"Final {field} read-back did not match the original value.");
                 }
                 catch (Exception exception)
                 {
@@ -289,12 +297,14 @@ internal static class Program
         if (args.Any(argument => string.Equals(argument, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return;
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
-        await RunRuntimeValidationAsync();
+        string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
+            ?? "lan_enabled";
+        await RunRuntimeValidationAsync(targetField);
     }
 
     private static void RunUnitTests()
     {
-        static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
+        static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
         using (JsonDocument valid = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"enabled\":false,\"lan_enabled\":false,\"wan_enabled\":false,\"run_exit_node\":false,\"masq\":false,\"extra\":\"ignored\"}}"))
         {
@@ -327,6 +337,12 @@ internal static class Program
         ValidationResult result = coordinator.ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
         Require(result.WriteSucceeded && result.ReadBackSucceeded && result.RestorationRequired && result.RestoreSucceeded && result.FinalReadBackSucceeded, "happy path");
         Require(fake.Writes[0]["enabled"]!.GetValue<int>() == 0 && fake.Writes[1]["enabled"]!.GetValue<int>() == 0, "unrelated fields preserved");
+
+        var wanFake = new FakeTransport(Settings(0));
+        result = new MutationCoordinator(wanFake, () => 1, _ => { }).ValidateWanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Require(result.WriteSucceeded && result.ReadBackSucceeded && result.RestorationRequired && result.RestoreSucceeded && result.FinalReadBackSucceeded &&
+            wanFake.Writes[0]["lan_enabled"]!.GetValue<int>() == 0 && wanFake.Writes[0]["wan_enabled"]!.GetValue<int>() == 1,
+            "WAN-only validation preserves LAN state");
 
         var failed = new FakeTransport(Settings(0), failWrite: true);
         result = new MutationCoordinator(failed, () => 1, _ => { }).ValidateLanEnabledAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -372,7 +388,7 @@ internal static class Program
         Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
     }
 
-    private static async Task RunRuntimeValidationAsync()
+    private static async Task RunRuntimeValidationAsync(string targetField)
     {
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
         Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; timeout.Cancel(); };
@@ -407,7 +423,12 @@ internal static class Program
                 PrintSanitizedShape(rawConfig.RootElement, "root", 0);
             }
             JsonObject original = await transport.ReadSettingsAsync(timeout.Token);
-            if (!MutationCoordinator.TryReadBoolean(original, "lan_enabled", out bool originalValue, out _))
+            if (targetField is not ("lan_enabled" or "wan_enabled"))
+            {
+                Console.WriteLine("ABORT: field must be lan_enabled or wan_enabled.");
+                return;
+            }
+            if (!MutationCoordinator.TryReadBoolean(original, targetField, out bool originalValue, out _))
             {
                 Console.WriteLine("WRITE CONTRACT NOT PROVEN");
                 return;
@@ -416,7 +437,7 @@ internal static class Program
             Console.WriteLine("ROUTERPILOT VPN MUTATION VALIDATION");
             Console.WriteLine($"Router: {Sanitize(identity.Model)}");
             Console.WriteLine($"Profile: {Sanitize(profile.DisplayName)}");
-            Console.WriteLine("Target field: lan_enabled");
+            Console.WriteLine($"Target field: {targetField}");
             Console.WriteLine($"Current value: {(originalValue ? 1 : 0)}");
             Console.WriteLine($"Temporary value: {(originalValue ? 0 : 1)}");
             Console.WriteLine("The harness will restore the original value immediately after verification.");
@@ -434,10 +455,10 @@ internal static class Program
             }
 
             ValidationResult result = await new MutationCoordinator(transport, () => active.Version, Console.WriteLine)
-                .ValidateLanEnabledAsync(timeout.Token);
+                .ValidateFieldAsync(targetField, timeout.Token);
             Console.WriteLine($"Router: {Sanitize(identity.Model)}");
             Console.WriteLine("Method: tailscale.set_config");
-            Console.WriteLine("Field: lan_enabled");
+            Console.WriteLine($"Field: {targetField}");
             Console.WriteLine($"Original: {(originalValue ? 1 : 0)}");
             Console.WriteLine($"Temporary: {(originalValue ? 0 : 1)}");
             Console.WriteLine($"Write: {(result.WriteSucceeded ? "PASS" : "FAIL")}");
@@ -457,7 +478,7 @@ internal static class Program
             if (result.RestorationFailed)
             {
                 Console.WriteLine("RESTORATION FAILED");
-                Console.WriteLine("Field: lan_enabled");
+                Console.WriteLine($"Field: {targetField}");
                 Console.WriteLine($"Expected original: {(originalValue ? 1 : 0)}");
                 Console.WriteLine("Current read-back: UNKNOWN");
             }

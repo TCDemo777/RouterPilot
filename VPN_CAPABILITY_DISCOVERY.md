@@ -92,8 +92,8 @@ firmware exposes the same contract.
 | Advertised Routes | `gl_tailscale` route helpers only | OBSERVABLE ONLY | No proven UI parameter | UNPROVEN | None | Critical | Do not add control |
 | Advertise Exit Node | `run_exit_node` field and confirmation UI | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Requires safety proof |
 | Use Exit Node | `exit_node_ip` and `get_exit_node_list` | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
-| LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | `set_config` | UNPROVEN | `get_config` | High | Candidate only after test |
-| WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
+| LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Keep harness evidence; no production UI yet |
+| WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target validation pending | UNPROVEN | `get_config` | Critical | Await local validation |
 | Tailscale SSH | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | Critical | Do not add control |
 | Shields Up | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | High | Do not add control |
 | Device Name | Repository parses `Self.HostName`; daemon stopped | UNAVAILABLE | None | UNAVAILABLE | `status --json` when running | Low | Display when available |
@@ -232,7 +232,26 @@ contract are available. No per-client polling or speculative UCI editing.
 - Per-client probes: 0.
 - N+1 SSH patterns: 0 added.
 - Router mutations: 0.
-- Tailscale/WireGuard/OpenVPN/ZeroTier writes invoked: 0.
+- Tailscale/WireGuard/OpenVPN/ZeroTier writes invoked during the original
+  read-only capture: 0. The later controlled `lan_enabled` validation is
+  recorded below; no other mutation was attempted.
+
+## Controlled Tailscale mutation evidence
+
+The developer-only mutation harness successfully validated `lan_enabled` on
+the live GL-MT6000/Flint 2 using the complete direct `tailscale.set_config`
+settings object:
+
+1. Original value: `false`.
+2. Temporary value: `true`.
+3. Write: PASS.
+4. Immediate authoritative read-back: PASS.
+5. Restoration required: YES; restore: PASS.
+6. Final authoritative read-back: PASS (`false`).
+7. Router restored: YES.
+
+`wan_enabled` remains **AWAITING LOCAL VALIDATION**. No production VPN UI
+control has been added.
 
 ## Decision gate and next step
 
@@ -246,10 +265,11 @@ also supports OpenVPN, but no OpenVPN tunnel was active in this capture.
 Authoritative read-back after a future write: **YES as a method** (`get_tunnel`),
 but **not exercised after a write** in this read-only run.
 
-Tailscale-specific writable contracts proven safe: **NONE**. The GL.iNet
-frontend proves the existence of `tailscale.set_config`, logout and auth URL
-flows, with config fields for enabled/LAN/WAN/exit-node/masquerade, but those
-operations remain unproven and potentially disruptive.
+Tailscale-specific writable contracts proven safe: **`lan_enabled` only**, on
+the validated live GL-MT6000. `wan_enabled` remains unproven until the same
+controlled harness sequence completes locally. Login/logout, exit-node,
+masquerade, route, and enablement mutations remain unproven and potentially
+disruptive.
 
 The single largest safe next batch is a controlled, explicitly confirmed
 Phase-A test of the existing WireGuard `set_tunnel` operation on a disposable
