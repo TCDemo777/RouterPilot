@@ -296,10 +296,118 @@ internal static class Program
         Console.WriteLine("Local coordinator tests: PASS");
         if (args.Any(argument => string.Equals(argument, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return;
+        if (args.Any(argument => string.Equals(argument, "--tunnel", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunTunnelValidationAsync(args);
+            return;
+        }
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
         string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
             ?? "lan_enabled";
         await RunRuntimeValidationAsync(targetField);
+    }
+
+    private static async Task RunTunnelValidationAsync(string[] args)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            RouterProfile profile = active.CurrentProfile;
+            long generation = active.Version;
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            RouterInfo identity = await manager.GetRouterInfoAsync();
+            if (!identity.Model.Contains("GL-MT6000", StringComparison.OrdinalIgnoreCase) &&
+                !identity.Model.Contains("Flint 2", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"ABORT: router identity rejected ({Sanitize(identity.Model)}).");
+                return;
+            }
+
+            IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(timeout.Token);
+            int requestedId = ParseTunnelId(args);
+            VpnTunnelInfo? selected = requestedId > 0
+                ? tunnels.SingleOrDefault(tunnel => tunnel.TunnelId == requestedId)
+                : tunnels.FirstOrDefault();
+            if (selected is null)
+            {
+                Console.WriteLine("ABORT: no unique configured VPN tunnel was found.");
+                return;
+            }
+
+            Console.WriteLine("ROUTERPILOT VPN CLIENT TUNNEL VALIDATION");
+            Console.WriteLine($"Router: {Sanitize(identity.Model)}");
+            Console.WriteLine($"Profile: {Sanitize(profile.DisplayName)}");
+            Console.WriteLine($"Tunnel id: {selected.TunnelId}");
+            Console.WriteLine($"Protocol: {Sanitize(selected.Protocol)}");
+            Console.WriteLine($"Before enabled: {selected.Enabled}");
+            Console.WriteLine($"Before kill switch: {selected.KillSwitch}");
+            Console.WriteLine($"Before local access: {selected.LocalAccess?.ToString() ?? "unknown"}");
+            Console.WriteLine($"Before masquerade: {selected.Masquerade?.ToString() ?? "unknown"}");
+            Console.WriteLine("Contract: vpn-client.set_tunnel { tunnel_id, enabled }");
+            Console.WriteLine("This will invert one existing tunnel and restore it immediately.");
+            Console.Write("Type VALIDATE to continue: ");
+            if (!string.Equals(Console.ReadLine(), "VALIDATE", StringComparison.Ordinal))
+            {
+                Console.WriteLine("ABORT");
+                return;
+            }
+            if (active.Version != generation || active.CurrentProfileId != profile.Id)
+            {
+                Console.WriteLine("ABORT: active router/profile generation changed.");
+                return;
+            }
+
+            bool original = selected.Enabled;
+            bool temporary = !original;
+            bool write = false;
+            bool readBack = false;
+            bool restore = false;
+            bool final = false;
+            try
+            {
+                write = await manager.SetVpnTunnelEnabledAsync(selected.TunnelId, temporary, timeout.Token);
+                Console.WriteLine($"Write: {(write ? "PASS" : "FAIL")}");
+                if (!write) return;
+                IReadOnlyList<VpnTunnelInfo> changed = await manager.GetVpnTunnelsAsync(timeout.Token);
+                VpnTunnelInfo? changedTunnel = changed.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId);
+                readBack = changedTunnel?.Enabled == temporary;
+                Console.WriteLine($"Read-back: {(readBack ? "PASS" : "FAIL")}");
+            }
+            finally
+            {
+                if (write)
+                {
+                    restore = await manager.SetVpnTunnelEnabledAsync(selected.TunnelId, original, CancellationToken.None);
+                    IReadOnlyList<VpnTunnelInfo> restored = await manager.GetVpnTunnelsAsync(CancellationToken.None);
+                    final = restored.SingleOrDefault(tunnel => tunnel.TunnelId == selected.TunnelId)?.Enabled == original;
+                }
+            }
+            Console.WriteLine($"Restore: {(restore ? "PASS" : "FAIL")}");
+            Console.WriteLine($"Final read-back: {(final ? "PASS" : "FAIL")}");
+            Console.WriteLine($"ROUTER RESTORED: {(restore && final ? "YES" : "NO")}");
+            if (!(restore && final)) Console.WriteLine("STOP: restoration was not proven.");
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("ABORT: cancelled or timed out.");
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"Runtime validation unavailable: {Sanitize(exception.Message)}");
+        }
+    }
+
+    private static int ParseTunnelId(string[] args)
+    {
+        string? value = args.FirstOrDefault(argument => argument.StartsWith("--tunnel-id=", StringComparison.OrdinalIgnoreCase));
+        return value is not null && int.TryParse(value[12..], out int tunnelId) ? tunnelId : 0;
     }
 
     private static void RunUnitTests()
