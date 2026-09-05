@@ -12,7 +12,7 @@ The capture was saved only temporarily for analysis and is not committed.
 | GL.iNet VPN client inventory | `VpnService` -> `RouterManager.Vpn` | Authenticated GL.iNet JSON-RPC `call` to object `vpn-client`, methods `get_tunnel` and `get_all_config_list` | `VpnView.RefreshAsync`, shared summary refresh, active profile generation/cancellation | Read inventory |
 | VPN tunnel enable | `VpnService.SetTunnelEnabledAsync` | `vpn-client.set_tunnel` with `{ tunnel_id, enabled }` | Explicit user operation, serialized by a gate, read-back and rollback-on-enable failure | Existing write; live Flint 2 confirmation still required |
 | VPN live status | `IVpnLiveStatusService` / session WebSocket | Session-bound VPN status subscription | Refresh/reconciliation and live status events | Read-only |
-| Tailscale | `TailscaleStatusService` | Read-only SSH commands: `command -v tailscale`, `tailscale version`, `tailscale status --json`, `pidof tailscaled`, and fallback `tailscale ip` | VPN page refresh; cancellation and router/profile generation checks | Read-only |
+| Tailscale | `TailscaleStatusService` + `TailscaleConfigurationService` | Runtime uses read-only SSH commands; configuration uses authenticated `tailscale.get_config`/complete-object `tailscale.set_config` | Canonical VPN page refresh, explicit action reconciliation, cancellation and router/profile generation checks | `enabled`, `lan_enabled`, `wan_enabled` writable; other fields read-only |
 | ZeroTier | Advanced/state snapshots | Existing aggregate telemetry parser exposes installed/enabled state | Shared router snapshot | Read-only |
 
 The existing mutation pipeline is `VpnService.SetTunnelEnabledAsync`: acquire
@@ -92,7 +92,7 @@ firmware exposes the same contract.
 | Advertised Routes | `gl_tailscale` route helpers only | OBSERVABLE ONLY | No proven UI parameter | UNPROVEN | None | Critical | Do not add control |
 | Advertise Exit Node | `run_exit_node` field and confirmation UI | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Requires safety proof |
 | Use Exit Node | `exit_node_ip` and `get_exit_node_list` | STRONG | `set_config` | UNPROVEN | `get_config` | Critical | Do not implement yet |
-| LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Keep harness evidence; no production UI yet |
+| LAN Access | Live `lan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Production action control with authoritative read-back |
 | WAN Access | Live `wan_enabled='0'`; frontend field | PROVEN | Complete direct `tailscale.set_config` object; target field isolated | PROVEN (live GL-MT6000) | `get_config` | High | Safe for the first production controls |
 | Tailscale SSH | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | Critical | Do not add control |
 | Shields Up | Not present in captured config/status | UNAVAILABLE | None proven | UNPROVEN | None | High | Do not add control |
@@ -108,7 +108,7 @@ firmware exposes the same contract.
 | Stateful filtering | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not infer |
 | Netfilter mode | Not parsed | UNAVAILABLE | None | UNAVAILABLE | None | High | Do not infer |
 
-No Tailscale write is approved by this matrix. Generic `tailscale up`,
+Generic `tailscale up`,
 `tailscale down`, and `tailscale set` are not a GL.iNet management contract.
 
 ## GL.iNet VPN RPC evidence
@@ -259,6 +259,28 @@ complete-settings-object contract:
 `false -> true` write PASS, read-back PASS, restore PASS, final read-back PASS,
 router restored YES. The production card may therefore expose the service
 enable control; all three booleans are reconciled from `get_config`.
+
+## Production reconciliation and account boundary
+
+The VPN page uses one active `VpnViewModel` snapshot for Tailscale configuration
+and runtime status. Page activation and completed configuration actions both use
+the same refresh path. Explicit actions perform up to five runtime/configuration
+refresh attempts with 750 ms cancellation-aware gaps (four follow-up reads at
+most); there is no permanent timer or background polling. Refresh generations
+and active-router profile/version checks discard late results from an earlier
+action or router.
+
+The runtime source remains the router's `tailscale status --json`/`tailscale ip`
+SSH observations. A successful `enabled=true` write is not presented as
+Connected until that source reports Connected or NeedsLogin. Disable actions
+never map an ambiguous shutdown result to Connecting.
+
+`tailscale.get_auth_url`, `tailscale.get_exit_node_list`, and
+`tailscale.logout` are observable GL.iNet frontend methods only. Their exact
+parameter, side-effect, and read-back contracts were not validated on the live
+router in this batch, so RouterPilot does not expose sign-in, logout,
+peer-creation, exit-node, or masquerade writes. Tailscale peer data remains
+read-only; GL.iNet peer/client invitation management was not found.
 
 ## Decision gate and next step
 

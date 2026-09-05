@@ -72,6 +72,7 @@ public partial class VpnView : UserControl
     private async void VpnView_Loaded(object sender, RoutedEventArgs e)
     {
         AttachEvents();
+        VpnLiveStatusDiagnostics.Record("VpnView activation refresh: YES");
         await RefreshAsync();
     }
 
@@ -219,6 +220,7 @@ public partial class VpnView : UserControl
             _viewModel.ApplyTailscaleConfiguration(result.Snapshot);
             if (!result.Succeeded && !string.IsNullOrWhiteSpace(result.Message)) _viewModel.VpnStatus = result.Message;
             ApplyTailscaleControls();
+            VpnLiveStatusDiagnostics.Record($"Tailscale action read-back: {(result.Succeeded ? "PASS" : "FAIL")}");
             await ReconcileTailscaleAfterActionAsync(field, value, mutationCts.Token);
         }
         catch (OperationCanceledException) { }
@@ -235,9 +237,11 @@ public partial class VpnView : UserControl
 
     private async Task ReconcileTailscaleAfterActionAsync(TailscaleAccessField field, bool value, CancellationToken token)
     {
-        const int maxAttempts = 3;
+        const int maxAttempts = 5;
+        const int followUpDelayMilliseconds = 750;
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
+            VpnLiveStatusDiagnostics.Record($"Tailscale action reconciliation attempt {attempt + 1}/{maxAttempts}");
             await RefreshAsync(force: true);
             token.ThrowIfCancellationRequested();
             bool configurationStable = field switch
@@ -253,7 +257,7 @@ public partial class VpnView : UserControl
                 _ => true
             };
             if (configurationStable && runtimeStable) return;
-            if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(350), token);
+            if (attempt < maxAttempts - 1) await Task.Delay(TimeSpan.FromMilliseconds(followUpDelayMilliseconds), token);
         }
     }
 
