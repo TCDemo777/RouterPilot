@@ -202,6 +202,10 @@ namespace RouterPilot.Views
                 FlightDeckPreflight.Visibility = Visibility.Visible;
                 FlightDeckPreflight.BeginAnimation(UIElement.OpacityProperty, null);
                 FlightDeckPreflight.Opacity = 1;
+                AboutSurface.UpdateLayout();
+                FlightDeckHost.Height = AboutSurface.ActualHeight > 100
+                    ? Math.Clamp(AboutSurface.ActualHeight - 40, 480, 620)
+                    : 620;
                 ResetPreflightVisuals();
                 _launchSceneVariation = CreateLaunchSceneVariation(IsDarkTheme());
                 FlightDeckPreflight.UpdateLayout();
