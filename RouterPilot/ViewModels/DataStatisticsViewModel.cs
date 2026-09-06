@@ -144,6 +144,25 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
     public Task EnsureLoadedAsync() => _loaded ? Task.CompletedTask : RefreshAsync();
 
+    /// <summary>
+    /// Accepts a traffic counter observation from the dashboard's existing
+    /// refresh stream.  Data Statistics is a lazy tab, so it must not be the
+    /// owner of a second polling loop; keeping the accumulator here lets the
+    /// session card update even while the tab is not active.
+    /// </summary>
+    public void ObserveTrafficSnapshot(NetworkTrafficSnapshot snapshot)
+    {
+        if (_disposed || snapshot is null || !snapshot.IsValid)
+            return;
+
+        TrafficSessionSample? sample = _trafficSession.Add(new NetworkTrafficObservation(
+            snapshot.ReceivedBytes,
+            snapshot.TransmittedBytes,
+            snapshot.CapturedAtUtc,
+            snapshot.InterfaceName));
+        UpdateTrafficPresentation(sample);
+    }
+
     public void ResetForRouterSession()
     {
         _trafficSession.Reset();

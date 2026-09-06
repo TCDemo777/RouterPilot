@@ -57,6 +57,7 @@ namespace RouterPilot.Views
         private readonly NetworkHealthViewModel _networkHealthViewModel;
         private readonly IDataFreshnessService _dataFreshnessService;
         private readonly IMetricHistoryService _metricHistoryService;
+        private readonly DataStatisticsViewModel _dataStatistics;
         private readonly TimelineService _timelineService;
         private readonly ClientProfileService _clientProfileService = new();
         private readonly SemaphoreSlim _routerManagerUsageGate = new(1, 1);
@@ -101,6 +102,8 @@ namespace RouterPilot.Views
 
             _viewModel = ((App)Application.Current).Services
                 .GetRequiredService<DashboardViewModel>();
+            _dataStatistics = ((App)Application.Current).Services
+                .GetRequiredService<DataStatisticsViewModel>();
 
             DataContext =
                 _viewModel;
@@ -949,6 +952,12 @@ namespace RouterPilot.Views
         private void UpdateNetworkTraffic(
             NetworkTrafficSnapshot snapshot)
         {
+            // Data Statistics is a lazy tab, but its session card represents
+            // observations made by the application as a whole.  Feed the
+            // existing dashboard traffic stream into that shared accumulator;
+            // this avoids a second poller and keeps the card live in-session.
+            _dataStatistics.ObserveTrafficSnapshot(snapshot);
+
             NetworkTrafficSample? traffic = _trafficAccumulator.Add(new NetworkTrafficObservation(
                 snapshot.ReceivedBytes,
                 snapshot.TransmittedBytes,
