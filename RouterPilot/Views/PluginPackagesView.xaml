@@ -3,413 +3,526 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource Brush.WindowBackground}">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
+    <Grid Margin="24">
 
-        <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="360"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <!-- HEADER -->
+        <Grid Grid.Row="0"
+              Margin="0,0,0,16">
 
-            <!-- Header -->
-            <DockPanel>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
+            <StackPanel>
+                <TextBlock Style="{DynamicResource Text.PageTitle}"
+                           Text="Plug-ins"/>
+
+                <TextBlock Margin="0,4,0,0"
+                           Style="{DynamicResource Text.Secondary}"
+                           Text="Browse and manage packages reported by the router."/>
+            </StackPanel>
+
+            <Button Grid.Column="1"
+                    VerticalAlignment="Top"
+                    Padding="18,7"
+                    Content="Refresh"
+                    Command="{Binding RefreshCommand}"/>
+
+        </Grid>
+
+        <!-- SUMMARY -->
+        <UniformGrid Grid.Row="1"
+                     Columns="4"
+                     Margin="0,0,0,14">
+
+            <Border Style="{DynamicResource Card}"
+                    Margin="0,0,8,0"
+                    Padding="12">
                 <StackPanel>
-                    <TextBlock Style="{DynamicResource Text.PageTitle}"
-                               Text="Plug-ins"/>
-
-                    <TextBlock Margin="0,4,0,16"
-                               Style="{DynamicResource Text.Secondary}"
-                               Text="Read-only package inventory reported by the router."/>
+                    <TextBlock Style="{DynamicResource Text.CardCaption}"
+                               Text="INSTALLED"/>
+                    <TextBlock Margin="0,4,0,0"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Text="{Binding InstalledCount}"/>
                 </StackPanel>
+            </Border>
 
-                <Button DockPanel.Dock="Right"
-                        Padding="14,7"
-                        Content="Refresh"
-                        Command="{Binding RefreshCommand}"/>
+            <Border Style="{DynamicResource Card}"
+                    Margin="4,0,4,0"
+                    Padding="12">
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource Text.CardCaption}"
+                               Text="AVAILABLE"/>
+                    <TextBlock Margin="0,4,0,0"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Text="{Binding AvailableCount}"/>
+                </StackPanel>
+            </Border>
 
-            </DockPanel>
+            <Border Style="{DynamicResource Card}"
+                    Margin="4,0,4,0"
+                    Padding="12">
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource Text.CardCaption}"
+                               Text="UPDATES"/>
+                    <TextBlock Margin="0,4,0,0"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Text="{Binding UpdatesCount}"/>
+                </StackPanel>
+            </Border>
 
-            <!-- Summary -->
-            <UniformGrid Grid.Row="1"
-                         Columns="4"
-                         Margin="0,0,0,14">
+            <Border Style="{DynamicResource Card}"
+                    Margin="8,0,0,0"
+                    Padding="12">
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource Text.CardCaption}"
+                               Text="PACKAGE INDEX"/>
 
-                <Border Style="{DynamicResource Card}"
-                        Margin="0,0,8,0"
-                        Padding="12">
+                    <TextBlock Margin="0,4,0,0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Text="{Binding IndexStatus}"/>
 
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                   Text="INSTALLED"/>
+                    <TextBlock Margin="0,2,0,0"
+                               Style="{DynamicResource Text.Muted}"
+                               Text="{Binding IndexFreshness}"/>
+                </StackPanel>
+            </Border>
 
-                        <TextBlock FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding InstalledCount}"/>
-                    </StackPanel>
+        </UniformGrid>
 
-                </Border>
+        <!-- SEARCH / FILTER / INDEX ACTION / STATUS -->
+        <Border Grid.Row="2"
+                Style="{DynamicResource Card}"
+                Padding="14"
+                Margin="0,0,0,14">
 
-                <Border Style="{DynamicResource Card}"
-                        Margin="4,0,4,0"
-                        Padding="12">
+            <Grid>
 
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                   Text="AVAILABLE"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                        <TextBlock FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding AvailableCount}"/>
-                    </StackPanel>
-
-                </Border>
-
-                <Border Style="{DynamicResource Card}"
-                        Margin="4,0,4,0"
-                        Padding="12">
-
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                   Text="UPDATES"/>
-
-                        <TextBlock FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding UpdatesCount}"/>
-                    </StackPanel>
-
-                </Border>
-
-                <Border Style="{DynamicResource Card}"
-                        Margin="8,0,0,0"
-                        Padding="12">
-
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                   Text="PACKAGE INDEX"/>
-
-                        <TextBlock FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding IndexStatus}"/>
-
-                        <TextBlock Style="{DynamicResource Text.Muted}"
-                                   Text="{Binding IndexFreshness}"/>
-                    </StackPanel>
-
-                </Border>
-
-            </UniformGrid>
-
-            <!-- Search / filter -->
-            <Border Grid.Row="2"
-                    Style="{DynamicResource Card}"
-                    Padding="14"
-                    Margin="0,0,0,14">
-
+                <!-- Search -->
                 <Grid>
 
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="180"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox"
+                             Height="36"
+                             Padding="36,6,10,6"
+                             Text="{Binding SearchText,
+                                            UpdateSourceTrigger=PropertyChanged}"/>
 
-                    <Grid>
+                    <TextBlock Style="{StaticResource Search.Icon}"/>
 
-                        <TextBox x:Name="SearchBox"
-                                 Height="36"
-                                 Padding="36,6,10,6"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-
-                        <TextBlock Style="{StaticResource Search.Icon}"/>
-
-                        <TextBlock Margin="36,0,10,0"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Foreground="{DynamicResource Brush.TextSecondary}"
-                                   Text="Search">
-
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-
-                                    <Setter Property="Visibility"
-                                            Value="Collapsed"/>
-
-                                    <Style.Triggers>
-
-                                        <MultiDataTrigger>
-
-                                            <MultiDataTrigger.Conditions>
-
-                                                <Condition Binding="{Binding Text, ElementName=SearchBox}"
-                                                           Value=""/>
-
-                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}"
-                                                           Value="False"/>
-
-                                            </MultiDataTrigger.Conditions>
-
-                                            <Setter Property="Visibility"
-                                                    Value="Visible"/>
-
-                                        </MultiDataTrigger>
-
-                                    </Style.Triggers>
-
-                                </Style>
-                            </TextBlock.Style>
-
-                        </TextBlock>
-
-                    </Grid>
-
-                    <ComboBox Grid.Column="1"
-                              Margin="12,0,0,0"
-                              ItemsSource="{Binding FilterOptions}"
-                              SelectedItem="{Binding SelectedFilter}"/>
-
-                    <TextBlock Grid.Column="2"
-                               Margin="14,0,0,0"
+                    <TextBlock Margin="36,0,10,0"
                                VerticalAlignment="Center"
-                               Style="{DynamicResource Text.Muted}"
-                               Text="{Binding StatusMessage}"/>
+                               IsHitTestVisible="False"
+                               Foreground="{DynamicResource Brush.TextSecondary}"
+                               Text="Search">
+
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+
+                                            <Condition Binding="{Binding Text,
+                                                                         ElementName=SearchBox}"
+                                                       Value=""/>
+
+                                            <Condition Binding="{Binding IsKeyboardFocusWithin,
+                                                                         ElementName=SearchBox}"
+                                                       Value="False"/>
+
+                                        </MultiDataTrigger.Conditions>
+
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+
+                            </Style>
+                        </TextBlock.Style>
+
+                    </TextBlock>
 
                 </Grid>
 
-            </Border>
+                <!-- Filter -->
+                <ComboBox Grid.Column="1"
+                          Margin="12,0,0,0"
+                          ItemsSource="{Binding FilterOptions}"
+                          SelectedItem="{Binding SelectedFilter}"/>
 
-            <!-- Package list -->
-            <Border Grid.Row="3"
+                <!-- Refresh package indexes -->
+                <Button Grid.Column="2"
+                        Margin="12,0,0,0"
+                        Padding="12,6"
+                        Content="Refresh indexes"
+                        Command="{Binding RefreshIndexesCommand}"
+                        IsEnabled="{Binding CanRefreshIndexes}"/>
+
+                <!-- Status -->
+                <TextBlock Grid.Column="3"
+                           Margin="14,0,0,0"
+                           MaxWidth="280"
+                           VerticalAlignment="Center"
+                           Style="{DynamicResource Text.Muted}"
+                           Text="{Binding StatusMessage}"
+                           TextTrimming="CharacterEllipsis"/>
+
+            </Grid>
+
+        </Border>
+
+        <!-- MAIN WORKSPACE -->
+        <Grid Grid.Row="3">
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.65*"
+                                  MinWidth="500"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"
+                                  MinWidth="360"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT: PACKAGE INVENTORY -->
+            <Border Grid.Column="0"
                     Style="{DynamicResource Card}"
-                    Padding="10"
-                    Margin="0,0,0,14">
-
-                <DataGrid ItemsSource="{Binding PackagesView}"
-                          SelectedItem="{Binding SelectedPackage, Mode=TwoWay}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          CanUserAddRows="False"
-                          GridLinesVisibility="None"
-                          EnableRowVirtualization="True"
-                          EnableColumnVirtualization="True"
-                          VirtualizingPanel.IsVirtualizing="True"
-                          VirtualizingPanel.VirtualizationMode="Recycling"
-                          ScrollViewer.CanContentScroll="True"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto">
-
-                    <DataGrid.Columns>
-
-                        <DataGridTextColumn Header="Name"
-                                            Width="*"
-                                            Binding="{Binding Name}"/>
-
-                        <DataGridTextColumn Header="Installed"
-                                            Width="150"
-                                            Binding="{Binding DisplayInstalledVersion}"/>
-
-                        <DataGridTextColumn Header="Available"
-                                            Width="150"
-                                            Binding="{Binding DisplayAvailableVersion}"/>
-
-                        <DataGridTextColumn Header="Architecture"
-                                            Width="130"
-                                            Binding="{Binding DisplayArchitecture}"/>
-
-                        <DataGridTextColumn Header="Status"
-                                            Width="150"
-                                            Binding="{Binding DisplayStatus}"/>
-
-                    </DataGrid.Columns>
-
-                </DataGrid>
-
-            </Border>
-
-            <!-- Package details -->
-            <Border Grid.Row="4"
-                    Style="{DynamicResource Card}"
-                    Padding="16"
-                    Margin="0,0,0,14">
+                    Padding="12">
 
                 <Grid>
 
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Style="{DynamicResource Text.CardCaption}"
-                               Text="PACKAGE DETAILS"/>
-
-                    <TextBlock Grid.Row="1"
-                               Margin="0,8,0,14"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Text="{Binding SelectedPackage.Name, TargetNullValue=Select a package}"
-                               TextWrapping="Wrap"/>
-
-                    <!-- Versions / architecture / status -->
-                    <Grid Grid.Row="2">
-
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Installed version"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayInstalledVersion}"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Available version"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayAvailableVersion}"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Architecture"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayArchitecture}"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="3">
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Status"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayStatus}"/>
-                        </StackPanel>
-
-                    </Grid>
-
-                    <!-- Description / metadata -->
-                    <Grid Grid.Row="3"
-                          Margin="0,14,0,0">
-
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Margin="0,0,16,0">
-
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Description"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayDescription}"
-                                       TextWrapping="Wrap"/>
-
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{DynamicResource Text.Muted}"
-                                       Text="Dependencies"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayDependencies}"
-                                       TextWrapping="Wrap"/>
-
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1">
-
-                            <TextBlock Style="{DynamicResource Text.Muted}"
-                                       Text="Installed time"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplayInstalledTime}"/>
-
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{DynamicResource Text.Muted}"
-                                       Text="Source"/>
-
-                            <TextBlock Text="{Binding SelectedPackage.DisplaySource}"/>
-
-                        </StackPanel>
-
-                    </Grid>
-
-                    <!-- Actions -->
-                    <Grid Grid.Row="4"
-                          Margin="0,16,0,0">
+                    <Grid Margin="2,0,2,10">
 
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock VerticalAlignment="Center"
+                        <TextBlock Style="{DynamicResource Text.CardCaption}"
+                                   Text="PACKAGE INVENTORY"/>
+
+                        <TextBlock Grid.Column="1"
+                                   Margin="16,0,0,0"
                                    Style="{DynamicResource Text.Muted}"
-                                   Text="{Binding ActionBlockReason}"
+                                   Text="Select a package to manage it"/>
+
+                    </Grid>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding PackagesView}"
+                              SelectedItem="{Binding SelectedPackage,
+                                                     Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              GridLinesVisibility="None"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+
+                        <DataGrid.Columns>
+
+                            <DataGridTextColumn Header="Package"
+                                                Width="*"
+                                                MinWidth="180"
+                                                Binding="{Binding Name}"/>
+
+                            <DataGridTextColumn Header="Installed"
+                                                Width="120"
+                                                Binding="{Binding DisplayInstalledVersion}"/>
+
+                            <DataGridTextColumn Header="Available"
+                                                Width="120"
+                                                Binding="{Binding DisplayAvailableVersion}"/>
+
+                            <DataGridTextColumn Header="Status"
+                                                Width="130"
+                                                Binding="{Binding DisplayStatus}"/>
+
+                        </DataGrid.Columns>
+
+                    </DataGrid>
+
+                </Grid>
+
+            </Border>
+
+            <!-- RIGHT: SELECTED PACKAGE -->
+            <Border Grid.Column="2"
+                    Style="{DynamicResource Card}"
+                    Padding="18">
+
+                <Grid>
+
+                    <!-- NO SELECTION -->
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="280">
+
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+
+                                <Style.Triggers>
+
+                                    <DataTrigger Binding="{Binding SelectedPackage}"
+                                                 Value="{x:Null}">
+
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+
+                                    </DataTrigger>
+
+                                </Style.Triggers>
+
+                            </Style>
+                        </StackPanel.Style>
+
+                        <TextBlock HorizontalAlignment="Center"
+                                   Style="{DynamicResource Text.CardCaption}"
+                                   Text="SELECTED PACKAGE"/>
+
+                        <TextBlock Margin="0,18,0,0"
+                                   HorizontalAlignment="Center"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Text="Select a package"/>
+
+                        <TextBlock Margin="0,8,0,0"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
                                    TextWrapping="Wrap"
-                                   Visibility="{Binding HasActionBlockReason,
-                                                        Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                   Style="{DynamicResource Text.Secondary}"
+                                   Text="Choose a package from the list to view its details and available actions."/>
 
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    HorizontalAlignment="Right">
+                    </StackPanel>
 
-                            <Button x:Name="InstallButton"
-                                    Content="Install"
-                                    Padding="14,6"
-                                    Margin="0,0,8,0"
-                                    Command="{Binding InstallCommand}"
-                                    IsEnabled="{Binding CanInstall}"
-                                    Visibility="{Binding CanInstall,
-                                                         Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <!-- SELECTION PRESENT -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
 
-                            <Button x:Name="UpdateButton"
-                                    Content="Update"
-                                    Padding="14,6"
-                                    Margin="0,0,8,0"
-                                    Style="{DynamicResource Button.Secondary}"
-                                    Command="{Binding UpdateCommand}"
-                                    IsEnabled="{Binding CanUpdate}"
-                                    ToolTip="{Binding UpdateBlockReason}"
-                                    Visibility="{Binding ShouldShowUpdate,
-                                                         Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
 
-                            <Button x:Name="ForceUpdateButton"
-                                    Content="Force update"
-                                    Padding="14,6"
-                                    Margin="0,0,8,0"
-                                    Style="{DynamicResource Button.Danger}"
-                                    Command="{Binding ForceUpdateCommand}"
-                                    IsEnabled="{Binding CanForceUpdate}"
-                                    ToolTip="{Binding ForceUpdateBlockReason}"
-                                    Visibility="{Binding ShouldShowUpdate,
-                                                         Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <Setter Property="Visibility"
+                                        Value="Visible"/>
 
-                            <Button x:Name="UninstallButton"
-                                    Content="Uninstall"
-                                    Padding="14,6"
-                                    Margin="0,0,8,0"
-                                    Style="{DynamicResource Button.Danger}"
-                                    Command="{Binding RemoveCommand}"
-                                    IsEnabled="{Binding CanRemove}"
-                                    ToolTip="{Binding UninstallBlockReason}"
-                                    Visibility="{Binding ShouldShowUninstall,
-                                                         Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <Style.Triggers>
 
-                            <Button x:Name="RefreshIndexesButton"
-                                    Content="Refresh package indexes"
-                                    Padding="14,6"
-                                    Command="{Binding RefreshIndexesCommand}"
-                                    IsEnabled="{Binding CanRefreshIndexes}"/>
+                                    <DataTrigger Binding="{Binding SelectedPackage}"
+                                                 Value="{x:Null}">
+
+                                        <Setter Property="Visibility"
+                                                Value="Collapsed"/>
+
+                                    </DataTrigger>
+
+                                </Style.Triggers>
+
+                            </Style>
+                        </ScrollViewer.Style>
+
+                        <StackPanel>
+
+                            <TextBlock Style="{DynamicResource Text.CardCaption}"
+                                       Text="SELECTED PACKAGE"/>
+
+                            <TextBlock Margin="0,8,0,18"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding SelectedPackage.Name}"/>
+
+                            <!-- PRIMARY DETAILS -->
+                            <Grid Margin="0,0,0,20">
+
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Margin="0,0,16,14">
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Installed"/>
+
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding SelectedPackage.DisplayInstalledVersion}"/>
+
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1"
+                                            Margin="0,0,0,14">
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Available"/>
+
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding SelectedPackage.DisplayAvailableVersion}"/>
+
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1"
+                                            Margin="0,0,16,0">
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Status"/>
+
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding SelectedPackage.DisplayStatus}"/>
+
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1"
+                                            Grid.Column="1">
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Architecture"/>
+
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedPackage.DisplayArchitecture}"/>
+
+                                </StackPanel>
+
+                            </Grid>
+
+                            <!-- ACTIONS -->
+                            <TextBlock Margin="0,0,0,8"
+                                       Style="{DynamicResource Text.CardCaption}"
+                                       Text="ACTIONS"/>
+
+                            <TextBlock Margin="0,0,0,10"
+                                       Style="{DynamicResource Text.Muted}"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding ActionBlockReason}"
+                                       Visibility="{Binding HasActionBlockReason,
+                                                            Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                            <WrapPanel Margin="0,0,0,20">
+
+                                <Button Content="Install"
+                                        Padding="14,7"
+                                        Margin="0,0,8,8"
+                                        Command="{Binding InstallCommand}"
+                                        IsEnabled="{Binding CanInstall}"
+                                        Visibility="{Binding CanInstall,
+                                                             Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <Button Content="Update"
+                                        Padding="14,7"
+                                        Margin="0,0,8,8"
+                                        Style="{DynamicResource Button.Secondary}"
+                                        Command="{Binding UpdateCommand}"
+                                        IsEnabled="{Binding CanUpdate}"
+                                        ToolTip="{Binding UpdateBlockReason}"
+                                        Visibility="{Binding ShouldShowUpdate,
+                                                             Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <Button Content="Force update"
+                                        Padding="14,7"
+                                        Margin="0,0,8,8"
+                                        Style="{DynamicResource Button.Danger}"
+                                        Command="{Binding ForceUpdateCommand}"
+                                        IsEnabled="{Binding CanForceUpdate}"
+                                        ToolTip="{Binding ForceUpdateBlockReason}"
+                                        Visibility="{Binding ShouldShowUpdate,
+                                                             Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <Button Content="Uninstall"
+                                        Padding="14,7"
+                                        Margin="0,0,8,8"
+                                        Style="{DynamicResource Button.Danger}"
+                                        Command="{Binding RemoveCommand}"
+                                        IsEnabled="{Binding CanRemove}"
+                                        ToolTip="{Binding UninstallBlockReason}"
+                                        Visibility="{Binding ShouldShowUninstall,
+                                                             Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                            </WrapPanel>
+
+                            <!-- MORE DETAILS -->
+                            <Expander Header="More details"
+                                      IsExpanded="False">
+
+                                <StackPanel Margin="0,12,0,0">
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Description"/>
+
+                                    <TextBlock Margin="0,4,0,14"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedPackage.DisplayDescription}"/>
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Dependencies"/>
+
+                                    <TextBlock Margin="0,4,0,14"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedPackage.DisplayDependencies}"/>
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Installed time"/>
+
+                                    <TextBlock Margin="0,4,0,14"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedPackage.DisplayInstalledTime}"/>
+
+                                    <TextBlock Style="{DynamicResource Text.Muted}"
+                                               Text="Source"/>
+
+                                    <TextBlock Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedPackage.DisplaySource}"/>
+
+                                </StackPanel>
+
+                            </Expander>
 
                         </StackPanel>
 
-                    </Grid>
+                    </ScrollViewer>
 
                 </Grid>
 
@@ -417,6 +530,6 @@
 
         </Grid>
 
-    </ScrollViewer>
+    </Grid>
 
 </UserControl>
