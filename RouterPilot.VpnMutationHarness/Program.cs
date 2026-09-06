@@ -421,6 +421,9 @@ internal static class Program
             string helperEvidence = await manager.RunReadOnlySshCommandAsync(
                 "grep -nEi 'case|update|install|remove|upgrade|list-' /usr/libexec/opkg-call 2>/dev/null | head -n 80 | cut -c1-240", timeout.Token);
             Console.WriteLine($"OPKG_HELPER_EVIDENCE={string.Join(" || ", SafeLines(helperEvidence).Take(80))}");
+            string helperContract = await manager.RunReadOnlySshCommandAsync(
+                "sed -n '1,75p' /usr/libexec/opkg-call 2>/dev/null | sed -E 's/(password|token|secret|key)[[:space:]]*=[^ ]+ /\\1=<redacted> /Ig' | cut -c1-240", timeout.Token);
+            Console.WriteLine($"OPKG_HELPER_CONTRACT={string.Join(" || ", SafeLines(helperContract).Take(75))}");
             string guiInstalled = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-installed 2>/dev/null", timeout.Token);
             string guiAvailable = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-available 2>/dev/null", timeout.Token);
             Console.WriteLine($"GUI_INSTALLED_COUNT={CountPackageRecords(guiInstalled)}");
