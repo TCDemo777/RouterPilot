@@ -1576,6 +1576,12 @@ namespace RouterPilot.Views
             SelectNavigationButton(VpnButton);
         }
 
+        private void Applications_Click(object sender, RoutedEventArgs e)
+        {
+            PageContent.Content = new PluginPackagesView();
+            SelectNavigationButton(ApplicationsButton);
+        }
+
         private void Maintenance_Click(
             object sender,
             RoutedEventArgs e)
@@ -1677,6 +1683,7 @@ namespace RouterPilot.Views
                 NetworkButton,
                 RouterButton,
                 VpnButton,
+                ApplicationsButton,
                 MaintenanceButton,
                 ClientsButton,
                 LogsButton,
