@@ -313,6 +313,17 @@ internal static class Program
             await RunPluginDiscoveryAsync();
             return;
         }
+        string? pluginMutation = args.FirstOrDefault(argument => argument.StartsWith("--test-plugin-install-remove=", StringComparison.OrdinalIgnoreCase));
+        if (pluginMutation is not null)
+        {
+            await RunPluginInstallRemoveValidationAsync(pluginMutation[("--test-plugin-install-remove=").Length..]);
+            return;
+        }
+        if (args.Any(argument => string.Equals(argument, "--test-plugin-index-refresh", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunPluginIndexRefreshValidationAsync();
+            return;
+        }
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
         string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
             ?? "lan_enabled";
@@ -424,6 +435,12 @@ internal static class Program
             string helperContract = await manager.RunReadOnlySshCommandAsync(
                 "sed -n '1,75p' /usr/libexec/opkg-call 2>/dev/null | sed -E 's/(password|token|secret|key)[[:space:]]*=[^ ]+ /\\1=<redacted> /Ig' | cut -c1-240", timeout.Token);
             Console.WriteLine($"OPKG_HELPER_CONTRACT={string.Join(" || ", SafeLines(helperContract).Take(75))}");
+            string candidates = await manager.RunReadOnlySshCommandAsync(
+                "for p in jq tree htop nano file less bc; do line=$(opkg list 2>/dev/null | awk -v p=\"$p\" '$1==p {print; exit}'); installed=$(opkg status \"$p\" 2>/dev/null | sed -n 's/^Status: //p'); [ -n \"$line\" ] && printf '%s | available=%s | installed=%s\\n' \"$p\" \"$line\" \"${installed:-not-installed}\"; done", timeout.Token);
+            Console.WriteLine($"SAFE_CANDIDATE_SHORTLIST={string.Join(" || ", SafeLines(candidates).Take(12).Select(Sanitize))}");
+            string candidateMetadata = await manager.RunReadOnlySshCommandAsync(
+                "for p in tree file less bc htop nano; do printf 'CANDIDATE %s\\n' \"$p\"; opkg info \"$p\" 2>/dev/null | sed -n 's/^\\(Package\\|Version\\|Architecture\\|Installed-Size\\|Depends\\|Provides\\|Description\\):/\\1:/p' | head -n 8; opkg whatdepends \"$p\" 2>/dev/null | head -n 4; done", timeout.Token);
+            Console.WriteLine($"SAFE_CANDIDATE_METADATA={string.Join(" || ", SafeLines(candidateMetadata).Take(60).Select(Sanitize))}");
             string guiInstalled = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-installed 2>/dev/null", timeout.Token);
             string guiAvailable = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-available 2>/dev/null", timeout.Token);
             Console.WriteLine($"GUI_INSTALLED_COUNT={CountPackageRecords(guiInstalled)}");
@@ -450,6 +467,73 @@ internal static class Program
             Console.WriteLine($"PLUGIN_DISCOVERY_FAILURE={Sanitize(exception.Message)}");
         }
     }
+
+    private static async Task RunPluginInstallRemoveValidationAsync(string package)
+    {
+        if (!IsSafePackageName(package)) { Console.WriteLine("PLUGIN_MUTATION_REFUSED=invalid-package-name"); return; }
+        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(settings, active, new SshHostKeyTrustService(settings), new RouterCertificateTrustService(settings), new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            string beforeStatus = await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null", timeout.Token);
+            bool initiallyInstalled = IsInstalledStatus(beforeStatus);
+            string beforeCountText = await manager.RunReadOnlySshCommandAsync("opkg list-installed 2>/dev/null | wc -l", timeout.Token);
+            Console.WriteLine($"PLUGIN={package};ORIGINAL_INSTALLED={(initiallyInstalled ? "YES" : "NO")};BASELINE_COUNT={SafeFirstLine(beforeCountText) ?? "UNKNOWN"}");
+            if (initiallyInstalled) { Console.WriteLine("PLUGIN_MUTATION_REFUSED=package-already-installed"); return; }
+
+            string install = await manager.RunReadOnlySshCommandAsync($"/usr/libexec/opkg-call install {package} 2>/dev/null", timeout.Token);
+            bool installCommand = IsHelperSuccess(install);
+            bool installedAfter = IsInstalledStatus(await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null", timeout.Token));
+            Console.WriteLine($"INSTALL_COMMAND={(installCommand ? "PASS" : "FAIL")};INSTALL_READBACK={(installedAfter ? "PASS" : "FAIL")}");
+
+            bool removeCommand = false, removedAfter = false;
+            try
+            {
+                if (installedAfter)
+                {
+                    string remove = await manager.RunReadOnlySshCommandAsync($"/usr/libexec/opkg-call remove {package} 2>/dev/null", timeout.Token);
+                    removeCommand = IsHelperSuccess(remove);
+                    removedAfter = !IsInstalledStatus(await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null", timeout.Token));
+                }
+            }
+            finally
+            {
+                bool finalRemoved = !IsInstalledStatus(await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null", timeout.Token));
+                string finalCount = await manager.RunReadOnlySshCommandAsync("opkg list-installed 2>/dev/null | wc -l", timeout.Token);
+                Console.WriteLine($"REMOVE_COMMAND={(removeCommand ? "PASS" : "FAIL")};REMOVE_READBACK={(removedAfter ? "PASS" : "FAIL")};FINAL_COUNT={SafeFirstLine(finalCount) ?? "UNKNOWN"};ROUTER_RESTORED={(finalRemoved ? "YES" : "NO")}");
+            }
+        }
+        catch (Exception exception) { Console.WriteLine($"PLUGIN_MUTATION_FAILURE={Sanitize(exception.Message)}"); }
+    }
+
+    private static async Task RunPluginIndexRefreshValidationAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
+        try
+        {
+            var settings = new SettingsService(); var profiles = new RouterProfileService(settings); var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(settings, active, new SshHostKeyTrustService(settings), new RouterCertificateTrustService(settings), new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            string beforeAvailable = await manager.RunReadOnlySshCommandAsync("opkg list 2>/dev/null | wc -l", timeout.Token);
+            string beforeUpdates = await manager.RunReadOnlySshCommandAsync("opkg list-upgradable 2>/dev/null | wc -l", timeout.Token);
+            string beforeIndexes = await manager.RunReadOnlySshCommandAsync("for f in /usr/lib/opkg/lists/* /var/opkg-lists/*; do [ -f \"$f\" ] && stat -c '%n %Y' \"$f\" 2>/dev/null; done", timeout.Token);
+            string refresh = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call update 2>/dev/null", timeout.Token);
+            string afterAvailable = await manager.RunReadOnlySshCommandAsync("opkg list 2>/dev/null | wc -l", timeout.Token);
+            string afterUpdates = await manager.RunReadOnlySshCommandAsync("opkg list-upgradable 2>/dev/null | wc -l", timeout.Token);
+            string afterIndexes = await manager.RunReadOnlySshCommandAsync("for f in /usr/lib/opkg/lists/* /var/opkg-lists/*; do [ -f \"$f\" ] && stat -c '%n %Y' \"$f\" 2>/dev/null; done", timeout.Token);
+            Console.WriteLine($"INDEX_REFRESH_COMMAND={(IsHelperSuccess(refresh) ? "PASS" : "FAIL")};AVAILABLE_BEFORE={SafeFirstLine(beforeAvailable) ?? "UNKNOWN"};AVAILABLE_AFTER={SafeFirstLine(afterAvailable) ?? "UNKNOWN"};UPDATES_BEFORE={SafeFirstLine(beforeUpdates) ?? "UNKNOWN"};UPDATES_AFTER={SafeFirstLine(afterUpdates) ?? "UNKNOWN"}");
+            Console.WriteLine($"INDEX_TIMESTAMPS_CHANGED={(Sanitize(beforeIndexes) == Sanitize(afterIndexes) ? "NO" : "YES")};INDEX_REFRESH_READBACK={(IsHelperSuccess(refresh) ? "PASS" : "FAIL")}");
+        }
+        catch (Exception exception) { Console.WriteLine($"PLUGIN_INDEX_REFRESH_FAILURE={Sanitize(exception.Message)}"); }
+    }
+
+    private static bool IsSafePackageName(string value) => value.Length is > 0 and <= 80 && value.All(character => char.IsLetterOrDigit(character) || character is '-' or '_' or '.' or '+');
+    private static bool IsInstalledStatus(string output) => output.Contains("Status: install", StringComparison.OrdinalIgnoreCase) && output.Contains("installed", StringComparison.OrdinalIgnoreCase) && !output.Contains("SSH_", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHelperSuccess(string output) => output.Contains("\"code\":0", StringComparison.OrdinalIgnoreCase) || output.Contains("\"code\": 0", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCommandSuccess(string output) => HasSafeCommandResult(output) && !string.IsNullOrWhiteSpace(SafeFirstLine(output));
 

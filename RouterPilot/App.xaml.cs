@@ -156,6 +156,7 @@ namespace RouterPilot
             serviceCollection.AddTransient<LogsViewModel>();
             serviceCollection.AddSingleton<RouterLogsViewModel>();
             serviceCollection.AddSingleton<IPluginPackageService, PluginPackageService>();
+            serviceCollection.AddSingleton<IPluginPackageMutationService, PluginPackageMutationService>();
             serviceCollection.AddSingleton<PluginPackagesViewModel>();
             // This is existing Analytics state, retained so read-only surfaces can project it.
             serviceCollection.AddSingleton<DataStatisticsViewModel>();
