@@ -1,5 +1,9 @@
 # RouterPilot Changelog
 
+## 2.3.2
+
+- Fixed Plug-ins Package Details actions so Install, Update, and Uninstall are declared directly in the visible details card and update with the selected package.
+
 ## 2.3.1
 
 ### Added
