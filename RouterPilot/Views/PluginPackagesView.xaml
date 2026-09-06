@@ -3,6 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource Brush.WindowBackground}">
 
+    <UserControl.Resources>
+        <Style x:Key="PluginPackages.DangerButton"
+               TargetType="Button"
+               BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Danger}"/>
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="24">
 
         <Grid.RowDefinitions>
@@ -170,6 +179,8 @@
                 <!-- Filter -->
                 <ComboBox Grid.Column="1"
                           Margin="12,0,0,0"
+                          Style="{StaticResource RouterPilot.ComboBox}"
+                          ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}"
                           ItemsSource="{Binding FilterOptions}"
                           SelectedItem="{Binding SelectedFilter}"/>
 
@@ -445,6 +456,7 @@
                                 <Button Content="Install"
                                         Padding="14,7"
                                         Margin="0,0,8,8"
+                                        Style="{DynamicResource Button.Secondary}"
                                         Command="{Binding InstallCommand}"
                                         IsEnabled="{Binding CanInstall}"
                                         Visibility="{Binding CanInstall,
@@ -463,7 +475,7 @@
                                 <Button Content="Force update"
                                         Padding="14,7"
                                         Margin="0,0,8,8"
-                                        Style="{DynamicResource Button.Danger}"
+                                        Style="{DynamicResource PluginPackages.DangerButton}"
                                         Command="{Binding ForceUpdateCommand}"
                                         IsEnabled="{Binding CanForceUpdate}"
                                         ToolTip="{Binding ForceUpdateBlockReason}"
@@ -473,7 +485,7 @@
                                 <Button Content="Uninstall"
                                         Padding="14,7"
                                         Margin="0,0,8,8"
-                                        Style="{DynamicResource Button.Danger}"
+                                        Style="{DynamicResource PluginPackages.DangerButton}"
                                         Command="{Binding RemoveCommand}"
                                         IsEnabled="{Binding CanRemove}"
                                         ToolTip="{Binding UninstallBlockReason}"
