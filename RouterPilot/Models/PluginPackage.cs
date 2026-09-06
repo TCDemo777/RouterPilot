@@ -17,7 +17,9 @@ public sealed class PluginPackage
     public bool IsAvailable { get; init; }
     public bool IsUpgradable { get; init; }
     public PluginMutationSafety MutationSafety { get; init; }
-    public string MutationSafetyReason => MutationSafety switch { PluginMutationSafety.BlockedSystem => "RouterPilot does not allow mutating this system package.", PluginMutationSafety.BlockedDependencyRisk => "Removal is blocked because dependency safety is not established.", PluginMutationSafety.Unknown => "Package safety could not be determined.", _ => string.Empty };
+    public bool ShouldShowUninstall => IsInstalled;
+    public bool ShouldShowUpdate => IsInstalled && IsUpgradable;
+    public string MutationSafetyReason => MutationSafety switch { PluginMutationSafety.BlockedSystem => "System package protected by RouterPilot. Updating or uninstalling this package could affect core router services.", PluginMutationSafety.BlockedDependencyRisk => "Removal is blocked because dependency safety is not established.", PluginMutationSafety.Unknown => "Package safety could not be determined.", _ => string.Empty };
     public bool CanInstall => IsAvailable && !IsInstalled && MutationSafety is not PluginMutationSafety.BlockedSystem;
     public bool CanRemove => IsInstalled && MutationSafety == PluginMutationSafety.Allowed;
     public bool CanUpdate => IsInstalled && IsUpgradable && MutationSafety == PluginMutationSafety.Allowed;
