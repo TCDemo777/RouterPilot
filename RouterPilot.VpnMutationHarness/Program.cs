@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RouterPilot.Configuration;
@@ -307,6 +308,11 @@ internal static class Program
             await RunInventoryReadAsync();
             return;
         }
+        if (args.Any(argument => string.Equals(argument, "--plugins", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunPluginDiscoveryAsync();
+            return;
+        }
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
         string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
             ?? "lan_enabled";
@@ -338,6 +344,155 @@ internal static class Program
         {
             Console.WriteLine($"READ_ONLY_INVENTORY_FAILURE: {Sanitize(exception.Message)}");
         }
+    }
+
+    private static async Task RunPluginDiscoveryAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(60));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            RouterInfo identity = await manager.GetRouterInfoAsync();
+            Console.WriteLine("ROUTERPILOT PLUGIN DISCOVERY (READ-ONLY)");
+            Console.WriteLine($"Router: {Sanitize(identity.Model)}");
+
+            Stopwatch timer = Stopwatch.StartNew();
+            string executable = await manager.RunReadOnlySshCommandAsync("command -v opkg 2>/dev/null", timeout.Token);
+            Console.WriteLine($"OPKG_AVAILABLE={(IsCommandSuccess(executable) ? "YES" : "NO")}");
+            if (!IsCommandSuccess(executable)) return;
+
+            Console.WriteLine($"OPKG_VERSION={SafeFirstLine(await manager.RunReadOnlySshCommandAsync("opkg --version 2>/dev/null", timeout.Token))}");
+            Console.WriteLine($"ARCHITECTURES={CountMeaningfulLines(await manager.RunReadOnlySshCommandAsync("opkg print-architecture 2>/dev/null", timeout.Token))}");
+
+            string statusPath = await manager.RunReadOnlySshCommandAsync(
+                "for p in /opt/lib/opkg/status /usr/lib/opkg/status /var/lib/opkg/status; do [ -f \"$p\" ] && { printf '%s\\n' \"$p\"; break; }; done", timeout.Token);
+            Console.WriteLine($"STATUS_DATABASE={SafeFirstLine(statusPath) ?? "UNAVAILABLE"}");
+
+            string installed = await manager.RunReadOnlySshCommandAsync("opkg list-installed 2>/dev/null", timeout.Token);
+            string available = await manager.RunReadOnlySshCommandAsync("opkg list 2>/dev/null", timeout.Token);
+            string upgradable = await manager.RunReadOnlySshCommandAsync("opkg list-upgradable 2>/dev/null", timeout.Token);
+            Console.WriteLine($"INSTALLED_COUNT={CountPackageLines(installed)}");
+            Console.WriteLine($"AVAILABLE_COUNT={CountPackageLines(available)}");
+            Console.WriteLine($"UPGRADABLE_COUNT={(HasSafeCommandResult(upgradable) ? CountPackageLines(upgradable).ToString() : "UNAVAILABLE")}");
+
+            string feeds = await manager.RunReadOnlySshCommandAsync(
+                "for f in /etc/opkg.conf /etc/opkg/*.conf /etc/opkg/customfeeds.conf; do [ -f \"$f\" ] && cat \"$f\"; done 2>/dev/null", timeout.Token);
+            (int official, int custom) = CountFeeds(feeds);
+            Console.WriteLine($"OFFICIAL_FEEDS={official}");
+            Console.WriteLine($"CUSTOM_FEEDS={custom}");
+
+            string lists = await manager.RunReadOnlySshCommandAsync(
+                "for d in /var/opkg-lists /usr/lib/opkg/lists /opt/lib/opkg/lists; do [ -d \"$d\" ] && find \"$d\" -maxdepth 1 -type f 2>/dev/null; done", timeout.Token);
+            Console.WriteLine($"PACKAGE_INDEX_FILES={CountMeaningfulLines(lists)}");
+            string detailFields = await manager.RunReadOnlySshCommandAsync(
+                "pkg=$(opkg list-installed 2>/dev/null | awk 'NR==1 {print $1}'); [ -n \"$pkg\" ] && opkg status \"$pkg\" 2>/dev/null | sed -n 's/:.*/:/p' | sort -u", timeout.Token);
+            Console.WriteLine($"PACKAGE_DETAIL_FIELDS={string.Join(",", SafeLines(detailFields).Take(20))}");
+            string guiEvidence = await manager.RunReadOnlySshCommandAsync(
+                "find /www /www-static /usr/lib/lua -type f 2>/dev/null | while read f; do grep -qiE 'opkg|plugin[s]?|package manager' \"$f\" 2>/dev/null && printf '%s\\n' \"$f\"; done | head -n 30", timeout.Token);
+            Console.WriteLine($"GUI_EVIDENCE_FILES={CountMeaningfulLines(guiEvidence)}");
+            string guiEvidenceNames = await manager.RunReadOnlySshCommandAsync(
+                "find /www /www-static /usr/lib/lua -type f 2>/dev/null | while read f; do grep -qiE 'opkg|plugin[s]?|package manager' \"$f\" 2>/dev/null && basename \"$f\"; done | sort -u | head -n 20", timeout.Token);
+            Console.WriteLine($"GUI_EVIDENCE_NAMES={string.Join(",", SafeLines(guiEvidenceNames).Take(20))}");
+            string guiOpkgTokens = await manager.RunReadOnlySshCommandAsync(
+                "grep -RhoE 'opkg([A-Za-z0-9_.:/-]*)' /www /www-static /usr/lib/lua 2>/dev/null | sort -u | head -n 20", timeout.Token);
+            Console.WriteLine($"GUI_OPKG_TOKENS={string.Join(",", SafeLines(guiOpkgTokens).Take(20))}");
+            string guiCallFiles = await manager.RunReadOnlySshCommandAsync(
+                "grep -RIlE 'opkg-call|opkg_package' /www /www-static /usr/lib/lua 2>/dev/null | while read f; do basename \"$f\"; done | sort -u | head -n 20", timeout.Token);
+            Console.WriteLine($"GUI_PACKAGE_CALL_FILES={string.Join(",", SafeLines(guiCallFiles).Take(20))}");
+            string opkgJsPaths = await manager.RunReadOnlySshCommandAsync(
+                "find /www /www-static /usr/lib/lua -name opkg.js -type f 2>/dev/null | head -n 10", timeout.Token);
+            Console.WriteLine($"GUI_OPKG_JS_PATHS={string.Join(",", SafeLines(opkgJsPaths).Take(10).Select(System.IO.Path.GetFileName))}");
+            string opkgMethods = await manager.RunReadOnlySshCommandAsync(
+                "grep -RhoE 'opkg_[A-Za-z0-9_]+|opkg-call|opkg\\.[A-Za-z0-9_]+' /www /www-static /usr/lib/lua 2>/dev/null | sort -u | head -n 40", timeout.Token);
+            Console.WriteLine($"GUI_PACKAGE_METHOD_TOKENS={string.Join(",", SafeLines(opkgMethods).Take(40))}");
+            string opkgCallEvidence = await manager.RunReadOnlySshCommandAsync(
+                "grep -RInE 'opkg-call|opkg_package' /www /www-static /usr/lib/lua 2>/dev/null | head -n 12 | cut -c1-240", timeout.Token);
+            Console.WriteLine($"GUI_PACKAGE_CALL_EVIDENCE={string.Join(" || ", SafeLines(opkgCallEvidence).Take(12))}");
+            string opkgCallActions = await manager.RunReadOnlySshCommandAsync(
+                "grep -oE \"opkg-call[^'\\\"]*|exec_direct\\([^)]*\" /www/luci-static/resources/view/opkg.js 2>/dev/null | head -n 30", timeout.Token);
+            Console.WriteLine($"GUI_PACKAGE_ACTIONS={string.Join(" || ", SafeLines(opkgCallActions).Take(30))}");
+            string helperEvidence = await manager.RunReadOnlySshCommandAsync(
+                "grep -nEi 'case|update|install|remove|upgrade|list-' /usr/libexec/opkg-call 2>/dev/null | head -n 80 | cut -c1-240", timeout.Token);
+            Console.WriteLine($"OPKG_HELPER_EVIDENCE={string.Join(" || ", SafeLines(helperEvidence).Take(80))}");
+            string guiInstalled = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-installed 2>/dev/null", timeout.Token);
+            string guiAvailable = await manager.RunReadOnlySshCommandAsync("/usr/libexec/opkg-call list-available 2>/dev/null", timeout.Token);
+            Console.WriteLine($"GUI_INSTALLED_COUNT={CountPackageRecords(guiInstalled)}");
+            Console.WriteLine($"GUI_AVAILABLE_COUNT={CountPackageRecords(guiAvailable)}");
+            Console.WriteLine($"GUI_INSTALLED_SHAPE={OutputShape(guiInstalled)}");
+            Console.WriteLine($"GUI_AVAILABLE_SHAPE={OutputShape(guiAvailable)}");
+            string storage = await manager.RunReadOnlySshCommandAsync("df -k /overlay /opt 2>/dev/null", timeout.Token);
+            Console.WriteLine($"PACKAGE_STORAGE_LINES={CountMeaningfulLines(storage)}");
+            string glServices = await manager.RunReadOnlySshCommandAsync(
+                "ubus list 2>/dev/null | grep -Ei 'gl|package|plugin|app' | head -n 40", timeout.Token);
+            Console.WriteLine($"GL_PACKAGE_RPC_CANDIDATES={string.Join(",", SafeLines(glServices).Take(40))}");
+            string packageServices = await manager.RunReadOnlySshCommandAsync(
+                "ubus list 2>/dev/null | grep -Ei 'opkg|package|plugin' | head -n 30", timeout.Token);
+            Console.WriteLine($"PACKAGE_RPC_SERVICES={string.Join(",", SafeLines(packageServices).Take(20))}");
+            Console.WriteLine("OPKG_UPDATE_EXECUTED=NO");
+            Console.WriteLine("OPKG_INSTALL_EXECUTED=NO");
+            Console.WriteLine("OPKG_REMOVE_EXECUTED=NO");
+            Console.WriteLine("OPKG_UPGRADE_EXECUTED=NO");
+            timer.Stop();
+            Console.WriteLine($"RETRIEVAL_MS={timer.ElapsedMilliseconds}");
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"PLUGIN_DISCOVERY_FAILURE={Sanitize(exception.Message)}");
+        }
+    }
+
+    private static bool IsCommandSuccess(string output) => HasSafeCommandResult(output) && !string.IsNullOrWhiteSpace(SafeFirstLine(output));
+
+    private static bool HasSafeCommandResult(string output) =>
+        !string.IsNullOrWhiteSpace(output) && !output.Contains("SSH_", StringComparison.OrdinalIgnoreCase);
+
+    private static string? SafeFirstLine(string output) => output
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.Trim())
+        .FirstOrDefault(line => !line.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase));
+
+    private static int CountMeaningfulLines(string output) => output
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        .Count(line => !line.Trim().StartsWith("SSH_", StringComparison.OrdinalIgnoreCase));
+
+    private static IEnumerable<string> SafeLines(string output) => output
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.Trim())
+        .Where(line => !line.StartsWith("SSH_", StringComparison.OrdinalIgnoreCase));
+
+    private static int CountPackageLines(string output) => output
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        .Count(line => line.Contains(" - ", StringComparison.Ordinal) && !line.StartsWith("Collected errors", StringComparison.OrdinalIgnoreCase));
+
+    private static int CountPackageRecords(string output) => output
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        .Count(line => line.TrimStart().StartsWith("Package:", StringComparison.OrdinalIgnoreCase));
+
+    private static string OutputShape(string output)
+    {
+        string value = output.Trim();
+        return value.Length == 0 ? "empty" : $"first={value[0]};last={value[^1]};chars={value.Length};lines={CountMeaningfulLines(value)}";
+    }
+
+    private static (int Official, int Custom) CountFeeds(string output)
+    {
+        int official = 0;
+        int custom = 0;
+        foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string value = line.Trim();
+            if (!value.StartsWith("src", StringComparison.OrdinalIgnoreCase)) continue;
+            if (value.Contains("gl-inet", StringComparison.OrdinalIgnoreCase) || value.Contains("openwrt", StringComparison.OrdinalIgnoreCase)) official++;
+            else custom++;
+        }
+        return (official, custom);
     }
 
     private static async Task RunTunnelValidationAsync(string[] args)

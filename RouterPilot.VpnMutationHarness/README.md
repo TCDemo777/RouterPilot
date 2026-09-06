@@ -22,6 +22,16 @@ Run self-tests with:
 dotnet run --project .\RouterPilot.VpnMutationHarness -c Release -- --self-test
 ```
 
+Run the read-only GL.iNet package/plugin discovery probe with:
+
+```powershell
+dotnet run --project .\RouterPilot.VpnMutationHarness -c Release -- --plugins
+```
+
+The probe reports sanitized package-manager counts, feed/index presence, the
+GL.iNet `/usr/libexec/opkg-call` frontend evidence, and package-manager
+storage shape. It never runs `opkg update`, install, remove, or upgrade.
+
 Run the guarded live validation from Visual Studio by selecting
 `RouterPilot.VpnMutationHarness` as the startup project. The harness will
 abort if no profile, identity, response schema, or generation check is valid.
