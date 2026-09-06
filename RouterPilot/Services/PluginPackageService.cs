@@ -29,7 +29,10 @@ internal static class PluginPackageParser
         foreach ((string name, PackageFields fields) in available) merged[name] = merged.TryGetValue(name, out PackageFields? old) ? MergeFields(old, fields) : fields;
         List<PluginPackage> packages = merged.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).Select(pair => ToModel(pair.Key, pair.Value, updates.Contains(pair.Key))).ToList();
         bool installedOk = IsUsable(installedText), availableOk = IsUsable(availableText), updatesOk = IsUsable(upgradableText);
-        return new PluginInventorySnapshot(packages, packages.Count(p => p.IsInstalled), packages.Count(p => p.IsAvailable), updatesOk ? updates.Count : null, availableOk ? PluginInventoryAvailability.Available : PluginInventoryAvailability.Unavailable, installedOk ? null : "Installed package information is unavailable.", availableOk ? null : "Available package information is unavailable.", updatesOk ? null : "Update information is unavailable.", DateTimeOffset.UtcNow);
+        return new PluginInventorySnapshot(packages, packages.Count(p => p.IsInstalled), packages.Count(p => p.IsAvailable), updatesOk ? updates.Count : null,
+            availableOk ? PluginInventoryAvailability.Available : PluginInventoryAvailability.Unavailable,
+            PluginInventoryFreshness.Unknown,
+            installedOk ? null : "Installed package information is unavailable.", availableOk ? null : "Available package information is unavailable.", updatesOk ? null : "Update information is unavailable.", DateTimeOffset.UtcNow);
     }
     private static bool IsUsable(string text) => !string.IsNullOrWhiteSpace(text) && !text.Contains("SSH_", StringComparison.OrdinalIgnoreCase) && !text.Contains("Collected errors", StringComparison.OrdinalIgnoreCase);
     private static Dictionary<string, PackageFields> ParseRecords(string text, bool installed)
