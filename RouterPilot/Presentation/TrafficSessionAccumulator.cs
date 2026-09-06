@@ -26,7 +26,7 @@ public sealed class TrafficSessionAccumulator
     public int SampleCount => _samples;
     public DateTime? StartedUtc => _startedUtc == default ? null : _startedUtc;
 
-    public TrafficSessionSample? Add(NetworkTrafficObservation observation)
+    public TrafficSessionSample? Add(NetworkTrafficObservation observation, bool retainHistory = true)
     {
         if (observation.ReceivedBytes < 0 || observation.TransmittedBytes < 0)
             return null;
@@ -53,13 +53,16 @@ public sealed class TrafficSessionAccumulator
         _uploaded = SaturatingAdd(_uploaded, transmittedDelta);
         _peakDownload = Math.Max(_peakDownload, downloadRate);
         _peakUpload = Math.Max(_peakUpload, uploadRate);
-        _samples++;
         _previous = observation;
         TrafficSessionSample sample = new(observation.CapturedAtUtc, downloadRate, uploadRate,
             _downloaded, _uploaded, observation.InterfaceName);
-        _history.Add(sample);
-        if (_history.Count > HistoryCapacity)
-            _history.RemoveAt(0);
+        if (retainHistory)
+        {
+            _samples++;
+            _history.Add(sample);
+            if (_history.Count > HistoryCapacity)
+                _history.RemoveAt(0);
+        }
         return sample;
     }
 

@@ -21,6 +21,7 @@ namespace RouterPilot.ViewModels;
 public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposable
 {
     private const int ChartApplicationLimit = 5;
+    private static readonly TimeSpan HistorySampleInterval = TimeSpan.FromSeconds(10);
     private readonly DataStatisticsService _dataStatisticsService;
     private readonly ClientInventoryState _clientInventory;
     private readonly ClientProfileService _clientProfiles;
@@ -33,6 +34,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     private long? _topAppsPeriodSeconds;
     private bool _disposed;
     private readonly TrafficSessionAccumulator _trafficSession = new();
+    private DateTime? _lastHistorySampleUtc;
 
     [ObservableProperty] private bool isLoading;
     [ObservableProperty] private string statusTitle = "Data Statistics";
@@ -155,17 +157,25 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         if (_disposed || snapshot is null || !snapshot.IsValid)
             return;
 
+        bool retainHistory = _lastHistorySampleUtc is null ||
+            snapshot.CapturedAtUtc - _lastHistorySampleUtc.Value >= HistorySampleInterval;
         TrafficSessionSample? sample = _trafficSession.Add(new NetworkTrafficObservation(
             snapshot.ReceivedBytes,
             snapshot.TransmittedBytes,
             snapshot.CapturedAtUtc,
-            snapshot.InterfaceName));
+            snapshot.InterfaceName), retainHistory);
+        _lastHistorySampleUtc = sample is null
+            ? null
+            : retainHistory
+                ? sample.Value.TimestampUtc
+                : _lastHistorySampleUtc;
         UpdateTrafficPresentation(sample);
     }
 
     public void ResetForRouterSession()
     {
         _trafficSession.Reset();
+        _lastHistorySampleUtc = null;
         UpdateTrafficPresentation(null);
         _loaded = false;
         TopApps.Clear();
@@ -202,8 +212,15 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
             if (readResult.TrafficSnapshot is { IsValid: true } traffic)
             {
                 System.Diagnostics.Debug.WriteLine($"Traffic sample: source={traffic.InterfaceName}; rx={traffic.ReceivedBytes}; tx={traffic.TransmittedBytes}; at={traffic.CapturedAtUtc:O}; priorSamples={_trafficSession.SampleCount}.");
+                bool retainHistory = _lastHistorySampleUtc is null ||
+                    traffic.CapturedAtUtc - _lastHistorySampleUtc.Value >= HistorySampleInterval;
                 TrafficSessionSample? sample = _trafficSession.Add(new NetworkTrafficObservation(
-                    traffic.ReceivedBytes, traffic.TransmittedBytes, traffic.CapturedAtUtc, traffic.InterfaceName));
+                    traffic.ReceivedBytes, traffic.TransmittedBytes, traffic.CapturedAtUtc, traffic.InterfaceName), retainHistory);
+                _lastHistorySampleUtc = sample is null
+                    ? null
+                    : retainHistory
+                        ? sample.Value.TimestampUtc
+                        : _lastHistorySampleUtc;
                 System.Diagnostics.Debug.WriteLine(sample is { } accepted
                     ? $"Traffic delta accepted: rxTotal={_trafficSession.DownloadedBytes}; txTotal={_trafficSession.UploadedBytes}; sample={accepted.TimestampUtc:O}."
                     : "Traffic baseline captured or re-established.");
@@ -250,6 +267,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     {
         if (_disposed) return;
         _trafficSession.Reset();
+        _lastHistorySampleUtc = null;
         TrafficLastUpdated = "—";
         TrafficSource = "—";
         UpdateTrafficPresentation(null);

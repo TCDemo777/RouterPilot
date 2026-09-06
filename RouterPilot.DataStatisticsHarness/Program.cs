@@ -124,6 +124,15 @@ Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(6), "w
     "Interface changes must establish a new baseline.");
 Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(8), "wwan")) is { DownloadBytesPerSecond: 0, UploadBytesPerSecond: 0 },
     "A genuine zero-rate sample was not retained.");
+var throttled = new TrafficSessionAccumulator();
+Require(throttled.Add(new NetworkTrafficObservation(0, 0, t0, "wan")) is null,
+    "Throttled traffic baseline must not count lifetime bytes.");
+for (int second = 2; second <= 20; second += 2)
+    Require(throttled.Add(new NetworkTrafficObservation(second * 100, second * 50, t0.AddSeconds(second), "wan"), second == 2 || second == 12) is not null,
+        "Fast telemetry observation was not accepted.");
+Require(throttled.DownloadedBytes == 2000 && throttled.UploadedBytes == 1000 &&
+        throttled.SampleCount == 2 && throttled.History.Count == 2,
+    "Throttled history must retain all byte deltas while keeping only selected samples.");
 traffic.Reset();
 Require(traffic.SampleCount == 0 && traffic.History.Count == 0 && traffic.Add(new NetworkTrafficObservation(1, 1, t0, "wan")) is null,
     "Traffic reset must be local and restore the baseline.");
