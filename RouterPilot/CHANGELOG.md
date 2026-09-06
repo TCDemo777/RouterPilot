@@ -2,7 +2,10 @@
 
 ## 2.3.2
 
-- Fixed Plug-ins Package Details actions so Install, Update, and Uninstall are declared directly in the visible details card and update with the selected package.
+- Added Plug-ins package inventory with search, filters, package-index refresh, and safe per-package install, update, and uninstall actions.
+- Added a selected-package workspace that keeps package actions and status visible beside the inventory.
+- Improved package mutation safety by protecting system packages and packages required by installed dependencies.
+- Improved DNS traffic-session statistics, Router Logs search styling, and Router card presentation.
 
 ## 2.3.1
 
