@@ -27,7 +27,8 @@ internal static class PluginPackageParser
         var merged = new Dictionary<string, PackageFields>(StringComparer.OrdinalIgnoreCase);
         foreach ((string name, PackageFields fields) in installed) merged[name] = fields;
         foreach ((string name, PackageFields fields) in available) merged[name] = merged.TryGetValue(name, out PackageFields? old) ? MergeFields(old, fields) : fields;
-        List<PluginPackage> packages = merged.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).Select(pair => ToModel(pair.Key, pair.Value, updates.Contains(pair.Key))).ToList();
+        HashSet<string> reverseDependencies = BuildReverseDependencies(installed);
+        List<PluginPackage> packages = merged.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).Select(pair => ToModel(pair.Key, pair.Value, updates.Contains(pair.Key), reverseDependencies)).ToList();
         bool installedOk = IsUsable(installedText), availableOk = IsUsable(availableText), updatesOk = IsUsable(upgradableText);
         return new PluginInventorySnapshot(packages, packages.Count(p => p.IsInstalled), packages.Count(p => p.IsAvailable), updatesOk ? updates.Count : null,
             availableOk ? PluginInventoryAvailability.Available : PluginInventoryAvailability.Unavailable,
@@ -45,13 +46,24 @@ internal static class PluginPackageParser
     }
     private static HashSet<string> ParseUpgradable(string text) => new(text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(line => line.Contains(" - ", StringComparison.Ordinal) && !line.StartsWith("Collected errors", StringComparison.OrdinalIgnoreCase)).Select(line => line.Split(" - ", 2)[0].Trim()), StringComparer.OrdinalIgnoreCase);
     private static PackageFields MergeFields(PackageFields a, PackageFields b) => a with { Available = true, AvailableVersion = b.Version, Architecture = string.IsNullOrWhiteSpace(a.Architecture) ? b.Architecture : a.Architecture, Status = string.IsNullOrWhiteSpace(a.Status) ? b.Status : a.Status, Dependencies = string.IsNullOrWhiteSpace(a.Dependencies) ? b.Dependencies : a.Dependencies, Description = string.IsNullOrWhiteSpace(a.Description) ? b.Description : a.Description };
-    private static PluginPackage ToModel(string name, PackageFields f, bool update) => new() { Name = name, InstalledVersion = f.Installed ? f.Version : string.Empty, AvailableVersion = f.Available ? (f.AvailableVersion.Length == 0 ? f.Version : f.AvailableVersion) : string.Empty, Architecture = f.Architecture, Status = f.Status, Dependencies = f.Dependencies, InstalledTime = f.InstalledTime, Description = f.Description, IsInstalled = f.Installed, IsAvailable = f.Available, IsUpgradable = update, MutationSafety = Classify(name, f) };
-    private static PluginMutationSafety Classify(string name, PackageFields fields)
+    private static HashSet<string> BuildReverseDependencies(IReadOnlyDictionary<string, PackageFields> installed)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (PackageFields package in installed.Values)
+            foreach (string dependency in package.Dependencies.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string name = dependency.Split([' ', '(', ':'], StringSplitOptions.RemoveEmptyEntries)[0];
+                if (installed.ContainsKey(name)) result.Add(name);
+            }
+        return result;
+    }
+    private static PluginPackage ToModel(string name, PackageFields f, bool update, ISet<string> reverseDependencies) => new() { Name = name, InstalledVersion = f.Installed ? f.Version : string.Empty, AvailableVersion = f.Available ? (f.AvailableVersion.Length == 0 ? f.Version : f.AvailableVersion) : string.Empty, Architecture = f.Architecture, Status = f.Status, Dependencies = f.Dependencies, InstalledTime = f.InstalledTime, Description = f.Description, IsInstalled = f.Installed, IsAvailable = f.Available, IsUpgradable = update, MutationSafety = Classify(name, f, reverseDependencies.Contains(name)) };
+    private static PluginMutationSafety Classify(string name, PackageFields fields, bool hasReverseDependencies)
     {
         string value = name.ToLowerInvariant();
-        if (value is "base-files" or "busybox" or "libc" or "opkg" || value.StartsWith("kernel", StringComparison.Ordinal) || value.Contains("firewall", StringComparison.Ordinal) || value.Contains("dns", StringComparison.Ordinal) || value.Contains("dropbear", StringComparison.Ordinal) || value.Contains("tailscale", StringComparison.Ordinal) || value.Contains("adguard", StringComparison.Ordinal) || value.Contains("gl-") || value.Contains("luci", StringComparison.Ordinal)) return PluginMutationSafety.BlockedSystem;
-        if (value is "tree" or "file" or "less" or "bc" or "htop" or "nano" or "jq" or "iperf3") return PluginMutationSafety.Allowed;
-        return PluginMutationSafety.Unknown;
+        if (value is "base-files" or "busybox" or "libc" or "opkg" or "procd" || value.StartsWith("kernel", StringComparison.Ordinal) || value.StartsWith("kmod-", StringComparison.Ordinal) || value.Contains("firewall", StringComparison.Ordinal) || value.Contains("dnsmasq", StringComparison.Ordinal) || value.Contains("dropbear", StringComparison.Ordinal) || value.Contains("tailscale", StringComparison.Ordinal) || value.Contains("adguard", StringComparison.Ordinal) || value.StartsWith("gl-", StringComparison.Ordinal)) return PluginMutationSafety.BlockedSystem;
+        if (hasReverseDependencies) return PluginMutationSafety.BlockedDependencyRisk;
+        return PluginMutationSafety.Allowed;
     }
     private sealed record PackageFields(string Name = "", string Version = "", string AvailableVersion = "", string Architecture = "", string Status = "", string Dependencies = "", string InstalledTime = "", string Description = "", bool Installed = false, bool Available = false);
 }
