@@ -324,6 +324,12 @@ internal static class Program
             await RunPluginIndexRefreshValidationAsync();
             return;
         }
+        string? pluginUpdate = args.FirstOrDefault(argument => argument.StartsWith("--test-plugin-update=", StringComparison.OrdinalIgnoreCase));
+        if (pluginUpdate is not null)
+        {
+            await RunPluginUpdateValidationAsync(pluginUpdate[("--test-plugin-update=").Length..]);
+            return;
+        }
         Console.WriteLine("Runtime validation is opt-in and requires the configured RouterPilot profile.");
         string targetField = args.FirstOrDefault(argument => argument.StartsWith("--field=", StringComparison.OrdinalIgnoreCase))?[8..]
             ?? "lan_enabled";
@@ -392,6 +398,10 @@ internal static class Program
             Console.WriteLine($"INSTALLED_COUNT={CountPackageLines(installed)}");
             Console.WriteLine($"AVAILABLE_COUNT={CountPackageLines(available)}");
             Console.WriteLine($"UPGRADABLE_COUNT={(HasSafeCommandResult(upgradable) ? CountPackageLines(upgradable).ToString() : "UNAVAILABLE")}");
+            Console.WriteLine($"UPGRADABLE_PACKAGES={string.Join(",", SafeLines(upgradable).Where(line => line.Contains(" - ", StringComparison.Ordinal)).Select(line => Sanitize(line.Split(" - ", 2)[0])).Take(10))}");
+            string upgradeMetadata = await manager.RunReadOnlySshCommandAsync(
+                "for p in iperf3 dnsmasq-full; do printf 'UPGRADE_CANDIDATE %s\\n' \"$p\"; opkg status \"$p\" 2>/dev/null | sed -n 's/^\\(Package\\|Version\\|Architecture\\|Depends\\|Description\\):/\\1:/p'; opkg info \"$p\" 2>/dev/null | sed -n 's/^\\(Package\\|Version\\|Architecture\\|Depends\\|Description\\):/available-\\1:/p' | head -n 6; done", timeout.Token);
+            Console.WriteLine($"UPGRADABLE_METADATA={string.Join(" || ", SafeLines(upgradeMetadata).Take(30).Select(Sanitize))}");
 
             string feeds = await manager.RunReadOnlySshCommandAsync(
                 "for f in /etc/opkg.conf /etc/opkg/*.conf /etc/opkg/customfeeds.conf; do [ -f \"$f\" ] && cat \"$f\"; done 2>/dev/null", timeout.Token);
@@ -529,6 +539,26 @@ internal static class Program
             Console.WriteLine($"INDEX_TIMESTAMPS_CHANGED={(Sanitize(beforeIndexes) == Sanitize(afterIndexes) ? "NO" : "YES")};INDEX_REFRESH_READBACK={(IsHelperSuccess(refresh) ? "PASS" : "FAIL")}");
         }
         catch (Exception exception) { Console.WriteLine($"PLUGIN_INDEX_REFRESH_FAILURE={Sanitize(exception.Message)}"); }
+    }
+
+    private static async Task RunPluginUpdateValidationAsync(string package)
+    {
+        if (!IsSafePackageName(package)) { Console.WriteLine("PLUGIN_UPDATE_REFUSED=invalid-package-name"); return; }
+        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
+        try
+        {
+            var settings = new SettingsService(); var profiles = new RouterProfileService(settings); var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(settings, active, new SshHostKeyTrustService(settings), new RouterCertificateTrustService(settings), new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            string before = await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null | sed -n 's/^Version: //p'", timeout.Token);
+            string pendingBefore = await manager.RunReadOnlySshCommandAsync("opkg list-upgradable 2>/dev/null", timeout.Token);
+            string result = await manager.RunReadOnlySshCommandAsync($"/usr/libexec/opkg-call install {package} 2>/dev/null", timeout.Token);
+            string after = await manager.RunReadOnlySshCommandAsync($"opkg status {package} 2>/dev/null | sed -n 's/^Version: //p'", timeout.Token);
+            string pendingAfter = await manager.RunReadOnlySshCommandAsync("opkg list-upgradable 2>/dev/null", timeout.Token);
+            bool noLongerPending = !SafeLines(pendingAfter).Any(line => line.StartsWith(package + " ", StringComparison.OrdinalIgnoreCase));
+            Console.WriteLine($"PLUGIN={package};BEFORE={SafeFirstLine(before) ?? "UNKNOWN"};AFTER={SafeFirstLine(after) ?? "UNKNOWN"};INSTALL_CONTRACT_RESULT={(IsHelperSuccess(result) ? "PASS" : "FAIL")};VERSION_CHANGED={(SafeFirstLine(before) != SafeFirstLine(after) ? "YES" : "NO")};NO_LONGER_UPGRADABLE={(noLongerPending ? "YES" : "NO")};PENDING_BEFORE={(SafeLines(pendingBefore).Count(line => line.Contains(" - ", StringComparison.Ordinal)))};PENDING_AFTER={(SafeLines(pendingAfter).Count(line => line.Contains(" - ", StringComparison.Ordinal)))}");
+        }
+        catch (Exception exception) { Console.WriteLine($"PLUGIN_UPDATE_FAILURE={Sanitize(exception.Message)}"); }
     }
 
     private static bool IsSafePackageName(string value) => value.Length is > 0 and <= 80 && value.All(character => char.IsLetterOrDigit(character) || character is '-' or '_' or '.' or '+');

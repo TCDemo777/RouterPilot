@@ -50,7 +50,7 @@ internal static class PluginPackageParser
     {
         string value = name.ToLowerInvariant();
         if (value is "base-files" or "busybox" or "libc" or "opkg" || value.StartsWith("kernel", StringComparison.Ordinal) || value.Contains("firewall", StringComparison.Ordinal) || value.Contains("dns", StringComparison.Ordinal) || value.Contains("dropbear", StringComparison.Ordinal) || value.Contains("tailscale", StringComparison.Ordinal) || value.Contains("adguard", StringComparison.Ordinal) || value.Contains("gl-") || value.Contains("luci", StringComparison.Ordinal)) return PluginMutationSafety.BlockedSystem;
-        if (value is "tree" or "file" or "less" or "bc" or "htop" or "nano" or "jq") return PluginMutationSafety.Allowed;
+        if (value is "tree" or "file" or "less" or "bc" or "htop" or "nano" or "jq" or "iperf3") return PluginMutationSafety.Allowed;
         return PluginMutationSafety.Unknown;
     }
     private sealed record PackageFields(string Name = "", string Version = "", string AvailableVersion = "", string Architecture = "", string Status = "", string Dependencies = "", string InstalledTime = "", string Description = "", bool Installed = false, bool Available = false);
