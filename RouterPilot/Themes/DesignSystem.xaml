@@ -140,6 +140,60 @@
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Medium}" />
     </Style>
 
+    <!-- Grouped card surface used by Router's read-only telemetry tabs.  The
+         explicit template prevents WPF's default GroupBox legend chrome from
+         adding a second, bright system border around the canonical surface. -->
+    <Style x:Key="RouterPilot.CardGroup" TargetType="GroupBox">
+        <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupBox">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{StaticResource Radius.Large}"
+                        Effect="{TemplateBinding Effect}"
+                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <ContentPresenter
+                                Margin="14,12,14,0"
+                                ContentSource="Header"
+                                RecognizesAccessKey="True"
+                                TextElement.FontFamily="Segoe UI Variable Text, Segoe UI"
+                                TextElement.FontSize="11"
+                                TextElement.FontWeight="SemiBold"
+                                TextElement.Foreground="{DynamicResource Brush.TextMuted}" />
+                            <ContentPresenter
+                                Grid.Row="1"
+                                ContentSource="Content"
+                                ContentStringFormat="{TemplateBinding ContentStringFormat}" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="16"
+                    Direction="270"
+                    Opacity="0.08"
+                    ShadowDepth="3"
+                    Color="#FF0F172A" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Shared shell for both live Clients and historical Known Devices cards. -->
     <Style x:Key="ClientDeviceCard" TargetType="Border" BasedOn="{StaticResource Card}">
         <Setter Property="MinHeight" Value="205" />
