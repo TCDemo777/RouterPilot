@@ -49,7 +49,8 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
         string hex = candidate.Contains('.') && candidate.Count(c => c == '.') == 2
             ? string.Concat(candidate.Split('.'))
             : new string(candidate.Where(IsAsciiHex).ToArray());
-        bool shaped = (candidate.Length == 17 && (candidate.Count(c => c == ':') == 5 || candidate.Count(c => c == '-') == 5)) ||
+        bool shaped = (candidate.Length == 17 && (candidate.Count(c =>
+        c == ':') == 5 || candidate.Count(c => c == '-') == 5)) ||
                       candidate.Length == 14 && candidate.Count(c => c == '.') == 2 ||
                       candidate.Length == 12 && candidate.All(IsAsciiHex);
         if (!shaped || hex.Length != 12 || !hex.All(IsAsciiHex)) return false;

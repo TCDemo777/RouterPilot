@@ -15,13 +15,13 @@ public sealed class PluginPackageMutationService : IPluginPackageMutationService
 
     public async Task ExecuteAsync(string operation, string packageName, CancellationToken cancellationToken = default)
     {
-        if (operation is not ("install" or "remove" or "update-package" or "update-indexes")) throw new ArgumentOutOfRangeException(nameof(operation));
+        if (operation is not ("install" or "remove" or "update-package" or "force-update-package" or "update-indexes")) throw new ArgumentOutOfRangeException(nameof(operation));
         if (operation != "update-indexes" && !IsSafePackageName(packageName)) throw new InvalidOperationException("The selected package name is invalid.");
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             RouterManager manager = await _provider.GetRouterManagerAsync(cancellationToken).ConfigureAwait(false);
-            string command = operation switch { "update-indexes" => "/usr/libexec/opkg-call update 2>/dev/null", "update-package" => $"/usr/libexec/opkg-call install {packageName} 2>/dev/null", _ => $"/usr/libexec/opkg-call {operation} {packageName} 2>/dev/null" };
+            string command = operation switch { "update-indexes" => "/usr/libexec/opkg-call update 2>/dev/null", "update-package" or "force-update-package" => $"/usr/libexec/opkg-call install {packageName} 2>/dev/null", _ => $"/usr/libexec/opkg-call {operation} {packageName} 2>/dev/null" };
             string output = await manager.RunReadOnlySshCommandAsync(command, cancellationToken).ConfigureAwait(false);
             if (!output.Contains("\"code\":0", StringComparison.OrdinalIgnoreCase) && !output.Contains("\"code\": 0", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("The router package operation did not confirm success.");
         }

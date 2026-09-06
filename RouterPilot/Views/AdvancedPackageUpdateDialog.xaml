@@ -1,0 +1,12 @@
+<Window x:Class="RouterPilot.Views.AdvancedPackageUpdateDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Advanced package update" Width="560" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="20">
+    <TextBlock Text="{Binding Name, StringFormat=Package: {0}}" FontWeight="SemiBold"/>
+    <TextBlock Margin="0,4,0,0" Text="{Binding DisplayInstalledVersion, StringFormat=Installed: {0}}"/>
+    <TextBlock Text="{Binding DisplayAvailableVersion, StringFormat=Available: {0}}"/>
+    <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Text="RouterPilot has classified this as a protected system package.&#10;&#10;Updating it outside the GL.iNet firmware upgrade process may break router services, networking, the GL.iNet interface, or make the router inaccessible.&#10;&#10;This action is not recommended.&#10;&#10;RouterPilot cannot guarantee compatibility, stability, or recovery.&#10;&#10;Recovery may require SSH, LuCI, firmware recovery, or a factory reset.&#10;&#10;Proceed entirely at your own risk."/>
+    <CheckBox x:Name="Acknowledgement" Margin="0,16,0,8" Content="I understand that this update may make the router unstable or inaccessible and that RouterPilot cannot guarantee recovery." Checked="ConfirmationChanged" Unchecked="ConfirmationChanged"/>
+    <TextBlock Text="Type the package name to confirm:"/>
+    <TextBox x:Name="PackageConfirmation" Margin="0,4,0,0" TextChanged="ConfirmationChanged"/>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0"><Button Content="Cancel" IsCancel="True" MinWidth="90"/><Button x:Name="ConfirmButton" Content="Force update" IsDefault="True" MinWidth="110" Margin="8,0,0,0" IsEnabled="False" Click="Confirm_Click"/></StackPanel>
+  </StackPanel>
+</Window>
