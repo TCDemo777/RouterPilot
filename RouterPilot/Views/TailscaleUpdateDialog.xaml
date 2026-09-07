@@ -1,0 +1,38 @@
+<Window x:Class="RouterPilot.Views.TailscaleUpdateDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Update Tailscale" Width="680" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.WindowBackground}" Foreground="{DynamicResource Brush.TextPrimary}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
+        <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Update Tailscale"/>
+        <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="INSTALLED"/><TextBlock Grid.Column="1" Text="{Binding InstalledVersion}"/>
+            <TextBlock Grid.Row="1" Style="{DynamicResource Text.CardCaption}" Text="LATEST STABLE"/><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LatestVersion}"/>
+        </Grid>
+        <Expander Margin="0,18,0,0" Header="Advanced options">
+            <StackPanel Margin="0,10,0,0">
+                <CheckBox x:Name="SelectRelease" Content="Select a specific release" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Choose a specific Tailscale release interactively in the community updater. Selecting an older release may be a downgrade and is not officially supported by the updater."/>
+                <CheckBox x:Name="EnableSsh" Content="Enable Tailscale SSH" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Enable Tailscale SSH after installation. If you are connected through Tailscale SSH, this may disconnect the session and terminate the updater."/>
+                <CheckBox x:Name="UseFullBinaries" Content="Use full Tailscale binaries" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Use full binaries instead of the updater’s optimized tiny binaries for GL.iNet routers. Full binaries require more storage."/>
+                <CheckBox x:Name="DisableUpx" Content="Disable UPX compression" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="This may increase binary size while reducing compression work where the updater applies it."/>
+                <CheckBox x:Name="SkipGlInetConfiguration" Content="Skip GL.iNet Tailscale configuration adjustment" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="The updater normally adjusts /usr/bin/gl_tailscale for stateful filtering and exit-node compatibility. This option skips that change and shows its manual steps instead."/>
+                <CheckBox x:Name="IgnoreFreeSpace" Content="Ignore free-space check — HIGH RISK" Foreground="{DynamicResource Brush.Warning}" Checked="OptionsChanged" Unchecked="OptionsChanged"/>
+                <TextBlock Margin="24,3,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="This bypasses the updater’s storage protection. Insufficient router storage can leave Tailscale or other router functionality in a problematic state."/>
+            </StackPanel>
+        </Expander>
+        <Border Margin="0,16,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6">
+            <StackPanel><TextBlock FontWeight="SemiBold" Text="Community updater"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="RouterPilot will open an interactive terminal and copy this third-party community-updater command. The updater is not maintained by RouterPilot, GL.iNet, or Tailscale. Authenticate normally, paste the command, and review terminal output and prompts carefully."/>
+                <TextBox Margin="0,10,0,0" IsReadOnly="True" Text="{Binding CommandPreview}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+        <Border x:Name="RiskWarning" Margin="0,12,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6" Visibility="Collapsed">
+            <StackPanel><TextBlock Foreground="{DynamicResource Brush.Warning}" FontWeight="SemiBold" Text="Ignore free-space protection"/><TextBlock Margin="0,5,0,0" TextWrapping="Wrap" Text="The updater’s normal storage check will be bypassed. If the router lacks sufficient storage, Tailscale or other router functionality could be left unusable."/><CheckBox x:Name="RiskAcknowledgement" Margin="0,10,0,0" Content="I understand that this disables the updater’s storage protection." Checked="OptionsChanged" Unchecked="OptionsChanged"/></StackPanel>
+        </Border>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0"><Button MinWidth="90" Content="Cancel" IsCancel="True"/><Button x:Name="OpenButton" MinWidth="176" Margin="8,0,0,0" Style="{DynamicResource Button.Danger}" Content="Open updater terminal" Click="Open_Click"/></StackPanel>
+    </StackPanel></ScrollViewer>
+</Window>

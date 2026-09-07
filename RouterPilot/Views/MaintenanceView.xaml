@@ -25,6 +25,7 @@
                 <TabItem Header="Reports" Tag="Reports" />
                 <TabItem Header="Support" Tag="Support" />
                 <TabItem Header="AdGuard Home" Tag="AdGuardHome" />
+                <TabItem Header="Tailscale" Tag="Tailscale" />
             </TabControl>
 
             <Border x:Name="OverviewStatusSection" Style="{StaticResource SectionContainerStyle}" Padding="16">
@@ -294,6 +295,17 @@
                 </Grid>
             </Border>
 
+            <Border x:Name="CommunityToolsSection" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Community maintenance tools"/>
+                    <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="Some optional maintenance features use independent community-maintained tools for GL.iNet routers. They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale."/>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,16,0"><TextBlock FontWeight="SemiBold" Text="AdGuard Home updater"/><TextBlock Margin="0,4,0,8" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Community updater by Admon / the GL.iNet community."/><Button HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Content="Updater source" Tag="https://get.admon.me/adguard" Click="OpenCommunityToolProject_Click"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock FontWeight="SemiBold" Text="GL.iNet Tailscale updater"/><TextBlock Margin="0,4,0,8" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Community project by Admon (Aaron Viehl), MIT License."/><Button HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Content="Project" Tag="https://github.com/admonstrator/glinet-tailscale-updater" Click="OpenCommunityToolProject_Click"/></StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <Border x:Name="AdGuardHomeSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="AdGuard Home" />
@@ -308,6 +320,24 @@
                     <Expander Margin="0,18,0,0" Header="Recovery options"><StackPanel Margin="0,10,0,0"><TextBlock Style="{StaticResource Text.Secondary}" Text="Inspect community-updater recovery markers and original-backup metadata without changing router files." TextWrapping="Wrap"/>
                         <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="COMMUNITY UPDATER"/><TextBlock Margin="0,4,0,0" Text="{Binding AdGuardHomeUpdaterState}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="ORIGINAL BACKUP"/><TextBlock Margin="0,4,0,0" Text="{Binding AdGuardHomeBackupState}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="{Binding AdGuardHomeBackupSize}"/></StackPanel><Button Grid.Column="2" Width="170" Height="36" Margin="16,0,0,0" Style="{DynamicResource Button.Secondary}" Content="Refresh recovery state" IsEnabled="{Binding CanRefreshAdGuardHomeRecovery}" Click="RefreshAdGuardHomeRecovery_Click"/></Grid>
                         <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding AdGuardHomeRecoveryStatus}" TextWrapping="Wrap"/><TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" Text="Automatic restore, configuration reset, service restart and firmware recovery are intentionally not offered here." TextWrapping="Wrap"/>
+                    </StackPanel></Expander>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="TailscaleSection" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Tailscale" />
+                    <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.Secondary}" Text="Maintain Tailscale separately from router firmware and its normal operational controls." TextWrapping="Wrap"/>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="SERVICE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding TailscaleServiceState}"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="INSTALLED"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding TailscaleInstalledVersion}"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="LATEST STABLE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding TailscaleLatestStableVersion}"/><TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Muted}" Text="{Binding TailscaleUpdateStatus}"/></StackPanel>
+                        <StackPanel Grid.Column="3" Margin="24,0,0,0"><Button Width="154" Height="36" Margin="0,0,0,8" Style="{DynamicResource Button.Primary}" Content="Check for updates" IsEnabled="{Binding CanCheckTailscale}" Click="CheckTailscale_Click"/><Button Width="154" Height="36" Style="{DynamicResource Button.Danger}" Content="Update Tailscale" IsEnabled="{Binding CanLaunchTailscaleUpdater}" Click="UpdateTailscale_Click"/></StackPanel>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="Official Tailscale releases determine update awareness. The optional community updater may install community-optimized binaries and is never launched automatically." TextWrapping="Wrap"/>
+                    <Expander Margin="0,18,0,0" Header="Recovery options"><StackPanel Margin="0,10,0,0"><TextBlock Style="{StaticResource Text.Secondary}" Text="Inspect firmware-binary restore preconditions and the community updater’s GL.iNet script adjustment without changing router files." TextWrapping="Wrap"/>
+                        <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="COMMUNITY UPDATER"/><TextBlock Margin="0,4,0,0" Text="{Binding TailscaleUpdaterState}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding TailscaleBackupState}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="CONFIG BACKUP"/><TextBlock Margin="0,4,0,0" Text="{Binding TailscaleBackupState}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding TailscaleBackupSize}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="FIRMWARE BINARY RESTORE"/><TextBlock Margin="0,4,0,0" Text="{Binding TailscaleRestoreState}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding TailscaleGlIntegrationState}"/></StackPanel><StackPanel Grid.Column="3" Margin="16,0,0,0"><Button Width="170" Height="36" Margin="0,0,0,8" Style="{DynamicResource Button.Secondary}" Content="Refresh recovery state" IsEnabled="{Binding CanRefreshTailscaleRecovery}" Click="RefreshTailscaleRecovery_Click"/><Button Width="170" Height="36" Style="{DynamicResource Button.Danger}" Content="Restore firmware binaries" IsEnabled="{Binding CanLaunchTailscaleRestore}" Click="RestoreTailscale_Click"/></StackPanel></Grid>
+                        <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding TailscaleRecoveryStatus}" TextWrapping="Wrap"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="Restore uses the community updater’s interactive --restore operation. It restores firmware binaries and the firmware gl_tailscale script, but it does not restore Tailscale configuration files." TextWrapping="Wrap"/>
                     </StackPanel></Expander>
                 </StackPanel>
             </Border>

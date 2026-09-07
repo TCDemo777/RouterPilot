@@ -46,6 +46,7 @@ public partial class MaintenanceView : UserControl
             PlaceFirmwareUpdateFirst();
         Set(OverviewStatusSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
+        Set(CommunityToolsSection, tab == MaintenanceTab.Overview);
         Set(QuickActionsSection, tab == MaintenanceTab.Overview);
         Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Firmware);
         Set(DiagnosticsSection, tab == MaintenanceTab.Support);
@@ -54,6 +55,7 @@ public partial class MaintenanceView : UserControl
         Set(FirmwareReadinessSection, tab == MaintenanceTab.Firmware);
         Set(FirmwareSection, tab == MaintenanceTab.Firmware);
         Set(AdGuardHomeSection, tab == MaintenanceTab.AdGuardHome);
+        Set(TailscaleSection, tab == MaintenanceTab.Tailscale);
         Set(ReportsSection, tab == MaintenanceTab.Reports);
         Set(SupportSection, tab == MaintenanceTab.Support);
         Set(BackupSection, tab == MaintenanceTab.Support);
@@ -383,25 +385,54 @@ public partial class MaintenanceView : UserControl
         if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchAdGuardHomeUpdater) return;
         AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() != true) return;
+        OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update AdGuard Home");
+    }
+
+    private async void CheckTailscale_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel) await viewModel.CheckTailscaleAsync();
+    }
+
+    private async void RefreshTailscaleRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel) await viewModel.RefreshTailscaleRecoveryAsync();
+    }
+
+    private void UpdateTailscale_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchTailscaleUpdater) return;
+        TailscaleUpdateDialog dialog = new(viewModel.TailscaleInstalledVersion, viewModel.TailscaleLatestStableVersion) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update Tailscale");
+    }
+
+    private void RestoreTailscale_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchTailscaleRestore) return;
+        TailscaleRestoreDialog dialog = new() { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, TailscaleUpdaterCommand.RestoreCommand, "Restore firmware Tailscale binaries");
+    }
+
+    private static void OpenInteractiveUpdaterTerminal(MaintenanceViewModel viewModel, string command, string title)
+    {
         if (!viewModel.TryGetInteractiveSshTarget(out string host, out string username, out int port))
         {
-            MessageBox.Show("The configured SSH target is not safe to open. Review the router profile.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("The configured SSH target is not safe to open. Review the router profile.", title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         try
         {
-            Clipboard.SetText(dialog.CommandPreview);
-            Process.Start(new ProcessStartInfo("cmd.exe")
-            {
-                UseShellExecute = true,
-                Arguments = $"/k ssh.exe -p {port} {username}@{host}"
-            });
-            MessageBox.Show("An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command copied to the clipboard. RouterPilot will not infer update success; use Check for updates when you return.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Information);
+            Clipboard.SetText(command);
+            Process.Start(new ProcessStartInfo("cmd.exe") { UseShellExecute = true, Arguments = $"/k ssh.exe -p {port} {username}@{host}" });
+            MessageBox.Show("An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command copied to the clipboard. RouterPilot will not infer success; refresh status when you return.", title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch
-        {
-            MessageBox.Show("The interactive SSH terminal could not be opened. No update was started.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        catch { MessageBox.Show("The interactive SSH terminal could not be opened. No action was started.", title, MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private void OpenCommunityToolProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string link } || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps ||
+            !(uri.Host.Equals("get.admon.me", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))) return;
+        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
     }
 
     private async void RunDiagnostics_Click(object sender, RoutedEventArgs e)

@@ -1,7 +1,8 @@
 RouterPilot — Third-Party Notices
 
 RouterPilot is an independent project and is not affiliated with, endorsed by,
-or sponsored by GL Technologies (Hong Kong) Limited or AdGuard Software Limited.
+or sponsored by GL Technologies (Hong Kong) Limited, AdGuard Software Limited
+or Tailscale Inc.
 
 RouterPilot itself is licensed under the GNU General Public License v3.0 only
 (GPL-3.0-only). The repository LICENSE file is installed as LICENSE beside the
@@ -16,6 +17,28 @@ https://www.gl-inet.com/
 AdGuard Home
 DNS filtering, protection, statistics and query-log APIs used by RouterPilot.
 https://adguard.com/adguard-home/overview.html
+
+Community maintenance tools (runtime downloaded, not bundled)
+------------------------------------------------------------
+RouterPilot can, only after explicit user action, open an interactive SSH
+terminal and copy a reviewed command for independent community updater tools.
+The scripts are downloaded directly from their upstream locations at that
+time; RouterPilot does not include, redistribute, modify or execute their
+source during refresh or status checks.
+
+AdGuard Home updater
+Community updater source for GL.iNet routers by Admon / the GL.iNet community.
+https://get.admon.me/adguard
+This external script is independent of RouterPilot, GL.iNet and AdGuard.
+
+GL.iNet Tailscale Updater
+Community project by Aaron Viehl (admonstrator), part of the GL.iNet Toolbox
+project. Licence: MIT.
+https://github.com/admonstrator/glinet-tailscale-updater
+The project is independent and is not affiliated with GL.iNet or Tailscale.
+Because its script is runtime-downloaded and not distributed with RouterPilot,
+RouterPilot does not bundle a copy. Its upstream copyright and MIT licence
+remain applicable to the upstream project.
 
 Microsoft .NET and Windows Presentation Foundation
 Application runtime, desktop framework, hosting, configuration, dependency

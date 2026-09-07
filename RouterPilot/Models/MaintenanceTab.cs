@@ -9,5 +9,6 @@ public enum MaintenanceTab
     LogsEvents,
     Reports,
     Support,
-    AdGuardHome
+    AdGuardHome,
+    Tailscale
 }

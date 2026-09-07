@@ -19,6 +19,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly MaintenanceHistoryService _historyService;
     private readonly FirmwareUpdateService _firmwareUpdateService;
     private readonly AdGuardHomeMaintenanceService _adGuardHomeMaintenanceService;
+    private readonly TailscaleMaintenanceService _tailscaleMaintenanceService;
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly RouterCapabilityDiscoveryService _capabilityDiscovery;
     private readonly RouterStateSnapshotService _snapshotService;
@@ -44,6 +45,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         IBackupRestoreService backupRestoreService,
         FirmwareUpdateService firmwareUpdateService,
         AdGuardHomeMaintenanceService adGuardHomeMaintenanceService,
+        TailscaleMaintenanceService tailscaleMaintenanceService,
         IRouterManagerProvider routerManagerProvider,
         RouterCapabilityDiscoveryService capabilityDiscovery,
         RouterStateSnapshotService snapshotService,
@@ -55,6 +57,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         _historyService = historyService;
         _firmwareUpdateService = firmwareUpdateService;
         _adGuardHomeMaintenanceService = adGuardHomeMaintenanceService;
+        _tailscaleMaintenanceService = tailscaleMaintenanceService;
         _routerManagerProvider = routerManagerProvider;
         _capabilityDiscovery = capabilityDiscovery;
         _snapshotService = snapshotService;
@@ -63,6 +66,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         _routerSwitch.Switched += RouterSwitch_Switched;
         _firmwareUpdateService.PropertyChanged += FirmwareUpdateService_PropertyChanged;
         _adGuardHomeMaintenanceService.Changed += AdGuardHomeMaintenanceService_Changed;
+        _tailscaleMaintenanceService.Changed += TailscaleMaintenanceService_Changed;
         History = historyService.Entries;
         _historyService.Changed += HistoryService_Changed;
         Actions = new ObservableCollection<MaintenanceActionItem>(
@@ -280,6 +284,38 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string AdGuardHomeBackupSize => AdGuardHomeRecovery.BackupSizeBytes is long size ? FormatFileSize(size) : RouterPilotStatusPresentation.NotAvailable;
     public string AdGuardHomeUpdaterState => AdGuardHomeRecovery.CommunityUpdaterDetected switch { true => "Detected", false => "Not detected", _ => RouterPilotStatusPresentation.NotAvailable };
     public string AdGuardHomeRecoveryStatus { get; private set; } = "Recovery state has not been checked in this session.";
+    public TailscaleMaintenanceSnapshot TailscaleMaintenance => _tailscaleMaintenanceService.Current;
+    public string TailscaleInstalledVersion => TailscaleMaintenance.InstalledVersion ?? RouterPilotStatusPresentation.NotAvailable;
+    public string TailscaleLatestStableVersion => TailscaleMaintenance.LatestStableVersion ?? RouterPilotStatusPresentation.NotAvailable;
+    public string TailscaleServiceState => TailscaleMaintenance.ServiceState switch
+    {
+        TailscaleState.Connected => "Running",
+        TailscaleState.NeedsLogin => "Running — needs login",
+        TailscaleState.Stopped => "Stopped",
+        TailscaleState.NotInstalled => "Not installed",
+        _ => RouterPilotStatusPresentation.NotAvailable
+    };
+    public string TailscaleUpdateStatus => TailscaleMaintenance.UpdateStatus switch
+    {
+        RouterPilot.Models.TailscaleUpdateStatus.Checking => "Checking…",
+        RouterPilot.Models.TailscaleUpdateStatus.UpdateAvailable => "Update available",
+        RouterPilot.Models.TailscaleUpdateStatus.UpToDate => "Up to date",
+        RouterPilot.Models.TailscaleUpdateStatus.Unavailable => "Unable to determine",
+        _ => "Not checked"
+    };
+    public bool IsTailscaleChecking => TailscaleMaintenance.UpdateStatus == RouterPilot.Models.TailscaleUpdateStatus.Checking;
+    public bool CanCheckTailscale => !IsTailscaleChecking && !IsBusy && _dashboard.RouterConnected;
+    public bool CanLaunchTailscaleUpdater => !IsBusy && _dashboard.RouterConnected;
+    public TailscaleRecoveryState TailscaleRecovery { get; private set; } = TailscaleRecoveryState.Unknown;
+    public bool IsTailscaleRecoveryChecking { get; private set; }
+    public bool CanRefreshTailscaleRecovery => !IsTailscaleRecoveryChecking && !IsBusy && _dashboard.RouterConnected;
+    public bool CanLaunchTailscaleRestore => !IsBusy && _dashboard.RouterConnected && TailscaleRecovery.RestoreAvailable == true;
+    public string TailscaleUpdaterState => TailscaleRecovery.CommunityUpdaterDetected switch { true => "Detected", false => "Not detected", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string TailscaleBackupState => TailscaleRecovery.ConfigurationBackupDetected switch { true => "Available", false => "Not found", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string TailscaleBackupSize => TailscaleRecovery.LatestConfigurationBackupSizeBytes is long size ? FormatFileSize(size) : RouterPilotStatusPresentation.NotAvailable;
+    public string TailscaleRestoreState => TailscaleRecovery.RestoreAvailable switch { true => "Available", false => "Not available", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string TailscaleGlIntegrationState => TailscaleRecovery.StatefulFilteringAdjustmentDetected switch { true => "Stateful filtering adjustment detected", false => "No adjustment detected", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string TailscaleRecoveryStatus { get; private set; } = "Recovery state has not been checked in this session.";
     public string FirmwareCurrentVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.CurrentVersion)
         ? RouterPilotStatusPresentation.NotAvailable
         : FirmwareUpdate.CurrentVersion;
@@ -582,6 +618,45 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         }
     }
 
+    public async Task CheckTailscaleAsync()
+    {
+        if (!CanCheckTailscale) return;
+        await _tailscaleMaintenanceService.CheckAsync();
+        OnTailscaleMaintenanceChanged();
+    }
+
+    public async Task RefreshTailscaleRecoveryAsync()
+    {
+        if (IsTailscaleRecoveryChecking || !_dashboard.RouterConnected) return;
+        IsTailscaleRecoveryChecking = true;
+        TailscaleRecoveryStatus = "Inspecting recovery state…";
+        OnPropertyChanged(nameof(IsTailscaleRecoveryChecking));
+        OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
+        OnPropertyChanged(nameof(TailscaleRecoveryStatus));
+        try
+        {
+            RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+            TailscaleRecovery = await router.GetTailscaleRecoveryStateAsync();
+            TailscaleRecoveryStatus = "Recovery state inspected. No router files were changed.";
+        }
+        catch (OperationCanceledException) { TailscaleRecoveryStatus = "Recovery inspection cancelled."; }
+        catch (Exception exception) { TailscaleRecoveryStatus = "Recovery state unavailable."; System.Diagnostics.Debug.WriteLine($"Tailscale recovery inspection failed ({exception.GetType().Name})."); }
+        finally
+        {
+            IsTailscaleRecoveryChecking = false;
+            OnPropertyChanged(nameof(IsTailscaleRecoveryChecking));
+            OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
+            OnPropertyChanged(nameof(CanLaunchTailscaleRestore));
+            OnPropertyChanged(nameof(TailscaleRecovery));
+            OnPropertyChanged(nameof(TailscaleUpdaterState));
+            OnPropertyChanged(nameof(TailscaleBackupState));
+            OnPropertyChanged(nameof(TailscaleBackupSize));
+            OnPropertyChanged(nameof(TailscaleRestoreState));
+            OnPropertyChanged(nameof(TailscaleGlIntegrationState));
+            OnPropertyChanged(nameof(TailscaleRecoveryStatus));
+        }
+    }
+
     public bool TryGetInteractiveSshTarget(out string host, out string username, out int port)
     {
         RouterProfile profile = _activeRouter.CurrentProfile;
@@ -644,8 +719,11 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private void RouterSwitch_Switched(object? sender, RouterProfile profile)
     {
         _adGuardHomeMaintenanceService.ResetForRouterSession();
+        _tailscaleMaintenanceService.ResetForRouterSession();
         AdGuardHomeRecovery = AdGuardHomeRecoveryState.Unknown;
         AdGuardHomeRecoveryStatus = "Router switched. Recovery state has not been checked for this router.";
+        TailscaleRecovery = TailscaleRecoveryState.Unknown;
+        TailscaleRecoveryStatus = "Router switched. Recovery state has not been checked for this router.";
         StateChanges = [];
         SnapshotStatus = "Router switched. Select a snapshot for the active profile.";
         OnPropertyChanged(nameof(StateSnapshots)); OnPropertyChanged(nameof(LatestStateSnapshot));
@@ -653,6 +731,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(AdGuardHomeRecovery)); OnPropertyChanged(nameof(AdGuardHomeBackupState));
         OnPropertyChanged(nameof(AdGuardHomeBackupSize)); OnPropertyChanged(nameof(AdGuardHomeUpdaterState));
         OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
+        OnPropertyChanged(nameof(TailscaleRecovery)); OnPropertyChanged(nameof(TailscaleRestoreState));
+        OnPropertyChanged(nameof(TailscaleUpdaterState)); OnPropertyChanged(nameof(TailscaleBackupState)); OnPropertyChanged(nameof(TailscaleBackupSize));
+        OnPropertyChanged(nameof(TailscaleGlIntegrationState)); OnPropertyChanged(nameof(TailscaleRecoveryStatus));
+        OnTailscaleMaintenanceChanged();
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -661,6 +743,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanCheckAdGuardHome));
         OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
         OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+        OnPropertyChanged(nameof(CanCheckTailscale));
+        OnPropertyChanged(nameof(CanLaunchTailscaleUpdater));
+        OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
+        OnPropertyChanged(nameof(CanLaunchTailscaleRestore));
         OnPropertyChanged(nameof(HealthSummary));
         OnPropertyChanged(nameof(HealthSummaryDetail));
         OnPropertyChanged(nameof(HealthSummaryColour));
@@ -680,6 +766,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnFirmwarePropertiesChanged();
 
     private void AdGuardHomeMaintenanceService_Changed(object? sender, EventArgs e) => OnAdGuardHomeMaintenanceChanged();
+    private void TailscaleMaintenanceService_Changed(object? sender, EventArgs e) => OnTailscaleMaintenanceChanged();
 
     private void OnAdGuardHomeMaintenanceChanged()
     {
@@ -694,6 +781,20 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
     }
 
+    private void OnTailscaleMaintenanceChanged()
+    {
+        OnPropertyChanged(nameof(TailscaleMaintenance));
+        OnPropertyChanged(nameof(TailscaleInstalledVersion));
+        OnPropertyChanged(nameof(TailscaleLatestStableVersion));
+        OnPropertyChanged(nameof(TailscaleServiceState));
+        OnPropertyChanged(nameof(TailscaleUpdateStatus));
+        OnPropertyChanged(nameof(IsTailscaleChecking));
+        OnPropertyChanged(nameof(CanCheckTailscale));
+        OnPropertyChanged(nameof(CanLaunchTailscaleUpdater));
+        OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
+        OnPropertyChanged(nameof(CanLaunchTailscaleRestore));
+    }
+
     private void OnFirmwarePropertiesChanged()
     {
         OnPropertyChanged(nameof(FirmwareUpdate));
@@ -704,6 +805,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(CanCheckAdGuardHome));
             OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
             OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+            OnPropertyChanged(nameof(CanCheckTailscale));
+            OnPropertyChanged(nameof(CanLaunchTailscaleUpdater));
+            OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
+            OnPropertyChanged(nameof(CanLaunchTailscaleRestore));
         OnPropertyChanged(nameof(FirmwareStatusText));
         OnPropertyChanged(nameof(FirmwareStatusColour));
         OnPropertyChanged(nameof(FirmwareLastChecked));

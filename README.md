@@ -17,7 +17,7 @@ Companion for GL.iNet Routers & AdGuard Home
 - Applications → Plug-ins package management with Installed, Available and Updates inventory, search/filtering, a Selected Package inspector, manual package-index refresh, and guarded package actions
 - GL.iNet VPN management with live tunnel status, diagnostics and local schedules while RouterPilot is running
 - Event Timeline, Notification Centre, configurable Windows notifications and quiet hours
-- Maintenance actions, diagnostics, firmware awareness, safe network-snapshot export and portable `.rpb` backup/restore
+- Maintenance hub with separate Router Firmware, AdGuard Home and Tailscale maintenance, diagnostics, safe network-snapshot export and portable `.rpb` backup/restore
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
@@ -32,6 +32,12 @@ RouterPilot 2.3.2 improves package management in **Applications → Plug-ins**. 
 - Eligible protected packages can use the advanced Force Update confirmation flow. Force Update overrides RouterPilot's action policy only and never uses dangerous `opkg --force-*` flags.
 
 Package changes can affect router stability. Review package details carefully and use trusted package sources; RouterPilot may protect critical packages from mutation.
+
+## Maintenance community tools
+
+Maintenance can check the installed and official latest-stable versions of AdGuard Home and Tailscale. Optional update and Tailscale firmware-binary restore workflows open a visible SSH terminal and copy a reviewed command for the user to run interactively; RouterPilot never treats opening that terminal as a successful update.
+
+The AdGuard Home updater and [GL.iNet Tailscale Updater](https://github.com/admonstrator/glinet-tailscale-updater) are independent community tools by Admon / the GL.iNet community. They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale. The Tailscale updater is MIT licensed; RouterPilot remains GPL-3.0-only. See [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for attribution and licensing details.
 
 ## Security
 

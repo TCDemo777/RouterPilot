@@ -285,6 +285,23 @@
 
                                 <TextBlock FontSize="15"
                                            FontWeight="Bold"
+                                           Text="Community maintenance tools"/>
+                                <TextBlock Margin="0,5,0,0"
+                                           LineHeight="19"
+                                           TextWrapping="Wrap"
+                                           Text="Optional AdGuard Home and GL.iNet Tailscale updater integrations launch independent community tools at the user’s request. They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale."/>
+                                <TextBlock Margin="0,5,0,0">
+                                    <Hyperlink NavigateUri="https://get.admon.me/adguard"
+                                               RequestNavigate="GitHubLink_RequestNavigate">AdGuard updater source</Hyperlink>
+                                    <Run Text=" · "/>
+                                    <Hyperlink NavigateUri="https://github.com/admonstrator/glinet-tailscale-updater"
+                                               RequestNavigate="GitHubLink_RequestNavigate">GL.iNet Tailscale Updater (MIT)</Hyperlink>
+                                </TextBlock>
+
+                                <Separator Margin="0,16,0,16"/>
+
+                                <TextBlock FontSize="15"
+                                           FontWeight="Bold"
                                            Text="Microsoft"/>
                                 <TextBlock Margin="0,5,0,0"
                                            LineHeight="19"
