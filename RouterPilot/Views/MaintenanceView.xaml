@@ -24,6 +24,7 @@
                 <TabItem Header="Logs &amp; Events" Tag="LogsEvents" />
                 <TabItem Header="Reports" Tag="Reports" />
                 <TabItem Header="Support" Tag="Support" />
+                <TabItem Header="AdGuard Home" Tag="AdGuardHome" />
             </TabControl>
 
             <Border x:Name="OverviewStatusSection" Style="{StaticResource SectionContainerStyle}" Padding="16">
@@ -291,6 +292,24 @@
                         </Button>
                     </StackPanel>
                 </Grid>
+            </Border>
+
+            <Border x:Name="AdGuardHomeSection" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="AdGuard Home" />
+                    <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.Secondary}" Text="Maintain AdGuard Home separately from GL.iNet router firmware. Package changes can affect router stability." TextWrapping="Wrap"/>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="SERVICE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding AdGuardHomeServiceState}"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="INSTALLED"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding AdGuardHomeInstalledVersion}"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource Text.CardCaption}" Text="LATEST STABLE"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="{Binding AdGuardHomeLatestStableVersion}"/><TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Muted}" Text="{Binding AdGuardHomeUpdateStatus}"/></StackPanel>
+                        <StackPanel Grid.Column="3" Margin="24,0,0,0"><Button Width="154" Height="36" Margin="0,0,0,8" Style="{DynamicResource Button.Primary}" Content="Check for updates" IsEnabled="{Binding CanCheckAdGuardHome}" Click="CheckAdGuardHome_Click"/><Button Width="154" Height="36" Style="{DynamicResource Button.Danger}" Content="Update AdGuard Home" IsEnabled="{Binding CanLaunchAdGuardHomeUpdater}" Click="UpdateAdGuardHome_Click"/></StackPanel>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource Text.Muted}" Text="Official AdGuard Home releases determine update availability. The interactive community updater is third-party code and is never launched automatically." TextWrapping="Wrap"/>
+                    <Expander Margin="0,18,0,0" Header="Recovery options"><StackPanel Margin="0,10,0,0"><TextBlock Style="{StaticResource Text.Secondary}" Text="Inspect community-updater recovery markers and original-backup metadata without changing router files." TextWrapping="Wrap"/>
+                        <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="COMMUNITY UPDATER"/><TextBlock Margin="0,4,0,0" Text="{Binding AdGuardHomeUpdaterState}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{StaticResource Text.CardCaption}" Text="ORIGINAL BACKUP"/><TextBlock Margin="0,4,0,0" Text="{Binding AdGuardHomeBackupState}"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}" Text="{Binding AdGuardHomeBackupSize}"/></StackPanel><Button Grid.Column="2" Width="170" Height="36" Margin="16,0,0,0" Style="{DynamicResource Button.Secondary}" Content="Refresh recovery state" IsEnabled="{Binding CanRefreshAdGuardHomeRecovery}" Click="RefreshAdGuardHomeRecovery_Click"/></Grid>
+                        <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding AdGuardHomeRecoveryStatus}" TextWrapping="Wrap"/><TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" Text="Automatic restore, configuration reset, service restart and firmware recovery are intentionally not offered here." TextWrapping="Wrap"/>
+                    </StackPanel></Expander>
+                </StackPanel>
             </Border>
                 </StackPanel>
             </Border>

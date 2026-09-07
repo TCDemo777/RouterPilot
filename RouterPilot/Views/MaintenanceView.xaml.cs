@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -52,6 +53,7 @@ public partial class MaintenanceView : UserControl
         Set(FirmwareLifecycleSection, tab == MaintenanceTab.Firmware);
         Set(FirmwareReadinessSection, tab == MaintenanceTab.Firmware);
         Set(FirmwareSection, tab == MaintenanceTab.Firmware);
+        Set(AdGuardHomeSection, tab == MaintenanceTab.AdGuardHome);
         Set(ReportsSection, tab == MaintenanceTab.Reports);
         Set(SupportSection, tab == MaintenanceTab.Support);
         Set(BackupSection, tab == MaintenanceTab.Support);
@@ -364,6 +366,42 @@ public partial class MaintenanceView : UserControl
             return;
 
         await viewModel.CheckFirmwareAsync();
+    }
+
+    private async void CheckAdGuardHome_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel) await viewModel.CheckAdGuardHomeAsync();
+    }
+
+    private async void RefreshAdGuardHomeRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MaintenanceViewModel viewModel) await viewModel.RefreshAdGuardHomeRecoveryAsync();
+    }
+
+    private void UpdateAdGuardHome_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchAdGuardHomeUpdater) return;
+        AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true) return;
+        if (!viewModel.TryGetInteractiveSshTarget(out string host, out string username, out int port))
+        {
+            MessageBox.Show("The configured SSH target is not safe to open. Review the router profile.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            Clipboard.SetText(dialog.CommandPreview);
+            Process.Start(new ProcessStartInfo("cmd.exe")
+            {
+                UseShellExecute = true,
+                Arguments = $"/k ssh.exe -p {port} {username}@{host}"
+            });
+            MessageBox.Show("An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command copied to the clipboard. RouterPilot will not infer update success; use Check for updates when you return.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch
+        {
+            MessageBox.Show("The interactive SSH terminal could not be opened. No update was started.", "Update AdGuard Home", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private async void RunDiagnostics_Click(object sender, RoutedEventArgs e)

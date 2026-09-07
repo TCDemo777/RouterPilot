@@ -106,6 +106,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<MaintenanceOperationService>();
             serviceCollection.AddSingleton<RouterStateSnapshotService>();
             serviceCollection.AddSingleton<FirmwareUpdateService>();
+            serviceCollection.AddSingleton<AdGuardHomeMaintenanceService>();
             serviceCollection.AddSingleton<GlInetFirmwareCatalogService>();
             serviceCollection.AddSingleton<IInternetSpeedTestService, InternetSpeedTestService>();
             serviceCollection.AddSingleton<DataStatisticsService>();

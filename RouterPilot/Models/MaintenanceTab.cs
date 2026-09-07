@@ -8,5 +8,6 @@ public enum MaintenanceTab
     Firmware,
     LogsEvents,
     Reports,
-    Support
+    Support,
+    AdGuardHome
 }

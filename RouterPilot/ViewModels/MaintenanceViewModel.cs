@@ -18,6 +18,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private readonly IBackupRestoreService _backupRestoreService;
     private readonly MaintenanceHistoryService _historyService;
     private readonly FirmwareUpdateService _firmwareUpdateService;
+    private readonly AdGuardHomeMaintenanceService _adGuardHomeMaintenanceService;
+    private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly RouterCapabilityDiscoveryService _capabilityDiscovery;
     private readonly RouterStateSnapshotService _snapshotService;
     private readonly IActiveRouterContext _activeRouter;
@@ -41,6 +43,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         MaintenanceHistoryService historyService,
         IBackupRestoreService backupRestoreService,
         FirmwareUpdateService firmwareUpdateService,
+        AdGuardHomeMaintenanceService adGuardHomeMaintenanceService,
+        IRouterManagerProvider routerManagerProvider,
         RouterCapabilityDiscoveryService capabilityDiscovery,
         RouterStateSnapshotService snapshotService,
         IActiveRouterContext activeRouter,
@@ -50,12 +54,15 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         _backupRestoreService = backupRestoreService;
         _historyService = historyService;
         _firmwareUpdateService = firmwareUpdateService;
+        _adGuardHomeMaintenanceService = adGuardHomeMaintenanceService;
+        _routerManagerProvider = routerManagerProvider;
         _capabilityDiscovery = capabilityDiscovery;
         _snapshotService = snapshotService;
         _activeRouter = activeRouter;
         _routerSwitch = routerSwitch;
         _routerSwitch.Switched += RouterSwitch_Switched;
         _firmwareUpdateService.PropertyChanged += FirmwareUpdateService_PropertyChanged;
+        _adGuardHomeMaintenanceService.Changed += AdGuardHomeMaintenanceService_Changed;
         History = historyService.Entries;
         _historyService.Changed += HistoryService_Changed;
         Actions = new ObservableCollection<MaintenanceActionItem>(
@@ -251,6 +258,28 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public bool CanManageBackups => !IsBusy;
 
     public FirmwareUpdateCheck FirmwareUpdate => _firmwareUpdateService.Current;
+    public AdGuardHomeMaintenanceSnapshot AdGuardHomeMaintenance => _adGuardHomeMaintenanceService.Current;
+    public string AdGuardHomeInstalledVersion => AdGuardHomeMaintenance.InstalledVersion ?? RouterPilotStatusPresentation.NotAvailable;
+    public string AdGuardHomeLatestStableVersion => AdGuardHomeMaintenance.LatestStableVersion ?? RouterPilotStatusPresentation.NotAvailable;
+    public string AdGuardHomeServiceState => AdGuardHomeMaintenance.ServiceRunning switch { true => "Running", false => "Stopped", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string AdGuardHomeUpdateStatus => AdGuardHomeMaintenance.UpdateStatus switch
+    {
+        RouterPilot.Models.AdGuardHomeUpdateStatus.Checking => "Checking…",
+        RouterPilot.Models.AdGuardHomeUpdateStatus.UpdateAvailable => "Update available",
+        RouterPilot.Models.AdGuardHomeUpdateStatus.UpToDate => "Up to date",
+        RouterPilot.Models.AdGuardHomeUpdateStatus.Unavailable => "Unable to check",
+        _ => "Not checked"
+    };
+    public bool IsAdGuardHomeChecking => AdGuardHomeMaintenance.UpdateStatus == RouterPilot.Models.AdGuardHomeUpdateStatus.Checking;
+    public bool CanCheckAdGuardHome => !IsAdGuardHomeChecking && !IsBusy && _dashboard.RouterConnected;
+    public bool CanLaunchAdGuardHomeUpdater => !IsBusy && _dashboard.RouterConnected;
+    public AdGuardHomeRecoveryState AdGuardHomeRecovery { get; private set; } = AdGuardHomeRecoveryState.Unknown;
+    public bool IsAdGuardHomeRecoveryChecking { get; private set; }
+    public bool CanRefreshAdGuardHomeRecovery => !IsAdGuardHomeRecoveryChecking && !IsBusy && _dashboard.RouterConnected;
+    public string AdGuardHomeBackupState => AdGuardHomeRecovery.BackupDetected switch { true => "Available", false => "Not found", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string AdGuardHomeBackupSize => AdGuardHomeRecovery.BackupSizeBytes is long size ? FormatFileSize(size) : RouterPilotStatusPresentation.NotAvailable;
+    public string AdGuardHomeUpdaterState => AdGuardHomeRecovery.CommunityUpdaterDetected switch { true => "Detected", false => "Not detected", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string AdGuardHomeRecoveryStatus { get; private set; } = "Recovery state has not been checked in this session.";
     public string FirmwareCurrentVersion => string.IsNullOrWhiteSpace(FirmwareUpdate.CurrentVersion)
         ? RouterPilotStatusPresentation.NotAvailable
         : FirmwareUpdate.CurrentVersion;
@@ -517,6 +546,53 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnFirmwarePropertiesChanged();
     }
 
+    public async Task CheckAdGuardHomeAsync()
+    {
+        if (!CanCheckAdGuardHome) return;
+        await _adGuardHomeMaintenanceService.CheckAsync();
+        OnAdGuardHomeMaintenanceChanged();
+    }
+
+    public async Task RefreshAdGuardHomeRecoveryAsync()
+    {
+        if (IsAdGuardHomeRecoveryChecking || !_dashboard.RouterConnected) return;
+        IsAdGuardHomeRecoveryChecking = true;
+        AdGuardHomeRecoveryStatus = "Inspecting recovery state…";
+        OnPropertyChanged(nameof(IsAdGuardHomeRecoveryChecking));
+        OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+        OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
+        try
+        {
+            RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+            AdGuardHomeRecovery = await router.GetAdGuardHomeRecoveryStateAsync();
+            AdGuardHomeRecoveryStatus = "Recovery state inspected. No router files were changed.";
+        }
+        catch (OperationCanceledException) { AdGuardHomeRecoveryStatus = "Recovery inspection cancelled."; }
+        catch (Exception exception) { AdGuardHomeRecoveryStatus = "Recovery state unavailable."; System.Diagnostics.Debug.WriteLine($"AdGuard recovery inspection failed ({exception.GetType().Name})."); }
+        finally
+        {
+            IsAdGuardHomeRecoveryChecking = false;
+            OnPropertyChanged(nameof(IsAdGuardHomeRecoveryChecking));
+            OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+            OnPropertyChanged(nameof(AdGuardHomeRecovery));
+            OnPropertyChanged(nameof(AdGuardHomeBackupState));
+            OnPropertyChanged(nameof(AdGuardHomeBackupSize));
+            OnPropertyChanged(nameof(AdGuardHomeUpdaterState));
+            OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
+        }
+    }
+
+    public bool TryGetInteractiveSshTarget(out string host, out string username, out int port)
+    {
+        RouterProfile profile = _activeRouter.CurrentProfile;
+        host = profile.RouterHost.Trim();
+        username = profile.Username.Trim();
+        port = profile.SshPort;
+        return port is >= 1 and <= 65535 &&
+               host.Length > 0 && host.All(character => char.IsLetterOrDigit(character) || character is '.' or ':' or '-') &&
+               username.Length > 0 && username.All(character => char.IsLetterOrDigit(character) || character is '_' or '-');
+    }
+
     public void AttachDashboard(DashboardViewModel dashboard)
     {
         if (ReferenceEquals(_dashboard, dashboard))
@@ -576,6 +652,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     partial void OnIsBusyChanged(bool value)
     {
         OnPropertyChanged(nameof(CanManageBackups));
+        OnPropertyChanged(nameof(CanCheckAdGuardHome));
+        OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
+        OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
         OnPropertyChanged(nameof(HealthSummary));
         OnPropertyChanged(nameof(HealthSummaryDetail));
         OnPropertyChanged(nameof(HealthSummaryColour));
@@ -594,13 +673,31 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     private void FirmwareUpdateService_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
         OnFirmwarePropertiesChanged();
 
+    private void AdGuardHomeMaintenanceService_Changed(object? sender, EventArgs e) => OnAdGuardHomeMaintenanceChanged();
+
+    private void OnAdGuardHomeMaintenanceChanged()
+    {
+        OnPropertyChanged(nameof(AdGuardHomeMaintenance));
+        OnPropertyChanged(nameof(AdGuardHomeInstalledVersion));
+        OnPropertyChanged(nameof(AdGuardHomeLatestStableVersion));
+        OnPropertyChanged(nameof(AdGuardHomeServiceState));
+        OnPropertyChanged(nameof(AdGuardHomeUpdateStatus));
+        OnPropertyChanged(nameof(IsAdGuardHomeChecking));
+        OnPropertyChanged(nameof(CanCheckAdGuardHome));
+        OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
+        OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+    }
+
     private void OnFirmwarePropertiesChanged()
     {
         OnPropertyChanged(nameof(FirmwareUpdate));
         OnPropertyChanged(nameof(FirmwareCurrentVersion));
         OnPropertyChanged(nameof(FirmwareLatestVersion));
         OnPropertyChanged(nameof(IsFirmwareChecking));
-        OnPropertyChanged(nameof(CanCheckFirmware));
+            OnPropertyChanged(nameof(CanCheckFirmware));
+            OnPropertyChanged(nameof(CanCheckAdGuardHome));
+            OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
+            OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
         OnPropertyChanged(nameof(FirmwareStatusText));
         OnPropertyChanged(nameof(FirmwareStatusColour));
         OnPropertyChanged(nameof(FirmwareLastChecked));
