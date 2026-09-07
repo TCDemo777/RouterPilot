@@ -643,10 +643,16 @@ public sealed partial class MaintenanceViewModel : ObservableObject
 
     private void RouterSwitch_Switched(object? sender, RouterProfile profile)
     {
+        _adGuardHomeMaintenanceService.ResetForRouterSession();
+        AdGuardHomeRecovery = AdGuardHomeRecoveryState.Unknown;
+        AdGuardHomeRecoveryStatus = "Router switched. Recovery state has not been checked for this router.";
         StateChanges = [];
         SnapshotStatus = "Router switched. Select a snapshot for the active profile.";
         OnPropertyChanged(nameof(StateSnapshots)); OnPropertyChanged(nameof(LatestStateSnapshot));
         OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
+        OnPropertyChanged(nameof(AdGuardHomeRecovery)); OnPropertyChanged(nameof(AdGuardHomeBackupState));
+        OnPropertyChanged(nameof(AdGuardHomeBackupSize)); OnPropertyChanged(nameof(AdGuardHomeUpdaterState));
+        OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
     }
 
     partial void OnIsBusyChanged(bool value)

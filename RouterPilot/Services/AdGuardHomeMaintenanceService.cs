@@ -13,6 +13,7 @@ public sealed class AdGuardHomeMaintenanceService
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly HttpClient _client = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private long _generation;
 
     public AdGuardHomeMaintenanceService(IRouterManagerProvider routerManagerProvider)
     {
@@ -23,12 +24,20 @@ public sealed class AdGuardHomeMaintenanceService
     public AdGuardHomeMaintenanceSnapshot Current { get; private set; } = AdGuardHomeMaintenanceSnapshot.Empty;
     public event EventHandler? Changed;
 
+    public void ResetForRouterSession()
+    {
+        Interlocked.Increment(ref _generation);
+        Current = AdGuardHomeMaintenanceSnapshot.Empty;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task CheckAsync(CancellationToken cancellationToken = default)
     {
         if (!await _gate.WaitAsync(0, cancellationToken).ConfigureAwait(false)) return;
+        long generation = Interlocked.Read(ref _generation);
         try
         {
-            Publish(Current with { UpdateStatus = AdGuardHomeUpdateStatus.Checking, ErrorCategory = null });
+            Publish(Current with { UpdateStatus = AdGuardHomeUpdateStatus.Checking, ErrorCategory = null }, generation);
             string? installed = null;
             bool? running = null;
             try
@@ -46,7 +55,7 @@ public sealed class AdGuardHomeMaintenanceService
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch
             {
-                Publish(new AdGuardHomeMaintenanceSnapshot(installed, null, running, AdGuardHomeUpdateStatus.Unavailable, "official-release-unavailable", DateTimeOffset.UtcNow));
+                Publish(new AdGuardHomeMaintenanceSnapshot(installed, null, running, AdGuardHomeUpdateStatus.Unavailable, "official-release-unavailable", DateTimeOffset.UtcNow), generation);
                 return;
             }
 
@@ -54,11 +63,11 @@ public sealed class AdGuardHomeMaintenanceService
                 ? comparison < 0 ? AdGuardHomeUpdateStatus.UpdateAvailable : AdGuardHomeUpdateStatus.UpToDate
                 : AdGuardHomeUpdateStatus.Unavailable;
             Publish(new AdGuardHomeMaintenanceSnapshot(installed, latest, running, state,
-                state == AdGuardHomeUpdateStatus.Unavailable ? "version-unavailable" : null, DateTimeOffset.UtcNow));
+                state == AdGuardHomeUpdateStatus.Unavailable ? "version-unavailable" : null, DateTimeOffset.UtcNow), generation);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Publish(Current with { UpdateStatus = AdGuardHomeUpdateStatus.Unavailable, ErrorCategory = "cancelled", CheckedAt = DateTimeOffset.UtcNow });
+            Publish(Current with { UpdateStatus = AdGuardHomeUpdateStatus.Unavailable, ErrorCategory = "cancelled", CheckedAt = DateTimeOffset.UtcNow }, generation);
         }
         finally { _gate.Release(); }
     }
@@ -99,5 +108,10 @@ public sealed class AdGuardHomeMaintenanceService
     }
 
     private static string? NormalizeVersion(string? raw) => TryParseVersion(raw, out Version? version) ? "v" + version : null;
-    private void Publish(AdGuardHomeMaintenanceSnapshot value) { Current = value; Changed?.Invoke(this, EventArgs.Empty); }
+    private void Publish(AdGuardHomeMaintenanceSnapshot value, long generation)
+    {
+        if (generation != Interlocked.Read(ref _generation)) return;
+        Current = value;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 }
