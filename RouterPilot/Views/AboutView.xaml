@@ -291,7 +291,7 @@
                                            TextWrapping="Wrap"
                                            Text="Optional AdGuard Home and GL.iNet Tailscale updater integrations launch independent community tools at the user’s request. They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale."/>
                                 <TextBlock Margin="0,5,0,0">
-                                    <Hyperlink NavigateUri="https://get.admon.me/adguard"
+                                    <Hyperlink NavigateUri="https://github.com/admonstrator/glinet-adguard-updater"
                                                RequestNavigate="GitHubLink_RequestNavigate">AdGuard updater source</Hyperlink>
                                     <Run Text=" · "/>
                                     <Hyperlink NavigateUri="https://github.com/admonstrator/glinet-tailscale-updater"

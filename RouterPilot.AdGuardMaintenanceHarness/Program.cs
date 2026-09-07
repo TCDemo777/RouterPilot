@@ -41,6 +41,16 @@ static class Program
         Assert(!TailscaleUpdaterCommand.CanOpenTerminal(allOptions, false), "tailscale high-risk acknowledgement required");
         Assert(TailscaleUpdaterCommand.CanOpenTerminal(allOptions, true), "tailscale high-risk acknowledgement accepted");
         Assert(TailscaleUpdaterCommand.RestoreCommand.EndsWith(" --restore", StringComparison.Ordinal), "tailscale restore isolated");
+        Assert(!TailscaleUpdaterCommand.CanOpenRestoreTerminal(false) && TailscaleUpdaterCommand.CanOpenRestoreTerminal(true), "tailscale restore acknowledgement required");
+        Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--select-release", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--ssh", StringComparison.Ordinal), "tailscale restore excludes update options");
+        Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--force", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--testing", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--no-download", StringComparison.Ordinal), "tailscale restore excludes unsafe options");
+        string rcLocal = "#!/bin/sh\n. /usr/bin/enable-adguardhome-update-check\necho keep\nexit 0\n";
+        string sysupgrade = "/etc/AdGuardHome\n/custom/preserve\n/usr/bin/enable-adguardhome-update-check\n";
+        Assert(AdGuardUpdaterIntegrationCleanup.RemoveRcLocalIntegration(rcLocal) == "#!/bin/sh\necho keep\nexit 0\n", "targeted rc.local cleanup");
+        Assert(AdGuardUpdaterIntegrationCleanup.RemoveSysupgradeEntries(sysupgrade) == "/custom/preserve\n", "targeted sysupgrade cleanup");
+        Assert(AdGuardUpdaterIntegrationCleanup.RemoveRcLocalIntegration("echo keep\n") == "echo keep\n", "missing startup line safe");
+        Assert(!AdGuardUpdaterIntegrationCleanup.RouterCommand.Contains("rm -rf /etc/AdGuardHome", StringComparison.Ordinal) && !AdGuardUpdaterIntegrationCleanup.RouterCommand.Contains("/etc/init.d/adguardhome", StringComparison.Ordinal), "cleanup preserves AdGuard configuration and service");
+        Assert(!AdGuardUpdaterIntegrationCleanup.RouterCommand.Contains("rm -f /root/AdGuardHome_backup.tar.gz", StringComparison.Ordinal) && AdGuardUpdaterIntegrationCleanup.RouterCommand.Contains("rm -f /usr/bin/enable-adguardhome-update-check", StringComparison.Ordinal), "cleanup preserves backup and removes only helper");
         string notices = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "THIRD_PARTY_NOTICES.txt"));
         Assert(notices.Contains("GL.iNet Tailscale Updater", StringComparison.Ordinal) && notices.Contains("Aaron Viehl", StringComparison.Ordinal) && notices.Contains("runtime-downloaded", StringComparison.Ordinal), "tailscale updater attribution retained");
         XDocument maintenance = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
@@ -50,6 +60,9 @@ static class Program
         Assert(directSections.Contains("CommunityToolsSection", StringComparer.Ordinal), "community acknowledgement hosted directly");
         Assert(directSections.Contains("AdGuardHomeSection", StringComparer.Ordinal), "adguard hosted directly");
         Assert(directSections.Contains("TailscaleSection", StringComparer.Ordinal), "tailscale hosted directly");
+        string maintenanceXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
+        Assert(maintenanceXaml.Contains("AdGuard Home updater by admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal), "adguard credit and project link");
+        Assert(maintenanceXaml.Contains("GL.iNet Tailscale updater by admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "tailscale credit and project link");
         Console.WriteLine("AdGuard Home maintenance harness: PASS");
         return 0;
     }

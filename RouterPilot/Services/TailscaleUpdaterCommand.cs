@@ -28,4 +28,6 @@ public static class TailscaleUpdaterCommand
 
     public static bool CanOpenTerminal(TailscaleUpdaterOptions options, bool riskAcknowledged) =>
         !options.IgnoreFreeSpace || riskAcknowledged;
+
+    public static bool CanOpenRestoreTerminal(bool acknowledged) => acknowledged;
 }

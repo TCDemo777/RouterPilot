@@ -28,7 +28,8 @@ source during refresh or status checks.
 
 AdGuard Home updater
 Community updater source for GL.iNet routers by Admon / the GL.iNet community.
-https://get.admon.me/adguard
+https://github.com/admonstrator/glinet-adguard-updater
+Licence: MIT. Copyright (c) 2024 Aaron Viehl.
 This external script is independent of RouterPilot, GL.iNet and AdGuard.
 
 GL.iNet Tailscale Updater

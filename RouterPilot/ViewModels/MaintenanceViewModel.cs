@@ -283,6 +283,11 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public string AdGuardHomeBackupState => AdGuardHomeRecovery.BackupDetected switch { true => "Available", false => "Not found", _ => RouterPilotStatusPresentation.NotAvailable };
     public string AdGuardHomeBackupSize => AdGuardHomeRecovery.BackupSizeBytes is long size ? FormatFileSize(size) : RouterPilotStatusPresentation.NotAvailable;
     public string AdGuardHomeUpdaterState => AdGuardHomeRecovery.CommunityUpdaterDetected switch { true => "Detected", false => "Not detected", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string AdGuardHomeHelperState => AdGuardHomeRecovery.UpdaterHelperDetected switch { true => "Detected", false => "Not detected", _ => RouterPilotStatusPresentation.NotAvailable };
+    public string AdGuardHomePersistenceEntries => AdGuardHomeRecovery.SysupgradeIntegrationEntryCount switch { null => RouterPilotStatusPresentation.NotAvailable, 0 => "None", int count => $"{count} detected" };
+    public bool HasAdGuardHomeRecoverySnapshot => AdGuardHomeRecovery.RcLocalIntegrationDetected.HasValue && AdGuardHomeRecovery.UpdaterHelperDetected.HasValue && AdGuardHomeRecovery.SysupgradeIntegrationEntryCount.HasValue;
+    public bool CanRemoveAdGuardUpdaterIntegration => !IsBusy && !IsAdGuardHomeRecoveryChecking && _dashboard.RouterConnected && HasAdGuardHomeRecoverySnapshot;
+    public string AdGuardHomeCleanupStatus { get; private set; } = "No updater integration cleanup has been run in this session.";
     public string AdGuardHomeRecoveryStatus { get; private set; } = "Recovery state has not been checked in this session.";
     public TailscaleMaintenanceSnapshot TailscaleMaintenance => _tailscaleMaintenanceService.Current;
     public string TailscaleInstalledVersion => TailscaleMaintenance.InstalledVersion ?? RouterPilotStatusPresentation.NotAvailable;
@@ -614,7 +619,38 @@ public sealed partial class MaintenanceViewModel : ObservableObject
             OnPropertyChanged(nameof(AdGuardHomeBackupState));
             OnPropertyChanged(nameof(AdGuardHomeBackupSize));
             OnPropertyChanged(nameof(AdGuardHomeUpdaterState));
+            OnPropertyChanged(nameof(AdGuardHomeHelperState));
+            OnPropertyChanged(nameof(AdGuardHomePersistenceEntries));
+            OnPropertyChanged(nameof(HasAdGuardHomeRecoverySnapshot));
+            OnPropertyChanged(nameof(CanRemoveAdGuardUpdaterIntegration));
             OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
+        }
+    }
+
+    public async Task RemoveAdGuardUpdaterIntegrationAsync()
+    {
+        if (!CanRemoveAdGuardUpdaterIntegration) return;
+        IsBusy = true;
+        ActiveOperation = "Remove AdGuard updater integration";
+        AdGuardHomeCleanupStatus = "Removing only documented updater integration markers…";
+        OnPropertyChanged(nameof(AdGuardHomeCleanupStatus));
+        try
+        {
+            RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+            AdGuardUpdaterCleanupResult result = await router.RemoveAdGuardUpdaterIntegrationAsync();
+            AdGuardHomeCleanupStatus = result.Message;
+            await RefreshAdGuardHomeRecoveryAsync();
+            if (!result.Confirmed)
+                AdGuardHomeCleanupStatus = "Cleanup outcome could not be confirmed.";
+        }
+        catch (OperationCanceledException) { AdGuardHomeCleanupStatus = "Cleanup cancelled. Recovery state should be refreshed."; }
+        catch (Exception exception) { AdGuardHomeCleanupStatus = "Cleanup outcome could not be confirmed."; System.Diagnostics.Debug.WriteLine($"AdGuard updater cleanup failed ({exception.GetType().Name})."); }
+        finally
+        {
+            ActiveOperation = string.Empty;
+            IsBusy = false;
+            OnPropertyChanged(nameof(AdGuardHomeCleanupStatus));
+            OnPropertyChanged(nameof(CanRemoveAdGuardUpdaterIntegration));
         }
     }
 
@@ -730,6 +766,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(StateChanges)); OnPropertyChanged(nameof(SnapshotStatus)); OnPropertyChanged(nameof(SnapshotChangeSummary));
         OnPropertyChanged(nameof(AdGuardHomeRecovery)); OnPropertyChanged(nameof(AdGuardHomeBackupState));
         OnPropertyChanged(nameof(AdGuardHomeBackupSize)); OnPropertyChanged(nameof(AdGuardHomeUpdaterState));
+        OnPropertyChanged(nameof(AdGuardHomeHelperState));
+        OnPropertyChanged(nameof(AdGuardHomePersistenceEntries)); OnPropertyChanged(nameof(HasAdGuardHomeRecoverySnapshot)); OnPropertyChanged(nameof(CanRemoveAdGuardUpdaterIntegration));
+        AdGuardHomeCleanupStatus = "Router switched. No updater integration cleanup has been run for this router.";
+        OnPropertyChanged(nameof(AdGuardHomeCleanupStatus));
         OnPropertyChanged(nameof(AdGuardHomeRecoveryStatus));
         OnPropertyChanged(nameof(TailscaleRecovery)); OnPropertyChanged(nameof(TailscaleRestoreState));
         OnPropertyChanged(nameof(TailscaleUpdaterState)); OnPropertyChanged(nameof(TailscaleBackupState)); OnPropertyChanged(nameof(TailscaleBackupSize));
@@ -743,6 +783,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanCheckAdGuardHome));
         OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
         OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+        OnPropertyChanged(nameof(CanRemoveAdGuardUpdaterIntegration));
         OnPropertyChanged(nameof(CanCheckTailscale));
         OnPropertyChanged(nameof(CanLaunchTailscaleUpdater));
         OnPropertyChanged(nameof(CanRefreshTailscaleRecovery));
@@ -779,6 +820,7 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanCheckAdGuardHome));
         OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
         OnPropertyChanged(nameof(CanRefreshAdGuardHomeRecovery));
+        OnPropertyChanged(nameof(CanRemoveAdGuardUpdaterIntegration));
     }
 
     private void OnTailscaleMaintenanceChanged()

@@ -380,6 +380,18 @@ public partial class MaintenanceView : UserControl
         if (DataContext is MaintenanceViewModel viewModel) await viewModel.RefreshAdGuardHomeRecoveryAsync();
     }
 
+    private async void RemoveAdGuardUpdaterIntegration_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanRemoveAdGuardUpdaterIntegration) return;
+        string message = "This removes only the community updater's startup line, updater helper and exact persistence entries detected by RouterPilot.\n\n" +
+            $"Startup integration: {viewModel.AdGuardHomeUpdaterState}\nUpdater helper: {viewModel.AdGuardHomeHelperState}\nPersistence entries: {viewModel.AdGuardHomePersistenceEntries}\nOriginal backup: {viewModel.AdGuardHomeBackupState}\n\n" +
+            "It does not replace the installed AdGuard Home binary, reset settings, delete /etc/AdGuardHome or delete the backup archive. Continue?";
+        if (MessageBox.Show(message, "Remove updater integration", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await viewModel.RemoveAdGuardUpdaterIntegrationAsync();
+        MessageBox.Show(viewModel.AdGuardHomeCleanupStatus, "Remove updater integration", MessageBoxButton.OK,
+            viewModel.AdGuardHomeCleanupStatus.StartsWith("Updater integration removed", StringComparison.Ordinal) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
     private void UpdateAdGuardHome_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchAdGuardHomeUpdater) return;

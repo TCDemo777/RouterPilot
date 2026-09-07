@@ -32,10 +32,13 @@ public sealed record AdGuardHomeRecoveryState(
     bool? UpdaterHelperDetected,
     bool? RcLocalIntegrationDetected,
     bool? SysupgradeIntegrationDetected,
+    int? SysupgradeIntegrationEntryCount,
     bool? AdGuardBinaryDetected,
     bool? AdGuardConfigurationDetected,
     bool? ServiceRunning)
 {
     public static readonly AdGuardHomeRecoveryState Unknown = new(
-        null, null, null, null, null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }
+
+public sealed record AdGuardUpdaterCleanupResult(bool Confirmed, string Message);
