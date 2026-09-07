@@ -1,4 +1,5 @@
 using RouterPilot.Services;
+using System.Text.Json;
 
 static class Program
 {
@@ -10,6 +11,10 @@ static class Program
         Assert(AdGuardHomeMaintenanceService.Compare("AdGuard Home, version v0.107.75", "v0.107.79", out int binaryOutput) && binaryOutput < 0, "installed binary version parsing");
         Assert(!AdGuardHomeMaintenanceService.Compare("unknown", "v0.107.79", out _), "malformed installed version");
         Assert(!AdGuardHomeMaintenanceService.Compare("v0.107.79", "preview", out _), "malformed latest version");
+        using JsonDocument releases = JsonDocument.Parse("[{\"tag_name\":\"v0.108.0-b.1\",\"draft\":false,\"prerelease\":true},{\"tag_name\":\"v0.107.80\",\"draft\":true,\"prerelease\":false},{\"tag_name\":\"v0.107.79\",\"draft\":false,\"prerelease\":false}]");
+        Assert(AdGuardHomeMaintenanceService.SelectLatestStableVersion(releases.RootElement) == "v0.107.79", "draft and prerelease ignored");
+        using JsonDocument malformed = JsonDocument.Parse("{}");
+        Assert(AdGuardHomeMaintenanceService.SelectLatestStableVersion(malformed.RootElement) is null, "malformed release response");
         Assert(AdGuardHomeUpdaterCommand.Build(false, false) == AdGuardHomeUpdaterCommand.BaseCommand, "no options");
         Assert(AdGuardHomeUpdaterCommand.Build(true, false).EndsWith(" --select-release", StringComparison.Ordinal), "select release");
         Assert(AdGuardHomeUpdaterCommand.Build(false, true).EndsWith(" --ignore-free-space", StringComparison.Ordinal), "ignore free space");

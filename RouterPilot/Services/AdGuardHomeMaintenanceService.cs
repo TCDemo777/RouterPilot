@@ -95,8 +95,13 @@ public sealed class AdGuardHomeMaintenanceService
         response.EnsureSuccessStatusCode();
         await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         using JsonDocument document = await JsonDocument.ParseAsync(stream, cancellationToken: token).ConfigureAwait(false);
-        if (document.RootElement.ValueKind != JsonValueKind.Array) return null;
-        foreach (JsonElement release in document.RootElement.EnumerateArray())
+        return SelectLatestStableVersion(document.RootElement);
+    }
+
+    public static string? SelectLatestStableVersion(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array) return null;
+        foreach (JsonElement release in root.EnumerateArray())
         {
             if (release.ValueKind != JsonValueKind.Object ||
                 release.TryGetProperty("draft", out JsonElement draft) && draft.GetBoolean() ||
