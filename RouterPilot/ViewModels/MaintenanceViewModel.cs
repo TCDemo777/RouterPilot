@@ -696,8 +696,8 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public bool TryGetInteractiveSshTarget(out string host, out string username, out int port)
     {
         RouterProfile profile = _activeRouter.CurrentProfile;
-        host = profile.RouterHost.Trim();
-        username = profile.Username.Trim();
+        host = profile.RouterHost?.Trim() ?? string.Empty;
+        username = profile.Username?.Trim() ?? string.Empty;
         port = profile.SshPort;
         return port is >= 1 and <= 65535 &&
                host.Length > 0 && host.All(character => char.IsLetterOrDigit(character) || character is '.' or ':' or '-') &&

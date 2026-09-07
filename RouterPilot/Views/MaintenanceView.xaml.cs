@@ -16,14 +16,17 @@ namespace RouterPilot.Views;
 public partial class MaintenanceView : UserControl
 {
     private readonly Func<Task> _refreshAll;
+    private readonly MaintenanceExternalLauncher _externalLauncher;
     private bool _backupPrivacyWarningAcknowledged;
     private bool _navigateToFirmwareWhenLoaded;
     private MaintenanceTab _selectedTab = MaintenanceTab.Overview;
 
-    public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll)
+    public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll,
+        MaintenanceExternalLauncher? externalLauncher = null)
     {
         InitializeComponent();
         _refreshAll = refreshAll;
+        _externalLauncher = externalLauncher ?? new MaintenanceExternalLauncher();
         viewModel.AttachDashboard(dashboard);
         DataContext = viewModel;
         Loaded += MaintenanceView_Loaded;
@@ -324,12 +327,15 @@ public partial class MaintenanceView : UserControl
         if (DataContext is not MaintenanceViewModel viewModel)
             return;
 
-        Directory.CreateDirectory(viewModel.BackupFolder);
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = viewModel.BackupFolder,
-            UseShellExecute = true
-        });
+            Directory.CreateDirectory(viewModel.BackupFolder);
+            ShowExternalLaunchFailure(_externalLauncher.OpenDirectory(viewModel.BackupFolder), "Open backup folder", "folder");
+        }
+        catch (Exception ex)
+        {
+            ShowExternalLaunchFailure(new MaintenanceExternalLaunchResult(MaintenanceExternalLaunchStatus.LaunchFailed, ex), "Open backup folder", "folder");
+        }
     }
 
     private void CopySupportSnapshot_Click(object sender, RoutedEventArgs e)
@@ -395,9 +401,16 @@ public partial class MaintenanceView : UserControl
     private void UpdateAdGuardHome_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchAdGuardHomeUpdater) return;
-        AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() != true) return;
-        OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update AdGuard Home");
+        try
+        {
+            AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() != true) return;
+            OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update AdGuard Home");
+        }
+        catch (Exception ex)
+        {
+            ShowDialogFailure(ex, "Update AdGuard Home");
+        }
     }
 
     private async void CheckTailscale_Click(object sender, RoutedEventArgs e)
@@ -413,38 +426,82 @@ public partial class MaintenanceView : UserControl
     private void UpdateTailscale_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchTailscaleUpdater) return;
-        TailscaleUpdateDialog dialog = new(viewModel.TailscaleInstalledVersion, viewModel.TailscaleLatestStableVersion) { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update Tailscale");
+        try
+        {
+            TailscaleUpdateDialog dialog = new(viewModel.TailscaleInstalledVersion, viewModel.TailscaleLatestStableVersion) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update Tailscale");
+        }
+        catch (Exception ex)
+        {
+            ShowDialogFailure(ex, "Update Tailscale");
+        }
     }
 
     private void RestoreTailscale_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MaintenanceViewModel viewModel || !viewModel.CanLaunchTailscaleRestore) return;
-        TailscaleRestoreDialog dialog = new() { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, TailscaleUpdaterCommand.RestoreCommand, "Restore firmware Tailscale binaries");
+        try
+        {
+            TailscaleRestoreDialog dialog = new() { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, TailscaleUpdaterCommand.RestoreCommand, "Restore firmware Tailscale binaries");
+        }
+        catch (Exception ex)
+        {
+            ShowDialogFailure(ex, "Restore firmware Tailscale binaries");
+        }
     }
 
-    private static void OpenInteractiveUpdaterTerminal(MaintenanceViewModel viewModel, string command, string title)
+    private void OpenInteractiveUpdaterTerminal(MaintenanceViewModel viewModel, string command, string title)
     {
         if (!viewModel.TryGetInteractiveSshTarget(out string host, out string username, out int port))
         {
             MessageBox.Show("The configured SSH target is not safe to open. Review the router profile.", title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        try
+        MaintenanceExternalLaunchResult result = _externalLauncher.LaunchInteractiveSsh(host, username, port, command);
+        if (!result.IsLaunched)
         {
-            Clipboard.SetText(command);
-            Process.Start(new ProcessStartInfo("cmd.exe") { UseShellExecute = true, Arguments = $"/k ssh.exe -p {port} {username}@{host}" });
-            MessageBox.Show("An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command copied to the clipboard. RouterPilot will not infer success; refresh status when you return.", title, MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowExternalLaunchFailure(result, title, "SSH terminal");
+            return;
         }
-        catch { MessageBox.Show("The interactive SSH terminal could not be opened. No action was started.", title, MessageBoxButton.OK, MessageBoxImage.Warning); }
+
+        string copyMessage = result.ClipboardCopied
+            ? "The reviewed updater command was copied to the clipboard."
+            : "The terminal opened, but RouterPilot could not copy the command; use the command preview in the confirmation window.";
+        if (result.Exception is not null)
+            Debug.WriteLine($"{title} clipboard operation failed ({DiagnosticRedactor.FailureCategory(result.Exception)}).");
+        MessageBox.Show($"An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command. {copyMessage} RouterPilot will not infer success; refresh status when you return.", title, MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OpenCommunityToolProject_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string link } || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps ||
             !(uri.Host.Equals("get.admon.me", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))) return;
-        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        ShowExternalLaunchFailure(_externalLauncher.OpenUri(uri), "Open community project", "web page");
+    }
+
+    private static void ShowDialogFailure(Exception exception, string title)
+    {
+        Debug.WriteLine($"{title} dialog failed ({DiagnosticRedactor.FailureCategory(exception)}).");
+        MessageBox.Show(
+            "The update confirmation could not be opened. No action was started.",
+            title,
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+    }
+
+    private static void ShowExternalLaunchFailure(MaintenanceExternalLaunchResult result, string title, string target)
+    {
+        if (result.IsLaunched)
+            return;
+
+        if (result.Exception is not null)
+            Debug.WriteLine($"{title} external launch failed ({DiagnosticRedactor.FailureCategory(result.Exception)}).");
+
+        string message = result.Status == MaintenanceExternalLaunchStatus.LauncherUnavailable
+            ? $"Unable to open the {target} because the required local launcher is unavailable. No action was started."
+            : $"Unable to open the {target}. No action was started.";
+        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private async void RunDiagnostics_Click(object sender, RoutedEventArgs e)
@@ -510,6 +567,6 @@ public partial class MaintenanceView : UserControl
             return;
         }
 
-        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        ShowExternalLaunchFailure(_externalLauncher.OpenUri(uri), "Open firmware page", "web page");
     }
 }

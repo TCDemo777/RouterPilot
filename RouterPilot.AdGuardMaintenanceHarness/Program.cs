@@ -1,4 +1,7 @@
 using RouterPilot.Services;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.IO;
 using System.Xml.Linq;
@@ -44,6 +47,32 @@ static class Program
         Assert(!TailscaleUpdaterCommand.CanOpenRestoreTerminal(false) && TailscaleUpdaterCommand.CanOpenRestoreTerminal(true), "tailscale restore acknowledgement required");
         Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--select-release", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--ssh", StringComparison.Ordinal), "tailscale restore excludes update options");
         Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--force", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--testing", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--no-download", StringComparison.Ordinal), "tailscale restore excludes unsafe options");
+        ProcessStartInfo? capturedStartInfo = null;
+        MaintenanceExternalLauncher terminalLauncher = new(
+            () => "C:\\Windows\\System32\\cmd.exe",
+            _ => { },
+            startInfo => { capturedStartInfo = startInfo; return null; });
+        MaintenanceExternalLaunchResult terminalLaunched = terminalLauncher.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand);
+        Assert(terminalLaunched.Status == MaintenanceExternalLaunchStatus.Launched, "terminal launch success is structured");
+        Assert(capturedStartInfo is not null && capturedStartInfo.FileName.EndsWith("cmd.exe", StringComparison.OrdinalIgnoreCase), "terminal command shell selected");
+        Assert(capturedStartInfo is not null && string.Join(" ", capturedStartInfo.ArgumentList).Contains("ssh.exe -p 22 root@router.example", StringComparison.Ordinal), "ssh target passed without credentials");
+        Assert(capturedStartInfo is not null && !string.Join(" ", capturedStartInfo.ArgumentList).Contains("password", StringComparison.OrdinalIgnoreCase), "terminal arguments contain no credentials");
+        Assert(capturedStartInfo is not null && !string.Join(" ", capturedStartInfo.ArgumentList).Contains("wget", StringComparison.Ordinal), "updater command stays out of terminal arguments");
+        MaintenanceExternalLauncher missingLauncher = new(() => null, _ => { }, _ => null);
+        Assert(missingLauncher.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand).Status == MaintenanceExternalLaunchStatus.LauncherUnavailable, "terminal executable unavailable");
+        MaintenanceExternalLauncher missingFile = new(() => "cmd.exe", _ => { }, _ => throw new FileNotFoundException("missing"));
+        Assert(missingFile.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand).Status == MaintenanceExternalLaunchStatus.LauncherUnavailable, "missing terminal executable contained");
+        MaintenanceExternalLauncher win32Failure = new(() => "cmd.exe", _ => { }, _ => throw new Win32Exception("unavailable"));
+        Assert(win32Failure.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "Win32 launch failure contained");
+        MaintenanceExternalLauncher invalidFailure = new(() => "cmd.exe", _ => { }, _ => throw new InvalidOperationException("invalid"));
+        Assert(invalidFailure.LaunchInteractiveSsh("router.example", "root", 22, AdGuardHomeUpdaterCommand.BaseCommand).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "invalid launch failure contained");
+        MaintenanceExternalLauncher accessFailure = new(() => "cmd.exe", _ => { }, _ => throw new UnauthorizedAccessException("denied"));
+        Assert(accessFailure.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "access launch failure contained");
+        MaintenanceExternalLauncher clipboardFailure = new(() => "cmd.exe", _ => throw new ExternalException("clipboard unavailable"), _ => null);
+        MaintenanceExternalLaunchResult launchedWithoutClipboard = clipboardFailure.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand);
+        Assert(launchedWithoutClipboard.Status == MaintenanceExternalLaunchStatus.LaunchedWithoutClipboard && !launchedWithoutClipboard.ClipboardCopied, "clipboard failure remains non-fatal");
+        MaintenanceExternalLauncher linkFailure = new(() => "cmd.exe", _ => { }, _ => throw new Win32Exception("browser unavailable"));
+        Assert(linkFailure.OpenUri(new Uri("https://github.com/admonstrator/glinet-tailscale-updater")).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "project link launch failure contained");
         string rcLocal = "#!/bin/sh\n. /usr/bin/enable-adguardhome-update-check\necho keep\nexit 0\n";
         string sysupgrade = "/etc/AdGuardHome\n/custom/preserve\n/usr/bin/enable-adguardhome-update-check\n";
         Assert(AdGuardUpdaterIntegrationCleanup.RemoveRcLocalIntegration(rcLocal) == "#!/bin/sh\necho keep\nexit 0\n", "targeted rc.local cleanup");
