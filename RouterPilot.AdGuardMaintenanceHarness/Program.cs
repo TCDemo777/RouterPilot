@@ -1,6 +1,7 @@
 using RouterPilot.Services;
 using System.Text.Json;
 using System.IO;
+using System.Xml.Linq;
 
 static class Program
 {
@@ -42,6 +43,13 @@ static class Program
         Assert(TailscaleUpdaterCommand.RestoreCommand.EndsWith(" --restore", StringComparison.Ordinal), "tailscale restore isolated");
         string notices = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "THIRD_PARTY_NOTICES.txt"));
         Assert(notices.Contains("GL.iNet Tailscale Updater", StringComparison.Ordinal) && notices.Contains("Aaron Viehl", StringComparison.Ordinal) && notices.Contains("runtime-downloaded", StringComparison.Ordinal), "tailscale updater attribution retained");
+        XDocument maintenance = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
+        XElement contentHost = maintenance.Descendants().Single(element => element.Name.LocalName == "StackPanel" && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "MaintenanceContent");
+        string[] directSections = contentHost.Elements().Where(element => element.Name.LocalName == "Border")
+            .Select(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) ?? string.Empty).ToArray();
+        Assert(directSections.Contains("CommunityToolsSection", StringComparer.Ordinal), "community acknowledgement hosted directly");
+        Assert(directSections.Contains("AdGuardHomeSection", StringComparer.Ordinal), "adguard hosted directly");
+        Assert(directSections.Contains("TailscaleSection", StringComparer.Ordinal), "tailscale hosted directly");
         Console.WriteLine("AdGuard Home maintenance harness: PASS");
         return 0;
     }
