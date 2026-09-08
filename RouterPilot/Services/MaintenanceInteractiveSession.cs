@@ -60,7 +60,7 @@ public sealed record MaintenanceInteractiveOperation
     public static MaintenanceInteractiveOperation CreateDevelopmentProbe() => new(
         MaintenanceInteractiveOperationKind.DevelopmentProbe,
         "Maintenance Console Safe Test",
-        "printf 'RouterPilot Maintenance Console test\\n'; printf 'Type TEST and press Enter: '; read -r routerpilot_probe_input; printf 'Maintenance Console input received\\n'");
+        "printf 'Continue? [y/N] '; read -r routerpilot_probe_input; printf 'ANSWER=<%s>\\n' \"$routerpilot_probe_input\"");
 
     internal bool IsApproved() => Kind switch
     {
@@ -69,7 +69,7 @@ public sealed record MaintenanceInteractiveOperation
         MaintenanceInteractiveOperationKind.AdGuardHomeUpdate =>
             IsApprovedAdGuardCommand(Command),
         MaintenanceInteractiveOperationKind.DevelopmentProbe =>
-            Command == "printf 'RouterPilot Maintenance Console test\\n'; printf 'Type TEST and press Enter: '; read -r routerpilot_probe_input; printf 'Maintenance Console input received\\n'",
+            Command == "printf 'Continue? [y/N] '; read -r routerpilot_probe_input; printf 'ANSWER=<%s>\\n' \"$routerpilot_probe_input\"",
         _ => false
     };
 
@@ -216,6 +216,28 @@ public static class MaintenanceInteractiveCommandWrapper
     }
 }
 
+/// <summary>
+/// Creates bounded, terminal-style line input for an approved interactive
+/// maintenance operation. The carriage return is the same control character
+/// sent by an SSH terminal's Enter key; the allocated PTY translates it for
+/// ordinary POSIX <c>read -r</c> prompts.
+/// </summary>
+public static class MaintenanceInteractiveInput
+{
+    public const int MaximumCharacters = 256;
+
+    public static string BuildLine(string input)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(input);
+        if (input.Length > MaximumCharacters)
+            throw new ArgumentOutOfRangeException(nameof(input), $"Maintenance input cannot exceed {MaximumCharacters} characters.");
+        if (input.IndexOfAny(['\r', '\n']) >= 0)
+            throw new ArgumentException("Maintenance input must be one line.", nameof(input));
+
+        return input + "\r";
+    }
+}
+
 /// <summary>Bounded display-only transcript. It is intentionally not persisted.</summary>
 public sealed class MaintenanceInteractiveTranscript
 {
@@ -307,13 +329,24 @@ internal sealed class MaintenanceInteractiveSession : IMaintenanceInteractiveSes
     public async Task SendInputAsync(string input, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (!CanAcceptInput || _shell is null)
+        if (!CanAcceptInput)
             return;
-        if (input.IndexOfAny(['\r', '\n']) >= 0)
-            throw new ArgumentException("Maintenance input must be one line.", nameof(input));
 
-        byte[] bytes = Encoding.UTF8.GetBytes(input + "\n");
-        await _shell.WriteAsync(bytes.AsMemory(), cancellationToken).ConfigureAwait(false);
+        string terminalLine = MaintenanceInteractiveInput.BuildLine(input);
+        await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_sync)
+            {
+                if (!CanAcceptInput || _shell is null)
+                    throw new InvalidOperationException("Maintenance session is no longer accepting input.");
+
+                // SSH.NET documents that the string overload flushes after it
+                // buffers the text. WriteAsync did not provide that guarantee,
+                // leaving the updater's line-based read waiting indefinitely.
+                _shell.Write(terminalLine);
+            }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task CancelAsync(CancellationToken cancellationToken = default)

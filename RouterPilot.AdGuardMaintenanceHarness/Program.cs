@@ -5,11 +5,15 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.IO;
 using System.Xml.Linq;
+using System.Text;
 
 static class Program
 {
-    static int Main()
+    static async Task<int> Main(string[] args)
     {
+        if (args.Contains("--live-pty-input", StringComparer.Ordinal))
+            return await RunLivePtyInputAsync();
+
         Assert(AdGuardHomeMaintenanceService.Compare("v0.107.75", "v0.107.79", out int older) && older < 0, "older stable comparison");
         Assert(AdGuardHomeMaintenanceService.Compare("v0.107.79", "0.107.79", out int equal) && equal == 0, "equal stable comparison");
         Assert(AdGuardHomeMaintenanceService.Compare("v0.107.80", "v0.107.79", out int newer) && newer > 0, "newer stable comparison");
@@ -54,7 +58,11 @@ static class Program
         Assert(!wrapper.Contains("password", StringComparison.OrdinalIgnoreCase) && !wrapper.Contains("--force", StringComparison.Ordinal) && !wrapper.Contains("--testing", StringComparison.Ordinal) && !wrapper.Contains("--no-download", StringComparison.Ordinal), "console wrapper contains no credentials or prohibited flags");
         Assert(MaintenanceInteractiveCommandWrapper.TryFindExitCode("output\n__ROUTERPILOT_MAINTENANCE_EXIT_0123456789abcdef0123456789abcdef:7\n", "0123456789abcdef0123456789abcdef", out int parsedExit) && parsedExit == 7, "console exit sentinel parsed");
         MaintenanceInteractiveOperation safeProbe = MaintenanceInteractiveOperation.CreateDevelopmentProbe();
-        Assert(safeProbe.Command.Contains("printf", StringComparison.Ordinal) && safeProbe.Command.Contains("read -r", StringComparison.Ordinal) && !safeProbe.Command.Contains("opkg", StringComparison.Ordinal) && !safeProbe.Command.Contains("uci", StringComparison.Ordinal), "safe console probe is read-only and exercises input");
+        Assert(safeProbe.Command.Contains("Continue? [y/N]", StringComparison.Ordinal) && safeProbe.Command.Contains("read -r", StringComparison.Ordinal) && safeProbe.Command.Contains("ANSWER=<%s>", StringComparison.Ordinal) && !safeProbe.Command.Contains("opkg", StringComparison.Ordinal) && !safeProbe.Command.Contains("uci", StringComparison.Ordinal), "safe console probe is read-only and exercises input");
+        Assert(MaintenanceInteractiveInput.BuildLine("y") == "y\r" && MaintenanceInteractiveInput.BuildLine("N") == "N\r", "interactive answers use terminal carriage return");
+        Assert(Encoding.UTF8.GetBytes(MaintenanceInteractiveInput.BuildLine("y")).SequenceEqual(new byte[] { 0x79, 0x0d }), "interactive answer bytes are ASCII response plus carriage return");
+        AssertThrows<ArgumentException>(() => MaintenanceInteractiveInput.BuildLine("y\n"), "multiline input rejected");
+        AssertThrows<ArgumentOutOfRangeException>(() => MaintenanceInteractiveInput.BuildLine(new string('x', MaintenanceInteractiveInput.MaximumCharacters + 1)), "oversized input rejected");
         var transcript = new MaintenanceInteractiveTranscript();
         transcript.Append("\u001b[31mcoloured\u001b[0m\n");
         transcript.Append(new string('x', 300_000));
@@ -125,4 +133,63 @@ static class Program
         return 0;
     }
     static void Assert(bool condition, string name) { if (!condition) throw new InvalidOperationException($"Failed: {name}"); }
+    static void AssertThrows<TException>(Action action, string name) where TException : Exception
+    {
+        try { action(); }
+        catch (TException) { return; }
+        throw new InvalidOperationException($"Failed: {name}");
+    }
+
+    static async Task<int> RunLivePtyInputAsync()
+    {
+        SettingsService settings = new(null);
+        var profiles = new RouterProfileService(settings);
+        var activeRouter = new ActiveRouterContext(profiles);
+        var factory = new MaintenanceInteractiveSessionFactory(
+            settings,
+            activeRouter,
+            new SshConnectionFactory(),
+            new SshHostKeyTrustService(settings));
+
+        foreach (string response in new[] { "y", "N" })
+        {
+            await using IMaintenanceInteractiveSession session = factory.Create(MaintenanceInteractiveOperation.CreateDevelopmentProbe());
+            var output = new StringBuilder();
+            var outputLock = new object();
+            var promptSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var finished = new TaskCompletionSource<MaintenanceInteractiveSessionStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            session.OutputReceived += (_, chunk) =>
+            {
+                lock (outputLock)
+                {
+                    output.Append(chunk);
+                    if (output.ToString().Contains("Continue? [y/N]", StringComparison.Ordinal))
+                        promptSeen.TrySetResult();
+                }
+            };
+            session.StatusChanged += (_, status) =>
+            {
+                if (status.State is MaintenanceInteractiveSessionState.Completed or
+                    MaintenanceInteractiveSessionState.Failed or
+                    MaintenanceInteractiveSessionState.ConnectionLost or
+                    MaintenanceInteractiveSessionState.OutcomeUnknown)
+                    finished.TrySetResult(status);
+            };
+
+            await session.StartAsync();
+            await promptSeen.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            await session.SendInputAsync(response);
+            MaintenanceInteractiveSessionStatus result = await finished.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            string transcript;
+            lock (outputLock) transcript = output.ToString();
+
+            if (result.State != MaintenanceInteractiveSessionState.Completed ||
+                !transcript.Contains($"ANSWER=<{response}>", StringComparison.Ordinal))
+                throw new InvalidOperationException("Live Maintenance PTY input probe failed.");
+        }
+
+        Console.WriteLine("Maintenance interactive PTY input probe: PASS");
+        return 0;
+    }
 }

@@ -180,6 +180,16 @@ public partial class MaintenanceInteractiveSessionWindow : Window
         {
             await _session.SendInputAsync(input);
             InputTextBox.Clear();
+            if (_session.CanAcceptInput)
+                InputTextBox.Focus();
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            StatusTextBlock.Text = $"Updater responses cannot exceed {MaintenanceInteractiveInput.MaximumCharacters} characters.";
+        }
+        catch (ArgumentException)
+        {
+            StatusTextBlock.Text = "Updater responses must be a single line.";
         }
         catch (Exception exception)
         {
