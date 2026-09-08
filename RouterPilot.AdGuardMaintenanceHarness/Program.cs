@@ -6,6 +6,9 @@ using System.Text.Json;
 using System.IO;
 using System.Xml.Linq;
 using System.Text;
+using System.Windows;
+using System.Windows.Threading;
+using RouterPilot.Views;
 
 static class Program
 {
@@ -13,6 +16,10 @@ static class Program
     {
         if (args.Contains("--live-pty-input", StringComparer.Ordinal))
             return await RunLivePtyInputAsync();
+        if (args.Contains("--wpf-close-probe", StringComparer.Ordinal))
+            return await RunWpfConsoleCloseProbeAsync(useLiveSession: false);
+        if (args.Contains("--live-wpf-close-probe", StringComparer.Ordinal))
+            return await RunWpfConsoleCloseProbeAsync(useLiveSession: true);
 
         Assert(AdGuardHomeMaintenanceService.Compare("v0.107.75", "v0.107.79", out int older) && older < 0, "older stable comparison");
         Assert(AdGuardHomeMaintenanceService.Compare("v0.107.79", "0.107.79", out int equal) && equal == 0, "equal stable comparison");
@@ -192,5 +199,127 @@ static class Program
 
         Console.WriteLine("Maintenance interactive PTY input probe: PASS");
         return 0;
+    }
+
+    static Task<int> RunWpfConsoleCloseProbeAsync(bool useLiveSession)
+    {
+        var result = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Thread thread = new(() => RunWpfConsoleCloseProbe(useLiveSession, result));
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return result.Task;
+    }
+
+    static void RunWpfConsoleCloseProbe(bool useLiveSession, TaskCompletionSource<int> result)
+    {
+        Application? application = null;
+        try
+        {
+            application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Window owner = new() { Title = "RouterPilot maintenance probe", Width = 420, Height = 240 };
+            owner.Show();
+
+            IMaintenanceInteractiveSession session = useLiveSession
+                ? CreateLiveSession()
+                : new FakeMaintenanceInteractiveSession();
+            var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var promptSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            session.OutputReceived += (_, output) =>
+            {
+                if (output.Contains("Continue? [y/N]", StringComparison.Ordinal))
+                    promptSeen.TrySetResult();
+            };
+            session.StatusChanged += (_, status) =>
+            {
+                if (status.State is MaintenanceInteractiveSessionState.Completed or MaintenanceInteractiveSessionState.Failed)
+                    completed.TrySetResult();
+            };
+
+            var console = new MaintenanceInteractiveSessionWindow(
+                owner,
+                "Maintenance probe router",
+                session,
+                new MaintenanceExternalLauncher(),
+                () => Task.CompletedTask);
+            console.Closed += (_, _) =>
+            {
+                DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    bool responsive = owner.IsVisible && owner.IsEnabled && application.Dispatcher.HasShutdownStarted == false;
+                    owner.Title = "RouterPilot maintenance probe responsive";
+                    if (responsive)
+                        Console.WriteLine(useLiveSession ? "Live Maintenance WPF close probe: PASS" : "Fake Maintenance WPF close probe: PASS");
+                    result.TrySetResult(responsive ? 0 : 1);
+                    application.Shutdown();
+                };
+                timer.Start();
+            };
+            console.Show();
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (useLiveSession)
+                    {
+                        await promptSeen.Task.WaitAsync(TimeSpan.FromSeconds(15));
+                        await session.SendInputAsync("y");
+                    }
+
+                    await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
+                    await owner.Dispatcher.InvokeAsync(console.Close);
+                }
+                catch
+                {
+                    result.TrySetResult(1);
+                    await owner.Dispatcher.InvokeAsync(application.Shutdown);
+                }
+            });
+
+            application.Run();
+        }
+        catch
+        {
+            result.TrySetResult(1);
+            application?.Shutdown();
+        }
+    }
+
+    static IMaintenanceInteractiveSession CreateLiveSession()
+    {
+        SettingsService settings = new(null);
+        var profiles = new RouterProfileService(settings);
+        var activeRouter = new ActiveRouterContext(profiles);
+        return new MaintenanceInteractiveSessionFactory(
+            settings,
+            activeRouter,
+            new SshConnectionFactory(),
+            new SshHostKeyTrustService(settings))
+            .Create(MaintenanceInteractiveOperation.CreateDevelopmentProbe());
+    }
+
+    sealed class FakeMaintenanceInteractiveSession : IMaintenanceInteractiveSession
+    {
+        public event EventHandler<string>? OutputReceived;
+        public event EventHandler<MaintenanceInteractiveSessionStatus>? StatusChanged;
+        public MaintenanceInteractiveOperation Operation { get; } = MaintenanceInteractiveOperation.CreateDevelopmentProbe();
+        public MaintenanceInteractiveSessionState State { get; private set; } = MaintenanceInteractiveSessionState.Created;
+        public bool CanAcceptInput => State == MaintenanceInteractiveSessionState.Running;
+
+        public async Task StartAsync(CancellationToken cancellationToken = default)
+        {
+            State = MaintenanceInteractiveSessionState.Running;
+            StatusChanged?.Invoke(this, new(State, "Running harmless maintenance probe."));
+            OutputReceived?.Invoke(this, "Continue? [y/N] ");
+            await Task.Delay(50, cancellationToken);
+            State = MaintenanceInteractiveSessionState.Completed;
+            StatusChanged?.Invoke(this, new(State, "Maintenance command completed.", 0));
+        }
+
+        public Task SendInputAsync(string input, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CancelAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ValueTask DisposeAsync() { State = MaintenanceInteractiveSessionState.Disposed; return ValueTask.CompletedTask; }
     }
 }

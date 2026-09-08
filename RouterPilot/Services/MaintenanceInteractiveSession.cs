@@ -490,15 +490,18 @@ internal sealed class MaintenanceInteractiveSession : IMaintenanceInteractiveSes
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
-            return ValueTask.CompletedTask;
+            return;
         _disposed = true;
         _lifetimeCancellation.Cancel();
-        CloseTransport();
+
+        // ShellStream.Dispose/SshClient.Disconnect can wait for network I/O and
+        // for the output reader's transport lock. Console Closed runs on WPF's
+        // Dispatcher, so teardown must never execute there.
+        await Task.Run(CloseTransport).ConfigureAwait(false);
         _lifetimeCancellation.Dispose();
         Transition(MaintenanceInteractiveSessionState.Disposed, "Maintenance session closed.");
-        return ValueTask.CompletedTask;
     }
 }
