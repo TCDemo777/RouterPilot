@@ -47,6 +47,18 @@ static class Program
         Assert(!TailscaleUpdaterCommand.CanOpenRestoreTerminal(false) && TailscaleUpdaterCommand.CanOpenRestoreTerminal(true), "tailscale restore acknowledgement required");
         Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--select-release", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--ssh", StringComparison.Ordinal), "tailscale restore excludes update options");
         Assert(!TailscaleUpdaterCommand.RestoreCommand.Contains("--force", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--testing", StringComparison.Ordinal) && !TailscaleUpdaterCommand.RestoreCommand.Contains("--no-download", StringComparison.Ordinal), "tailscale restore excludes unsafe options");
+        MaintenanceInteractiveOperation consoleOperation = MaintenanceInteractiveOperation.CreateTailscaleUpdate(allOptions);
+        Assert(consoleOperation.Command == TailscaleUpdaterCommand.Build(allOptions), "console uses predetermined tailscale command");
+        string wrapper = MaintenanceInteractiveCommandWrapper.Build(consoleOperation.Command, "0123456789abcdef0123456789abcdef");
+        Assert(wrapper.Contains(consoleOperation.Command, StringComparison.Ordinal) && wrapper.Contains("__ROUTERPILOT_MAINTENANCE_EXIT_", StringComparison.Ordinal) && wrapper.Contains("exit \"$__routerpilot_status\"", StringComparison.Ordinal), "console wrapper emits exit sentinel and closes shell");
+        Assert(!wrapper.Contains("password", StringComparison.OrdinalIgnoreCase) && !wrapper.Contains("--force", StringComparison.Ordinal) && !wrapper.Contains("--testing", StringComparison.Ordinal) && !wrapper.Contains("--no-download", StringComparison.Ordinal), "console wrapper contains no credentials or prohibited flags");
+        Assert(MaintenanceInteractiveCommandWrapper.TryFindExitCode("output\n__ROUTERPILOT_MAINTENANCE_EXIT_0123456789abcdef0123456789abcdef:7\n", "0123456789abcdef0123456789abcdef", out int parsedExit) && parsedExit == 7, "console exit sentinel parsed");
+        MaintenanceInteractiveOperation safeProbe = MaintenanceInteractiveOperation.CreateDevelopmentProbe();
+        Assert(safeProbe.Command.Contains("printf", StringComparison.Ordinal) && safeProbe.Command.Contains("read -r", StringComparison.Ordinal) && !safeProbe.Command.Contains("opkg", StringComparison.Ordinal) && !safeProbe.Command.Contains("uci", StringComparison.Ordinal), "safe console probe is read-only and exercises input");
+        var transcript = new MaintenanceInteractiveTranscript();
+        transcript.Append("\u001b[31mcoloured\u001b[0m\n");
+        transcript.Append(new string('x', 300_000));
+        Assert(!transcript.Text.Contains("\u001b", StringComparison.Ordinal) && transcript.Text.Length <= 262_144, "console transcript strips ANSI and remains bounded");
         ProcessStartInfo? capturedStartInfo = null;
         MaintenanceExternalLauncher terminalLauncher = new(
             () => "C:\\Windows\\System32\\cmd.exe",
@@ -97,6 +109,12 @@ static class Program
         string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));
         Assert(aboutXaml.Contains("https://admon.me", StringComparison.Ordinal) && aboutXaml.Contains(">Admon<", StringComparison.Ordinal), "About displays Admon credit");
         Assert(readme.Contains("[Admon](https://admon.me)", StringComparison.Ordinal), "README displays Admon credit");
+        string consoleXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceInteractiveSessionWindow.xaml"));
+        string consoleCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceInteractiveSessionWindow.xaml.cs"));
+        string maintenanceCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml.cs"));
+        Assert(consoleXaml.Contains("IsReadOnly=\"True\"", StringComparison.Ordinal) && consoleCode.Contains("https://admon.me", StringComparison.Ordinal), "console command is read-only and credits Admon");
+        Assert(consoleCode.Contains("Owner = owner", StringComparison.Ordinal) && !consoleCode.Contains("Application.Current.MainWindow =", StringComparison.Ordinal), "console preserves canonical MainWindow");
+        Assert(maintenanceCode.Contains("MaintenanceInteractiveOperation.CreateTailscaleUpdate", StringComparison.Ordinal) && !maintenanceCode.Substring(maintenanceCode.IndexOf("private void UpdateTailscale_Click", StringComparison.Ordinal), maintenanceCode.IndexOf("private void RestoreTailscale_Click", StringComparison.Ordinal) - maintenanceCode.IndexOf("private void UpdateTailscale_Click", StringComparison.Ordinal)).Contains("OpenInteractiveUpdaterTerminal", StringComparison.Ordinal), "tailscale update no longer uses external terminal handoff");
         Console.WriteLine("AdGuard Home maintenance harness: PASS");
         return 0;
     }

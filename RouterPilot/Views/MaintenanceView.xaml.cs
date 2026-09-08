@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using RouterPilot.Models;
 using RouterPilot.Services;
@@ -17,16 +18,21 @@ public partial class MaintenanceView : UserControl
 {
     private readonly Func<Task> _refreshAll;
     private readonly MaintenanceExternalLauncher _externalLauncher;
+    private readonly IMaintenanceInteractiveSessionFactory _interactiveSessionFactory;
+    private MaintenanceInteractiveSessionWindow? _interactiveConsole;
     private bool _backupPrivacyWarningAcknowledged;
     private bool _navigateToFirmwareWhenLoaded;
     private MaintenanceTab _selectedTab = MaintenanceTab.Overview;
 
     public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll,
-        MaintenanceExternalLauncher? externalLauncher = null)
+        MaintenanceExternalLauncher? externalLauncher = null,
+        IMaintenanceInteractiveSessionFactory? interactiveSessionFactory = null)
     {
         InitializeComponent();
         _refreshAll = refreshAll;
         _externalLauncher = externalLauncher ?? new MaintenanceExternalLauncher();
+        _interactiveSessionFactory = interactiveSessionFactory ?? ((App)Application.Current).Services
+            .GetRequiredService<IMaintenanceInteractiveSessionFactory>();
         viewModel.AttachDashboard(dashboard);
         DataContext = viewModel;
         Loaded += MaintenanceView_Loaded;
@@ -405,7 +411,10 @@ public partial class MaintenanceView : UserControl
         {
             AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
             if (dialog.ShowDialog() != true) return;
-            OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update AdGuard Home");
+            OpenBuiltInMaintenanceConsole(
+                viewModel,
+                MaintenanceInteractiveOperation.CreateAdGuardHomeUpdate(dialog.SelectSpecificRelease, dialog.IgnoreFreeSpaceCheck),
+                viewModel.CheckAdGuardHomeAsync);
         }
         catch (Exception ex)
         {
@@ -429,7 +438,11 @@ public partial class MaintenanceView : UserControl
         try
         {
             TailscaleUpdateDialog dialog = new(viewModel.TailscaleInstalledVersion, viewModel.TailscaleLatestStableVersion) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true) OpenInteractiveUpdaterTerminal(viewModel, dialog.CommandPreview, "Update Tailscale");
+            if (dialog.ShowDialog() == true)
+                OpenBuiltInMaintenanceConsole(
+                    viewModel,
+                    MaintenanceInteractiveOperation.CreateTailscaleUpdate(dialog.Options),
+                    viewModel.CheckTailscaleAsync);
         }
         catch (Exception ex)
         {
@@ -471,6 +484,46 @@ public partial class MaintenanceView : UserControl
         if (result.Exception is not null)
             Debug.WriteLine($"{title} clipboard operation failed ({DiagnosticRedactor.FailureCategory(result.Exception)}).");
         MessageBox.Show($"An SSH terminal has opened. Authenticate normally, then paste the reviewed updater command. {copyMessage} RouterPilot will not infer success; refresh status when you return.", title, MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OpenBuiltInMaintenanceConsole(
+        MaintenanceViewModel viewModel,
+        MaintenanceInteractiveOperation operation,
+        Func<Task> postOperationRefresh)
+    {
+        if (_interactiveConsole is { IsVisible: true })
+        {
+            _interactiveConsole.Activate();
+            return;
+        }
+
+        try
+        {
+            Window? owner = Application.Current.MainWindow ?? Window.GetWindow(this);
+            if (owner is null)
+            {
+                MessageBox.Show("RouterPilot could not open the Maintenance Console. No action was started.", operation.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            IMaintenanceInteractiveSession session = _interactiveSessionFactory.Create(operation);
+            string routerDisplayName = string.IsNullOrWhiteSpace(viewModel.Dashboard.RouterModel)
+                ? "Current router"
+                : viewModel.Dashboard.RouterModel;
+            _interactiveConsole = new MaintenanceInteractiveSessionWindow(
+                owner,
+                routerDisplayName,
+                session,
+                _externalLauncher,
+                postOperationRefresh);
+            _interactiveConsole.Closed += (_, _) => _interactiveConsole = null;
+            _interactiveConsole.Show();
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"{operation.Title} console failed ({DiagnosticRedactor.FailureCategory(exception)}).");
+            MessageBox.Show("RouterPilot could not open the Maintenance Console. No action was started.", operation.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OpenCommunityToolProject_Click(object sender, RoutedEventArgs e)
