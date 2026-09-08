@@ -10,6 +10,7 @@
         Height="700"
         MinWidth="620"
         MinHeight="480"
+        WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Brush.WindowBackground}"
         Foreground="{DynamicResource Brush.TextPrimary}">
     <Grid Margin="20">
