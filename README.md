@@ -37,7 +37,7 @@ Package changes can affect router stability. Review package details carefully an
 
 Maintenance can check the installed and official latest-stable versions of AdGuard Home and Tailscale. Optional update and Tailscale firmware-binary restore workflows open a visible SSH terminal and copy a reviewed command for the user to run interactively; RouterPilot never treats opening that terminal as a successful update.
 
-The AdGuard Home and GL.iNet Tailscale updater integrations use independent community tools by [Admon](https://admon.me). They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale. The Tailscale updater is MIT licensed; RouterPilot remains GPL-3.0-only. See [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for attribution and licensing details.
+The AdGuard Home and GL.iNet Tailscale updater integrations use independent community tools by [Admon](https://admon.me). They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale. Both updater projects are MIT licensed; RouterPilot remains GPL-3.0-only. See [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for attribution and licensing details.
 
 ## Security
 

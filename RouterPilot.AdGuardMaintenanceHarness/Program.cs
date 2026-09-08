@@ -116,8 +116,8 @@ static class Program
         Assert(!maintenanceXaml.Contains("github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal) && !maintenanceXaml.Contains("github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "component credit areas no longer use repository links");
         string aboutXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AboutView.xaml"));
         string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));
-        Assert(aboutXaml.Contains("https://admon.me", StringComparison.Ordinal) && aboutXaml.Contains(">Admon<", StringComparison.Ordinal), "About displays Admon credit");
-        Assert(readme.Contains("[Admon](https://admon.me)", StringComparison.Ordinal), "README displays Admon credit");
+        Assert(aboutXaml.Contains("https://admon.me", StringComparison.Ordinal) && aboutXaml.Contains(">Admon<", StringComparison.Ordinal) && aboutXaml.Contains("AdGuard Home updater and Tailscale updater are MIT licensed", StringComparison.Ordinal), "About displays Admon credit and both updater licences");
+        Assert(readme.Contains("[Admon](https://admon.me)", StringComparison.Ordinal) && readme.Contains("Both updater projects are MIT licensed", StringComparison.Ordinal), "README displays Admon credit and both updater licences");
         string tailscaleUpdateDialogXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "TailscaleUpdateDialog.xaml"));
         string adGuardUpdateDialogXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AdGuardHomeUpdateDialog.xaml"));
         Assert(tailscaleUpdateDialogXaml.Contains("Text=\"{Binding CommandPreview, Mode=OneWay}\"", StringComparison.Ordinal) &&

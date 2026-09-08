@@ -294,7 +294,7 @@
                                     <Run Text="Community updater integrations by "/>
                                     <Hyperlink NavigateUri="https://admon.me"
                                                RequestNavigate="GitHubLink_RequestNavigate">Admon</Hyperlink>
-                                    <Run Text=". The Tailscale updater is MIT licensed."/>
+                                    <Run Text=". The AdGuard Home updater and Tailscale updater are MIT licensed."/>
                                 </TextBlock>
 
                                 <Separator Margin="0,16,0,16"/>
