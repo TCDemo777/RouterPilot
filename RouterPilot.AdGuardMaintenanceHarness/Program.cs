@@ -110,8 +110,9 @@ static class Program
         Assert(directSections.Contains("AdGuardHomeSection", StringComparer.Ordinal), "adguard hosted directly");
         Assert(directSections.Contains("TailscaleSection", StringComparer.Ordinal), "tailscale hosted directly");
         string maintenanceXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
-        Assert(maintenanceXaml.Contains("Community project by Admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://admon.me", StringComparison.Ordinal), "Admon credit and link");
-        Assert(maintenanceXaml.Split("https://admon.me", StringSplitOptions.None).Length - 1 == 4, "overview, AdGuard, and Tailscale credit links target Admon");
+        Assert(maintenanceXaml.Contains("Official AdGuard Home releases determine update availability", StringComparison.Ordinal) && maintenanceXaml.Contains("Official Tailscale releases determine update awareness", StringComparison.Ordinal) && maintenanceXaml.Contains("<Hyperlink NavigateUri=\"https://admon.me\" Click=\"OpenCommunityToolProject_Click\"", StringComparison.Ordinal), "component explanations credit Admon inline");
+        Assert(!maintenanceXaml.Contains("Community project by Admon", StringComparison.Ordinal) && !maintenanceXaml.Contains("Text=\"COMMUNITY PROJECT\"", StringComparison.Ordinal), "standalone component credit cards removed");
+        Assert(maintenanceXaml.Split("https://admon.me", StringSplitOptions.None).Length - 1 == 4, "overview and inline component credits target Admon");
         Assert(!maintenanceXaml.Contains("github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal) && !maintenanceXaml.Contains("github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "component credit areas no longer use repository links");
         string aboutXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AboutView.xaml"));
         string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));
@@ -126,7 +127,7 @@ static class Program
         string consoleCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceInteractiveSessionWindow.xaml.cs"));
         string maintenanceCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml.cs"));
         Assert(consoleXaml.Contains("WindowStartupLocation=\"CenterOwner\"", StringComparison.Ordinal), "console opens centered over its owner");
-        Assert(consoleXaml.Contains("IsReadOnly=\"True\"", StringComparison.Ordinal) && consoleCode.Contains("https://admon.me", StringComparison.Ordinal), "console command is read-only and credits Admon");
+        Assert(consoleXaml.Contains("IsReadOnly=\"True\"", StringComparison.Ordinal) && consoleXaml.Contains("Community updater by", StringComparison.Ordinal) && !consoleXaml.Contains("COMMUNITY PROJECT", StringComparison.Ordinal) && consoleCode.Contains("https://admon.me", StringComparison.Ordinal), "console command is read-only and has compact Admon credit");
         Assert(consoleCode.Contains("Owner = owner", StringComparison.Ordinal) && !consoleCode.Contains("Application.Current.MainWindow =", StringComparison.Ordinal), "console preserves canonical MainWindow");
         Assert(maintenanceCode.Contains("MaintenanceInteractiveOperation.CreateTailscaleUpdate", StringComparison.Ordinal) && !maintenanceCode.Substring(maintenanceCode.IndexOf("private void UpdateTailscale_Click", StringComparison.Ordinal), maintenanceCode.IndexOf("private void RestoreTailscale_Click", StringComparison.Ordinal) - maintenanceCode.IndexOf("private void UpdateTailscale_Click", StringComparison.Ordinal)).Contains("OpenInteractiveUpdaterTerminal", StringComparison.Ordinal), "tailscale update no longer uses external terminal handoff");
         Console.WriteLine("AdGuard Home maintenance harness: PASS");

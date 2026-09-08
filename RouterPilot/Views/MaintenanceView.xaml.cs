@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
@@ -528,7 +529,13 @@ public partial class MaintenanceView : UserControl
 
     private void OpenCommunityToolProject_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string link } || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps ||
+        Uri? uri = sender switch
+        {
+            Button { Tag: string link } when Uri.TryCreate(link, UriKind.Absolute, out Uri? buttonUri) => buttonUri,
+            Hyperlink { NavigateUri: not null } hyperlink => hyperlink.NavigateUri,
+            _ => null
+        };
+        if (uri is null || uri.Scheme != Uri.UriSchemeHttps ||
             !(uri.Host.Equals("get.admon.me", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("admon.me", StringComparison.OrdinalIgnoreCase))) return;
         ShowExternalLaunchFailure(_externalLauncher.OpenUri(uri), "Open community project", "web page");
     }

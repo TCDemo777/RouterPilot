@@ -24,17 +24,7 @@
 
         <StackPanel>
             <TextBlock x:Name="TitleTextBlock" Style="{DynamicResource Text.SectionTitle}"/>
-            <Border Margin="0,14,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="8">
-                <Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="COMMUNITY PROJECT"/>
-                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="Community project by Admon"/>
-                        <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Community-maintained updater used by RouterPilot for this optional maintenance workflow."/>
-                    </StackPanel>
-                    <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Button.Secondary}" Content="Admon" Click="OpenAdmon_Click" automation:AutomationProperties.Name="Visit Admon"/>
-                </Grid>
-            </Border>
+            <TextBlock Margin="0,6,0,0" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"><Run Text="Community updater by "/><Hyperlink NavigateUri="https://admon.me" Click="OpenAdmon_Click" automation:AutomationProperties.Name="Visit Admon">Admon</Hyperlink><Run Text="."/></TextBlock>
             <Grid Margin="0,14,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
