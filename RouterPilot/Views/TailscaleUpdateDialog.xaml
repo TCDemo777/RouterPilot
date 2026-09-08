@@ -27,7 +27,7 @@
         </Expander>
         <Border Margin="0,16,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6">
             <StackPanel><TextBlock FontWeight="SemiBold" Text="Community updater"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="RouterPilot will open an interactive terminal and copy this third-party community-updater command. The updater is not maintained by RouterPilot, GL.iNet, or Tailscale. Authenticate normally, paste the command, and review terminal output and prompts carefully."/>
-                <TextBox Margin="0,10,0,0" IsReadOnly="True" Text="{Binding CommandPreview}" TextWrapping="Wrap"/>
+                <TextBox Margin="0,10,0,0" IsReadOnly="True" Text="{Binding CommandPreview, Mode=OneWay}" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
         <Border x:Name="RiskWarning" Margin="0,12,0,0" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="6" Visibility="Collapsed">

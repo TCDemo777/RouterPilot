@@ -109,6 +109,11 @@ static class Program
         string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));
         Assert(aboutXaml.Contains("https://admon.me", StringComparison.Ordinal) && aboutXaml.Contains(">Admon<", StringComparison.Ordinal), "About displays Admon credit");
         Assert(readme.Contains("[Admon](https://admon.me)", StringComparison.Ordinal), "README displays Admon credit");
+        string tailscaleUpdateDialogXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "TailscaleUpdateDialog.xaml"));
+        string adGuardUpdateDialogXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AdGuardHomeUpdateDialog.xaml"));
+        Assert(tailscaleUpdateDialogXaml.Contains("Text=\"{Binding CommandPreview, Mode=OneWay}\"", StringComparison.Ordinal) &&
+               adGuardUpdateDialogXaml.Contains("Text=\"{Binding CommandPreview, Mode=OneWay}\"", StringComparison.Ordinal),
+            "read-only updater previews use OneWay bindings");
         string consoleXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceInteractiveSessionWindow.xaml"));
         string consoleCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceInteractiveSessionWindow.xaml.cs"));
         string maintenanceCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml.cs"));
