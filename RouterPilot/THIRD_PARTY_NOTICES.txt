@@ -27,15 +27,17 @@ time; RouterPilot does not include, redistribute, modify or execute their
 source during refresh or status checks.
 
 AdGuard Home updater
-Community updater source for GL.iNet routers by Admon / the GL.iNet community.
+Display credit: Admon (https://admon.me).
+Community updater source for GL.iNet routers.
 https://github.com/admonstrator/glinet-adguard-updater
 Licence: MIT. Copyright (c) 2024 Aaron Viehl.
 This external script is independent of RouterPilot, GL.iNet and AdGuard.
 
 GL.iNet Tailscale Updater
-Community project by Aaron Viehl (admonstrator), part of the GL.iNet Toolbox
-project. Licence: MIT.
+Display credit: Admon (https://admon.me).
+Community project, part of the GL.iNet Toolbox project. Licence: MIT.
 https://github.com/admonstrator/glinet-tailscale-updater
+Copyright (c) 2024 Aaron Viehl.
 The project is independent and is not affiliated with GL.iNet or Tailscale.
 Because its script is runtime-downloaded and not distributed with RouterPilot,
 RouterPilot does not bundle a copy. Its upstream copyright and MIT licence

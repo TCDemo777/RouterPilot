@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -1938,11 +1939,28 @@ namespace RouterPilot.Views
 
         private static void OpenExternalUrl(string url)
         {
-            Process.Start(
-                new ProcessStartInfo(url)
-                {
-                    UseShellExecute = true
-                });
+            try
+            {
+                Process.Start(
+                    new ProcessStartInfo(url)
+                    {
+                        UseShellExecute = true
+                    });
+            }
+            catch (Exception exception) when (
+                exception is Win32Exception or
+                FileNotFoundException or
+                InvalidOperationException or
+                UnauthorizedAccessException)
+            {
+                Debug.WriteLine(
+                    $"External link launch failed ({DiagnosticRedactor.FailureCategory(exception)}).");
+                MessageBox.Show(
+                    "RouterPilot could not open the requested web page.",
+                    "Open web page",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
         }
 
         private void GitHubLink_RequestNavigate(

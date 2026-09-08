@@ -72,7 +72,7 @@ static class Program
         MaintenanceExternalLaunchResult launchedWithoutClipboard = clipboardFailure.LaunchInteractiveSsh("router.example", "root", 22, TailscaleUpdaterCommand.BaseCommand);
         Assert(launchedWithoutClipboard.Status == MaintenanceExternalLaunchStatus.LaunchedWithoutClipboard && !launchedWithoutClipboard.ClipboardCopied, "clipboard failure remains non-fatal");
         MaintenanceExternalLauncher linkFailure = new(() => "cmd.exe", _ => { }, _ => throw new Win32Exception("browser unavailable"));
-        Assert(linkFailure.OpenUri(new Uri("https://github.com/admonstrator/glinet-tailscale-updater")).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "project link launch failure contained");
+        Assert(linkFailure.OpenUri(new Uri("https://admon.me")).Status == MaintenanceExternalLaunchStatus.LaunchFailed, "credit link launch failure contained");
         string rcLocal = "#!/bin/sh\n. /usr/bin/enable-adguardhome-update-check\necho keep\nexit 0\n";
         string sysupgrade = "/etc/AdGuardHome\n/custom/preserve\n/usr/bin/enable-adguardhome-update-check\n";
         Assert(AdGuardUpdaterIntegrationCleanup.RemoveRcLocalIntegration(rcLocal) == "#!/bin/sh\necho keep\nexit 0\n", "targeted rc.local cleanup");
@@ -90,8 +90,13 @@ static class Program
         Assert(directSections.Contains("AdGuardHomeSection", StringComparer.Ordinal), "adguard hosted directly");
         Assert(directSections.Contains("TailscaleSection", StringComparer.Ordinal), "tailscale hosted directly");
         string maintenanceXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
-        Assert(maintenanceXaml.Contains("AdGuard Home updater by admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal), "adguard credit and project link");
-        Assert(maintenanceXaml.Contains("GL.iNet Tailscale updater by admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "tailscale credit and project link");
+        Assert(maintenanceXaml.Contains("Community project by Admon", StringComparison.Ordinal) && maintenanceXaml.Contains("https://admon.me", StringComparison.Ordinal), "Admon credit and link");
+        Assert(maintenanceXaml.Split("https://admon.me", StringSplitOptions.None).Length - 1 == 4, "overview, AdGuard, and Tailscale credit links target Admon");
+        Assert(!maintenanceXaml.Contains("github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal) && !maintenanceXaml.Contains("github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "component credit areas no longer use repository links");
+        string aboutXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AboutView.xaml"));
+        string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));
+        Assert(aboutXaml.Contains("https://admon.me", StringComparison.Ordinal) && aboutXaml.Contains(">Admon<", StringComparison.Ordinal), "About displays Admon credit");
+        Assert(readme.Contains("[Admon](https://admon.me)", StringComparison.Ordinal), "README displays Admon credit");
         Console.WriteLine("AdGuard Home maintenance harness: PASS");
         return 0;
     }

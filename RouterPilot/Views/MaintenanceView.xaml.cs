@@ -476,7 +476,7 @@ public partial class MaintenanceView : UserControl
     private void OpenCommunityToolProject_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string link } || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps ||
-            !(uri.Host.Equals("get.admon.me", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))) return;
+            !(uri.Host.Equals("get.admon.me", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("admon.me", StringComparison.OrdinalIgnoreCase))) return;
         ShowExternalLaunchFailure(_externalLauncher.OpenUri(uri), "Open community project", "web page");
     }
 
