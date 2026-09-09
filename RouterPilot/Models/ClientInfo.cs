@@ -7,6 +7,11 @@ namespace RouterPilot.Models
         public string Name { get; set; } = "-";
         public string NameSource { get; set; } = "Unknown";
         public string RouterName { get; set; } = "-";
+        // Presentation inputs are retained independently; the selected source
+        // changes only Name, never the underlying router/client identity data.
+        public string AutomaticName { get; set; } = string.Empty;
+        public string RouterConfiguredName { get; set; } = string.Empty;
+        public string AdGuardConfiguredName { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
         public string CustomCategory { get; set; } = string.Empty;
         public DateTime FirstSeenUtc { get; set; }
@@ -66,6 +71,7 @@ namespace RouterPilot.Models
         // Optional identity supplied by an associated AdGuard client record;
         // never required for router-derived naming.
         public string AdGuardName { get; set; } = string.Empty;
+        public bool IsConfiguredAdGuardClient { get; set; }
         public string MdnsName { get; set; } = string.Empty;
         public string HealthText { get; set; } = "Unknown";
         public string HealthColour { get; set; } = "#687386";

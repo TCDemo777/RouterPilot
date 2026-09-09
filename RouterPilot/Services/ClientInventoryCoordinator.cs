@@ -133,6 +133,8 @@ public sealed class ClientInventoryCoordinator
             LastSeen = dns?.LastSeen ?? "-",
             QueryLogAvailable = dns?.QueryLogAvailable ?? false,
             AdGuardDataAvailability = dns is null ? AdGuardAvailabilityState.Unavailable : AdGuardAvailabilityState.Available,
+            IsConfiguredAdGuardClient = dns?.IsConfiguredAdGuardClient == true,
+            AdGuardConfiguredName = dns?.IsConfiguredAdGuardClient == true ? dns.Name : string.Empty,
             Notes = profile?.Notes ?? string.Empty,
             CustomCategory = profile?.Category ?? string.Empty,
             IsFavorite = profile?.IsFavorite ?? false,

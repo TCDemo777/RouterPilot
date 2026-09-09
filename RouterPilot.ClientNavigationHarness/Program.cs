@@ -49,6 +49,30 @@ var duplicateLease = new DhcpLeaseInfo { MacAddress = "AA:BB:CC:DD:EE:04", IpAdd
 DhcpConfiguredNameResolver.Apply([duplicateLease], [new DhcpReservationInfo { MacAddress = "AA:BB:CC:DD:EE:04", IpAddress = "192.168.1.23", ConfiguredName = "First" }, new DhcpReservationInfo { MacAddress = "aa-bb-cc-dd-ee-04", IpAddress = "192.168.1.23", ConfiguredName = "Second" }]);
 Require(duplicateLease.ConfiguredName is null && duplicateLease.ClientName == "Observed", "duplicate reservation identities are not guessed");
 
+var routerNames = ClientConfiguredNameResolver.RouterByMac([
+    new DhcpReservationInfo { MacAddress = "aa:bb:cc:dd:ee:ff", IpAddress = "192.168.1.20", ConfiguredName = "Office Printer" }]);
+Require(routerNames.TryGetValue("AABBCCDDEEFF", out string? routerConfigured) && routerConfigured == "Office Printer", "router configured names normalize MAC identities");
+var adGuardNames = ClientConfiguredNameResolver.AdGuardByIdentity([
+    new ClientInfo { Name = "Lounge Television", MacAddress = "AA:BB:CC:DD:EE:FF", IsConfiguredAdGuardClient = true },
+    new ClientInfo { Name = "IP-only client", IpAddress = "192.168.1.25", IsConfiguredAdGuardClient = true },
+    new ClientInfo { Name = "CIDR must not match", IpAddress = "192.168.1.0/24", IsConfiguredAdGuardClient = true }]);
+Require(adGuardNames.ByMac.TryGetValue("AABBCCDDEEFF", out string? adGuardConfigured) && adGuardConfigured == "Lounge Television" &&
+    adGuardNames.ByIp.TryGetValue("192.168.1.25", out string? ipConfigured) && ipConfigured == "IP-only client" && !adGuardNames.ByIp.ContainsKey("192.168.1.0/24"),
+    "configured AdGuard names use only exact MAC or IP identities, never CIDR");
+Require(ClientNamePresentation.Resolve(ClientNameSource.Automatic, "LGwebOSTV", "Living Room TV", "Lounge Television") == "LGwebOSTV" &&
+    ClientNamePresentation.Resolve(ClientNameSource.Router, "LGwebOSTV", "Living Room TV", "Lounge Television") == "Living Room TV" &&
+    ClientNamePresentation.Resolve(ClientNameSource.AdGuard, "LGwebOSTV", "Living Room TV", "Lounge Television") == "Lounge Television" &&
+    ClientNamePresentation.Resolve(ClientNameSource.AdGuard, "LGwebOSTV", "Living Room TV", null) == "LGwebOSTV",
+    "naming preference selects configured source with per-client fallback");
+Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
+MethodInfo? parseAdGuardClients = typeof(RouterManager).GetMethod("ParseAdGuardClients", BindingFlags.Static | BindingFlags.NonPublic);
+Require(parseAdGuardClients is not null, "AdGuard clients parser is available");
+var parsedAdGuard = (List<ClientInfo>)parseAdGuardClients!.Invoke(null,
+    ["{\"clients\":[{\"name\":\"Lounge Television\",\"ids\":[\"192.168.1.25\",\"192.168.1.0/24\"]}],\"auto_clients\":[{\"name\":\"Runtime name\",\"ip\":\"192.168.1.26\"}]}"])!;
+Require(parsedAdGuard.Any(item => item.Name == "Lounge Television" && item.IsConfiguredAdGuardClient) &&
+    parsedAdGuard.Any(item => item.Name == "Runtime name" && !item.IsConfiguredAdGuardClient),
+    "AdGuard configured clients are distinguished from automatic runtime clients");
+
 var parsedWifi = WifiDiscoveryParser.ParseConfiguredNetworks(
     "N|radio0|dev0|phy0|Home WiFi|5g|36|psk2|Online|lan|HE80\n" +
     "N|radio1|dev1|phy1||6g|auto|open|Configured|guest|\n");

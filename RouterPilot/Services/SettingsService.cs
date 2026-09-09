@@ -235,6 +235,11 @@ public sealed class SettingsService
         settings.SshPort = settings.SshPort is >= 1 and <= 65535 ? settings.SshPort : 22;
         if (!Enum.IsDefined(settings.SshAuthenticationMethod))
             settings.SshAuthenticationMethod = SshAuthenticationMethod.Password;
+        if (!Enum.IsDefined(settings.ClientNameSource))
+        {
+            settings.ClientNameSource = ClientNameSource.Automatic;
+            changed = true;
+        }
 
         settings.RouterProfiles ??= new List<RouterProfile>();
         if (settings.RouterProfiles.Count == 0 && !string.IsNullOrWhiteSpace(settings.RouterHost))

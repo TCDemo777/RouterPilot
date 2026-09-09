@@ -104,6 +104,14 @@
                                 Style="{DynamicResource Button.Secondary}"
                                 Command="{Binding LoadClientsCommand}"
                                 Content="Refresh"/>
+                        <TextBlock Margin="0,0,8,8" VerticalAlignment="Center" FontWeight="SemiBold" Text="Client names:"/>
+                        <ComboBox MinWidth="128" Height="36" Margin="0,0,10,8"
+                                  Style="{StaticResource RouterPilot.ComboBox}"
+                                  ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}"
+                                  ItemsSource="{Binding ClientNameSourceOptions}"
+                                  SelectedItem="{Binding SelectedClientNameSource, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  ToolTip="{Binding ClientNameSourceToolTip}"/>
                         <Button MinWidth="110" Height="36" Margin="0,0,10,8"
                                 Style="{DynamicResource Button.Secondary}"
                                 Command="{Binding PingSelectedClientCommand}"
@@ -122,6 +130,8 @@
                                 Content="{Binding KnownDevicesButtonText}"/>
                     </WrapPanel>
                     <WrapPanel Margin="0,2,0,0" VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,18,6" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}"
+                                   Text="{Binding ClientNameSourceAvailabilityHint}" TextWrapping="Wrap"/>
                         <CheckBox Margin="0,0,18,6"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"

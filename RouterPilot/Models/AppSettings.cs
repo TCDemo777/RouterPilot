@@ -49,6 +49,7 @@ public sealed class AppSettings
     public List<DashboardCardPreference> DashboardCards { get; set; } = new();
     public bool VpnDiagnosticsExpanded { get; set; }
     public bool NewDeviceDetectionInitialized { get; set; }
+    public ClientNameSource ClientNameSource { get; set; } = ClientNameSource.Automatic;
 
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(RouterHost);

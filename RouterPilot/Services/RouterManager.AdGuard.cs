@@ -2051,7 +2051,8 @@ namespace RouterPilot.Services
                         clients,
                         knownIdentifiers,
                         name,
-                        identifier);
+                        identifier,
+                        configured: true);
                 }
             }
         }
@@ -2087,7 +2088,8 @@ namespace RouterPilot.Services
                     clients,
                     knownIdentifiers,
                     name,
-                    ipAddress);
+                    ipAddress,
+                    configured: false);
             }
         }
 
@@ -2095,7 +2097,8 @@ namespace RouterPilot.Services
             List<ClientInfo> clients,
             HashSet<string> knownIdentifiers,
             string name,
-            string identifier)
+            string identifier,
+            bool configured)
         {
             if (string.IsNullOrWhiteSpace(
                     identifier))
@@ -2193,7 +2196,8 @@ namespace RouterPilot.Services
                         0,
 
                     LastSeen =
-                        "-"
+                        "-",
+                    IsConfiguredAdGuardClient = configured
                 });
         }
 
