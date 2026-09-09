@@ -39,8 +39,6 @@ namespace RouterPilot.Views
         private readonly StringBuilder _supportLog =
             new StringBuilder();
         private bool _diagnosticsHistorySubscribed;
-        private int _logoClickCount;
-        private DateTime _logoClickWindowStartedUtc;
         private bool _flightDeckActive;
         private CancellationTokenSource? _flightDeckCancellation;
         private CancellationTokenSource? _autopilotCancellation;
@@ -1127,8 +1125,6 @@ namespace RouterPilot.Views
             _autopilotCancellation?.Cancel();
             _autopilotCancellation?.Dispose();
             _autopilotCancellation = null;
-            _logoClickCount = 0;
-            _logoClickWindowStartedUtc = default;
             _flightDeckActive = false;
             if (LaunchMotionGroup is not null)
                 ResetPreflightVisuals();
