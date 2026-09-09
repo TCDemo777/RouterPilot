@@ -18,13 +18,16 @@ namespace RouterPilot.Models
 
     public sealed class DhcpLeaseInfo
     {
-        public string Hostname { get; init; } = "Unknown device";
+        /// <summary>The hostname observed in dnsmasq's active lease record.</summary>
+        public string Hostname { get; init; } = "—";
+        /// <summary>The explicit label configured on the matching UCI DHCP host section.</summary>
+        public string? ConfiguredName { get; set; }
         public string IpAddress { get; init; } = "-";
         public string MacAddress { get; init; } = "-";
         public DateTimeOffset? Expiry { get; init; }
         public bool IsStatic { get; init; }
         public string RemainingLease { get; init; } = "N/A";
-        public string ClientName { get; set; } = "Unknown device";
+        public string ClientName { get; set; } = "—";
         public string DeviceType { get; set; } = "Unknown device";
         public bool IsFavourite { get; set; }
         public string ProfileId { get; set; } = string.Empty;
@@ -35,7 +38,9 @@ namespace RouterPilot.Models
     public sealed class DhcpReservationInfo
     {
         public string Id { get; init; } = "-";
-        public string Hostname { get; set; } = "Unknown device";
+        /// <summary>The router's explicit UCI DHCP host-section <c>tag</c>, when present.</summary>
+        public string? ConfiguredName { get; init; }
+        public string Hostname { get; set; } = "—";
         public string MacAddress { get; init; } = "-";
         public string IpAddress { get; init; } = "-";
         public bool Enabled { get; init; } = true;

@@ -582,6 +582,7 @@ namespace RouterPilot.Services
 
             string leaseOutput = await _ssh.RunCommandAsync("cat /tmp/dhcp.leases 2>/dev/null || true");
             List<DhcpLeaseInfo> leases = DhcpLeaseParser.Parse(leaseOutput);
+            DhcpConfiguredNameResolver.Apply(leases, _dhcpReservationCache);
             IReadOnlyList<DhcpNetworkScopeInfo> scopes = await GetDhcpNetworkScopesAsync(CancellationToken.None);
             CorrelateDhcpScopes(leases, _dhcpReservationCache, scopes);
             List<string> warnings = DetectDhcpConflicts(_dhcpReservationCache, leases);
@@ -1148,7 +1149,11 @@ namespace RouterPilot.Services
                 .Select(section => new DhcpReservationInfo
                 {
                     Id = section.Id,
-                    Hostname = GetDhcpOption(section, "name", "Unknown device"),
+                    // GL.iNet stores the static-reservation label in the UCI
+                    // host section's `tag` option, separate from dnsmasq's
+                    // observed active-lease hostname.
+                    ConfiguredName = GetDhcpOption(section, "tag", string.Empty),
+                    Hostname = GetDhcpOption(section, "tag", "—"),
                     MacAddress = GetDhcpOption(section, "mac"),
                     IpAddress = GetDhcpOption(section, "ip"),
                     Enabled = !GetDhcpOption(section, "enabled").Equals("0", StringComparison.Ordinal)

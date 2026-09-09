@@ -1353,7 +1353,7 @@ namespace RouterPilot.ViewModels
                 if (!profiles.TryGetValue(ClientIdentity.NormalizeMac(lease.MacAddress), out ClientProfile? profile)) continue;
                 lease.ProfileId = profile.Key;
                 lease.IsFavourite = profile.IsFavorite;
-                if (!string.IsNullOrWhiteSpace(profile.Nickname)) lease.ClientName = profile.Nickname;
+                if (string.IsNullOrWhiteSpace(lease.ConfiguredName) && IsUnavailableDhcpName(lease.Hostname) && !string.IsNullOrWhiteSpace(profile.Nickname)) lease.ClientName = profile.Nickname;
                 if (!string.IsNullOrWhiteSpace(profile.Category)) lease.DeviceType = profile.Category;
             }
         }
@@ -1367,10 +1367,14 @@ namespace RouterPilot.ViewModels
                 if (!profiles.TryGetValue(ClientIdentity.NormalizeMac(reservation.MacAddress), out ClientProfile? profile)) continue;
                 reservation.ProfileId = profile.Key;
                 reservation.IsFavourite = profile.IsFavorite;
-                if (!string.IsNullOrWhiteSpace(profile.Nickname)) reservation.Hostname = profile.Nickname;
+                if (string.IsNullOrWhiteSpace(reservation.ConfiguredName) && !string.IsNullOrWhiteSpace(profile.Nickname)) reservation.Hostname = profile.Nickname;
                 if (!string.IsNullOrWhiteSpace(profile.Category)) reservation.DeviceType = profile.Category;
             }
         }
+
+        private static bool IsUnavailableDhcpName(string? value) =>
+            string.IsNullOrWhiteSpace(value) || value == "—" || value == "-" ||
+            value.Equals("Unknown device", StringComparison.OrdinalIgnoreCase);
 
         private static void ReplaceDhcpCollection<T>(ObservableCollection<T> target, IEnumerable<T> values)
         {

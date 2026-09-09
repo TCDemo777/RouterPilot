@@ -26,8 +26,28 @@ Require(UsableIp("[2001:db8::103]:53"), "IP filter accepts bracketed IPv6 endpoi
 
 var parsedDhcpLeases = DhcpLeaseParser.Parse("0 aa:bb:cc:dd:ee:ff 192.168.1.42 *\n");
 Require(parsedDhcpLeases.Count == 1 && parsedDhcpLeases[0].IsStatic &&
-    parsedDhcpLeases[0].Hostname == "Unknown device" && parsedDhcpLeases[0].IpAddress == "192.168.1.42",
-    "DHCP lease parser preserves static and unknown-host semantics");
+    parsedDhcpLeases[0].Hostname == "—" && parsedDhcpLeases[0].IpAddress == "192.168.1.42",
+    "DHCP lease parser preserves static and unavailable-host semantics");
+
+MethodInfo? parseDhcpConfiguration = typeof(RouterManager).GetMethod("ParseDhcpConfiguration", BindingFlags.Static | BindingFlags.NonPublic);
+Require(parseDhcpConfiguration is not null, "DHCP UCI configuration parser is available");
+var parsedConfiguration = ((ValueTuple<List<DhcpConfigurationInfo>, List<DhcpReservationInfo>>)parseDhcpConfiguration!.Invoke(null,
+    ["dhcp.@host[0]=host\ndhcp.@host[0].mac='AA-BB-CC-DD-EE-01'\ndhcp.@host[0].ip='192.168.1.20'\ndhcp.@host[0].tag='Office Printer'\ndhcp.@host[0].name='unrelated.example'\n"])!);
+Require(parsedConfiguration.Item2.Count == 1 && parsedConfiguration.Item2[0].ConfiguredName == "Office Printer" && parsedConfiguration.Item2[0].Hostname == "Office Printer",
+    "GL.iNet DHCP host tag is the configured reservation display name, not name");
+
+var configuredLease = new DhcpLeaseInfo { MacAddress = "aa:bb:cc:dd:ee:01", IpAddress = "192.168.1.20", Hostname = "HP1234", ClientName = "HP1234", IsStatic = true };
+DhcpConfiguredNameResolver.Apply([configuredLease], [new DhcpReservationInfo { MacAddress = "AA-BB-CC-DD-EE-01", IpAddress = "192.168.1.20", ConfiguredName = "Office Printer", Hostname = "Office Printer" }]);
+Require(configuredLease.ConfiguredName == "Office Printer" && configuredLease.ClientName == "Office Printer", "configured UCI name wins over observed DHCP hostname with normalized MAC");
+var observedOnlyLease = new DhcpLeaseInfo { MacAddress = "AA:BB:CC:DD:EE:02", IpAddress = "192.168.1.21", Hostname = "NAS", ClientName = "NAS", IsStatic = true };
+DhcpConfiguredNameResolver.Apply([observedOnlyLease], [new DhcpReservationInfo { MacAddress = "AA:BB:CC:DD:EE:02", IpAddress = "192.168.1.21", Hostname = "—" }]);
+Require(observedOnlyLease.ConfiguredName is null && observedOnlyLease.ClientName == "NAS", "observed hostname remains the fallback without a configured name");
+var unavailableNameLease = new DhcpLeaseInfo { MacAddress = "AA:BB:CC:DD:EE:03", IpAddress = "192.168.1.22", Hostname = "—", ClientName = "—", IsStatic = true };
+DhcpConfiguredNameResolver.Apply([unavailableNameLease], Array.Empty<DhcpReservationInfo>());
+Require(unavailableNameLease.ClientName == "—", "missing configured and observed names display an em dash");
+var duplicateLease = new DhcpLeaseInfo { MacAddress = "AA:BB:CC:DD:EE:04", IpAddress = "192.168.1.23", Hostname = "Observed", ClientName = "Observed", IsStatic = true };
+DhcpConfiguredNameResolver.Apply([duplicateLease], [new DhcpReservationInfo { MacAddress = "AA:BB:CC:DD:EE:04", IpAddress = "192.168.1.23", ConfiguredName = "First" }, new DhcpReservationInfo { MacAddress = "aa-bb-cc-dd-ee-04", IpAddress = "192.168.1.23", ConfiguredName = "Second" }]);
+Require(duplicateLease.ConfiguredName is null && duplicateLease.ClientName == "Observed", "duplicate reservation identities are not guessed");
 
 var parsedWifi = WifiDiscoveryParser.ParseConfiguredNetworks(
     "N|radio0|dev0|phy0|Home WiFi|5g|36|psk2|Online|lan|HE80\n" +
@@ -381,7 +401,7 @@ ClientDetailsNavigationTarget?[] concurrent = await Task.WhenAll(
 Require(concurrentLoadCount == 1 && concurrent.All(result => ReferenceEquals(result?.LiveClient, target)),
     "Concurrent deep links did not coalesce authoritative reconciliation.");
 
-Console.WriteLine("Client Details deep-link regression fixtures passed: 8/8.");
+Console.WriteLine("Client Details deep-link regression fixtures passed, including DHCP configured-name fixtures.");
 
 sealed class StubMacLookupHandler : HttpMessageHandler
 {

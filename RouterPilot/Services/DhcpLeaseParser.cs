@@ -21,7 +21,7 @@ internal static class DhcpLeaseParser
 
             bool isStatic = expirySeconds == 0;
             DateTimeOffset? expiry = isStatic ? null : DateTimeOffset.FromUnixTimeSeconds(expirySeconds);
-            string hostname = fields[3] == "*" ? "Unknown device" : fields[3];
+            string hostname = fields[3] == "*" ? "—" : fields[3];
             leases.Add(new DhcpLeaseInfo
             {
                 Hostname = hostname,
