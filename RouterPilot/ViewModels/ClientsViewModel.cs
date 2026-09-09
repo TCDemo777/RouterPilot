@@ -535,6 +535,7 @@ namespace RouterPilot.ViewModels
             {
                 if (string.IsNullOrWhiteSpace(client.AutomaticName)) client.AutomaticName = client.Name;
                 client.Name = _displayNames.Resolve(client);
+                client.NameSource = _displayNames.ResolveNameSource(client);
             }
             ApplyFilterAndSort();
         }

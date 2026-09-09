@@ -67,6 +67,11 @@ Require(ClientNamePresentation.Resolve(ClientNameSource.Automatic, "LGwebOSTV", 
     ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", null, "Lounge Television") == "Lounge Television" &&
     ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", " ", " ") == "LGwebOSTV",
     "naming preference selects configured source with per-client fallback");
+Require(ClientNamePresentation.ResolveSource(ClientNameSource.Router, "Living Room TV", "Lounge Television") == "Router" &&
+    ClientNamePresentation.ResolveSource(ClientNameSource.ConfiguredNames, "", "Lounge Television") == "AdGuard" &&
+    ClientNamePresentation.ResolveSource(ClientNameSource.AdGuard, "Living Room TV", "") == "RouterPilot" &&
+    ClientNamePresentation.ResolveSource(ClientNameSource.Automatic, "Living Room TV", "Lounge Television") == "RouterPilot",
+    "name-source presentation follows the same configured-name precedence");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
 var sharedHttpHandler = new StubMacLookupHandler();
 using var sharedHttpClient = new HttpClient(sharedHttpHandler);

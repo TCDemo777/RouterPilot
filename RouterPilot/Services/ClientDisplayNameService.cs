@@ -13,6 +13,7 @@ public interface IClientDisplayNameService
     void UpdateRouterReservations(IEnumerable<DhcpReservationInfo> reservations);
     void UpdateAdGuardClients(IEnumerable<ClientInfo> clients);
     string Resolve(ClientInfo client);
+    string ResolveNameSource(ClientInfo client);
     string Resolve(string? macAddress, string? ipAddress, string? automaticName);
 }
 
@@ -63,6 +64,13 @@ public sealed class ClientDisplayNameService : IClientDisplayNameService
         return ClientNamePresentation.Resolve(Source, automatic, client.RouterConfiguredName, client.AdGuardConfiguredName);
     }
 
+    public string ResolveNameSource(ClientInfo client)
+    {
+        string router = Router(client.MacAddress);
+        string adGuard = AdGuard(client.MacAddress, client.IpAddress);
+        return ClientNamePresentation.ResolveSource(Source, router, adGuard);
+    }
+
     public string Resolve(string? macAddress, string? ipAddress, string? automaticName) =>
         ClientNamePresentation.Resolve(Source, automaticName ?? "-", Router(macAddress), AdGuard(macAddress, ipAddress));
 
@@ -88,5 +96,6 @@ public sealed class PassthroughClientDisplayNameService : IClientDisplayNameServ
     public void UpdateRouterReservations(IEnumerable<DhcpReservationInfo> reservations) { }
     public void UpdateAdGuardClients(IEnumerable<ClientInfo> clients) { }
     public string Resolve(ClientInfo client) => client.Name;
+    public string ResolveNameSource(ClientInfo client) => "RouterPilot";
     public string Resolve(string? macAddress, string? ipAddress, string? automaticName) => automaticName ?? "-";
 }

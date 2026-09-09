@@ -70,9 +70,7 @@ namespace RouterPilot.ViewModels
         // RouterPilot-owned configuration and is deliberately not substituted
         // into the header when an external naming policy is selected.
         public string ClientName => LiveClient?.Name ?? _client.Name;
-        public string NameSource => !string.IsNullOrWhiteSpace(ProfileNickname)
-            ? "Personalized"
-            : CurrentClientOrSnapshot.NameSource;
+        public string NameSource => CurrentClientOrSnapshot.NameSource;
         private ClientInfo? LiveClient =>
             ClientIdentity.IsMacKey(_client.MacAddress) &&
             _clientInventory.Snapshot.TryGetValue(ClientIdentity.NormalizeMac(_client.MacAddress), out ClientInfo? client)

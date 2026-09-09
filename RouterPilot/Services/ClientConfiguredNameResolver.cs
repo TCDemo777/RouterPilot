@@ -38,5 +38,14 @@ public static class ClientNamePresentation
         _ => automaticName
     };
 
+    public static string ResolveSource(ClientNameSource source, string? routerName, string? adGuardName) => source switch
+    {
+        ClientNameSource.Router when HasName(routerName) => "Router",
+        ClientNameSource.AdGuard when HasName(adGuardName) => "AdGuard",
+        ClientNameSource.ConfiguredNames when HasName(routerName) => "Router",
+        ClientNameSource.ConfiguredNames when HasName(adGuardName) => "AdGuard",
+        _ => "RouterPilot"
+    };
+
     private static bool HasName(string? value) => !string.IsNullOrWhiteSpace(value) && value != "-" && value != "—";
 }
