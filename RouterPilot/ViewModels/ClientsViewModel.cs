@@ -95,7 +95,7 @@ namespace RouterPilot.ViewModels
             };
 
         public IReadOnlyList<ClientNameSourceOption> ClientNameSourceOptions { get; } =
-            [new(ClientNameSource.Automatic, "Automatic"), new(ClientNameSource.Router, "Router"), new(ClientNameSource.AdGuard, "AdGuard")];
+            [new(ClientNameSource.Automatic, "Automatic"), new(ClientNameSource.Router, "Router"), new(ClientNameSource.AdGuard, "AdGuard"), new(ClientNameSource.ConfiguredNames, "Configured names")];
 
         [ObservableProperty] private ClientNameSourceOption? selectedClientNameSource;
         public string ClientNameSourceToolTip => "Choose where RouterPilot gets friendly client names. If a name is unavailable, the detected device name is used.";
@@ -491,9 +491,9 @@ namespace RouterPilot.ViewModels
             _settingsService.Save(_settings);
             ApplyConfiguredNames();
             OnPropertyChanged(nameof(ClientNameSourceAvailabilityHint));
-            if (value.Source == ClientNameSource.Router && _routerConfiguredNames.Count == 0)
+            if ((value.Source == ClientNameSource.Router || value.Source == ClientNameSource.ConfiguredNames) && _routerConfiguredNames.Count == 0)
                 _ = RefreshRouterConfiguredNamesAsync();
-            if (value.Source == ClientNameSource.AdGuard && _adGuardConfiguredNamesByMac.Count == 0 && _adGuardConfiguredNamesByIp.Count == 0)
+            if ((value.Source == ClientNameSource.AdGuard || value.Source == ClientNameSource.ConfiguredNames) && _adGuardConfiguredNamesByMac.Count == 0 && _adGuardConfiguredNamesByIp.Count == 0)
                 _ = RefreshAdGuardConfiguredNamesAsync();
         }
 

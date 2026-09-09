@@ -4,7 +4,8 @@ public enum ClientNameSource
 {
     Automatic,
     Router,
-    AdGuard
+    AdGuard,
+    ConfiguredNames
 }
 
 public sealed record ClientNameSourceOption(ClientNameSource Source, string DisplayName);

@@ -33,6 +33,8 @@ public static class ClientNamePresentation
     {
         ClientNameSource.Router when HasName(routerName) => routerName!,
         ClientNameSource.AdGuard when HasName(adGuardName) => adGuardName!,
+        ClientNameSource.ConfiguredNames when HasName(routerName) => routerName!,
+        ClientNameSource.ConfiguredNames when HasName(adGuardName) => adGuardName!,
         _ => automaticName
     };
 

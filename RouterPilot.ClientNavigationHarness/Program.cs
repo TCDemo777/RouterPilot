@@ -62,7 +62,10 @@ Require(adGuardNames.ByMac.TryGetValue("AABBCCDDEEFF", out string? adGuardConfig
 Require(ClientNamePresentation.Resolve(ClientNameSource.Automatic, "LGwebOSTV", "Living Room TV", "Lounge Television") == "LGwebOSTV" &&
     ClientNamePresentation.Resolve(ClientNameSource.Router, "LGwebOSTV", "Living Room TV", "Lounge Television") == "Living Room TV" &&
     ClientNamePresentation.Resolve(ClientNameSource.AdGuard, "LGwebOSTV", "Living Room TV", "Lounge Television") == "Lounge Television" &&
-    ClientNamePresentation.Resolve(ClientNameSource.AdGuard, "LGwebOSTV", "Living Room TV", null) == "LGwebOSTV",
+    ClientNamePresentation.Resolve(ClientNameSource.AdGuard, "LGwebOSTV", "Living Room TV", null) == "LGwebOSTV" &&
+    ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", "Living Room TV", "Lounge Television") == "Living Room TV" &&
+    ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", null, "Lounge Television") == "Lounge Television" &&
+    ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", " ", " ") == "LGwebOSTV",
     "naming preference selects configured source with per-client fallback");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
 MethodInfo? parseAdGuardClients = typeof(RouterManager).GetMethod("ParseAdGuardClients", BindingFlags.Static | BindingFlags.NonPublic);
