@@ -2,13 +2,42 @@
 
 ## 2.4.0
 
-- Added configurable client naming: keep detected names, prefer router DHCP reservation names, prefer configured AdGuard Home client names, or use a deterministic router-first configured-name mode.
-- Applied the selected client-name policy consistently across supported client identity views, while preserving source configuration values such as DHCP reservation names.
-- Added stable client-detail navigation from DNS Activity and Network Map where RouterPilot has an authoritative client identity.
-- Refined Clients controls and filters for a clearer, responsive layout.
-- Improved Maintenance Overview system information with the router's runtime kernel release, and removed duplicate community updater content from the Overview.
-- Improved Maintenance reliability and update-state gating; fixed a navigation crash caused by reconfiguring a shared HTTP client after use.
-- Improved VPN client profile presentation: configured inactive profiles remain visible, and unavailable profile inventory is distinct from a genuine empty inventory.
+### Client identity and navigation
+
+- Added a configurable client-name preference: **Automatic**, **Router**, **AdGuard**, or **Configured names**. Configured names uses a deterministic router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name order.
+- Applied the selected name consistently across supported client identity views, including Clients, selected-client details, DNS Activity, Network Map, Known Devices and other client-aware presentation.
+- Added a quiet name-source indicator in client details so it is clear whether the currently displayed name came from RouterPilot, the router, or AdGuard Home.
+- Preserved safe per-client fallbacks when a configured name is missing, unavailable or ambiguous; configured friendly names never become client identity keys.
+- Added direct, identity-safe navigation from DNS Activity and Network Map to the correct Client details, including when different clients share the same friendly name.
+- Improved DHCP reservation presentation to show the router's actual configured reservation name without changing source-specific configuration views to follow the client display preference.
+
+### Clients interface
+
+- Added the compact Client names selector above the client cards, with clear option labels and immediate updates when the preference changes.
+- Reorganised the Clients controls into clearer search/sort, action, naming and filter groups. The four client filters now stay together at normal widths and reflow naturally on narrower windows.
+- Improved client-name search and name-based sorting so they use the name currently shown to the user while retaining existing technical identifier search.
+
+### Maintenance
+
+- Added dedicated AdGuard Home and Tailscale Maintenance workspaces showing installed and official latest-stable versions, service state, update status and update options.
+- Added safe update availability checks: update actions are enabled only after RouterPilot has confirmed that an update is available.
+- Added the built-in interactive Maintenance console for supported AdGuard Home and Tailscale maintenance operations, with visible output and interactive input instead of requiring a separate terminal for those workflows.
+- Added read-only recovery-state inspection for the community updater integrations, including available backup and restore preconditions and a guided firmware-binary Tailscale restore workflow when its router preconditions are met. RouterPilot does not automate destructive AdGuard Home configuration reset or archive restoration.
+- Added the router's running kernel release to Maintenance System Information.
+- Simplified Maintenance Overview by removing duplicate community-updater controls; updater workflows and attribution remain on their dedicated Maintenance tabs.
+
+### VPN
+
+- Improved GL.iNet VPN profile discovery so configured client profiles remain visible when inactive, when another profile is active, or when live runtime state is temporarily unavailable.
+- Clearly distinguishes an empty configured-profile inventory from an unavailable inventory, while retaining configured profile information whenever it can be read.
+
+### Reliability and polish
+
+- Fixed a crash that could occur when returning to Clients after Maintenance or other network activity.
+- Improved Maintenance console startup, input forwarding, window placement and close behaviour to keep RouterPilot responsive during and after interactive maintenance work.
+- Hardened AdGuard Home Maintenance refreshes during router switching and improved official stable-release selection.
+- Improved dark-theme styling for Plug-ins controls.
+- Updated public community-updater attribution to Admon while preserving the applicable third-party licence notices.
 
 Compatibility note: VPN profile handling uses generic GL.iNet client-profile contracts. Flint 4 live validation was not available for this release.
 
