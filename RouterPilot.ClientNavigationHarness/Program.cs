@@ -68,6 +68,12 @@ Require(ClientNamePresentation.Resolve(ClientNameSource.Automatic, "LGwebOSTV", 
     ClientNamePresentation.Resolve(ClientNameSource.ConfiguredNames, "LGwebOSTV", " ", " ") == "LGwebOSTV",
     "naming preference selects configured source with per-client fallback");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
+var sharedHttpHandler = new StubMacLookupHandler();
+using var sharedHttpClient = new HttpClient(sharedHttpHandler);
+await sharedHttpClient.GetAsync("https://example.invalid/first-request");
+var resolverAfterSharedRequest = new DeviceIdentityResolver(sharedHttpClient);
+Require(await resolverAfterSharedRequest.ResolveManufacturerAsync("00:11:22:33:44:55") == "Example Vendor" && sharedHttpHandler.RequestCount == 2,
+    "client identity resolver does not mutate an injected HttpClient after its first request");
 MethodInfo? parseAdGuardClients = typeof(RouterManager).GetMethod("ParseAdGuardClients", BindingFlags.Static | BindingFlags.NonPublic);
 Require(parseAdGuardClients is not null, "AdGuard clients parser is available");
 var parsedAdGuard = (List<ClientInfo>)parseAdGuardClients!.Invoke(null,

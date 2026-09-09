@@ -37,8 +37,10 @@ public sealed class DeviceIdentityResolver : IDeviceIdentityResolver
 
     public DeviceIdentityResolver(HttpClient? httpClient = null)
     {
-        _httpClient = httpClient ?? new HttpClient();
-        _httpClient.Timeout = TimeSpan.FromSeconds(3);
+        // The application injects a shared, already-configured client.  Its
+        // immutable client-level settings must never be changed here because
+        // Maintenance may already have sent a firmware-catalog request.
+        _httpClient = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
     }
 
     public bool TryParseMac(string? value, out ParsedMacAddress? parsed)
