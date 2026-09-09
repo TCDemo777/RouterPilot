@@ -138,13 +138,13 @@ static class Program
         XElement contentHost = maintenance.Descendants().Single(element => element.Name.LocalName == "StackPanel" && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "MaintenanceContent");
         string[] directSections = contentHost.Elements().Where(element => element.Name.LocalName == "Border")
             .Select(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) ?? string.Empty).ToArray();
-        Assert(directSections.Contains("CommunityToolsSection", StringComparer.Ordinal), "community acknowledgement hosted directly");
+        Assert(!directSections.Contains("CommunityToolsSection", StringComparer.Ordinal), "community overview card removed");
         Assert(directSections.Contains("AdGuardHomeSection", StringComparer.Ordinal), "adguard hosted directly");
         Assert(directSections.Contains("TailscaleSection", StringComparer.Ordinal), "tailscale hosted directly");
         string maintenanceXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "MaintenanceView.xaml"));
         Assert(maintenanceXaml.Contains("Official AdGuard Home releases determine update availability", StringComparison.Ordinal) && maintenanceXaml.Contains("Official Tailscale releases determine update awareness", StringComparison.Ordinal) && maintenanceXaml.Contains("<Hyperlink NavigateUri=\"https://admon.me\" Click=\"OpenCommunityToolProject_Click\"", StringComparison.Ordinal), "component explanations credit Admon inline");
         Assert(!maintenanceXaml.Contains("Community project by Admon", StringComparison.Ordinal) && !maintenanceXaml.Contains("Text=\"COMMUNITY PROJECT\"", StringComparison.Ordinal), "standalone component credit cards removed");
-        Assert(maintenanceXaml.Split("https://admon.me", StringSplitOptions.None).Length - 1 == 4, "overview and inline component credits target Admon");
+        Assert(maintenanceXaml.Split("https://admon.me", StringSplitOptions.None).Length - 1 == 2, "dedicated component credits target Admon");
         Assert(!maintenanceXaml.Contains("github.com/admonstrator/glinet-adguard-updater", StringComparison.Ordinal) && !maintenanceXaml.Contains("github.com/admonstrator/glinet-tailscale-updater", StringComparison.Ordinal), "component credit areas no longer use repository links");
         string aboutXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AboutView.xaml"));
         string readme = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "README.md"));

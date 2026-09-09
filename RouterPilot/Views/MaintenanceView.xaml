@@ -297,17 +297,6 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="CommunityToolsSection" Style="{StaticResource SectionContainerStyle}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Community maintenance tools"/>
-                    <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="Some optional maintenance features use independent community-maintained tools for GL.iNet routers. They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale."/>
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <StackPanel Margin="0,0,16,0"><TextBlock FontWeight="SemiBold" Text="AdGuard Home updater"/><TextBlock Margin="0,4,0,8" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Community updater integration by Admon."/><Button HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Content="Admon" Tag="https://admon.me" Click="OpenCommunityToolProject_Click" AutomationProperties.Name="Visit Admon"/></StackPanel>
-                        <StackPanel Grid.Column="1"><TextBlock FontWeight="SemiBold" Text="GL.iNet Tailscale updater"/><TextBlock Margin="0,4,0,8" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="Community updater integration by Admon. MIT licensed."/><Button HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Content="Admon" Tag="https://admon.me" Click="OpenCommunityToolProject_Click" AutomationProperties.Name="Visit Admon"/></StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
             <Border x:Name="AdGuardHomeSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="AdGuard Home" />

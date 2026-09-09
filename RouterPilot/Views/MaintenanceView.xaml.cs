@@ -56,7 +56,6 @@ public partial class MaintenanceView : UserControl
             PlaceFirmwareUpdateFirst();
         Set(OverviewStatusSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
-        Set(CommunityToolsSection, tab == MaintenanceTab.Overview);
         Set(QuickActionsSection, tab == MaintenanceTab.Overview);
         Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Firmware);
         Set(DiagnosticsSection, tab == MaintenanceTab.Support);
