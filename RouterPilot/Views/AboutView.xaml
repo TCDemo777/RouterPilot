@@ -76,7 +76,6 @@
                                        Stretch="Uniform"
                                        x:Name="RouterPilotLogo"
                                        RenderTransformOrigin="0.5,0.5"
-                                       MouseLeftButtonUp="RouterPilotLogo_Changed"
                                        Source="/Assets/RouterPilotLogo.png">
                                         <Image.RenderTransform>
                                             <TransformGroup>
@@ -570,7 +569,6 @@
                                    HorizontalAlignment="Left"
                                    Stretch="Uniform"
                                    Cursor="Hand"
-                                   MouseLeftButtonUp="RouterPilotLogo_Changed"
                                    Source="/Assets/RouterPilotLogo.png"/>
                             <TextBlock FontFamily="Cascadia Mono, Consolas"
                                        FontSize="20"
@@ -1029,12 +1027,6 @@
                         </Canvas>
                     </StackPanel>
                 </StackPanel>
-                <TextBlock Grid.Column="2"
-                           VerticalAlignment="Top"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Brush.TextSecondary}"
-                           Text="This Easter Egg took way too long to figure out and barely anyone will see it - lol"/>
               </Grid>
             </Border>
         </Canvas>

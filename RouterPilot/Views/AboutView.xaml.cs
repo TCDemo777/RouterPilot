@@ -174,28 +174,6 @@ namespace RouterPilot.Views
             _diagnosticsHistorySubscribed = false;
         }
 
-        private async void RouterPilotLogo_Changed(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            e.Handled = true;
-            if (_flightDeckActive)
-            {
-                await ShowAutopilotUnavailableAsync();
-                return;
-            }
-
-            DateTime now = DateTime.UtcNow;
-            if (_logoClickWindowStartedUtc == default ||
-                now - _logoClickWindowStartedUtc > TimeSpan.FromSeconds(3))
-            {
-                _logoClickWindowStartedUtc = now;
-                _logoClickCount = 0;
-            }
-
-            _logoClickCount++;
-            if (_logoClickCount == 7)
-                await ActivateFlightDeckAsync();
-        }
-
         private async Task ActivateFlightDeckAsync()
         {
             _flightDeckActive = true;
