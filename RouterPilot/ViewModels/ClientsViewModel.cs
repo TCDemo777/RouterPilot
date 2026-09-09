@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
         private readonly ClientProfileService _clientProfileService;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly SettingsService _settingsService;
+        private readonly IClientDisplayNameService _displayNames;
         private readonly TimelineService _timelineService;
         private readonly FavouriteDeviceMonitoringService _favouriteDeviceMonitoring;
         private readonly IClientPresenceHistoryService _presenceHistory;
@@ -39,9 +40,6 @@ namespace RouterPilot.ViewModels
         private readonly Dictionary<string, (int Total, int Blocked)> _lastActivityTotals =
             new(StringComparer.OrdinalIgnoreCase);
         private string _activityClientKey = string.Empty;
-        private IReadOnlyDictionary<string, string> _routerConfiguredNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private IReadOnlyDictionary<string, string> _adGuardConfiguredNamesByMac = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private IReadOnlyDictionary<string, string> _adGuardConfiguredNamesByIp = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public ObservableCollection<ClientInfo> Clients { get; } = new();
         public ObservableCollection<ClientInfo> NewDevices { get; } = new();
@@ -100,7 +98,7 @@ namespace RouterPilot.ViewModels
         [ObservableProperty] private ClientNameSourceOption? selectedClientNameSource;
         public string ClientNameSourceToolTip => "Choose where RouterPilot gets friendly client names. If a name is unavailable, the detected device name is used.";
         public string ClientNameSourceAvailabilityHint => SelectedClientNameSource?.Source == ClientNameSource.AdGuard &&
-            _adGuardConfiguredNamesByMac.Count == 0 && _adGuardConfiguredNamesByIp.Count == 0
+            !_displayNames.HasAdGuardConfiguredNames
             ? "AdGuard configured names are currently unavailable; detected names are shown."
             : string.Empty;
 
@@ -171,6 +169,7 @@ namespace RouterPilot.ViewModels
             IRouterManagerProvider routerManagerProvider,
             AdGuardAvailabilityService adGuardAvailabilityService,
             SettingsService settingsService,
+            IClientDisplayNameService displayNames,
             TimelineService timelineService,
             FavouriteDeviceMonitoringService favouriteDeviceMonitoring,
             IClientPresenceHistoryService presenceHistory,
@@ -183,6 +182,7 @@ namespace RouterPilot.ViewModels
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _settingsService = settingsService;
+            _displayNames = displayNames;
             _timelineService = timelineService;
             _favouriteDeviceMonitoring = favouriteDeviceMonitoring;
             _presenceHistory = presenceHistory;
@@ -193,13 +193,19 @@ namespace RouterPilot.ViewModels
             _mdnsIdentityService = mdnsIdentityService;
             _identityEnrichmentCoordinator = new ClientIdentityEnrichmentCoordinator(deviceIdentityResolver, mdnsIdentityService);
             _settings = _settingsService.Load();
-            SelectedClientNameSource = ClientNameSourceOptions.FirstOrDefault(option => option.Source == _settings.ClientNameSource) ?? ClientNameSourceOptions[0];
+            SelectedClientNameSource = ClientNameSourceOptions.FirstOrDefault(option => option.Source == _displayNames.Source) ?? ClientNameSourceOptions[0];
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
             _clientProfileStoreReliable = _clientProfileService.LastLoadSucceeded;
             AdGuardDataAvailability = _adGuardAvailabilityService.State;
             SelectedClientActivity.CollectionChanged += (_, _) =>
                 OnPropertyChanged(nameof(HasSelectedClientActivity));
+            _displayNames.Changed += (_, _) =>
+            {
+                ApplyConfiguredNames();
+                if (_allClients.Count > 0) _clientInventoryState.Update(_allClients);
+                OnPropertyChanged(nameof(ClientNameSourceAvailabilityHint));
+            };
 
         }
 
@@ -233,9 +239,9 @@ namespace RouterPilot.ViewModels
                         EnrichClient(client);
                         client.AutomaticName = client.Name;
                     }
-                    (_adGuardConfiguredNamesByMac, _adGuardConfiguredNamesByIp) = ClientConfiguredNameResolver.AdGuardByIdentity(_allClients);
+                    _displayNames.UpdateAdGuardClients(_allClients);
                     ApplyConfiguredNames();
-                    if (SelectedClientNameSource?.Source == ClientNameSource.Router && _routerConfiguredNames.Count == 0)
+                    if (SelectedClientNameSource?.Source == ClientNameSource.Router && !_displayNames.HasRouterConfiguredNames)
                         _ = RefreshRouterConfiguredNamesAsync();
                     _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
                     _ = EnrichMdnsAsync(_allClients.ToList());
@@ -320,11 +326,11 @@ namespace RouterPilot.ViewModels
 
                 List<ClientInfo> clients = BuildRouterClients(liveClients);
                 ApplyAdGuardEnrichment(clients, adGuardResult.Value ?? [], AdGuardDataAvailability);
-                (_adGuardConfiguredNamesByMac, _adGuardConfiguredNamesByIp) = ClientConfiguredNameResolver.AdGuardByIdentity(adGuardResult.Value ?? []);
+                _displayNames.UpdateAdGuardClients(adGuardResult.Value ?? []);
                 if (SelectedClientNameSource?.Source == ClientNameSource.Router)
                 {
                     DhcpSnapshot dhcp = await routerManager.GetDhcpSnapshotAsync();
-                    _routerConfiguredNames = ClientConfiguredNameResolver.RouterByMac(dhcp.Reservations);
+                    _displayNames.UpdateRouterReservations(dhcp.Reservations);
                 }
 
                 await InitializeOrDetectNewDevicesAsync(clients);
@@ -489,11 +495,12 @@ namespace RouterPilot.ViewModels
             if (value is null) return;
             _settings.ClientNameSource = value.Source;
             _settingsService.Save(_settings);
+            _displayNames.SetSource(value.Source);
             ApplyConfiguredNames();
             OnPropertyChanged(nameof(ClientNameSourceAvailabilityHint));
-            if ((value.Source == ClientNameSource.Router || value.Source == ClientNameSource.ConfiguredNames) && _routerConfiguredNames.Count == 0)
+            if ((value.Source == ClientNameSource.Router || value.Source == ClientNameSource.ConfiguredNames) && !_displayNames.HasRouterConfiguredNames)
                 _ = RefreshRouterConfiguredNamesAsync();
-            if ((value.Source == ClientNameSource.AdGuard || value.Source == ClientNameSource.ConfiguredNames) && _adGuardConfiguredNamesByMac.Count == 0 && _adGuardConfiguredNamesByIp.Count == 0)
+            if ((value.Source == ClientNameSource.AdGuard || value.Source == ClientNameSource.ConfiguredNames) && !_displayNames.HasAdGuardConfiguredNames)
                 _ = RefreshAdGuardConfiguredNamesAsync();
         }
 
@@ -503,7 +510,7 @@ namespace RouterPilot.ViewModels
             {
                 RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync();
                 DhcpSnapshot dhcp = await manager.GetDhcpSnapshotAsync();
-                _routerConfiguredNames = ClientConfiguredNameResolver.RouterByMac(dhcp.Reservations);
+                _displayNames.UpdateRouterReservations(dhcp.Reservations);
                 ApplyConfiguredNames();
             }
             catch { /* Router names are optional presentation data. */ }
@@ -515,7 +522,7 @@ namespace RouterPilot.ViewModels
             {
                 RouterManager manager = await _routerManagerProvider.GetRouterManagerAsync();
                 List<ClientInfo> configuredSource = await manager.GetAdGuardClientsAsync();
-                (_adGuardConfiguredNamesByMac, _adGuardConfiguredNamesByIp) = ClientConfiguredNameResolver.AdGuardByIdentity(configuredSource);
+                _displayNames.UpdateAdGuardClients(configuredSource);
                 ApplyConfiguredNames();
                 OnPropertyChanged(nameof(ClientNameSourceAvailabilityHint));
             }
@@ -527,12 +534,7 @@ namespace RouterPilot.ViewModels
             foreach (ClientInfo client in _allClients)
             {
                 if (string.IsNullOrWhiteSpace(client.AutomaticName)) client.AutomaticName = client.Name;
-                string mac = ClientIdentity.NormalizeHexMac(client.MacAddress);
-                client.RouterConfiguredName = ClientIdentity.IsMacKey(mac) && _routerConfiguredNames.TryGetValue(mac, out string? routerName) ? routerName : string.Empty;
-                client.AdGuardConfiguredName = ClientIdentity.IsMacKey(mac) && _adGuardConfiguredNamesByMac.TryGetValue(mac, out string? adGuardMacName) ? adGuardMacName :
-                    _adGuardConfiguredNamesByIp.TryGetValue(ClientIdentity.NormalizeEndpoint(client.IpAddress), out string? adGuardIpName) ? adGuardIpName : string.Empty;
-                client.Name = ClientNamePresentation.Resolve(SelectedClientNameSource?.Source ?? ClientNameSource.Automatic,
-                    client.AutomaticName, client.RouterConfiguredName, client.AdGuardConfiguredName);
+                client.Name = _displayNames.Resolve(client);
             }
             ApplyFilterAndSort();
         }

@@ -28,6 +28,8 @@ namespace RouterPilot.ViewModels
         private readonly AdGuardMaintenanceStateService _adGuardMaintenanceStateService;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly NotificationService _notificationService;
+        private readonly IClientDisplayNameService _displayNames;
+        private readonly ClientInventoryState _clientInventory;
         private readonly ProtectionStateLoader _stateLoader;
         private readonly DispatcherTimer _timer;
         private readonly SemaphoreSlim _protectionStateGate = new(1, 1);
@@ -89,7 +91,9 @@ namespace RouterPilot.ViewModels
             AdGuardServiceScheduleViewModel schedules,
             AdGuardMaintenanceStateService adGuardMaintenanceStateService,
             AdGuardAvailabilityService adGuardAvailabilityService,
-            NotificationService notificationService)
+            NotificationService notificationService,
+            IClientDisplayNameService displayNames,
+            ClientInventoryState clientInventory)
         {
             _routerManagerProvider = routerManagerProvider;
             _activeRouter = activeRouter;
@@ -100,6 +104,8 @@ namespace RouterPilot.ViewModels
             _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
             _adGuardAvailabilityService = adGuardAvailabilityService;
             _notificationService = notificationService;
+            _displayNames = displayNames;
+            _clientInventory = clientInventory;
             _stateLoader = new ProtectionStateLoader(routerManagerProvider, serviceCatalogue);
             _adGuardMaintenanceStateService.PropertyChanged += (_, _) =>
             {
@@ -110,6 +116,7 @@ namespace RouterPilot.ViewModels
             _scheduleService.BlockedServicesChanged += ScheduleService_BlockedServicesChanged;
             _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             _timer.Tick += async (_, _) => await RefreshTimedDataAsync();
+            _displayNames.Changed += DisplayNames_Changed;
 
             RefreshAllCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
             EnableProtectionCommand = new AsyncRelayCommand(() => RunStatusActionAsync("Enabling protection...", "Protection enabled.", r => r.EnableProtectionAsync(), processNotification: true), () => ControlsEnabled);
@@ -356,6 +363,7 @@ namespace RouterPilot.ViewModels
             _timer.Stop();
             _activationCancellation?.Cancel();
             _scheduleService.BlockedServicesChanged -= ScheduleService_BlockedServicesChanged;
+            _displayNames.Changed -= DisplayNames_Changed;
             _disposalCancellation.Cancel();
         }
 
@@ -533,7 +541,10 @@ namespace RouterPilot.ViewModels
         {
             QueryLogEntries.Clear();
             foreach (QueryLogEntry entry in entries.Take(200))
+            {
+                ApplyClientDisplayName(entry);
                 QueryLogEntries.Add(entry);
+            }
 
             QueryLogView.Refresh();
             QueryLogStatus = QueryLogEntries.Count == 0
@@ -553,6 +564,24 @@ namespace RouterPilot.ViewModels
                    entry.ClientName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                    entry.ClientAddress.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                    entry.Status.Contains(search, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void DisplayNames_Changed(object? sender, EventArgs e)
+        {
+            foreach (QueryLogEntry entry in QueryLogEntries) ApplyClientDisplayName(entry);
+            QueryLogView.Refresh();
+        }
+
+        private void ApplyClientDisplayName(QueryLogEntry entry)
+        {
+            string address = ClientIdentity.NormalizeEndpoint(entry.ClientAddress);
+            List<ClientInfo> matches = _clientInventory.Snapshot.Values
+                .Where(client => string.Equals(ClientIdentity.NormalizeEndpoint(client.IpAddress), address, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (matches.Count != 1) return;
+
+            string name = _displayNames.Resolve(matches[0]);
+            entry.Client = string.IsNullOrWhiteSpace(entry.ClientAddress) ? name : $"{name} ({entry.ClientAddress})";
         }
 
         private async Task RefreshProtectionStatusAsync(bool showMessage, CancellationToken? refreshToken = null)

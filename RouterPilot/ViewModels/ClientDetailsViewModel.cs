@@ -21,6 +21,7 @@ namespace RouterPilot.ViewModels
         private readonly IClientPresenceHistoryService _presenceHistory;
         private readonly KnownDeviceForgetService _knownDeviceForgetService;
         private readonly ClientInventoryState _clientInventory;
+        private readonly IClientDisplayNameService _displayNames;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
@@ -65,10 +66,10 @@ namespace RouterPilot.ViewModels
         public bool Is24HourRange => SelectedAvailabilityRange == AvailabilityRange.Hours24;
         public bool Is7DayRange => SelectedAvailabilityRange == AvailabilityRange.Days7;
 
-        public string ClientName =>
-            string.IsNullOrWhiteSpace(ProfileNickname)
-                ? LiveClient?.Name ?? _client.Name
-                : ProfileNickname;
+        // This is identity presentation.  The editable ProfileNickname remains
+        // RouterPilot-owned configuration and is deliberately not substituted
+        // into the header when an external naming policy is selected.
+        public string ClientName => LiveClient?.Name ?? _client.Name;
         public string NameSource => !string.IsNullOrWhiteSpace(ProfileNickname)
             ? "Personalized"
             : CurrentClientOrSnapshot.NameSource;
@@ -333,6 +334,7 @@ namespace RouterPilot.ViewModels
             IClientPresenceHistoryService presenceHistory,
             KnownDeviceForgetService knownDeviceForgetService,
             ClientInventoryState clientInventory,
+            IClientDisplayNameService displayNames,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
             IEnumerable<DhcpReservationInfo>? dhcpReservations = null,
             IEnumerable<PortForwardRuleInfo>? portForwardRules = null)
@@ -343,6 +345,7 @@ namespace RouterPilot.ViewModels
             _presenceHistory = presenceHistory;
             _knownDeviceForgetService = knownDeviceForgetService;
             _clientInventory = clientInventory;
+            _displayNames = displayNames;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
 
@@ -367,6 +370,7 @@ namespace RouterPilot.ViewModels
 
             _refreshTimer.Tick += RefreshTimer_Tick;
             _clientInventory.Changed += ClientInventoryState_Changed;
+            _displayNames.Changed += DisplayNames_Changed;
         }
 
         public async Task StartAsync()
@@ -392,6 +396,7 @@ namespace RouterPilot.ViewModels
             _refreshTimer.Stop();
             _refreshTimer.Tick -= RefreshTimer_Tick;
             _clientInventory.Changed -= ClientInventoryState_Changed;
+            _displayNames.Changed -= DisplayNames_Changed;
         }
 
         private void ClientInventoryState_Changed(object? sender, EventArgs e)
@@ -406,6 +411,8 @@ namespace RouterPilot.ViewModels
 
             RefreshLiveConnectionPresentation();
         }
+
+        private void DisplayNames_Changed(object? sender, EventArgs e) => ClientInventoryState_Changed(sender, e);
 
         private void RefreshLiveConnectionPresentation()
         {

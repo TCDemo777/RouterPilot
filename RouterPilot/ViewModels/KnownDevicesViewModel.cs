@@ -13,6 +13,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     private readonly ClientInventoryState _inventory;
     private readonly ClientsViewModel _clients;
     private readonly IDeviceIdentityResolver _deviceIdentityResolver;
+    private readonly IClientDisplayNameService _displayNames;
     private readonly DispatcherTimer _relativeTimeTimer;
     private Dictionary<string, ClientProfile> _profileMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
@@ -38,12 +39,14 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     public bool HasSelectedClientActivity => _clients.HasSelectedClientActivity;
     public bool ShowNoSelectedClientActivity => !HasSelectedClientActivity;
 
-    public KnownDevicesViewModel(ClientInventoryState inventory, ClientsViewModel clients, IDeviceIdentityResolver deviceIdentityResolver)
+    public KnownDevicesViewModel(ClientInventoryState inventory, ClientsViewModel clients, IDeviceIdentityResolver deviceIdentityResolver, IClientDisplayNameService displayNames)
     {
         _inventory = inventory;
         _clients = clients;
         _deviceIdentityResolver = deviceIdentityResolver;
+        _displayNames = displayNames;
         _inventory.Changed += Inventory_Changed;
+        _displayNames.Changed += DisplayNames_Changed;
         _clients.PropertyChanged += Clients_PropertyChanged;
         _clients.SelectedClientActivity.CollectionChanged += SelectedClientActivity_CollectionChanged;
         ClientRefreshNotifier.ProfileStateChanged += ProfileStateChanged;
@@ -91,12 +94,14 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         _relativeTimeTimer.Stop();
         _relativeTimeTimer.Tick -= RelativeTimeTimer_Tick;
         _inventory.Changed -= Inventory_Changed;
+        _displayNames.Changed -= DisplayNames_Changed;
         _clients.PropertyChanged -= Clients_PropertyChanged;
         _clients.SelectedClientActivity.CollectionChanged -= SelectedClientActivity_CollectionChanged;
         ClientRefreshNotifier.ProfileStateChanged -= ProfileStateChanged;
     }
 
     private void Inventory_Changed(object? sender, EventArgs e) => Rebuild();
+    private void DisplayNames_Changed(object? sender, EventArgs e) => Rebuild();
     private void Clients_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ClientsViewModel.SelectedClient) or nameof(ClientsViewModel.HasSelectedClientActivity))

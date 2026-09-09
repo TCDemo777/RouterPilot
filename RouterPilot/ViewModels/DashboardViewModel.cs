@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
 {
     public partial class DashboardViewModel : ObservableObject
     {
+        private readonly IClientDisplayNameService _displayNames;
         private const int TrafficHistoryCapacity = 60;
         private const int HealthHistoryCapacity = 60;
         private const int TrafficSampleIntervalSeconds = 2;
@@ -609,8 +610,10 @@ namespace RouterPilot.ViewModels
 
         public Axis[] NetworkTrafficYAxes { get; }
 
-        public DashboardViewModel()
+        public DashboardViewModel(IClientDisplayNameService? displayNames = null)
         {
+            _displayNames = displayNames ?? new PassthroughClientDisplayNameService();
+            _displayNames.Changed += (_, _) => RebuildLanClients();
             QueryHistorySeries = new ISeries[]
             {
                 new LineSeries<AdGuardTimePoint>
@@ -1177,6 +1180,7 @@ namespace RouterPilot.ViewModels
             DhcpSnapshot snapshot,
             IReadOnlyDictionary<string, ClientProfile> profiles)
         {
+            _displayNames.UpdateRouterReservations(snapshot.Reservations);
             ApplyDhcpProfileCorrelation(snapshot.Leases, profiles);
             ApplyDhcpProfileCorrelation(snapshot.Reservations, profiles);
 
@@ -1222,7 +1226,8 @@ namespace RouterPilot.ViewModels
                 if (!ClientIdentity.IsMacKey(mac)) continue;
                 clients[mac] = new LanClientInfo
                 {
-                    Name = string.IsNullOrWhiteSpace(lease.ClientName) ? lease.Hostname : lease.ClientName,
+                    Name = _displayNames.Resolve(lease.MacAddress, lease.IpAddress,
+                        string.IsNullOrWhiteSpace(lease.ClientName) ? lease.Hostname : lease.ClientName),
                     IpAddress = lease.IpAddress,
                     MacAddress = lease.MacAddress,
                     ConnectionType = "LAN / unknown attachment",
@@ -1239,7 +1244,8 @@ namespace RouterPilot.ViewModels
                 if (!ClientIdentity.IsMacKey(mac)) continue;
                 clients[mac] = new LanClientInfo
                 {
-                    Name = string.IsNullOrWhiteSpace(client.Name) ? "Unknown device" : client.Name,
+                    Name = _displayNames.Resolve(client.MacAddress, client.IpAddress,
+                        string.IsNullOrWhiteSpace(client.Name) ? "Unknown device" : client.Name),
                     IpAddress = client.IpAddress,
                     MacAddress = client.MacAddress,
                     ConnectionType = "Wi-Fi",

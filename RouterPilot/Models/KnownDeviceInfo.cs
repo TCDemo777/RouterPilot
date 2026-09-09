@@ -12,9 +12,9 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
     public IDeviceIdentityResolver? IdentityResolver { get; init; }
     public string MacKey => ClientIdentity.NormalizeHexMac(Profile.Key);
     public bool IsOnline => CurrentClient is not null;
-    public string Name => IdentityResolver?.ResolveFriendlyName(new DeviceIdentitySignals(
+    public string Name => Useful(CurrentClient?.Name) ? CurrentClient!.Name : IdentityResolver?.ResolveFriendlyName(new DeviceIdentitySignals(
         Profile.Nickname,
-        CurrentClient?.RouterName ?? CurrentClient?.Name,
+        CurrentClient?.RouterName,
         null,
         null,
         CurrentClient?.AdGuardName,
