@@ -24,19 +24,21 @@ Companion for GL.iNet Routers & AdGuard Home
 
 ## What's new in RouterPilot 2.4.0
 
-RouterPilot 2.4.0 improves consistent client identity, Maintenance reliability and VPN profile presentation. Full release notes will be available with the v2.4.0 release.
+RouterPilot 2.4.0 improves client identity, Maintenance and VPN profile presentation.
 
-- Choose detected, router-configured, AdGuard-configured or router-first configured names for supported client identity views.
-- Open the correct client details from DNS Activity and Network Map without using a display name as the identity key.
-- Review configured VPN client profiles even when they are inactive; unavailable inventory is shown distinctly from no configured profiles.
+- Choose **Automatic**, **Router**, **AdGuard** or **Configured names** for supported app-wide client identity presentation. Configured names uses a deterministic priority: router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name.
+- Open the correct client details from DNS Activity and Network Map using stable client identity rather than a display name.
+- Use dedicated AdGuard Home and Tailscale Maintenance workspaces with guarded update availability, recovery-state information and applicable restore preconditions.
+- Run supported maintenance operations in RouterPilot's built-in interactive Maintenance console, with visible output and interactive input.
 - See the router's runtime kernel release in Maintenance System Information.
-- Benefit from safer Maintenance update availability gating and an HTTP-client navigation crash fix.
+- Keep configured GL.iNet VPN profiles visible while inactive, and distinguish an empty profile inventory from an unavailable one.
+- Benefit from Maintenance reliability improvements, the Maintenance-to-Clients navigation crash fix, and improved Plug-ins controls in dark theme.
 
 Package changes can affect router stability. Review package details carefully and use trusted package sources; RouterPilot may protect critical packages from mutation.
 
 ## Maintenance community tools
 
-Maintenance can check the installed and official latest-stable versions of AdGuard Home and Tailscale. Optional update and Tailscale firmware-binary restore workflows open a visible SSH terminal and copy a reviewed command for the user to run interactively; RouterPilot never treats opening that terminal as a successful update.
+Maintenance can check installed and official latest-stable versions of AdGuard Home and Tailscale. Supported update and Tailscale firmware-binary restore workflows run in RouterPilot's visible built-in interactive Maintenance console; RouterPilot never runs them silently or treats opening the console as a successful update.
 
 The AdGuard Home and GL.iNet Tailscale updater integrations use independent community tools by [Admon](https://admon.me). They are not maintained by RouterPilot, GL.iNet, AdGuard, or Tailscale. Both updater projects are MIT licensed; RouterPilot remains GPL-3.0-only. See [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for attribution and licensing details.
 
@@ -74,6 +76,8 @@ Install the latest MSI over an existing RouterPilot installation, or replace the
 ## Compatibility and backups
 
 Available telemetry and controls vary by router model, GL.iNet firmware, OpenWrt environment and enabled router services. RouterPilot reports supported, unsupported, unavailable and unknown capabilities rather than fabricating values.
+
+VPN profile handling uses generic GL.iNet client-profile contracts. Live Flint 4 validation was not available during development.
 
 RouterPilot backup files use the portable `.rpb` format and can be created or restored from Maintenance. Archives are integrity-checked but are not encrypted, so store them securely.
 
