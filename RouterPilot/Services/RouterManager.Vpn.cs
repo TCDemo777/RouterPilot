@@ -31,11 +31,19 @@ public partial class RouterManager
         return tunnels.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).Select(ParseTunnel).Where(tunnel => tunnel.TunnelId > 0).ToList();
     }
 
-    internal async Task<IReadOnlyList<VpnClientProfileInfo>> GetVpnProfilesAsync(IReadOnlyList<VpnTunnelInfo> tunnels, CancellationToken token)
+    internal async Task<(IReadOnlyList<VpnClientProfileInfo> Profiles, VpnProfileInventoryState State)> GetVpnProfilesAsync(IReadOnlyList<VpnTunnelInfo> tunnels, CancellationToken token)
     {
         string sid = await _sessionService.GetAdminTokenAsync(token);
         using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.GetProfiles, cancellationToken: token);
-        if (!TryGet(document.RootElement, out JsonElement configs, "result", "configs") || configs.ValueKind != JsonValueKind.Object) return [];
+        return ParseVpnProfileInventory(document.RootElement, tunnels);
+    }
+
+    // The profile read is a bulk configured-profile inventory.  Do not use a
+    // tunnel's live connection state to decide whether a group exists.
+    internal static (IReadOnlyList<VpnClientProfileInfo> Profiles, VpnProfileInventoryState State) ParseVpnProfileInventory(JsonElement root, IReadOnlyList<VpnTunnelInfo> tunnels)
+    {
+        if (!TryGet(root, out JsonElement configs, "result", "configs") || configs.ValueKind != JsonValueKind.Object)
+            return ([], VpnProfileInventoryState.Unavailable);
         var profiles = new List<VpnClientProfileInfo>();
         foreach ((string protocolKey, string protocol) in new[] { ("wireguard", "WireGuard"), ("openvpn", "OpenVPN") })
         {
@@ -53,7 +61,7 @@ public partial class RouterManager
                 profiles.Add(new VpnClientProfileInfo { GroupId = groupId, Name = ReadString(group, "group_name", "Unnamed profile"), Protocol = protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = peers.Count, CurrentPeerId = currentPeerId > 0 ? currentPeerId : null, CurrentLocation = currentPeer.ValueKind == JsonValueKind.Object ? ReadString(currentPeer, "location") : string.Empty });
             }
         }
-        return profiles;
+        return (profiles, VpnProfileInventoryState.Available);
     }
 
     internal async Task<IReadOnlyList<VpnConfigMetadata>> GetVpnConfigMetadataAsync(CancellationToken token)

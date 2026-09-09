@@ -14,14 +14,15 @@ public sealed class VpnService : IVpnService
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public VpnService(IRouterManagerProvider provider, TimelineService timeline) { _provider = provider; _timeline = timeline; }
-    public async Task<(IReadOnlyList<VpnTunnelInfo> Tunnels, IReadOnlyList<VpnClientProfileInfo> Profiles)> GetInventoryAsync(CancellationToken token)
+    public async Task<VpnInventorySnapshot> GetInventoryAsync(CancellationToken token)
     {
         RouterManager manager = await _provider.GetRouterManagerAsync(token);
         IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(token);
         IReadOnlyList<VpnClientProfileInfo> profiles;
+        VpnProfileInventoryState inventoryState;
         try
         {
-            profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+            (profiles, inventoryState) = await manager.GetVpnProfilesAsync(tunnels, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -31,8 +32,9 @@ public sealed class VpnService : IVpnService
         {
             System.Diagnostics.Debug.WriteLine($"VPN profile inventory unavailable; preserving tunnel inventory ({DiagnosticRedactor.FailureCategory(exception)}).");
             profiles = [];
+            inventoryState = VpnProfileInventoryState.Unavailable;
         }
-        return (tunnels, Correlate(tunnels, profiles));
+        return new VpnInventorySnapshot { Tunnels = tunnels, Profiles = Correlate(tunnels, profiles), ProfileInventoryState = inventoryState };
     }
     public async Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken token) => await (await _provider.GetRouterManagerAsync(token)).GetVpnTunnelsAsync(token);
     public async Task<IReadOnlyList<VpnClientProfileInfo>> GetClientProfilesAsync(CancellationToken token)
@@ -42,7 +44,7 @@ public sealed class VpnService : IVpnService
         IReadOnlyList<VpnClientProfileInfo> profiles;
         try
         {
-            profiles = await manager.GetVpnProfilesAsync(tunnels, token);
+            (profiles, _) = await manager.GetVpnProfilesAsync(tunnels, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -115,7 +117,7 @@ public sealed class VpnService : IVpnService
     internal static IReadOnlyList<VpnClientProfileInfo> Correlate(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) => profiles.Select(profile =>
     {
         List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
-        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = profile.ServerConfigCount, CurrentPeerId = profile.CurrentPeerId, CurrentLocation = profile.CurrentLocation };
+        return new VpnClientProfileInfo { GroupId = profile.GroupId, Name = profile.Name, Protocol = profile.Protocol, IsUsedByTunnel = usedBy.Count > 0, TunnelIds = usedBy.Select(tunnel => tunnel.TunnelId).ToList(), UsedByDisplay = usedBy.Count == 0 ? "Not used" : string.Join(", ", usedBy.Select(tunnel => tunnel.Name)), ServerConfigCount = profile.ServerConfigCount, CurrentPeerId = profile.CurrentPeerId, CurrentLocation = profile.CurrentLocation, ActivityState = profile.ActivityState };
     }).ToList();
     private static VpnOperationResult Failure(int tunnelId, string category) => new() { TunnelId = tunnelId, FailureCategory = category, Message = "RouterPilot could not update the VPN tunnel." };
 }

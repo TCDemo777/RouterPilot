@@ -41,11 +41,11 @@ public sealed class VpnSummaryService : IVpnSummaryService
         VpnLiveStatusDiagnostics.Record("VpnSummaryService.RefreshAsync entered: YES");
         try
         {
-            (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _vpnService.GetInventoryAsync(cancellationToken).ConfigureAwait(false);
+            VpnInventorySnapshot inventory = await _vpnService.GetInventoryAsync(cancellationToken).ConfigureAwait(false);
             lock (_sync)
             {
-                _tunnels = tunnels;
-                _profiles = profiles;
+                _tunnels = inventory.Tunnels;
+                _profiles = inventory.Profiles;
                 _statuses = _liveStatus.Current;
             }
             Publish();

@@ -9,6 +9,27 @@ public enum VpnConfigurationHealth
     Unlinked
 }
 
+public enum VpnProfileInventoryState
+{
+    Unknown,
+    Available,
+    Unavailable
+}
+
+public enum VpnProfileActivityState
+{
+    Unknown,
+    Active,
+    Inactive
+}
+
+public sealed class VpnInventorySnapshot
+{
+    public IReadOnlyList<VpnTunnelInfo> Tunnels { get; init; } = [];
+    public IReadOnlyList<VpnClientProfileInfo> Profiles { get; init; } = [];
+    public VpnProfileInventoryState ProfileInventoryState { get; init; } = VpnProfileInventoryState.Unknown;
+}
+
 public sealed class VpnTunnelInfo
 {
     public string Id { get; init; } = string.Empty;
@@ -133,6 +154,15 @@ public sealed class VpnClientProfileInfo
     // Current router configuration metadata, not a durable peer selection.
     public int? CurrentPeerId { get; init; }
     public string CurrentLocation { get; init; } = string.Empty;
+    // Profile inventory and active tunnel state are intentionally separate.
+    // A configured but inactive profile remains a real profile.
+    public VpnProfileActivityState ActivityState { get; init; } = VpnProfileActivityState.Unknown;
+    public string ActivityStateDisplay => ActivityState switch
+    {
+        VpnProfileActivityState.Active => "Active",
+        VpnProfileActivityState.Inactive => "Inactive",
+        _ => "State unavailable"
+    };
 }
 
 public sealed class VpnOperationResult

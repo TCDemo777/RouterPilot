@@ -353,8 +353,8 @@ internal static class Program
             IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(timeout.Token);
             Console.WriteLine($"Router: {Sanitize(identity.Model)}");
             Console.WriteLine($"GET_TUNNEL_RAW_RPC: PASS; RAW_TUNNEL_COUNT={tunnels.Count}");
-            IReadOnlyList<VpnClientProfileInfo> profilesRead = await manager.GetVpnProfilesAsync(tunnels, timeout.Token);
-            Console.WriteLine($"GET_ALL_CONFIG_LIST_RAW_RPC: PASS; RAW_PROFILE_COUNT={profilesRead.Count}");
+            (IReadOnlyList<VpnClientProfileInfo> profilesRead, VpnProfileInventoryState inventoryState) = await manager.GetVpnProfilesAsync(tunnels, timeout.Token);
+            Console.WriteLine($"GET_ALL_CONFIG_LIST_RAW_RPC: PASS; INVENTORY_STATE={inventoryState}; RAW_PROFILE_COUNT={profilesRead.Count}");
             Console.WriteLine($"PARSED_TUNNEL_COUNT={tunnels.Count}; PARSED_PROFILE_COUNT={profilesRead.Count}");
         }
         catch (Exception exception)
@@ -767,6 +767,7 @@ internal static class Program
     private static void RunUnitTests()
     {
         RunVpnControlPresentationTests();
+        RunVpnProfileInventoryTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
         using (JsonDocument valid = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"enabled\":false,\"lan_enabled\":false,\"wan_enabled\":false,\"run_exit_node\":false,\"masq\":false,\"extra\":\"ignored\"}}"))
@@ -903,6 +904,54 @@ internal static class Program
             "Unified VPN partial refresh preserves authoritative Tailscale state");
         page.ApplyTailscaleStatus(TailscaleStatus.Unavailable("temporary read failure"));
         Require(page.VpnTunnels.Count == 1, "Tailscale refresh does not clear Unified VPN inventory");
+    }
+
+    private static void RunVpnProfileInventoryTests()
+    {
+        VpnTunnelInfo tunnel = new() { TunnelId = 10, Name = "Primary", ProfileGroupIds = [101] };
+        using JsonDocument configured = JsonDocument.Parse("""
+            {"result":{"configs":{"wireguard":[{"group_id":101,"group_name":"Surfshark London","peers":[{"peer_id":501,"location":"GB,London"}]}],"openvpn":[{"group_id":202,"group_name":"Backup OpenVPN","peers":[{"client_id":601}]}]}}}
+            """);
+        (IReadOnlyList<VpnClientProfileInfo> profiles, VpnProfileInventoryState state) = RouterManager.ParseVpnProfileInventory(configured.RootElement, [tunnel]);
+        Require(state == VpnProfileInventoryState.Available && profiles.Count == 2 && profiles.Single(profile => profile.GroupId == 101).Name == "Surfshark London",
+            "configured Surfshark profile is listed by the bulk inventory without requiring active state");
+        Require(profiles.Single(profile => profile.GroupId == 101).IsUsedByTunnel && !profiles.Single(profile => profile.GroupId == 202).IsUsedByTunnel,
+            "tunnel association is configuration correlation, not profile existence");
+
+        using JsonDocument zero = JsonDocument.Parse("{\"result\":{\"configs\":{\"wireguard\":[],\"openvpn\":[]}}}");
+        (IReadOnlyList<VpnClientProfileInfo> emptyProfiles, VpnProfileInventoryState emptyState) = RouterManager.ParseVpnProfileInventory(zero.RootElement, []);
+        Require(emptyState == VpnProfileInventoryState.Available && emptyProfiles.Count == 0,
+            "available inventory with zero profiles remains a truthful empty state");
+
+        using JsonDocument unavailable = JsonDocument.Parse("{\"result\":{}}");
+        (_, VpnProfileInventoryState unavailableState) = RouterManager.ParseVpnProfileInventory(unavailable.RootElement, []);
+        Require(unavailableState == VpnProfileInventoryState.Unavailable,
+            "missing profile inventory schema is unavailable rather than falsely empty or unsupported");
+
+        VpnViewModel page = new() { VpnInventoryLoadCompleted = true };
+        page.Replace([tunnel], profiles, VpnProfileInventoryState.Available);
+        page.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 10, Enabled = true, Status = 1 }], vpnInventoryAuthoritative: true);
+        Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Active,
+            "configured and active profile is visible and Active");
+        Require(page.VpnProfiles.Single(profile => profile.GroupId == 202).ActivityState == VpnProfileActivityState.Inactive,
+            "configured profile not assigned to an active tunnel remains visible and Inactive");
+
+        page.Replace([tunnel], profiles, VpnProfileInventoryState.Available);
+        page.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 10, Enabled = false, Status = 0 }], vpnInventoryAuthoritative: true);
+        Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Inactive,
+            "configured but inactive Surfshark profile remains visible and Inactive");
+
+        page.Replace([tunnel], profiles, VpnProfileInventoryState.Available);
+        page.ApplyLiveStatuses([], vpnInventoryAuthoritative: true);
+        Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Unknown,
+            "configured profile survives unavailable active state with an unknown state");
+
+        page.Replace([], [], VpnProfileInventoryState.Available);
+        Require(page.ShowNoVpnProfiles && !page.ShowVpnProfilesUnavailable,
+            "empty configured-profile inventory has distinct UI semantics");
+        page.Replace([], [], VpnProfileInventoryState.Unavailable);
+        Require(!page.ShowNoVpnProfiles && page.ShowVpnProfilesUnavailable,
+            "unavailable configured-profile inventory has distinct UI semantics");
     }
 
     private static async Task RunRuntimeValidationAsync(string targetField)

@@ -119,7 +119,9 @@ public partial class VpnView : UserControl
         Task tailscaleTask = refreshTailscale ? LoadTailscaleAsync(token, IsCurrent) : Task.CompletedTask;
         try
         {
-            (IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) = await _service.GetInventoryAsync(token);
+            VpnInventorySnapshot inventory = await _service.GetInventoryAsync(token);
+            IReadOnlyList<VpnTunnelInfo> tunnels = inventory.Tunnels;
+            IReadOnlyList<VpnClientProfileInfo> profiles = inventory.Profiles;
             token.ThrowIfCancellationRequested();
             if (!IsCurrent()) return;
             var profilesByGroup = profiles.ToDictionary(profile => profile.GroupId);
@@ -129,7 +131,7 @@ public partial class VpnView : UserControl
                 int serverConfigCount = linkedProfiles.Count == 1 ? linkedProfiles[0].ServerConfigCount : -1;
                 return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount };
             }).ToList();
-            _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles));
+            _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles), inventory.ProfileInventoryState);
             try { await _liveStatus.EnsureSubscribedAsync(token); }
             catch (Exception exception)
             {
@@ -155,6 +157,7 @@ public partial class VpnView : UserControl
         {
             if (!IsCurrent()) return;
             _dataFreshnessService.MarkUnavailable(VpnFreshnessSource);
+            _viewModel.MarkVpnProfileInventoryUnavailable();
             _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: false);
             _viewModel.VpnSupported = false;
             SetVpnCapability(RouterCapabilityState.Unknown);

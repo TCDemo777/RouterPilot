@@ -21,6 +21,7 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private bool vpnInventoryLoadCompleted;
     [ObservableProperty] private string vpnStatus = string.Empty;
     [ObservableProperty] private bool vpnSupported;
+    [ObservableProperty] private VpnProfileInventoryState vpnProfileInventoryState = VpnProfileInventoryState.Unknown;
     [ObservableProperty] private TailscaleStatus? tailscaleStatus;
     [ObservableProperty] private bool tailscaleIsLoading;
     [ObservableProperty] private TailscaleConfigurationSnapshot tailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown;
@@ -85,24 +86,36 @@ public sealed partial class VpnViewModel : ObservableObject
     private string _failedConnectionLocation = string.Empty;
     public bool HasVpnTunnels => VpnTunnels.Count > 0;
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
+    public bool ShowNoVpnProfiles => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Available && !HasVpnProfiles;
+    public bool ShowVpnProfilesUnavailable => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Unavailable;
     public bool IsVpnInventoryLoading => !VpnInventoryLoadCompleted || VpnIsLoading;
     public bool ShowNoVpnTunnels => VpnInventoryLoadCompleted && VpnSupported && !HasVpnTunnels;
     public bool IsTunnelBusy(VpnTunnelInfo tunnel) => VpnOperationTunnelId == tunnel.TunnelId;
-    public void Replace(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles)
+    public void Replace(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles, VpnProfileInventoryState profileInventoryState = VpnProfileInventoryState.Unknown)
     {
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in tunnels) VpnTunnels.Add(tunnel);
         VpnProfiles.Clear(); foreach (VpnClientProfileInfo profile in profiles) VpnProfiles.Add(profile);
+        VpnProfileInventoryState = profileInventoryState;
         OnPropertyChanged(nameof(HasVpnTunnels)); OnPropertyChanged(nameof(HasVpnProfiles));
-        OnPropertyChanged(nameof(ShowNoVpnTunnels));
+        OnPropertyChanged(nameof(ShowNoVpnTunnels)); OnPropertyChanged(nameof(ShowNoVpnProfiles)); OnPropertyChanged(nameof(ShowVpnProfilesUnavailable));
     }
+
+    public void MarkVpnProfileInventoryUnavailable() => VpnProfileInventoryState = VpnProfileInventoryState.Unavailable;
 
     partial void OnVpnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsVpnInventoryLoading));
     partial void OnVpnInventoryLoadCompletedChanged(bool value)
     {
         OnPropertyChanged(nameof(IsVpnInventoryLoading));
         OnPropertyChanged(nameof(ShowNoVpnTunnels));
+        OnPropertyChanged(nameof(ShowNoVpnProfiles));
+        OnPropertyChanged(nameof(ShowVpnProfilesUnavailable));
     }
     partial void OnVpnSupportedChanged(bool value) => OnPropertyChanged(nameof(ShowNoVpnTunnels));
+    partial void OnVpnProfileInventoryStateChanged(VpnProfileInventoryState value)
+    {
+        OnPropertyChanged(nameof(ShowNoVpnProfiles));
+        OnPropertyChanged(nameof(ShowVpnProfilesUnavailable));
+    }
 
     public void BeginConnectionAttempt(VpnTunnelInfo tunnel)
     {
@@ -122,6 +135,19 @@ public sealed partial class VpnViewModel : ObservableObject
     public void ApplyLiveStatuses(IReadOnlyList<VpnLiveStatusInfo> statuses, bool vpnInventoryAuthoritative, bool fromLiveStatusEvent = false)
     {
         var statusMap = statuses.ToDictionary(status => status.TunnelId);
+        var profilesWithActivity = VpnProfiles.Select(profile =>
+        {
+            List<VpnTunnelInfo> profileTunnels = VpnTunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
+            VpnProfileActivityState activity = profileTunnels.Count == 0
+                ? VpnProfileActivityState.Inactive
+                : profileTunnels.Any(tunnel => statusMap.TryGetValue(tunnel.TunnelId, out VpnLiveStatusInfo? status) && status.IsConnected)
+                    ? VpnProfileActivityState.Active
+                    : profileTunnels.All(tunnel => statusMap.ContainsKey(tunnel.TunnelId))
+                        ? VpnProfileActivityState.Inactive
+                        : VpnProfileActivityState.Unknown;
+            return new VpnClientProfileInfo { GroupId=profile.GroupId, Name=profile.Name, Protocol=profile.Protocol, IsUsedByTunnel=profile.IsUsedByTunnel, TunnelIds=profile.TunnelIds, UsedByDisplay=profile.UsedByDisplay, ServerConfigCount=profile.ServerConfigCount, CurrentPeerId=profile.CurrentPeerId, CurrentLocation=profile.CurrentLocation, ActivityState=activity };
+        }).ToList();
+        VpnProfiles.Clear(); foreach (VpnClientProfileInfo profile in profilesWithActivity) VpnProfiles.Add(profile);
         var profilesByGroup = VpnProfiles.ToDictionary(profile => profile.GroupId);
         int matched = VpnTunnels.Count(tunnel => statusMap.ContainsKey(tunnel.TunnelId));
         VpnLiveStatusDiagnostics.Record($"VPN tunnel_id matched: {(matched > 0 ? "YES" : "NO")}; matching tunnel(s): {matched}");
