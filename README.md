@@ -9,27 +9,28 @@ Companion for GL.iNet Routers & AdGuard Home
 ## Features
 
 - Router overview with connection, WAN, public-IP, Wi-Fi, resource, firmware and Network Health status
-- Client inventory, favourites, Known Devices, connection history, client details and direct navigation from search, DHCP and DNS activity
+- Client inventory, favourites, Known Devices, connection history, client details and direct navigation from search, DHCP, DNS Activity and Network Map
+- Configurable app-wide client naming using detected names, router DHCP reservation names, configured AdGuard Home client names, or deterministic configured-name priority
 - Network management for Wi-Fi, DHCP reservations and port-forwarding rules where supported by the router
 - AdGuard Home protection controls, DNS activity, client DNS context, Insights, filters, blocked services and DNS rewrites
 - Analytics for live and historical WAN, DNS, CPU and memory data, Internet Speed Test history and internet reliability
 - Read-only Data Statistics / DPI application analytics, including per-application device traffic and supported application blocking controls
 - Applications → Plug-ins package management with Installed, Available and Updates inventory, search/filtering, a Selected Package inspector, manual package-index refresh, and guarded package actions
-- GL.iNet VPN management with live tunnel status, diagnostics and local schedules while RouterPilot is running
+- GL.iNet VPN management with configured client profiles, live tunnel status, diagnostics and local schedules while RouterPilot is running
 - Event Timeline, Notification Centre, configurable Windows notifications and quiet hours
 - Maintenance hub with separate Router Firmware, AdGuard Home and Tailscale maintenance, diagnostics, safe network-snapshot export and portable `.rpb` backup/restore
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.3.2
+## What's new in RouterPilot 2.4.0
 
-RouterPilot 2.3.2 improves package management in **Applications → Plug-ins**. [Read the full release notes](https://github.com/TCDemo777/RouterPilot/releases/tag/v2.3.2).
+RouterPilot 2.4.0 improves consistent client identity, Maintenance reliability and VPN profile presentation. Full release notes will be available with the v2.4.0 release.
 
-- Browse Installed, Available and Updates package inventory, with search and filtering.
-- Review package version, architecture, status and available dependency information in the Selected Package inspector.
-- Use guarded Install, Uninstall and Update actions, with dependency-aware uninstall protection and protection for critical GL.iNet/OpenWrt system packages.
-- Refresh package indexes manually when needed; RouterPilot does not provide an Upgrade All action.
-- Eligible protected packages can use the advanced Force Update confirmation flow. Force Update overrides RouterPilot's action policy only and never uses dangerous `opkg --force-*` flags.
+- Choose detected, router-configured, AdGuard-configured or router-first configured names for supported client identity views.
+- Open the correct client details from DNS Activity and Network Map without using a display name as the identity key.
+- Review configured VPN client profiles even when they are inactive; unavailable inventory is shown distinctly from no configured profiles.
+- See the router's runtime kernel release in Maintenance System Information.
+- Benefit from safer Maintenance update availability gating and an HTTP-client navigation crash fix.
 
 Package changes can affect router stability. Review package details carefully and use trusted package sources; RouterPilot may protect critical packages from mutation.
 
@@ -64,7 +65,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.3.2-x64.msi` and `RouterPilot-v2.3.2-win-x64.zip`.
+Release assets are published as `RouterPilot-2.4.0-x64.msi` and `RouterPilot-v2.4.0-win-x64.zip`.
 
 ## Upgrading
 
@@ -105,4 +106,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot v2.3.2 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.4.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.

@@ -18,7 +18,7 @@ public sealed class TailscaleMaintenanceService
     public TailscaleMaintenanceService(ITailscaleStatusService tailscaleStatusService)
     {
         _tailscaleStatusService = tailscaleStatusService;
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("RouterPilot/2.3");
+        _client.DefaultRequestHeaders.UserAgent.ParseAdd("RouterPilot/2.4");
     }
 
     public TailscaleMaintenanceSnapshot Current { get; private set; } = TailscaleMaintenanceSnapshot.Empty;

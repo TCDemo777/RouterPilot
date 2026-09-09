@@ -18,7 +18,7 @@ public sealed class AdGuardHomeMaintenanceService
     public AdGuardHomeMaintenanceService(IRouterManagerProvider routerManagerProvider)
     {
         _routerManagerProvider = routerManagerProvider;
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("RouterPilot/2.3");
+        _client.DefaultRequestHeaders.UserAgent.ParseAdd("RouterPilot/2.4");
     }
 
     public AdGuardHomeMaintenanceSnapshot Current { get; private set; } = AdGuardHomeMaintenanceSnapshot.Empty;

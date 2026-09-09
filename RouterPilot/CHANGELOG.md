@@ -1,5 +1,17 @@
 # RouterPilot Changelog
 
+## 2.4.0
+
+- Added configurable client naming: keep detected names, prefer router DHCP reservation names, prefer configured AdGuard Home client names, or use a deterministic router-first configured-name mode.
+- Applied the selected client-name policy consistently across supported client identity views, while preserving source configuration values such as DHCP reservation names.
+- Added stable client-detail navigation from DNS Activity and Network Map where RouterPilot has an authoritative client identity.
+- Refined Clients controls and filters for a clearer, responsive layout.
+- Improved Maintenance Overview system information with the router's runtime kernel release, and removed duplicate community updater content from the Overview.
+- Improved Maintenance reliability and update-state gating; fixed a navigation crash caused by reconfiguring a shared HTTP client after use.
+- Improved VPN client profile presentation: configured inactive profiles remain visible, and unavailable profile inventory is distinct from a genuine empty inventory.
+
+Compatibility note: VPN profile handling uses generic GL.iNet client-profile contracts. Flint 4 live validation was not available for this release.
+
 ## 2.3.2
 
 - Added Plug-ins package inventory with search, filters, package-index refresh, and safe per-package install, update, and uninstall actions.
