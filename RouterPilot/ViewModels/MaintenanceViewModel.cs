@@ -39,6 +39,9 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     [ObservableProperty]
     private string lastResult = string.Empty;
 
+    [ObservableProperty]
+    private bool isCommunityUpdaterOperationRunning;
+
     public MaintenanceViewModel(
         MaintenanceOperationService operations,
         MaintenanceHistoryService historyService,
@@ -276,7 +279,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     };
     public bool IsAdGuardHomeChecking => AdGuardHomeMaintenance.UpdateStatus == RouterPilot.Models.AdGuardHomeUpdateStatus.Checking;
     public bool CanCheckAdGuardHome => !IsAdGuardHomeChecking && !IsBusy && _dashboard.RouterConnected;
-    public bool CanLaunchAdGuardHomeUpdater => !IsBusy && _dashboard.RouterConnected;
+    public bool CanLaunchAdGuardHomeUpdater => AdGuardHomeMaintenanceService.CanLaunchUpdater(
+        AdGuardHomeMaintenance.UpdateStatus,
+        _dashboard.RouterConnected,
+        IsBusy || IsCommunityUpdaterOperationRunning);
     public AdGuardHomeRecoveryState AdGuardHomeRecovery { get; private set; } = AdGuardHomeRecoveryState.Unknown;
     public bool IsAdGuardHomeRecoveryChecking { get; private set; }
     public bool CanRefreshAdGuardHomeRecovery => !IsAdGuardHomeRecoveryChecking && !IsBusy && _dashboard.RouterConnected;
@@ -310,7 +316,10 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     };
     public bool IsTailscaleChecking => TailscaleMaintenance.UpdateStatus == RouterPilot.Models.TailscaleUpdateStatus.Checking;
     public bool CanCheckTailscale => !IsTailscaleChecking && !IsBusy && _dashboard.RouterConnected;
-    public bool CanLaunchTailscaleUpdater => !IsBusy && _dashboard.RouterConnected;
+    public bool CanLaunchTailscaleUpdater => TailscaleMaintenanceService.CanLaunchUpdater(
+        TailscaleMaintenance.UpdateStatus,
+        _dashboard.RouterConnected,
+        IsBusy || IsCommunityUpdaterOperationRunning);
     public TailscaleRecoveryState TailscaleRecovery { get; private set; } = TailscaleRecoveryState.Unknown;
     public bool IsTailscaleRecoveryChecking { get; private set; }
     public bool CanRefreshTailscaleRecovery => !IsTailscaleRecoveryChecking && !IsBusy && _dashboard.RouterConnected;
@@ -792,6 +801,12 @@ public sealed partial class MaintenanceViewModel : ObservableObject
         OnPropertyChanged(nameof(HealthSummaryDetail));
         OnPropertyChanged(nameof(HealthSummaryColour));
         UpdateAvailability();
+    }
+
+    partial void OnIsCommunityUpdaterOperationRunningChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanLaunchAdGuardHomeUpdater));
+        OnPropertyChanged(nameof(CanLaunchTailscaleUpdater));
     }
 
     private void HistoryService_Changed(object? sender, EventArgs e)

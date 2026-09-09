@@ -80,6 +80,10 @@ public sealed class AdGuardHomeMaintenanceService
         return true;
     }
 
+    /// <summary>Allows a mutation only after an authoritative comparison found a newer official release.</summary>
+    public static bool CanLaunchUpdater(AdGuardHomeUpdateStatus updateStatus, bool routerConnected, bool operationRunning) =>
+        updateStatus == AdGuardHomeUpdateStatus.UpdateAvailable && routerConnected && !operationRunning;
+
     public static bool TryParseVersion(string? value, out Version? version)
     {
         version = null;

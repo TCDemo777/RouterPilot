@@ -43,7 +43,10 @@ public sealed class TailscaleMaintenanceService
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch { status = TailscaleStatus.Unavailable("Router communication is unavailable."); }
 
-            string? installed = NormalizeVersion(status.Version);
+            // Keep the router-authoritative value exactly as the VPN surface reports it.
+            // Community builds deliberately include a suffix (for example
+            // 1.102.3-tiny.by.admon.1389), which is useful display information.
+            string? installed = DisplayVersion(status.Version);
             string? latest;
             try { latest = await GetLatestStableAsync(cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -75,12 +78,13 @@ public sealed class TailscaleMaintenanceService
         return true;
     }
 
+    /// <summary>Allows a mutation only after an authoritative comparison found a newer official release.</summary>
+    public static bool CanLaunchUpdater(TailscaleUpdateStatus updateStatus, bool routerConnected, bool operationRunning) =>
+        updateStatus == TailscaleUpdateStatus.UpdateAvailable && routerConnected && !operationRunning;
+
     public static bool TryParseVersion(string? value, out Version? version)
     {
-        version = null;
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        Match match = Regex.Match(value.Trim(), @"^v?(\d+\.\d+\.\d+(?:\.\d+)?)$", RegexOptions.CultureInvariant);
-        return match.Success && Version.TryParse(match.Groups[1].Value, out version) && version is not null;
+        return TryParseVersionCore(value, allowCommunityTinySuffix: true, out version);
     }
 
     public static string? SelectLatestStableVersion(JsonElement root)
@@ -91,7 +95,7 @@ public sealed class TailscaleMaintenanceService
             if (release.ValueKind != JsonValueKind.Object ||
                 release.TryGetProperty("draft", out JsonElement draft) && draft.GetBoolean() ||
                 release.TryGetProperty("prerelease", out JsonElement prerelease) && prerelease.GetBoolean()) continue;
-            if (release.TryGetProperty("tag_name", out JsonElement tag) && tag.ValueKind == JsonValueKind.String && TryParseVersion(tag.GetString(), out _))
+            if (release.TryGetProperty("tag_name", out JsonElement tag) && tag.ValueKind == JsonValueKind.String && TryParseOfficialVersion(tag.GetString(), out _))
                 return NormalizeVersion(tag.GetString());
         }
         return null;
@@ -107,7 +111,21 @@ public sealed class TailscaleMaintenanceService
         return SelectLatestStableVersion(document.RootElement);
     }
 
-    private static string? NormalizeVersion(string? raw) => TryParseVersion(raw, out Version? version) ? "v" + version : null;
+    private static string? DisplayVersion(string? raw) => string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+    private static string? NormalizeVersion(string? raw) => TryParseOfficialVersion(raw, out Version? version) ? "v" + version : null;
+
+    private static bool TryParseOfficialVersion(string? value, out Version? version) =>
+        TryParseVersionCore(value, allowCommunityTinySuffix: false, out version);
+
+    private static bool TryParseVersionCore(string? value, bool allowCommunityTinySuffix, out Version? version)
+    {
+        version = null;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        string suffix = allowCommunityTinySuffix ? @"(?:-tiny\.by\.admon\.\d+)?" : string.Empty;
+        Match match = Regex.Match(value.Trim(), $@"^v?(?<version>\d+\.\d+\.\d+(?:\.\d+)?){suffix}$", RegexOptions.CultureInvariant);
+        return match.Success && Version.TryParse(match.Groups["version"].Value, out version) && version is not null;
+    }
     private void Publish(TailscaleMaintenanceSnapshot value, long generation)
     {
         if (generation != Interlocked.Read(ref _generation)) return;

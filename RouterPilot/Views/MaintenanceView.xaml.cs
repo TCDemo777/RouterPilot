@@ -411,7 +411,7 @@ public partial class MaintenanceView : UserControl
         try
         {
             AdGuardHomeUpdateDialog dialog = new(viewModel.AdGuardHomeInstalledVersion, viewModel.AdGuardHomeLatestStableVersion) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() != true) return;
+            if (dialog.ShowDialog() != true || !viewModel.CanLaunchAdGuardHomeUpdater) return;
             OpenBuiltInMaintenanceConsole(
                 viewModel,
                 MaintenanceInteractiveOperation.CreateAdGuardHomeUpdate(dialog.SelectSpecificRelease, dialog.IgnoreFreeSpaceCheck),
@@ -439,7 +439,7 @@ public partial class MaintenanceView : UserControl
         try
         {
             TailscaleUpdateDialog dialog = new(viewModel.TailscaleInstalledVersion, viewModel.TailscaleLatestStableVersion) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
+            if (dialog.ShowDialog() == true && viewModel.CanLaunchTailscaleUpdater)
                 OpenBuiltInMaintenanceConsole(
                     viewModel,
                     MaintenanceInteractiveOperation.CreateTailscaleUpdate(dialog.Options),
@@ -507,6 +507,7 @@ public partial class MaintenanceView : UserControl
                 return;
             }
 
+            viewModel.IsCommunityUpdaterOperationRunning = true;
             IMaintenanceInteractiveSession session = _interactiveSessionFactory.Create(operation);
             string routerDisplayName = string.IsNullOrWhiteSpace(viewModel.Dashboard.RouterModel)
                 ? "Current router"
@@ -517,11 +518,16 @@ public partial class MaintenanceView : UserControl
                 session,
                 _externalLauncher,
                 postOperationRefresh);
-            _interactiveConsole.Closed += (_, _) => _interactiveConsole = null;
+            _interactiveConsole.Closed += (_, _) =>
+            {
+                _interactiveConsole = null;
+                viewModel.IsCommunityUpdaterOperationRunning = false;
+            };
             _interactiveConsole.Show();
         }
         catch (Exception exception)
         {
+            viewModel.IsCommunityUpdaterOperationRunning = false;
             Debug.WriteLine($"{operation.Title} console failed ({DiagnosticRedactor.FailureCategory(exception)}).");
             MessageBox.Show("RouterPilot could not open the Maintenance Console. No action was started.", operation.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
         }

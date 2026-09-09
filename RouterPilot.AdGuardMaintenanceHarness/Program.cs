@@ -1,4 +1,5 @@
 using RouterPilot.Services;
+using RouterPilot.Models;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -16,6 +17,10 @@ static class Program
     {
         if (args.Contains("--live-pty-input", StringComparer.Ordinal))
             return await RunLivePtyInputAsync();
+        if (args.Contains("--live-tailscale-version", StringComparer.Ordinal))
+            return await RunLiveTailscaleVersionAsync();
+        if (args.Contains("--live-maintenance-update-state", StringComparer.Ordinal))
+            return await RunLiveMaintenanceUpdateStateAsync();
         if (args.Contains("--wpf-close-probe", StringComparer.Ordinal))
             return await RunWpfConsoleCloseProbeAsync(useLiveSession: false);
         if (args.Contains("--live-wpf-close-probe", StringComparer.Ordinal))
@@ -31,6 +36,14 @@ static class Program
         Assert(AdGuardHomeMaintenanceService.SelectLatestStableVersion(releases.RootElement) == "v0.107.79", "draft and prerelease ignored");
         using JsonDocument malformed = JsonDocument.Parse("{}");
         Assert(AdGuardHomeMaintenanceService.SelectLatestStableVersion(malformed.RootElement) is null, "malformed release response");
+        foreach (AdGuardHomeUpdateStatus status in Enum.GetValues<AdGuardHomeUpdateStatus>())
+        {
+            bool expected = status == AdGuardHomeUpdateStatus.UpdateAvailable;
+            Assert(AdGuardHomeMaintenanceService.CanLaunchUpdater(status, routerConnected: true, operationRunning: false) == expected, $"AdGuard updater eligibility for {status}");
+            Assert(!AdGuardHomeMaintenanceService.CanLaunchUpdater(status, routerConnected: false, operationRunning: false), $"AdGuard updater disabled while disconnected for {status}");
+            Assert(!AdGuardHomeMaintenanceService.CanLaunchUpdater(status, routerConnected: true, operationRunning: true), $"AdGuard updater disabled while running for {status}");
+        }
+        Assert(!AdGuardHomeMaintenanceService.CanLaunchUpdater(AdGuardHomeUpdateStatus.UpToDate, routerConnected: true, operationRunning: false), "AdGuard stale update click rejected after refresh");
         Assert(AdGuardHomeUpdaterCommand.Build(false, false) == AdGuardHomeUpdaterCommand.BaseCommand, "no options");
         Assert(AdGuardHomeUpdaterCommand.Build(true, false).EndsWith(" --select-release", StringComparison.Ordinal), "select release");
         Assert(AdGuardHomeUpdaterCommand.Build(false, true).EndsWith(" --ignore-free-space", StringComparison.Ordinal), "ignore free space");
@@ -41,9 +54,21 @@ static class Program
         Assert(AdGuardHomeUpdaterCommand.CanOpenTerminal(true, true), "high-risk acknowledgement accepted");
         Assert(TailscaleMaintenanceService.Compare("v1.82.0", "v1.84.1", out int tailscaleOlder) && tailscaleOlder < 0, "tailscale older stable comparison");
         Assert(TailscaleMaintenanceService.Compare("1.84.1", "v1.84.1", out int tailscaleEqual) && tailscaleEqual == 0, "tailscale equal stable comparison");
-        Assert(!TailscaleMaintenanceService.Compare("v1.84.1-tiny", "v1.84.1", out _), "community suffix handled conservatively");
+        Assert(TailscaleMaintenanceService.Compare("1.102.3-tiny.by.admon.1389", "v1.102.3", out int tinyEqual) && tinyEqual == 0, "community tiny version compares by its official base");
+        Assert(TailscaleMaintenanceService.Compare("1.100.3-tiny.by.admon.1200", "v1.102.3", out int tinyOlder) && tinyOlder < 0, "older community tiny version");
+        Assert(TailscaleMaintenanceService.Compare("1.104.0-tiny.by.admon.1400", "v1.102.3", out int tinyNewer) && tinyNewer > 0, "newer community tiny version");
+        Assert(!TailscaleMaintenanceService.Compare(null, "v1.102.3", out _), "unavailable Tailscale version remains unavailable");
+        Assert(!TailscaleMaintenanceService.Compare("1.102.3-tiny.by.admon.invalid", "v1.102.3", out _), "malformed community suffix remains unknown");
         using JsonDocument tailscaleReleases = JsonDocument.Parse("[{\"tag_name\":\"v1.85.0-rc1\",\"draft\":false,\"prerelease\":true},{\"tag_name\":\"v1.84.2\",\"draft\":true,\"prerelease\":false},{\"tag_name\":\"v1.84.1\",\"draft\":false,\"prerelease\":false}]");
         Assert(TailscaleMaintenanceService.SelectLatestStableVersion(tailscaleReleases.RootElement) == "v1.84.1", "tailscale draft and prerelease ignored");
+        foreach (TailscaleUpdateStatus status in Enum.GetValues<TailscaleUpdateStatus>())
+        {
+            bool expected = status == TailscaleUpdateStatus.UpdateAvailable;
+            Assert(TailscaleMaintenanceService.CanLaunchUpdater(status, routerConnected: true, operationRunning: false) == expected, $"Tailscale updater eligibility for {status}");
+            Assert(!TailscaleMaintenanceService.CanLaunchUpdater(status, routerConnected: false, operationRunning: false), $"Tailscale updater disabled while disconnected for {status}");
+            Assert(!TailscaleMaintenanceService.CanLaunchUpdater(status, routerConnected: true, operationRunning: true), $"Tailscale updater disabled while running for {status}");
+        }
+        Assert(!TailscaleMaintenanceService.CanLaunchUpdater(TailscaleUpdateStatus.UpToDate, routerConnected: true, operationRunning: false), "Tailscale stale update click rejected after refresh");
         TailscaleUpdaterOptions noOptions = new(false, false, false, false, false, false);
         Assert(TailscaleUpdaterCommand.Build(noOptions) == TailscaleUpdaterCommand.BaseCommand, "tailscale no options");
         TailscaleUpdaterOptions allOptions = new(true, true, true, true, true, true);
@@ -198,6 +223,76 @@ static class Program
         }
 
         Console.WriteLine("Maintenance interactive PTY input probe: PASS");
+        return 0;
+    }
+
+    static async Task<int> RunLiveTailscaleVersionAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
+        SettingsService settings = new(null);
+        var profiles = new RouterProfileService(settings);
+        var activeRouter = new ActiveRouterContext(profiles);
+        await using var provider = new RouterManagerProvider(
+            settings,
+            activeRouter,
+            new SshHostKeyTrustService(settings),
+            new RouterCertificateTrustService(settings),
+            new AdGuardTransportSecurityService(),
+            new SshConnectionFactory());
+        var canonicalStatus = new TailscaleStatusService(provider, activeRouter);
+        var maintenance = new TailscaleMaintenanceService(canonicalStatus);
+
+        TailscaleStatus vpnStatus = await canonicalStatus.GetStatusAsync(timeout.Token);
+        await maintenance.CheckAsync(timeout.Token);
+        TailscaleMaintenanceSnapshot snapshot = maintenance.Current;
+
+        if (!string.Equals(vpnStatus.Version, snapshot.InstalledVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException("Maintenance installed version did not match the canonical VPN status version.");
+        if (!TailscaleMaintenanceService.Compare(snapshot.InstalledVersion, snapshot.LatestStableVersion, out _))
+            throw new InvalidOperationException("The canonical installed version could not be compared with the official stable release.");
+
+        Console.WriteLine($"VPN_INSTALLED={vpnStatus.Version}");
+        Console.WriteLine($"MAINTENANCE_INSTALLED={snapshot.InstalledVersion}");
+        Console.WriteLine($"LATEST_STABLE={snapshot.LatestStableVersion}");
+        Console.WriteLine($"UPDATE_STATUS={snapshot.UpdateStatus}");
+        Console.WriteLine("Tailscale version live validation: PASS");
+        return 0;
+    }
+
+    static async Task<int> RunLiveMaintenanceUpdateStateAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
+        SettingsService settings = new(null);
+        var profiles = new RouterProfileService(settings);
+        var activeRouter = new ActiveRouterContext(profiles);
+        await using var provider = new RouterManagerProvider(
+            settings,
+            activeRouter,
+            new SshHostKeyTrustService(settings),
+            new RouterCertificateTrustService(settings),
+            new AdGuardTransportSecurityService(),
+            new SshConnectionFactory());
+
+        var adGuard = new AdGuardHomeMaintenanceService(provider);
+        var tailscale = new TailscaleMaintenanceService(new TailscaleStatusService(provider, activeRouter));
+        await adGuard.CheckAsync(timeout.Token);
+        await tailscale.CheckAsync(timeout.Token);
+
+        AdGuardHomeMaintenanceSnapshot adGuardSnapshot = adGuard.Current;
+        TailscaleMaintenanceSnapshot tailscaleSnapshot = tailscale.Current;
+        bool adGuardEnabled = AdGuardHomeMaintenanceService.CanLaunchUpdater(adGuardSnapshot.UpdateStatus, routerConnected: true, operationRunning: false);
+        bool tailscaleEnabled = TailscaleMaintenanceService.CanLaunchUpdater(tailscaleSnapshot.UpdateStatus, routerConnected: true, operationRunning: false);
+        if (adGuardEnabled != (adGuardSnapshot.UpdateStatus == AdGuardHomeUpdateStatus.UpdateAvailable) ||
+            tailscaleEnabled != (tailscaleSnapshot.UpdateStatus == TailscaleUpdateStatus.UpdateAvailable))
+            throw new InvalidOperationException("Maintenance update eligibility did not match the authoritative update state.");
+
+        Console.WriteLine($"ADGUARD_INSTALLED={adGuardSnapshot.InstalledVersion ?? "N/A"}");
+        Console.WriteLine($"ADGUARD_LATEST={adGuardSnapshot.LatestStableVersion ?? "N/A"}");
+        Console.WriteLine($"ADGUARD_STATUS={adGuardSnapshot.UpdateStatus}; UPDATE_ENABLED={adGuardEnabled}");
+        Console.WriteLine($"TAILSCALE_INSTALLED={tailscaleSnapshot.InstalledVersion ?? "N/A"}");
+        Console.WriteLine($"TAILSCALE_LATEST={tailscaleSnapshot.LatestStableVersion ?? "N/A"}");
+        Console.WriteLine($"TAILSCALE_STATUS={tailscaleSnapshot.UpdateStatus}; UPDATE_ENABLED={tailscaleEnabled}");
+        Console.WriteLine("Maintenance update-state live validation: PASS");
         return 0;
     }
 
