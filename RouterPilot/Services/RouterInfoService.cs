@@ -31,9 +31,23 @@ namespace RouterPilot.Services
             // Board information
             //
 
-            string boardJson =
+            // Keep the direct runtime kernel release in the same bounded system
+            // information read.  GL.iNet's board payload does not reliably
+            // include release.kernel on all firmware builds.
+            string systemIdentity =
                 await _ssh.RunCommandAsync(
-                    "ubus call system board");
+                    "ubus call system board; printf '\n__ROUTERPILOT_KERNEL__\n'; uname -r");
+
+            const string kernelMarker = "__ROUTERPILOT_KERNEL__";
+            int kernelMarkerIndex = systemIdentity.IndexOf(kernelMarker, StringComparison.Ordinal);
+            string boardJson = kernelMarkerIndex >= 0
+                ? systemIdentity[..kernelMarkerIndex].Trim()
+                : systemIdentity;
+            if (kernelMarkerIndex >= 0)
+            {
+                string kernel = systemIdentity[(kernelMarkerIndex + kernelMarker.Length)..].Trim();
+                info.KernelVersion = string.IsNullOrWhiteSpace(kernel) ? "-" : kernel;
+            }
 
 
             try
@@ -76,7 +90,7 @@ namespace RouterPilot.Services
                             version.GetString() ?? "-";
                     }
 
-                    if (release.TryGetProperty("kernel", out JsonElement kernel))
+                    if (info.KernelVersion == "-" && release.TryGetProperty("kernel", out JsonElement kernel))
                         info.KernelVersion = kernel.GetString() ?? "-";
                     if (release.TryGetProperty("target", out JsonElement target))
                         info.Architecture = target.GetString() ?? "-";
