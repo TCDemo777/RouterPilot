@@ -904,6 +904,61 @@ internal static class Program
             "Unified VPN partial refresh preserves authoritative Tailscale state");
         page.ApplyTailscaleStatus(TailscaleStatus.Unavailable("temporary read failure"));
         Require(page.VpnTunnels.Count == 1, "Tailscale refresh does not clear Unified VPN inventory");
+
+        RunVpnConnectionFailureLifecycleTests();
+    }
+
+    private static void RunVpnConnectionFailureLifecycleTests()
+    {
+        VpnClientProfileInfo profileA = new() { GroupId = 101, Name = "Same name", Protocol = "WireGuard", CurrentLocation = "A" };
+        VpnClientProfileInfo profileB = new() { GroupId = 202, Name = "Same name", Protocol = "WireGuard", CurrentLocation = "B" };
+        VpnTunnelInfo tunnelA = new() { TunnelId = 10, Name = "Primary", Enabled = false, ProfileGroupIds = [101] };
+        VpnTunnelInfo tunnelB = new() { TunnelId = 10, Name = "Primary", Enabled = false, ProfileGroupIds = [202] };
+
+        static VpnLiveStatusInfo Status(int groupId, bool enabled, int state) => new() { TunnelId = 10, GroupId = groupId, Enabled = enabled, Status = state };
+        static VpnTunnelInfo Current(VpnViewModel page) => page.VpnTunnels.Single();
+        static void CreateTransientFailure(VpnViewModel page)
+        {
+            page.ApplyLiveStatuses([Status(101, enabled: false, state: 0)], vpnInventoryAuthoritative: true);
+            page.BeginConnectionAttempt(Current(page));
+            page.ApplyLiveStatuses([Status(101, enabled: true, state: 0)], vpnInventoryAuthoritative: true, fromLiveStatusEvent: true);
+            page.ApplyLiveStatuses([Status(101, enabled: false, state: 0)], vpnInventoryAuthoritative: true, fromLiveStatusEvent: true);
+            Require(Current(page).HasConnectionAttemptFailure, "a failed connection attempt is presented while its live failure state is current");
+        }
+
+        var retry = new VpnViewModel();
+        retry.Replace([tunnelA], [profileA], VpnProfileInventoryState.Available);
+        CreateTransientFailure(retry);
+        retry.BeginConnectionAttempt(Current(retry));
+        Require(!Current(retry).HasConnectionAttemptFailure, "retry clears the previous transient connection failure before the new attempt");
+
+        var connected = new VpnViewModel();
+        connected.Replace([tunnelA], [profileA], VpnProfileInventoryState.Available);
+        CreateTransientFailure(connected);
+        connected.ApplyLiveStatuses([Status(101, enabled: true, state: 1)], vpnInventoryAuthoritative: true);
+        Require(!Current(connected).HasConnectionAttemptFailure && Current(connected).ConnectionState == "Connected",
+            "authoritative connected refresh clears a previous transient failure");
+
+        var changedProfile = new VpnViewModel();
+        changedProfile.Replace([tunnelA], [profileA], VpnProfileInventoryState.Available);
+        CreateTransientFailure(changedProfile);
+        changedProfile.Replace([tunnelB], [profileB], VpnProfileInventoryState.Available);
+        changedProfile.ApplyLiveStatuses([Status(202, enabled: false, state: 0)], vpnInventoryAuthoritative: true);
+        Require(!Current(changedProfile).HasConnectionAttemptFailure && Current(changedProfile).SelectedProfileGroupId == 202,
+            "a profile change cannot inherit another profile's transient failure even when names match");
+
+        var normalDisconnect = new VpnViewModel();
+        normalDisconnect.Replace([tunnelA], [profileA], VpnProfileInventoryState.Available);
+        CreateTransientFailure(normalDisconnect);
+        normalDisconnect.ApplyLiveStatuses([Status(101, enabled: false, state: 0)], vpnInventoryAuthoritative: true);
+        Require(!Current(normalDisconnect).HasConnectionAttemptFailure && Current(normalDisconnect).ConnectionState == "Disconnected",
+            "authoritative normal disconnected refresh clears a previous transient failure");
+
+        var currentConfigurationError = new VpnViewModel();
+        currentConfigurationError.Replace([tunnelB], [profileA], VpnProfileInventoryState.Available);
+        currentConfigurationError.ApplyLiveStatuses([Status(101, enabled: false, state: 0)], vpnInventoryAuthoritative: true);
+        Require(Current(currentConfigurationError).HasConfigurationAttention && Current(currentConfigurationError).ConnectionState == "Configuration needs attention",
+            "current authoritative configuration errors remain visible after reconciliation");
     }
 
     private static void RunVpnProfileInventoryTests()

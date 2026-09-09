@@ -119,11 +119,19 @@ public sealed partial class VpnViewModel : ObservableObject
 
     public void BeginConnectionAttempt(VpnTunnelInfo tunnel)
     {
+        // This is a new attempt for this tunnel.  A previous attempt's
+        // transient runtime failure must not be carried into its UI state.
+        ClearFailedAttempt(tunnel.TunnelId);
+        ClearFailurePresentation(tunnel.TunnelId);
         _connectionAttemptTunnelId = tunnel.TunnelId;
         _connectionAttemptGroupId = tunnel.SelectedProfileGroupId;
         _connectionAttemptLocation = tunnel.ConfiguredLocation;
         _connectionAttemptObservedEnabled = false;
-        ClearFailedAttempt(tunnel.TunnelId);
+    }
+
+    public void CancelConnectionAttempt(int tunnelId)
+    {
+        if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
     }
 
     public void MarkExplicitDisconnect(int tunnelId)
@@ -199,7 +207,7 @@ public sealed partial class VpnViewModel : ObservableObject
         foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
     }
 
-    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent) => new()
+    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null) => new()
     {
         Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
         Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds,
@@ -208,7 +216,7 @@ public sealed partial class VpnViewModel : ObservableObject
         ConfiguredProfileName=tunnel.ConfiguredProfileName, ConfiguredLocation=tunnel.ConfiguredLocation,
         FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess,
         ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=tunnel.ServerConfigCount, LiveStatus=tunnel.LiveStatus,
-        ConfigurationHealth=tunnel.ConfigurationHealth, HasConnectionAttemptFailure=tunnel.HasConnectionAttemptFailure,
+        ConfigurationHealth=tunnel.ConfigurationHealth, HasConnectionAttemptFailure=hasConnectionAttemptFailure ?? tunnel.HasConnectionAttemptFailure,
         TransitionIntent=intent
     };
 
@@ -228,6 +236,19 @@ public sealed partial class VpnViewModel : ObservableObject
             ClearFailedAttempt(tunnelId);
 
         if (status?.IsConnected == true)
+        {
+            if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+            ClearFailedAttempt(tunnelId);
+            return false;
+        }
+
+        // The failure marker below is deliberately transient: it records a
+        // live enabled-to-disabled transition for one connection attempt.
+        // A later authoritative refresh that reports a normal current state
+        // supersedes that observation.  The status contract has no current
+        // router-error field, so retaining the old marker here would present
+        // history as a current router error.
+        if (!fromLiveStatusEvent && status is not null)
         {
             if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
             ClearFailedAttempt(tunnelId);
@@ -266,5 +287,15 @@ public sealed partial class VpnViewModel : ObservableObject
         _failedConnectionTunnelId = null;
         _failedConnectionGroupId = null;
         _failedConnectionLocation = string.Empty;
+    }
+
+    private void ClearFailurePresentation(int tunnelId)
+    {
+        if (!VpnTunnels.Any(tunnel => tunnel.TunnelId == tunnelId && tunnel.HasConnectionAttemptFailure)) return;
+        var updated = VpnTunnels.Select(tunnel => tunnel.TunnelId == tunnelId
+            ? CopyTunnel(tunnel, tunnel.TransitionIntent, hasConnectionAttemptFailure: false)
+            : tunnel).ToList();
+        VpnTunnels.Clear();
+        foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
     }
 }

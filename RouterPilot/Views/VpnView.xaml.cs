@@ -637,6 +637,7 @@ public partial class VpnView : UserControl
         if (!target) _viewModel.MarkExplicitDisconnect(tunnel.TunnelId);
         long operationGeneration = _operationIntent.Begin(tunnel.TunnelId, target);
         _viewModel.ApplyTransitionIntent();
+        if (target) _viewModel.BeginConnectionAttempt(tunnel);
         Button? button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _viewModel.VpnIsLoading = true; _viewModel.VpnOperationTunnelId = tunnel.TunnelId;
@@ -647,11 +648,11 @@ public partial class VpnView : UserControl
             VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, operationCts.Token);
             if (!result.Success)
             {
+                if (target) _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
                 MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
                 await RefreshAsync(force: true, refreshTailscale: false);
                 return;
             }
-            if (target) _viewModel.BeginConnectionAttempt(tunnel);
             bool runtimeReachedTarget = await WaitForTunnelRuntimeAsync(tunnel.TunnelId, target, operationCts.Token);
             VpnLiveStatusDiagnostics.Record($"VPN tunnel runtime reconciliation: {(runtimeReachedTarget ? "PASS" : "TIMEOUT")}; target={(target ? "Connected" : "Disconnected")}");
             _viewModel.VpnIsLoading = false;
@@ -659,6 +660,7 @@ public partial class VpnView : UserControl
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
+            if (target) _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
             _viewModel.VpnStatus = "VPN operation cancelled.";
         }
         finally
