@@ -48,6 +48,8 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="8"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="6"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Grid x:Name="FindSortWide">
@@ -160,9 +162,14 @@
                                 Content="{Binding KnownDevicesButtonText}"/>
                 </WrapPanel>
 
-                <!-- A single child keeps label and selector together on every WrapPanel line. -->
-                <WrapPanel Grid.Row="4" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,22,8" VerticalAlignment="Center">
+                <!-- Naming is a compact preference row, never mixed with filters. -->
+                <Grid Grid.Row="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Margin="0,0,8,0" VerticalAlignment="Center"
                                    Style="{DynamicResource Text.Secondary}" Text="Client names:"/>
                         <ComboBox MinWidth="150" Height="36"
@@ -176,24 +183,28 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                     </StackPanel>
-                        <TextBlock Margin="0,0,18,8" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}"
-                                   Text="{Binding ClientNameSourceAvailabilityHint}" TextWrapping="Wrap"/>
-                        <CheckBox Margin="0,0,18,8"
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}"
+                               Text="{Binding ClientNameSourceAvailabilityHint}" TextWrapping="Wrap"/>
+                </Grid>
+
+                <!-- Filters intentionally share one dedicated, naturally wrapping row. -->
+                <WrapPanel Grid.Row="6" VerticalAlignment="Center">
+                        <CheckBox Margin="0,0,18,0"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"
                                   IsChecked="{Binding ShowFavoritesOnly}"
                                   Content="Favourites only"/>
-                        <CheckBox Margin="0,0,18,8"
+                        <CheckBox Margin="0,0,18,0"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"
                                   IsChecked="{Binding HideClientsWithoutIp}"
                                   Content="Hide clients without IP"/>
-                        <CheckBox Margin="0,0,18,8"
+                        <CheckBox Margin="0,0,18,0"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"
                                   IsChecked="{Binding HideUnknownDevices}"
                                   Content="Hide unknown devices"/>
-                        <CheckBox Margin="0,0,18,8"
+                        <CheckBox Margin="0"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"
                                   IsChecked="{Binding OnlineDevicesOnly}"
