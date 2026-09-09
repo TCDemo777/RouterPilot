@@ -4,7 +4,7 @@
 
 ### Client identity and navigation
 
-- Added a configurable client-name preference: **Automatic**, **Router**, **AdGuard**, or **Configured names**. Configured names uses a deterministic router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name order.
+- Added a configurable client-name preference: **Automatic**, **Router**, **AdGuard**, or **Configured names**. Configured names uses a deterministic priority: router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name.
 - Applied the selected name consistently across supported client identity views, including Clients, selected-client details, DNS Activity, Network Map, Known Devices and other client-aware presentation.
 - Added a quiet name-source indicator in client details so it is clear whether the currently displayed name came from RouterPilot, the router, or AdGuard Home.
 - Preserved safe per-client fallbacks when a configured name is missing, unavailable or ambiguous; configured friendly names never become client identity keys.
@@ -39,7 +39,7 @@
 - Improved dark-theme styling for Plug-ins controls.
 - Updated public community-updater attribution to Admon while preserving the applicable third-party licence notices.
 
-Compatibility note: VPN profile handling uses generic GL.iNet client-profile contracts. Flint 4 live validation was not available for this release.
+Compatibility note: VPN profile handling uses generic GL.iNet client-profile contracts; live Flint 4 validation was not available during development.
 
 ## 2.3.2
 
