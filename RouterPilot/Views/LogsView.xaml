@@ -323,7 +323,8 @@
                                       EnableColumnVirtualization="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      ScrollViewer.CanContentScroll="True">
+                                      ScrollViewer.CanContentScroll="True"
+                                      MouseDoubleClick="OpenDnsClientDetails_Click">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Width="150"
                                                         Binding="{Binding Time}"
