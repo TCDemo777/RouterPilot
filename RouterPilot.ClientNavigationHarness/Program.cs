@@ -73,6 +73,24 @@ Require(ClientNamePresentation.ResolveSource(ClientNameSource.Router, "Living Ro
     ClientNamePresentation.ResolveSource(ClientNameSource.Automatic, "Living Room TV", "Lounge Television") == "RouterPilot",
     "name-source presentation follows the same configured-name precedence");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
+MethodInfo? flightDeckClick = typeof(RouterPilot.Views.AboutView).GetMethod(
+    "IsFlightDeckActivationClick",
+    BindingFlags.Static | BindingFlags.NonPublic);
+Require(flightDeckClick is not null, "About Flight Deck activation contract is available");
+int flightDeckClicks = 0;
+DateTime flightDeckWindow = default;
+DateTime flightDeckNow = new(2026, 9, 9, 20, 0, 0, DateTimeKind.Utc);
+for (int click = 1; click <= 6; click++)
+{
+    object?[] arguments = [flightDeckClicks, flightDeckWindow, flightDeckNow];
+    Require(!(bool)flightDeckClick!.Invoke(null, arguments)!, $"Flight Deck remains inactive after click {click}");
+    flightDeckClicks = (int)arguments[0]!;
+    flightDeckWindow = (DateTime)arguments[1]!;
+}
+object?[] seventhClick = [flightDeckClicks, flightDeckWindow, flightDeckNow];
+Require((bool)flightDeckClick!.Invoke(null, seventhClick)!, "Flight Deck activates on the seventh click");
+object?[] expiredWindowClick = [(int)seventhClick[0]!, (DateTime)seventhClick[1]!, flightDeckNow.AddSeconds(4)];
+Require(!(bool)flightDeckClick!.Invoke(null, expiredWindowClick)!, "Flight Deck click window resets after three seconds");
 var sharedHttpHandler = new StubMacLookupHandler();
 using var sharedHttpClient = new HttpClient(sharedHttpHandler);
 await sharedHttpClient.GetAsync("https://example.invalid/first-request");

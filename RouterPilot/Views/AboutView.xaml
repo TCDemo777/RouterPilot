@@ -76,6 +76,7 @@
                                        Stretch="Uniform"
                                        x:Name="RouterPilotLogo"
                                        RenderTransformOrigin="0.5,0.5"
+                                       MouseLeftButtonUp="RouterPilotLogo_Changed"
                                        Source="/Assets/RouterPilotLogo.png">
                                         <Image.RenderTransform>
                                             <TransformGroup>
@@ -569,6 +570,7 @@
                                    HorizontalAlignment="Left"
                                    Stretch="Uniform"
                                    Cursor="Hand"
+                                   MouseLeftButtonUp="RouterPilotLogo_Changed"
                                    Source="/Assets/RouterPilotLogo.png"/>
                             <TextBlock FontFamily="Cascadia Mono, Consolas"
                                        FontSize="20"

@@ -39,6 +39,8 @@ namespace RouterPilot.Views
         private readonly StringBuilder _supportLog =
             new StringBuilder();
         private bool _diagnosticsHistorySubscribed;
+        private int _logoClickCount;
+        private DateTime _logoClickWindowStartedUtc;
         private bool _flightDeckActive;
         private CancellationTokenSource? _flightDeckCancellation;
         private CancellationTokenSource? _autopilotCancellation;
@@ -170,6 +172,38 @@ namespace RouterPilot.Views
             _diagnosticsHistoryService.HistoryChanged -=
                 DiagnosticsHistory_CollectionChanged;
             _diagnosticsHistorySubscribed = false;
+        }
+
+        private async void RouterPilotLogo_Changed(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (_flightDeckActive)
+            {
+                await ShowAutopilotUnavailableAsync();
+                return;
+            }
+
+            if (IsFlightDeckActivationClick(
+                    ref _logoClickCount,
+                    ref _logoClickWindowStartedUtc,
+                    DateTime.UtcNow))
+                await ActivateFlightDeckAsync();
+        }
+
+        private static bool IsFlightDeckActivationClick(
+            ref int clickCount,
+            ref DateTime windowStartedUtc,
+            DateTime now)
+        {
+            if (windowStartedUtc == default ||
+                now - windowStartedUtc > TimeSpan.FromSeconds(3))
+            {
+                windowStartedUtc = now;
+                clickCount = 0;
+            }
+
+            clickCount++;
+            return clickCount == 7;
         }
 
         private async Task ActivateFlightDeckAsync()
@@ -1125,6 +1159,8 @@ namespace RouterPilot.Views
             _autopilotCancellation?.Cancel();
             _autopilotCancellation?.Dispose();
             _autopilotCancellation = null;
+            _logoClickCount = 0;
+            _logoClickWindowStartedUtc = default;
             _flightDeckActive = false;
             if (LaunchMotionGroup is not null)
                 ResetPreflightVisuals();
