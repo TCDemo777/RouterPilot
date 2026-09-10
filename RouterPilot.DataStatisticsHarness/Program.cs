@@ -133,6 +133,25 @@ for (int second = 2; second <= 20; second += 2)
 Require(throttled.DownloadedBytes == 2000 && throttled.UploadedBytes == 1000 &&
         throttled.SampleCount == 2 && throttled.History.Count == 2,
     "Throttled history must retain all byte deltas while keeping only selected samples.");
+
+var recentWindow = new TrafficSessionAccumulator();
+Require(recentWindow.GetMostRecentHistory(5).Count == 0, "An empty traffic session must have no recent samples.");
+Require(recentWindow.Add(new NetworkTrafficObservation(0, 0, t0, "wan")) is null,
+    "Recent-window baseline must not create a sample.");
+for (int sampleIndex = 1; sampleIndex <= 7; sampleIndex++)
+    Require(recentWindow.Add(new NetworkTrafficObservation(sampleIndex * 100, sampleIndex * 50, t0.AddSeconds(sampleIndex * 2), "wan")) is not null,
+        "Recent-window sample was not retained.");
+Require(recentWindow.GetMostRecentHistory(5).Count == 5 &&
+        recentWindow.GetMostRecentHistory(5).First().TimestampUtc == t0.AddSeconds(6) &&
+        recentWindow.GetMostRecentHistory(5).Last().TimestampUtc == t0.AddSeconds(14),
+    "Recent traffic window must retain the five newest samples in chronological order.");
+Require(recentWindow.History.Count == 7 && recentWindow.SampleCount == 7,
+    "Recent traffic display window must not truncate underlying session history.");
+Require(recentWindow.Add(new NetworkTrafficObservation(800, 400, t0.AddSeconds(16), "wan")) is not null &&
+        recentWindow.GetMostRecentHistory(5).First().TimestampUtc == t0.AddSeconds(8) &&
+        recentWindow.GetMostRecentHistory(5).Last().TimestampUtc == t0.AddSeconds(16) &&
+        recentWindow.History.Count == 8,
+    "Recent traffic window must advance without truncating underlying history.");
 traffic.Reset();
 Require(traffic.SampleCount == 0 && traffic.History.Count == 0 && traffic.Add(new NetworkTrafficObservation(1, 1, t0, "wan")) is null,
     "Traffic reset must be local and restore the baseline.");

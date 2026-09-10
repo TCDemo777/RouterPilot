@@ -26,6 +26,16 @@ public sealed class TrafficSessionAccumulator
     public int SampleCount => _samples;
     public DateTime? StartedUtc => _startedUtc == default ? null : _startedUtc;
 
+    /// <summary>Returns a non-mutating window of the newest retained samples in their existing chronological order.</summary>
+    public IReadOnlyList<TrafficSessionSample> GetMostRecentHistory(int maximumCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumCount);
+        if (_history.Count <= maximumCount)
+            return _history;
+
+        return _history.GetRange(_history.Count - maximumCount, maximumCount);
+    }
+
     public TrafficSessionSample? Add(NetworkTrafficObservation observation, bool retainHistory = true)
     {
         if (observation.ReceivedBytes < 0 || observation.TransmittedBytes < 0)

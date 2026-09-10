@@ -21,6 +21,7 @@ namespace RouterPilot.ViewModels;
 public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposable
 {
     private const int ChartApplicationLimit = 5;
+    private const int RecentTrafficSampleLimit = 5;
     private static readonly TimeSpan HistorySampleInterval = TimeSpan.FromSeconds(10);
     private readonly DataStatisticsService _dataStatisticsService;
     private readonly ClientInventoryState _clientInventory;
@@ -74,6 +75,8 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand ResetTrafficSessionCommand { get; }
     public IReadOnlyList<TrafficSessionSample> TrafficHistory => _trafficSession.History;
+    public IReadOnlyList<TrafficSessionSample> RecentTrafficSamples =>
+        _trafficSession.GetMostRecentHistory(RecentTrafficSampleLimit);
 
     public bool HasTopApps => TopApps.Count > 0;
     public bool HasLoaded => _loaded;
@@ -288,6 +291,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         TrafficLastUpdated = sample is { } current ? current.TimestampUtc.ToLocalTime().ToString("g") : TrafficLastUpdated;
         TrafficSource = sample is { } source && !string.IsNullOrWhiteSpace(source.InterfaceName) ? source.InterfaceName : TrafficSource;
         OnPropertyChanged(nameof(TrafficHistory));
+        OnPropertyChanged(nameof(RecentTrafficSamples));
         OnPropertyChanged(nameof(TrafficSessionStatus));
     }
 

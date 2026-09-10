@@ -156,7 +156,7 @@
                                 <StackPanel><TextBlock Style="{StaticResource Text.CardCaption}" Text="SOURCE / UPDATED"/><TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Body}" Text="{Binding TrafficSource}"/><TextBlock Style="{StaticResource Text.Muted}" Text="{Binding TrafficLastUpdated}"/></StackPanel>
                             </UniformGrid>
                             <TextBlock Margin="0,14,0,6" Style="{StaticResource Text.SectionTitle}" Text="Recent traffic samples" />
-                            <ItemsControl ItemsSource="{Binding TrafficHistory}">
+                            <ItemsControl ItemsSource="{Binding RecentTrafficSamples}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,3">
