@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -18,7 +19,7 @@ namespace RouterPilot.Services;
 public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposable
 {
     private const int MaximumNotifications = 500;
-    private const string WelcomeDeduplicationKey = "routerpilot-welcome";
+    private const string LegacyWelcomeDeduplicationKey = "routerpilot-welcome";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -42,6 +43,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
     private bool _disposalStarted;
     private readonly SettingsService? _settingsService;
     private readonly IToastNotificationService? _toastNotificationService;
+    private readonly string _applicationVersion;
 
     public NotificationService(
         Dispatcher dispatcher,
@@ -57,7 +59,8 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
         string? dataFolder = null,
         TimeSpan? deduplicationQuietPeriod = null,
         SettingsService? settingsService = null,
-        IToastNotificationService? toastNotificationService = null)
+        IToastNotificationService? toastNotificationService = null,
+        string? applicationVersion = null)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         string folder = dataFolder ??
@@ -66,6 +69,7 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
         DeduplicationQuietPeriod = deduplicationQuietPeriod ?? TimeSpan.FromMinutes(5);
         _settingsService = settingsService;
         _toastNotificationService = toastNotificationService;
+        _applicationVersion = NormalizeApplicationVersion(applicationVersion ?? GetApplicationVersion());
         Notifications = new ReadOnlyObservableCollection<AppNotification>(
             _notifications);
     }
@@ -80,9 +84,40 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
 
     public async Task InitializeAsync()
     {
-        int loadedCount = await ReloadAsync().ConfigureAwait(false);
+        await ReloadAsync().ConfigureAwait(false);
 
-        if (loadedCount == 0)
+        string welcomeKey = WelcomeDeduplicationKeyFor(_applicationVersion);
+        bool existingWelcome = await _dispatcher.InvokeAsync(() =>
+        {
+            if (_notifications.Any(notification => string.Equals(
+                    notification.DeduplicationKey,
+                    welcomeKey,
+                    StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            // Earlier builds stored one non-versioned welcome record. Adopt it
+            // as the acknowledgement for the first version using this policy,
+            // without duplicating an existing user's unread/read state or
+            // sending another toast during migration.
+            AppNotification? legacyWelcome = _notifications.FirstOrDefault(
+                notification => string.Equals(
+                    notification.DeduplicationKey,
+                    LegacyWelcomeDeduplicationKey,
+                    StringComparison.Ordinal));
+            if (legacyWelcome is null)
+                return false;
+
+            lock (_deduplicationLock)
+                _deduplicationTimes.Remove(LegacyWelcomeDeduplicationKey);
+            legacyWelcome.DeduplicationKey = welcomeKey;
+            RememberDeduplication(legacyWelcome);
+            QueueSave();
+            return true;
+        });
+
+        if (!existingWelcome)
         {
             await AddAsync(new AppNotification
             {
@@ -90,10 +125,26 @@ public sealed class NotificationService : INotifyPropertyChanged, IAsyncDisposab
                 Message = "Important router and network events will appear here.",
                 Severity = NotificationSeverity.Information,
                 Category = NotificationCategory.System,
-                DeduplicationKey = WelcomeDeduplicationKey
+                DeduplicationKey = welcomeKey
             });
         }
     }
+
+    public static string WelcomeDeduplicationKeyFor(string applicationVersion) =>
+        "routerpilot-welcome:" + NormalizeApplicationVersion(applicationVersion);
+
+    private static string GetApplicationVersion()
+    {
+        Assembly assembly = Assembly.GetExecutingAssembly();
+        string value = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "0.0.0";
+        int metadata = value.IndexOf('+');
+        return metadata >= 0 ? value[..metadata] : value;
+    }
+
+    private static string NormalizeApplicationVersion(string? version) =>
+        string.IsNullOrWhiteSpace(version) ? "0.0.0" : version.Trim();
 
     /// <summary>Reloads persisted history after an explicit data restore without creating a welcome item.</summary>
     public async Task<int> ReloadAsync()

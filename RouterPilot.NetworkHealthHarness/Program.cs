@@ -8,6 +8,9 @@ using System.Reflection;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Renci.SshNet;
 using Renci.SshNet.Common;
@@ -245,6 +248,100 @@ Require(healthy.Checks.All(check => check.HasNavigationTarget) &&
     "every rendered Router Health View target is a supported Dashboard destination");
 using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardViewModel>().BuildServiceProvider();
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
+
+string notificationFixtureFolder = Path.Combine(Path.GetTempPath(), "RouterPilot-welcome-notification-" + Guid.NewGuid().ToString("N"));
+string legacyNotificationFixtureFolder = Path.Combine(Path.GetTempPath(), "RouterPilot-legacy-welcome-notification-" + Guid.NewGuid().ToString("N"));
+try
+{
+    await RunOnDispatcherAsync(async notificationDispatcher =>
+    {
+        var notificationSettings = new SettingsService(notificationFixtureFolder);
+        var welcomeToasts = new CountingToastNotificationService();
+
+        await using (var firstRun = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.1"))
+        {
+            await firstRun.InitializeAsync();
+            Require(firstRun.Notifications.Count == 1 && !firstRun.Notifications[0].IsRead &&
+                    firstRun.Notifications[0].DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.1"),
+                "fresh install creates one version-scoped welcome notification");
+        }
+
+        await using (var restartUnread = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.1"))
+        {
+            await restartUnread.InitializeAsync();
+            Require(restartUnread.Notifications.Count == 1 && !restartUnread.Notifications[0].IsRead && welcomeToasts.Count == 1,
+                "an unread same-version welcome survives restart without duplication or another toast");
+            await restartUnread.MarkReadAsync(restartUnread.Notifications[0]);
+        }
+
+        await using (var restartRead = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.1"))
+        {
+            await restartRead.InitializeAsync();
+            Require(restartRead.Notifications.Count == 1 && restartRead.Notifications[0].IsRead && welcomeToasts.Count == 1,
+                "a read same-version welcome remains acknowledged after restart");
+        }
+
+        await using (var upgraded = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.2"))
+        {
+            await upgraded.InitializeAsync();
+            Require(upgraded.Notifications.Count == 2 &&
+                    upgraded.Notifications.Single(item => item.DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.1")).IsRead &&
+                    !upgraded.Notifications.Single(item => item.DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.2")).IsRead &&
+                    welcomeToasts.Count == 2,
+                "a new version gets exactly one welcome while preserving the prior acknowledgement");
+        }
+
+        await using (var upgradedRestart = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.2"))
+        {
+            await upgradedRestart.InitializeAsync();
+            Require(upgradedRestart.Notifications.Count == 2 && welcomeToasts.Count == 2,
+                "repeated restarts of an upgraded version do not duplicate welcome notifications");
+            Require(await upgradedRestart.AddAsync(new AppNotification
+            {
+                Title = "Normal notification",
+                Message = "Unaffected notification delivery.",
+                Category = NotificationCategory.Router,
+                DeduplicationKey = "notification-fixture-normal"
+            }), "normal non-welcome notifications remain deliverable");
+        }
+    });
+
+    await RunOnDispatcherAsync(async notificationDispatcher =>
+    {
+        var legacySettings = new SettingsService(legacyNotificationFixtureFolder);
+        await using (var legacySeed = new NotificationService(notificationDispatcher, dataFolder: legacyNotificationFixtureFolder,
+                         settingsService: legacySettings, applicationVersion: "2.4.0"))
+        {
+            Require(await legacySeed.AddAsync(new AppNotification
+            {
+                Title = "Welcome to RouterPilot",
+                Message = "Legacy welcome.",
+                Category = NotificationCategory.System,
+                DeduplicationKey = "routerpilot-welcome",
+                IsRead = true
+            }), "legacy welcome fixture is persisted");
+        }
+
+        await using var migrated = new NotificationService(notificationDispatcher, dataFolder: legacyNotificationFixtureFolder,
+            settingsService: legacySettings, applicationVersion: "2.4.1");
+        await migrated.InitializeAsync();
+        Require(migrated.Notifications.Count == 1 && migrated.Notifications[0].IsRead &&
+                migrated.Notifications[0].DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.1"),
+            "legacy welcome acknowledgement migrates without creating a duplicate");
+    });
+}
+finally
+{
+    if (Directory.Exists(notificationFixtureFolder))
+        Directory.Delete(notificationFixtureFolder, recursive: true);
+    if (Directory.Exists(legacyNotificationFixtureFolder))
+        Directory.Delete(legacyNotificationFixtureFolder, recursive: true);
+}
 
 using PublicIpService publicIp = new();
 Require(PublicIpService.ParseRouterObservedAddress("198.51.100.24\n") == "198.51.100.24", "router-side public IP output is parsed from the SSH observation");
@@ -534,4 +631,44 @@ static void RequireThrows(Action action, string message)
     }
 
     throw new InvalidOperationException(message);
+}
+
+static Task RunOnDispatcherAsync(Func<Dispatcher, Task> action)
+{
+    var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var thread = new Thread(() =>
+    {
+        Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
+        _ = dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                await action(dispatcher);
+                completion.TrySetResult();
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+            finally
+            {
+                dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+            }
+        });
+        Dispatcher.Run();
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    return completion.Task;
+}
+
+sealed class CountingToastNotificationService : IToastNotificationService
+{
+    public int Count { get; private set; }
+
+    public Task<ToastDeliveryResult> SendAsync(string title, string message, CancellationToken cancellationToken = default)
+    {
+        Count++;
+        return Task.FromResult(ToastDeliveryResult.Delivered);
+    }
 }

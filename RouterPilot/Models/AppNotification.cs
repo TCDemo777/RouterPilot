@@ -65,7 +65,7 @@ public partial class AppNotification : ObservableObject
 
     public string? ActionTarget { get; init; }
 
-    public string? DeduplicationKey { get; init; }
+    public string? DeduplicationKey { get; set; }
 
     /// <summary>
     /// True only for notification types whose action target is a durable client
