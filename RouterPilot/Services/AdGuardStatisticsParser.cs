@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using RouterPilot.Models;
@@ -43,6 +44,14 @@ internal static class AdGuardStatisticsParser
             TryGetInteger(blocked, out int blockedQueries))
         {
             stats.BlockedQueries = blockedQueries;
+        }
+
+        if (root.TryGetProperty("avg_processing_time", out JsonElement averageProcessingTime) &&
+            TryGetNonNegativeFiniteDouble(averageProcessingTime, out double seconds))
+        {
+            // AdGuard Home's /control/stats contract reports this duration in
+            // seconds; retain the source unit until presentation.
+            stats.AverageProcessingTimeSeconds = seconds;
         }
 
         stats.QueryHistoryTimeUnits = GetStringProperty(root, "time_units", "hours");
@@ -141,6 +150,27 @@ internal static class AdGuardStatisticsParser
         if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out result)) return true;
 
         if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out result)) return true;
+
+        result = 0;
+        return false;
+    }
+
+    private static bool TryGetNonNegativeFiniteDouble(JsonElement value, out double result)
+    {
+        double parsedValue = 0;
+        bool parsed = value.ValueKind == JsonValueKind.Number
+            ? value.TryGetDouble(out parsedValue)
+            : value.ValueKind == JsonValueKind.String && double.TryParse(
+                value.GetString(),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out parsedValue);
+
+        if (parsed && double.IsFinite(parsedValue) && parsedValue >= 0)
+        {
+            result = parsedValue;
+            return true;
+        }
 
         result = 0;
         return false;

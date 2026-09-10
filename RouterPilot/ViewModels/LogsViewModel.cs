@@ -18,6 +18,7 @@ namespace RouterPilot.ViewModels
         private const int MaxVisibleEntries = 200;
         private readonly IRouterManagerProvider _routerManagerProvider;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
+        private readonly DashboardViewModel _dashboard;
         private readonly DispatcherTimer _refreshTimer;
 
         private readonly List<QueryLogEntry> _allEntries =
@@ -79,6 +80,11 @@ namespace RouterPilot.ViewModels
         public string DnsSourceDisplay =>
             _adGuardAvailabilityService.IsAvailable ? "AdGuard Home" : "N/A";
 
+        public string AverageProcessingTimeDisplay =>
+            _adGuardAvailabilityService.IsAvailable
+                ? DnsProcessingTimeFormatter.Format(_dashboard.AdGuardAverageProcessingTimeSeconds)
+                : "—";
+
         public string EmptyStateTitle =>
             !_adGuardAvailabilityService.IsAvailable ? "DNS queries unavailable" :
             HasActiveFilters && _allEntries.Count > 0 ? "No matching DNS activity" :
@@ -99,10 +105,12 @@ namespace RouterPilot.ViewModels
 
         public LogsViewModel(
             IRouterManagerProvider routerManagerProvider,
-            AdGuardAvailabilityService adGuardAvailabilityService)
+            AdGuardAvailabilityService adGuardAvailabilityService,
+            DashboardViewModel dashboard)
         {
             _routerManagerProvider = routerManagerProvider;
             _adGuardAvailabilityService = adGuardAvailabilityService;
+            _dashboard = dashboard;
 
             _refreshTimer =
                 new DispatcherTimer
@@ -389,6 +397,7 @@ namespace RouterPilot.ViewModels
         {
             OnPropertyChanged(nameof(DnsQueriesDisplay));
             OnPropertyChanged(nameof(DnsSourceDisplay));
+            OnPropertyChanged(nameof(AverageProcessingTimeDisplay));
             OnPropertyChanged(nameof(EmptyStateTitle));
             OnPropertyChanged(nameof(EmptyStateMessage));
         }

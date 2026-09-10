@@ -6,7 +6,14 @@ namespace RouterPilot.Models
     {
         public int TotalQueries { get; set; }
 
-    public int BlockedQueries { get; set; }
+        public int BlockedQueries { get; set; }
+
+        /// <summary>
+        /// The average DNS request processing time reported by AdGuard Home's
+        /// statistics endpoint, in seconds.  A null value means the installed
+        /// AdGuard Home did not provide a usable value.
+        /// </summary>
+        public double? AverageProcessingTimeSeconds { get; set; }
 
         public bool ProtectionEnabled { get; set; }
 

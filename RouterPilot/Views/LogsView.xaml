@@ -151,14 +151,12 @@
                             Style="{DynamicResource Card.Compact}">
                         <StackPanel>
                             <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                       Text="SEARCH"/>
+                                       Text="AVERAGE PROCESSING TIME"/>
                             <TextBlock Style="{StaticResource Logs.SummaryValue}"
-                                       Text="{Binding SearchText,
-                                                      TargetNullValue=None,
-                                                      FallbackValue=None}"/>
+                                       Text="{Binding AverageProcessingTimeDisplay}"/>
                             <TextBlock Margin="0,5,0,0"
                                        Style="{DynamicResource Text.Muted}"
-                                       Text="Client, domain or status"/>
+                                       Text="AdGuard Home DNS processing"/>
                         </StackPanel>
                     </Border>
 

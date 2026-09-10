@@ -433,6 +433,8 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string adGuardBlockRate = "-";
 
+        public double? AdGuardAverageProcessingTimeSeconds { get; private set; }
+
         private long? _adGuardPreviousQueries;
         private long? _adGuardPreviousBlocked;
         private long _adGuardSessionQueries;
@@ -1589,6 +1591,8 @@ namespace RouterPilot.ViewModels
             }
 
             RecordAdGuardSessionStatistics(statistics);
+            AdGuardAverageProcessingTimeSeconds = statistics.AverageProcessingTimeSeconds;
+            OnPropertyChanged(nameof(AdGuardAverageProcessingTimeSeconds));
             string timeUnits =
                 string.IsNullOrWhiteSpace(
                     statistics.QueryHistoryTimeUnits)
@@ -1807,6 +1811,9 @@ namespace RouterPilot.ViewModels
             _adGuardSessionSamples = 0;
             AdGuardSessionEvents.Clear();
             NotifyAdGuardSession();
+
+            AdGuardAverageProcessingTimeSeconds = null;
+            OnPropertyChanged(nameof(AdGuardAverageProcessingTimeSeconds));
 
             AdGuardProtectionEnabled = false;
             AdGuardProtectionPaused = false;

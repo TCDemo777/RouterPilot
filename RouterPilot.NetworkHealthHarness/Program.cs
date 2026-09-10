@@ -107,6 +107,25 @@ AdGuardStatistics zeroStatistics = (AdGuardStatistics)parseStatistics.Invoke(nul
     "{\"num_dns_queries\":0,\"num_blocked_filtering\":0,\"top_queried_domains\":[{\"example.test\":0}]} ", DateTime.UtcNow })!;
 Require(zeroStatistics.TotalQueries == 0 && zeroStatistics.BlockedQueries == 0 && zeroStatistics.BlockPercentage == 0,
     "AdGuard statistics preserve genuine zero counts");
+AdGuardStatistics processingTimeStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":1,\"num_blocked_filtering\":0,\"avg_processing_time\":0.0048}", DateTime.UtcNow })!;
+Require(processingTimeStatistics.AverageProcessingTimeSeconds == 0.0048 &&
+        DnsProcessingTimeFormatter.Format(processingTimeStatistics.AverageProcessingTimeSeconds) == "4.8 ms",
+    "AdGuard average processing time is retained in seconds and presented in milliseconds");
+AdGuardStatistics zeroProcessingTimeStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":0,\"num_blocked_filtering\":0,\"avg_processing_time\":0}", DateTime.UtcNow })!;
+Require(zeroProcessingTimeStatistics.AverageProcessingTimeSeconds == 0 &&
+        DnsProcessingTimeFormatter.Format(zeroProcessingTimeStatistics.AverageProcessingTimeSeconds) == "0.0 ms",
+    "An authoritative zero processing time remains a displayed zero");
+AdGuardStatistics missingProcessingTimeStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":1,\"num_blocked_filtering\":0}", DateTime.UtcNow })!;
+Require(missingProcessingTimeStatistics.AverageProcessingTimeSeconds is null,
+    "An absent AdGuard processing-time field remains unavailable");
+AdGuardStatistics unavailableProcessingTimeStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
+    "{\"num_dns_queries\":1,\"num_blocked_filtering\":0,\"avg_processing_time\":\"invalid\"}", DateTime.UtcNow })!;
+Require(unavailableProcessingTimeStatistics.AverageProcessingTimeSeconds is null &&
+        DnsProcessingTimeFormatter.Format(unavailableProcessingTimeStatistics.AverageProcessingTimeSeconds) == "—",
+    "Missing or malformed AdGuard processing time remains unavailable");
 AdGuardStatistics malformedStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
     "{\"num_dns_queries\":\"invalid\",\"num_blocked_filtering\":\"invalid\",\"top_queried_domains\":[{\"valid.test\":4},{\"bad.test\":\"x\"}]} ", DateTime.UtcNow })!;
 Require(malformedStatistics.TotalQueries < 0 && malformedStatistics.BlockedQueries < 0 &&
