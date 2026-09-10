@@ -66,6 +66,7 @@ namespace RouterPilot.Views
         private bool _trafficRefreshInProgress;
         private bool _initialFirmwareCheckScheduled;
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly ProtectionViewModel _protectionViewModel;
         private readonly IActiveRouterContext _activeRouter;
         private readonly IRouterSwitchCoordinator _routerSwitchCoordinator;
         private bool _routerOnline = true;
@@ -125,6 +126,8 @@ namespace RouterPilot.Views
                 .Services.GetRequiredService<AdGuardProtectionNotificationTracker>();
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
+            _protectionViewModel = ((App)Application.Current).Services
+                .GetRequiredService<ProtectionViewModel>();
             _activeRouter = ((App)Application.Current).Services
                 .GetRequiredService<IActiveRouterContext>();
             _routerSwitchCoordinator = ((App)Application.Current).Services
@@ -1794,6 +1797,7 @@ namespace RouterPilot.Views
         {
             if (e.Mode == PowerModes.Suspend)
             {
+                _protectionViewModel.InvalidateTransientConnectionState();
                 Interlocked.Increment(ref _resumeGeneration);
                 Interlocked.Exchange(ref _resumeRecoveryActive, 0);
                 _resumeRecoveryCancellation?.Cancel();
@@ -1808,6 +1812,7 @@ namespace RouterPilot.Views
                 return;
             }
             if (e.Mode != PowerModes.Resume) return;
+            _protectionViewModel.InvalidateTransientConnectionState();
             long generation = Interlocked.Increment(ref _resumeGeneration);
             _dataFreshnessService.BeginReestablishmentWindow(TimeSpan.FromMinutes(2));
             _routerManagerProvider.Invalidate();

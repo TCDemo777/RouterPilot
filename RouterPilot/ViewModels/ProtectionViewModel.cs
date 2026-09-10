@@ -31,6 +31,7 @@ namespace RouterPilot.ViewModels
         private readonly IClientDisplayNameService _displayNames;
         private readonly ClientInventoryState _clientInventory;
         private readonly ProtectionStateLoader _stateLoader;
+        private readonly AdGuardRefreshEpoch _refreshEpoch = new();
         private readonly DispatcherTimer _timer;
         private readonly SemaphoreSlim _protectionStateGate = new(1, 1);
         private readonly CancellationTokenSource _disposalCancellation = new();
@@ -118,7 +119,9 @@ namespace RouterPilot.ViewModels
             _timer.Tick += async (_, _) => await RefreshTimedDataAsync();
             _displayNames.Changed += DisplayNames_Changed;
 
-            RefreshAllCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
+            RefreshAllCommand = new AsyncRelayCommand(
+                () => RefreshAllAsync(refreshTransport: true),
+                () => !IsBusy);
             EnableProtectionCommand = new AsyncRelayCommand(() => RunStatusActionAsync("Enabling protection...", "Protection enabled.", r => r.EnableProtectionAsync(), processNotification: true), () => ControlsEnabled);
             DisableProtectionCommand = new AsyncRelayCommand(DisableProtectionAsync, () => ControlsEnabled);
             ResumeProtectionCommand = new AsyncRelayCommand(() => RunStatusActionAsync("Resuming protection...", "Protection resumed.", r => r.ResumeProtectionAsync()), () => !IsBusy);
@@ -318,7 +321,26 @@ namespace RouterPilot.ViewModels
             _activationCancellation?.Dispose();
             _activationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_disposalCancellation.Token);
             _timer.Start();
-            await RefreshAllAsync();
+            await RefreshAllAsync(refreshTransport: false);
+        }
+
+        /// <summary>
+        /// Called by the existing dashboard suspend/resume lifecycle. This
+        /// keeps a request begun before the connectivity boundary from
+        /// applying stale availability state after a later recovery.
+        /// </summary>
+        internal void InvalidateTransientConnectionState()
+        {
+            _refreshEpoch.Advance();
+
+            // Only the full read-only refresh can safely be superseded here.
+            // A protection mutation keeps its busy state and gate until its
+            // own completion path releases them.
+            if (_refreshActivation is not null)
+            {
+                _refreshActivation = null;
+                IsBusy = false;
+            }
         }
 
         public void Stop()
@@ -367,16 +389,27 @@ namespace RouterPilot.ViewModels
             _disposalCancellation.Cancel();
         }
 
-        private async Task RefreshAllAsync()
+        private async Task RefreshAllAsync(bool refreshTransport)
         {
             if (IsBusy) return;
             IsBusy = true;
             Message = "Refreshing all protection settings...";
+            long refreshEpoch = _refreshEpoch.Advance();
+
+            // This is the user-requested full Protection refresh. It is also
+            // the recovery boundary after a suspended network has left the
+            // manager's AdGuard HTTP handler, cookies, or admin session stale.
+            // Normal timed refreshes continue to reuse the current manager.
+            if (refreshTransport)
+            {
+                _routerManagerProvider.Invalidate();
+            }
+
             CancellationTokenSource activation = _activationCancellation ?? _disposalCancellation;
             string profileId = _activeRouter.CurrentProfileId;
             long contextVersion = _activeRouter.Version;
             CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
-            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
+            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version && _refreshEpoch.IsCurrent(refreshEpoch);
             _refreshActivation = activation;
             try
             {
@@ -453,7 +486,7 @@ namespace RouterPilot.ViewModels
             }
             finally
             {
-                if (ReferenceEquals(_refreshActivation, activation))
+                if (_refreshEpoch.IsCurrent(refreshEpoch))
                 {
                     _isInitialising = false;
                     _refreshActivation = null;
@@ -466,10 +499,11 @@ namespace RouterPilot.ViewModels
         private async Task RefreshTimedDataAsync()
         {
             if (IsBusy) return;
+            long refreshEpoch = _refreshEpoch.Capture();
             CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
             string profileId = _activeRouter.CurrentProfileId;
             long contextVersion = _activeRouter.Version;
-            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version;
+            bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version && _refreshEpoch.IsCurrent(refreshEpoch);
 
             await RefreshProtectionStatusAsync(false, token);
             _statisticsRefreshTick++;
@@ -587,6 +621,7 @@ namespace RouterPilot.ViewModels
         private async Task RefreshProtectionStatusAsync(bool showMessage, CancellationToken? refreshToken = null)
         {
             if (IsBusy) return;
+            long refreshEpoch = _refreshEpoch.Capture();
             CancellationToken token = refreshToken ?? _activationCancellation?.Token ?? _disposalCancellation.Token;
             string profileId = _activeRouter.CurrentProfileId;
             long contextVersion = _activeRouter.Version;
@@ -595,7 +630,7 @@ namespace RouterPilot.ViewModels
                 RouterManager router = await _routerManagerProvider.GetRouterManagerAsync(token);
                 AdGuardProtectionStatus status = await router.GetAdGuardProtectionStatusAsync();
                 token.ThrowIfCancellationRequested();
-                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version)
+                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version || !_refreshEpoch.IsCurrent(refreshEpoch))
                     return;
                 ApplyStatus(status);
                 IsAdGuardAvailable = true;
@@ -604,7 +639,7 @@ namespace RouterPilot.ViewModels
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception)
             {
-                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version)
+                if (_disposed || profileId != _activeRouter.CurrentProfileId || contextVersion != _activeRouter.Version || !_refreshEpoch.IsCurrent(refreshEpoch))
                     return;
                 IsAdGuardAvailable = false;
                 StatusDetail = "AdGuard Home is unavailable. Router monitoring remains active.";

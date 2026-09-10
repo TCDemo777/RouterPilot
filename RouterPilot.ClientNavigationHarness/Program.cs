@@ -138,6 +138,13 @@ Require(ResumeRecoveryPolicy.IsRecovered(true, true) &&
     !ResumeRecoveryPolicy.IsRecovered(false, true),
     "Resume recovery requires both router and AdGuard availability");
 
+var adGuardRefreshEpoch = new AdGuardRefreshEpoch();
+long preSuspendEpoch = adGuardRefreshEpoch.Capture();
+long resumedEpoch = adGuardRefreshEpoch.Advance();
+Require(!adGuardRefreshEpoch.IsCurrent(preSuspendEpoch) &&
+    adGuardRefreshEpoch.IsCurrent(resumedEpoch),
+    "pre-suspend AdGuard refresh results cannot overwrite a newer recovery state");
+
 RouterCapabilitySnapshot unknownCapabilities = RouterCapabilitySnapshot.Unknown;
 Require(unknownCapabilities.Temperature == RouterCapabilityState.Unknown &&
     RouterCapabilitySnapshot.FromEvidence(true) == RouterCapabilityState.Supported &&
