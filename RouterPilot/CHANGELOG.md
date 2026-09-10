@@ -1,5 +1,18 @@
 # RouterPilot Changelog
 
+## 2.4.1
+
+### Fixed
+
+- Fixed stale VPN connection-failure messages remaining after the relevant VPN configuration or authoritative connection state changed.
+- Improved HTTPS certificate-validation diagnostics so self-signed trust, expired and not-yet-valid certificates, hostname mismatch, changed certificates and unknown TLS failures are distinguished more accurately.
+
+### Security
+
+- Explicit certificate trust remains required.
+- Changed certificates are never silently accepted.
+- TLS validation has not been weakened.
+
 ## 2.4.0
 
 ### Client identity and navigation

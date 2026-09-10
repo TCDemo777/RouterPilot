@@ -22,9 +22,9 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.4.0
+## What's new in RouterPilot 2.4.1
 
-RouterPilot 2.4.0 improves client identity, Maintenance and VPN profile presentation.
+RouterPilot 2.4.1 is a maintenance release improving VPN connection-state handling and HTTPS certificate-validation diagnostics. The 2.4.0 client identity, Maintenance and VPN profile improvements remain included.
 
 - Choose **Automatic**, **Router**, **AdGuard** or **Configured names** for supported app-wide client identity presentation. Configured names uses a deterministic priority: router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name.
 - Open the correct client details from DNS Activity and Network Map using stable client identity rather than a display name.
@@ -67,7 +67,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.4.0-x64.msi` and `RouterPilot-v2.4.0-win-x64.zip`.
+Release assets are published as `RouterPilot-2.4.1-x64.msi` and `RouterPilot-v2.4.1-win-x64.zip`.
 
 ## Upgrading
 
@@ -110,4 +110,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot v2.4.0 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.4.1 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
