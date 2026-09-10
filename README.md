@@ -24,15 +24,15 @@ Companion for GL.iNet Routers & AdGuard Home
 
 ## What's new in RouterPilot 2.4.1
 
-RouterPilot 2.4.1 is a maintenance release improving VPN connection-state handling and HTTPS certificate-validation diagnostics. The 2.4.0 client identity, Maintenance and VPN profile improvements remain included.
+RouterPilot 2.4.1 is a maintenance release focused on VPN connection-state handling and clearer HTTPS certificate-validation diagnostics.
 
-- Choose **Automatic**, **Router**, **AdGuard** or **Configured names** for supported app-wide client identity presentation. Configured names uses a deterministic priority: router DHCP reservation name, then configured AdGuard Home client name, then RouterPilot name.
-- Open the correct client details from DNS Activity and Network Map using stable client identity rather than a display name.
-- Use dedicated AdGuard Home and Tailscale Maintenance workspaces with guarded update availability, recovery-state information and applicable restore preconditions.
-- Run supported maintenance operations in RouterPilot's built-in interactive Maintenance console, with visible output and interactive input.
-- See the router's runtime kernel release in Maintenance System Information.
-- Keep configured GL.iNet VPN profiles visible while inactive, and distinguish an empty profile inventory from an unavailable one.
-- Benefit from Maintenance reliability improvements, the Maintenance-to-Clients navigation crash fix, and improved Plug-ins controls in dark theme.
+- Fixed stale VPN connection-failure messages remaining after the relevant VPN configuration or authoritative connection state changed.
+- Improved HTTPS certificate validation messaging for self-signed trust, expired and not-yet-valid certificates, hostname mismatch, changed certificates and unknown TLS failures.
+- Existing explicit certificate trust remains required.
+- Changed certificates are never silently accepted.
+- TLS validation has not been weakened.
+
+For the larger client identity, Maintenance, VPN profile and navigation improvements introduced in RouterPilot 2.4.0, see the changelog.
 
 Package changes can affect router stability. Review package details carefully and use trusted package sources; RouterPilot may protect critical packages from mutation.
 
