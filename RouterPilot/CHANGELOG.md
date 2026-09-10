@@ -1,5 +1,35 @@
 # RouterPilot Changelog
 
+## 2.4.2
+
+### AdGuard Home and DNS
+
+- Added AdGuard Home average DNS processing time to DNS Activity, replacing the redundant Search summary card.
+- Simplified the processing-time card subtitle to "AdGuard Home DNS".
+- Fixed timed Protection actions so transient Pending state is reconciled after Enable and Disable operations, and protection controls do not remain unnecessarily unavailable.
+- Improved AdGuard Home recovery after Windows sleep/resume so stale connection state cannot prevent a later Protection refresh from establishing a fresh connection once connectivity is available.
+
+### Router Health and notifications
+
+- Fixed Router Health View actions so supported attention items navigate to their relevant RouterPilot destination.
+- Welcome/update notification acknowledgement is now persisted per RouterPilot version, so a notification marked as read does not reappear on every launch of the same version.
+
+### Clients and analytics
+
+- Limited Recent traffic samples to the five most recent entries without changing retained analytics history.
+- Limited Client Details recent DNS activity to the ten most recent entries without changing underlying DNS history.
+- Fixed text clipping in Client Details.
+- Centered the Application Traffic details window relative to RouterPilot.
+
+### Interface and accessibility
+
+- Improved dark-mode text contrast across affected Network, Applications and Clients surfaces.
+- Fixed clipping of the Tailscale summary button.
+
+### Documentation
+
+- Corrected the README summary for the previous v2.4.1 maintenance release.
+
 ## 2.4.1
 
 ### Fixed

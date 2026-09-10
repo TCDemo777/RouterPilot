@@ -22,17 +22,19 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.4.1
+## What's new in RouterPilot 2.4.2
 
-RouterPilot 2.4.1 is a maintenance release focused on VPN connection-state handling and clearer HTTPS certificate-validation diagnostics.
+RouterPilot 2.4.2 is a maintenance and usability release focused on AdGuard Home recovery, DNS visibility, Protection reliability and interface fixes.
 
-- Fixed stale VPN connection-failure messages remaining after the relevant VPN configuration or authoritative connection state changed.
-- Improved HTTPS certificate validation messaging for self-signed trust, expired and not-yet-valid certificates, hostname mismatch, changed certificates and unknown TLS failures.
-- Existing explicit certificate trust remains required.
-- Changed certificates are never silently accepted.
-- TLS validation has not been weakened.
+- DNS Activity now shows AdGuard Home average DNS processing time in place of the redundant Search summary tile.
+- Improved AdGuard Home recovery after Windows sleep/resume, including recovery from stale connection state through a subsequent refresh once connectivity is available.
+- Fixed timed Protection state reconciliation so actions do not remain stuck in Pending after an operation has completed.
+- Improved Router Health attention-item navigation.
+- Welcome/update notifications marked as read remain acknowledged for that RouterPilot version.
+- Improved Dark Mode text contrast across affected views.
+- Improved Client Details, Application Traffic, Analytics and Tailscale UI presentation.
 
-For the larger client identity, Maintenance, VPN profile and navigation improvements introduced in RouterPilot 2.4.0, see the changelog.
+See the [changelog](RouterPilot/CHANGELOG.md) for full details.
 
 Package changes can affect router stability. Review package details carefully and use trusted package sources; RouterPilot may protect critical packages from mutation.
 
@@ -67,7 +69,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.4.1-x64.msi` and `RouterPilot-v2.4.1-win-x64.zip`.
+Release assets are published as `RouterPilot-2.4.2-x64.msi` and `RouterPilot-v2.4.2-win-x64.zip`.
 
 ## Upgrading
 
@@ -110,4 +112,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot v2.4.1 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.4.2 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
