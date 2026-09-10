@@ -156,7 +156,7 @@
                                        Text="{Binding AverageProcessingTimeDisplay}"/>
                             <TextBlock Margin="0,5,0,0"
                                        Style="{DynamicResource Text.Muted}"
-                                       Text="AdGuard Home DNS processing"/>
+                                       Text="AdGuard Home DNS"/>
                         </StackPanel>
                     </Border>
 
