@@ -14,7 +14,7 @@ namespace RouterPilot.ViewModels
 {
     public partial class ClientDetailsViewModel : ObservableObject, IDisposable
     {
-        private const int RecentDnsHistoryLimit = 50;
+        private const int RecentDnsHistoryLimit = 10;
         private readonly ClientDetailsLoader _detailsLoader;
         private readonly AdGuardAvailabilityService _adGuardAvailabilityService;
         private readonly ClientProfileService _clientProfileService;

@@ -753,7 +753,7 @@
                         <TextBlock FontSize="17" FontWeight="Bold" Foreground="{DynamicResource Brush.TextPrimary}"
                                    Text="Recent DNS Requests"/>
                         <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource Brush.TextMuted}"
-                                   Text="Latest 50 requests"/>
+                                   Text="Latest 10 requests"/>
                     </DockPanel>
                     <Grid Grid.Row="2">
                         <TextBlock VerticalAlignment="Center" Text="{Binding RecentQueriesEmptyMessage}">
