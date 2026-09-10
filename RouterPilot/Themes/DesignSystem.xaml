@@ -119,6 +119,10 @@
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+        <!-- Card data often uses plain TextBlocks.  Give that content the
+             semantic, theme-aware default without overriding explicit
+             secondary or status foregrounds. -->
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Large}" />
         <Setter Property="Padding" Value="20" />
@@ -233,6 +237,7 @@
     <Style x:Key="Card.Flat" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Medium}" />
         <Setter Property="Padding" Value="16" />
@@ -259,6 +264,7 @@
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="{DynamicResource Brush.SurfaceMuted}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style x:Key="Badge.Information" TargetType="Border" BasedOn="{StaticResource Badge}">
