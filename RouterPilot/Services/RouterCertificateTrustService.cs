@@ -13,6 +13,8 @@ public interface IRouterCertificateTrustService
         string host,
         X509Certificate2 certificate,
         SslPolicyErrors validationErrors);
+
+    void ReportCertificateUnavailable(string host);
 }
 
 public enum RouterCertificateTrustDecision
@@ -21,7 +23,69 @@ public enum RouterCertificateTrustDecision
     TrustedAfterFirstUse,
     CertificateChanged,
     Expired,
+    NotYetValid,
     Rejected
+}
+
+public enum RouterCertificateTrustState
+{
+    TrustRequired,
+    Trusted,
+    CertificateChanged,
+    Expired,
+    NotYetValid,
+    CertificateUnavailable
+}
+
+/// <summary>Pure classification; it never accepts a certificate.</summary>
+public static class RouterCertificateTrustPolicy
+{
+    public static RouterCertificateTrustState Determine(
+        X509Certificate2 certificate,
+        SslPolicyErrors validationErrors,
+        string? trustedFingerprint,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
+            return RouterCertificateTrustState.CertificateUnavailable;
+        if (now < certificate.NotBefore.ToUniversalTime())
+            return RouterCertificateTrustState.NotYetValid;
+        if (now > certificate.NotAfter.ToUniversalTime())
+            return RouterCertificateTrustState.Expired;
+
+        string fingerprint = BuildFingerprint(certificate);
+        if (string.IsNullOrWhiteSpace(trustedFingerprint))
+            return RouterCertificateTrustState.TrustRequired;
+        return string.Equals(trustedFingerprint, fingerprint, StringComparison.Ordinal)
+            ? RouterCertificateTrustState.Trusted
+            : RouterCertificateTrustState.CertificateChanged;
+    }
+
+    public static string BuildFingerprint(X509Certificate2 certificate)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+        byte[] hash = SHA256.HashData(certificate.RawData);
+        return "SHA256:" + Convert.ToHexString(hash);
+    }
+
+    public static string DescribeValidationErrors(SslPolicyErrors validationErrors)
+    {
+        if (validationErrors == SslPolicyErrors.None)
+            return "Windows trust succeeded.";
+
+        List<string> details = [];
+        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
+            details.Add("hostname mismatch");
+        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors))
+            details.Add("untrusted or self-signed certificate chain");
+        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
+            details.Add("certificate not available");
+
+        return details.Count == 0
+            ? "unknown TLS validation failure"
+            : string.Join("; ", details);
+    }
 }
 
 /// <summary>
@@ -32,7 +96,7 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
 {
     private readonly SettingsService _settingsService;
     private readonly object _sync = new();
-    private readonly HashSet<string> _reportedExpiryWarnings = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _reportedCertificateWarnings = new(StringComparer.Ordinal);
 
     public RouterCertificateTrustService(SettingsService settingsService)
     {
@@ -53,16 +117,22 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
             return RouterCertificateTrustDecision.Rejected;
         }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (now < certificate.NotBefore.ToUniversalTime() ||
-            now > certificate.NotAfter.ToUniversalTime())
+        RouterCertificateTrustState initialState = RouterCertificateTrustPolicy.Determine(
+            certificate,
+            validationErrors,
+            trustedFingerprint: null,
+            DateTimeOffset.UtcNow);
+        if (initialState is RouterCertificateTrustState.Expired or RouterCertificateTrustState.NotYetValid)
         {
-            ReportExpiredCertificate(
+            ReportInvalidCertificate(
                 endpoint,
                 certificate,
                 fingerprint,
-                validationErrors);
-            return RouterCertificateTrustDecision.Expired;
+                validationErrors,
+                initialState);
+            return initialState == RouterCertificateTrustState.Expired
+                ? RouterCertificateTrustDecision.Expired
+                : RouterCertificateTrustDecision.NotYetValid;
         }
 
         lock (_sync)
@@ -71,10 +141,16 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
             settings.TrustedRouterCertificateFingerprints ??=
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            if (!settings.TrustedRouterCertificateFingerprints.TryGetValue(
-                    endpoint,
-                    out string? trustedFingerprint) ||
-                string.IsNullOrWhiteSpace(trustedFingerprint))
+            settings.TrustedRouterCertificateFingerprints.TryGetValue(
+                endpoint,
+                out string? trustedFingerprint);
+            RouterCertificateTrustState state = RouterCertificateTrustPolicy.Determine(
+                certificate,
+                validationErrors,
+                trustedFingerprint,
+                DateTimeOffset.UtcNow);
+
+            if (state == RouterCertificateTrustState.TrustRequired)
             {
                 if (!PromptForTrust(
                         endpoint,
@@ -91,9 +167,14 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
                 return RouterCertificateTrustDecision.TrustedAfterFirstUse;
             }
 
-            if (string.Equals(trustedFingerprint, fingerprint, StringComparison.Ordinal))
+            if (state == RouterCertificateTrustState.Trusted)
             {
                 return RouterCertificateTrustDecision.Trusted;
+            }
+
+            if (state == RouterCertificateTrustState.CertificateUnavailable)
+            {
+                return RouterCertificateTrustDecision.Rejected;
             }
 
             // A replacement is recorded only after explicit consent, and the
@@ -113,30 +194,48 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
         }
     }
 
-    private void ReportExpiredCertificate(
+    public void ReportCertificateUnavailable(string host)
+    {
+        string endpoint = BuildEndpointKey(host);
+        if (string.IsNullOrWhiteSpace(endpoint)) return;
+        ShowWarningOnce(
+            endpoint + "|unavailable",
+            "RouterPilot could not obtain a certificate from the router HTTPS endpoint. Certificate trust could not be established.",
+            "Security warning: router certificate unavailable");
+    }
+
+    private void ReportInvalidCertificate(
         string endpoint,
         X509Certificate2 certificate,
         string fingerprint,
-        SslPolicyErrors validationErrors)
+        SslPolicyErrors validationErrors,
+        RouterCertificateTrustState state)
     {
-        string warningKey = endpoint + "|" + fingerprint;
+        string validityDetail = state == RouterCertificateTrustState.NotYetValid
+            ? "The router HTTPS certificate is not yet valid."
+            : "The router HTTPS certificate has expired.";
+        ShowWarningOnce(
+            endpoint + "|" + fingerprint,
+            "RouterPilot rejected the router HTTPS certificate because it is not currently valid.\n\n" +
+            validityDetail + "\n\n" +
+            BuildCertificateDescription(endpoint, certificate, fingerprint, validationErrors) + "\n\n" +
+            "Check the certificate validity period and correct the router or system clock only if it is inconsistent with those dates.",
+            "Security warning: router certificate invalid");
+    }
+
+    private void ShowWarningOnce(string warningKey, string message, string title)
+    {
         lock (_sync)
         {
-            if (!_reportedExpiryWarnings.Add(warningKey))
+            if (!_reportedCertificateWarnings.Add(warningKey))
             {
                 return;
             }
         }
 
         ShowMessage(
-            "RouterPilot rejected the router HTTPS certificate because it is not currently valid.\n\n" +
-            BuildCertificateDescription(
-                endpoint,
-                certificate,
-                fingerprint,
-                validationErrors) + "\n\n" +
-            "Correct the router certificate or system clock before retrying.",
-            "Security warning: router certificate invalid",
+            message,
+            title,
             MessageBoxImage.Warning);
     }
 
@@ -149,11 +248,8 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
             : "https://" + normalisedHost + ":443";
     }
 
-    private static string BuildFingerprint(X509Certificate2 certificate)
-    {
-        byte[] hash = SHA256.HashData(certificate.RawData);
-        return "SHA256:" + Convert.ToHexString(hash);
-    }
+    private static string BuildFingerprint(X509Certificate2 certificate) =>
+        RouterCertificateTrustPolicy.BuildFingerprint(certificate);
 
     private static bool PromptForTrust(
         string endpoint,
@@ -174,7 +270,7 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
             : "RouterPilot has not connected to this router HTTPS endpoint before. " +
               "Verify the certificate details before trusting it.\n\n" +
               BuildCertificateDescription(endpoint, certificate, receivedFingerprint, validationErrors) + "\n\n" +
-              "Select Yes to trust this certificate.";
+              "RouterPilot requires your explicit approval before pinning this certificate. Select Yes to trust it.";
 
         return ShowMessage(
             message,
@@ -196,35 +292,7 @@ public sealed class RouterCertificateTrustService : IRouterCertificateTrustServi
         $"Valid from: {certificate.NotBefore.ToLocalTime():u}\n" +
         $"Valid until: {certificate.NotAfter.ToLocalTime():u}\n" +
         $"SHA-256 fingerprint: {fingerprint}\n" +
-        $"Windows certificate validation: {DescribeValidation(validationErrors)}";
-
-    private static string DescribeValidation(SslPolicyErrors validationErrors)
-    {
-        if (validationErrors == SslPolicyErrors.None)
-        {
-            return "No errors reported.";
-        }
-
-        List<string> details = [];
-        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
-        {
-            details.Add("hostname mismatch");
-        }
-
-        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors))
-        {
-            details.Add("untrusted, self-signed, or otherwise invalid certificate chain");
-        }
-
-        if (validationErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
-        {
-            details.Add("certificate not available");
-        }
-
-        return details.Count == 0
-            ? validationErrors.ToString()
-            : string.Join("; ", details) + ". Explicit trust is required.";
-    }
+        $"Windows certificate validation: {RouterCertificateTrustPolicy.DescribeValidationErrors(validationErrors)}";
 
     private static bool ShowMessage(
         string message,

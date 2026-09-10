@@ -98,6 +98,7 @@ namespace RouterPilot.Services
                 sslPolicyErrors.HasFlag(
                     System.Net.Security.SslPolicyErrors.RemoteCertificateNotAvailable))
             {
+                _certificateTrustService.ReportCertificateUnavailable(_routerHost);
                 return false;
             }
 

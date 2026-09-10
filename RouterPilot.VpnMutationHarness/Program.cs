@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Net.Security;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RouterPilot.Configuration;
@@ -768,6 +771,7 @@ internal static class Program
     {
         RunVpnControlPresentationTests();
         RunVpnProfileInventoryTests();
+        RunRouterCertificateTrustPolicyTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
         using (JsonDocument valid = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"enabled\":false,\"lan_enabled\":false,\"wan_enabled\":false,\"run_exit_node\":false,\"masq\":false,\"extra\":\"ignored\"}}"))
@@ -850,6 +854,56 @@ internal static class Program
             ["auth_key"] = "never-send"
         });
         Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
+    }
+
+    private static void RunRouterCertificateTrustPolicyTests()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        using X509Certificate2 selfSigned = CreateCertificate(now.AddDays(-1), now.AddDays(30));
+        const SslPolicyErrors chainError = SslPolicyErrors.RemoteCertificateChainErrors;
+        Require(
+            RouterCertificateTrustPolicy.Determine(selfSigned, chainError, null, now) == RouterCertificateTrustState.TrustRequired,
+            "a valid self-signed certificate reaches explicit trust rather than silent acceptance");
+
+        string fingerprint = RouterCertificateTrustPolicy.BuildFingerprint(selfSigned);
+        Require(
+            RouterCertificateTrustPolicy.Determine(selfSigned, chainError, fingerprint, now) == RouterCertificateTrustState.Trusted,
+            "an explicitly pinned certificate is accepted through the existing trust mechanism");
+
+        using X509Certificate2 replacement = CreateCertificate(now.AddDays(-1), now.AddDays(30));
+        Require(
+            RouterCertificateTrustPolicy.Determine(replacement, chainError, fingerprint, now) == RouterCertificateTrustState.CertificateChanged,
+            "a replacement certificate is never silently authorized by a previous pin");
+
+        using X509Certificate2 expired = CreateCertificate(now.AddDays(-30), now.AddDays(-1));
+        Require(
+            RouterCertificateTrustPolicy.Determine(expired, chainError, null, now) == RouterCertificateTrustState.Expired,
+            "expired certificates have a distinct validity classification");
+
+        using X509Certificate2 notYetValid = CreateCertificate(now.AddDays(1), now.AddDays(30));
+        Require(
+            RouterCertificateTrustPolicy.Determine(notYetValid, chainError, null, now) == RouterCertificateTrustState.NotYetValid,
+            "not-yet-valid certificates have a distinct validity classification");
+
+        Require(
+            RouterCertificateTrustPolicy.Determine(selfSigned, SslPolicyErrors.RemoteCertificateNameMismatch, null, now) == RouterCertificateTrustState.TrustRequired &&
+            RouterCertificateTrustPolicy.DescribeValidationErrors(SslPolicyErrors.RemoteCertificateNameMismatch).Contains("hostname mismatch", StringComparison.Ordinal),
+            "hostname mismatch is accurately identified for the explicit trust decision");
+
+        Require(
+            RouterCertificateTrustPolicy.DescribeValidationErrors((SslPolicyErrors)16) == "unknown TLS validation failure",
+            "unknown TLS failures do not fabricate certificate or clock diagnoses");
+        Require(
+            RouterCertificateTrustPolicy.Determine(selfSigned, SslPolicyErrors.RemoteCertificateNotAvailable, null, now) == RouterCertificateTrustState.CertificateUnavailable,
+            "a missing certificate is not eligible for trust");
+
+        static X509Certificate2 CreateCertificate(DateTimeOffset notBefore, DateTimeOffset notAfter)
+        {
+            using RSA key = RSA.Create(2048);
+            var request = new CertificateRequest("CN=RouterPilot test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            using X509Certificate2 certificate = request.CreateSelfSigned(notBefore, notAfter);
+            return X509CertificateLoader.LoadCertificate(certificate.Export(X509ContentType.Cert));
+        }
     }
 
     private static void RunVpnControlPresentationTests()
