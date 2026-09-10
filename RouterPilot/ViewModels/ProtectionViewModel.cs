@@ -1073,7 +1073,7 @@ namespace RouterPilot.ViewModels
         private void ApplyStatus(AdGuardProtectionStatus status)
         {
             if (status.IsEnabled) { SetProtectionStatus(RouterPilotStatus.Active); StatusDetail = "DNS filtering and protection are active."; Remaining = ""; }
-            else if (status.IsPaused) { SetProtectionStatus(RouterPilotStatus.Pending); StatusDetail = "Protection is temporarily paused."; Remaining = "Remaining: " + FormatRemaining(status.RemainingPause); }
+            else if (status.IsPaused) { SetProtectionStatus(RouterPilotStatus.Disabled); StatusDetail = "Protection is temporarily paused and will resume automatically."; Remaining = "Resumes in " + FormatRemaining(status.RemainingPause); }
             else { SetProtectionStatus(RouterPilotStatus.Disabled); StatusDetail = "Protection is disabled until manually enabled."; Remaining = ""; }
         }
 

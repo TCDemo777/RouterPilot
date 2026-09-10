@@ -10,11 +10,10 @@ namespace RouterPilot.Models
 
         public TimeSpan RemainingPause { get; set; }
 
-        public string StateText =>
-            IsEnabled
-                ? RouterPilotStatusPresentation.Active
-                : IsPaused
-                    ? RouterPilotStatusPresentation.Pending
-                    : RouterPilotStatusPresentation.Disabled;
+        // A timed pause is a confirmed disabled state with an authoritative
+        // resume duration, not an operation still pending on AdGuard Home.
+        public string StateText => IsEnabled
+            ? RouterPilotStatusPresentation.Active
+            : RouterPilotStatusPresentation.Disabled;
     }
 }

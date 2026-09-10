@@ -103,6 +103,17 @@ MethodInfo createUnavailableStatistics = statisticsParser.GetMethod("CreateUnava
 AdGuardStatistics unavailableStatistics = (AdGuardStatistics)createUnavailableStatistics.Invoke(null, null)!;
 Require(unavailableStatistics.TotalQueries < 0 && unavailableStatistics.BlockedQueries < 0,
     "AdGuard statistics preserve unavailable counts instead of defaulting to zero");
+var timedProtectionPause = new AdGuardProtectionStatus
+{
+    IsEnabled = false,
+    IsPaused = true,
+    RemainingPause = TimeSpan.FromMinutes(30)
+};
+Require(timedProtectionPause.StateText == RouterPilotStatusPresentation.Disabled,
+    "A confirmed timed protection pause is disabled rather than pending");
+Require(new AdGuardProtectionStatus { IsEnabled = true }.StateText == RouterPilotStatusPresentation.Active &&
+        new AdGuardProtectionStatus { IsEnabled = false, IsPaused = false }.StateText == RouterPilotStatusPresentation.Disabled,
+    "Protection state presentation distinguishes active, timed paused, and manual disabled states");
 AdGuardStatistics zeroStatistics = (AdGuardStatistics)parseStatistics.Invoke(null, new object[] {
     "{\"num_dns_queries\":0,\"num_blocked_filtering\":0,\"top_queried_domains\":[{\"example.test\":0}]} ", DateTime.UtcNow })!;
 Require(zeroStatistics.TotalQueries == 0 && zeroStatistics.BlockedQueries == 0 && zeroStatistics.BlockPercentage == 0,
