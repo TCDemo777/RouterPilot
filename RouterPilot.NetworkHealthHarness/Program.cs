@@ -231,6 +231,18 @@ Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateC
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.NotAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Unavailable", "GL.iNet firmware unavailable");
 Require(firmwareUpToDate.NavigationTarget == "maintenance-firmware", "Firmware navigation targets Maintenance firmware.");
 Require(nameof(NetworkHealthViewInput.RouterFirmwareVersion) == "RouterFirmwareVersion", "Network Health has no LuCI firmware input.");
+Require(NetworkHealthNavigationTarget.ForDataFreshness([new DataFreshnessInfo("Clients", null, null, DataFreshnessState.Stale, TimeSpan.FromSeconds(10))]) == NetworkHealthNavigationTarget.Clients,
+    "a client refresh issue opens Clients rather than recreating Overview");
+Require(NetworkHealthNavigationTarget.ForDataFreshness([new DataFreshnessInfo("Clients", null, null, DataFreshnessState.Stale, TimeSpan.FromSeconds(10)), new DataFreshnessInfo("VPN", null, null, DataFreshnessState.Stale, TimeSpan.FromSeconds(30))]) == NetworkHealthNavigationTarget.NetworkHealth,
+    "an aggregate refresh issue opens Network Health details");
+Require(NetworkHealthNavigationTarget.ForDataFreshnessSource("Wi-Fi") == NetworkHealthNavigationTarget.Wifi &&
+    NetworkHealthNavigationTarget.ForDataFreshnessSource("DHCP") == NetworkHealthNavigationTarget.Dhcp &&
+    NetworkHealthNavigationTarget.ForDataFreshnessSource("VPN") == NetworkHealthNavigationTarget.Vpn,
+    "known stale sources retain their specific destinations");
+Require(healthy.Checks.All(check => check.HasNavigationTarget) &&
+    NetworkHealthNavigationTarget.IsSupported(NetworkHealthNavigationTarget.Router) &&
+    NetworkHealthNavigationTarget.IsSupported(NetworkHealthNavigationTarget.Health),
+    "every rendered Router Health View target is a supported Dashboard destination");
 using ServiceProvider services = new ServiceCollection().AddSingleton<DashboardViewModel>().BuildServiceProvider();
 Require(ReferenceEquals(services.GetRequiredService<DashboardViewModel>(), services.GetRequiredService<DashboardViewModel>()), "Dashboard ViewModel DI registration must be authoritative.");
 

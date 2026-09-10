@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RouterPilot.Services;
 
 namespace RouterPilot.Models;
 
@@ -10,6 +11,7 @@ public enum NetworkHealthSeverity { Info, Warning, Critical }
 public sealed record NetworkHealthIssue(string Id, NetworkHealthSeverity Severity, string Subsystem, string Title, string Description, string NavigationTarget, DateTimeOffset FirstDetectedAt, DateTimeOffset LastObservedAt, string? TimelineEpisodeKey = null)
 {
     public string Domain => Subsystem.Equals("Router", StringComparison.OrdinalIgnoreCase) ? "Router" : Subsystem.Equals("System", StringComparison.OrdinalIgnoreCase) ? "System" : "Network";
+    public bool HasNavigationTarget => NetworkHealthNavigationTarget.IsSupported(NavigationTarget);
 }
 
 public sealed record NetworkHealthSnapshot(NetworkHealthState OverallState, IReadOnlyList<NetworkHealthIssue> Issues, DateTimeOffset UpdatedAt)

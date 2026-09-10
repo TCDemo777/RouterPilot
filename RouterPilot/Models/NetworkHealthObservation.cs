@@ -6,4 +6,7 @@ public sealed record NetworkHealthObservation(
     string State,
     string Summary,
     string Evidence,
-    string CanonicalDestination);
+    string CanonicalDestination)
+{
+    public bool HasNavigationTarget => RouterPilot.Services.NetworkHealthNavigationTarget.IsSupported(CanonicalDestination);
+}

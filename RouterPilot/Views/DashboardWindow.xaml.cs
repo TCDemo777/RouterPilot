@@ -1350,6 +1350,23 @@ namespace RouterPilot.Views
                     NavigateToMaintenanceFirmware();
                     break;
 
+                case "router":
+                    Router_Click(this, new RoutedEventArgs());
+                    break;
+
+                case "vpn":
+                    Vpn_Click(this, new RoutedEventArgs());
+                    break;
+
+                case "wifi":
+                case "dhcp":
+                    NavigateToNetworkSection(target);
+                    break;
+
+                case "health":
+                    NavigateToNetworkSection("health");
+                    break;
+
                 case "network":
                 default:
                     // Preserve the established safe destination for unknown
@@ -2055,7 +2072,7 @@ namespace RouterPilot.Views
                     "System",
                     "Data refresh delayed",
                     $"{string.Join(", ", stale.Select(info => info.Source))} has not updated for {FormatFreshnessAge(oldestStale?.LastSuccessUtc)}.",
-                    "overview",
+                    NetworkHealthNavigationTarget.ForDataFreshness(stale),
                     freshnessDetectedAt,
                     DateTimeOffset.UtcNow,
                     freshnessDetectedAt.UtcTicks.ToString())]);

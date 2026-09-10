@@ -16,7 +16,6 @@ public partial class NetworkHealthView : UserControl
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string target } || Window.GetWindow(this) is not DashboardWindow dashboard) return;
-        if (target is "wifi" or "dhcp" or "vpn") dashboard.NavigateToNetworkSection(target);
-        else dashboard.NavigateToHealthTarget(target);
+        dashboard.NavigateToHealthTarget(target);
     }
 }
