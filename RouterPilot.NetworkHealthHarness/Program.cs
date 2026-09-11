@@ -18,29 +18,31 @@ using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
 RouterMemoryTelemetry screenshotEquivalentMemory = RouterMemoryTelemetryParser.Parse(
-    "MemTotal:2034236\nMemFree:825000\nBuffers:353495\nCached:146227\n");
+    "MemTotal:2034236\nMemFree:825000\nMemAvailable:1230000\nBuffers:353495\nCached:146227\n");
 Require(screenshotEquivalentMemory.IsAvailable && screenshotEquivalentMemory.UsedKilobytes == 1209236 &&
-    screenshotEquivalentMemory.UsagePercentage is > 59 and < 60 && screenshotEquivalentMemory.CachedKilobytes == 146227,
+    screenshotEquivalentMemory.UsagePercentage is > 59 and < 60 && screenshotEquivalentMemory.AvailableKilobytes == 1230000 &&
+    screenshotEquivalentMemory.BufferedKilobytes == 353495 && screenshotEquivalentMemory.CachedKilobytes == 146227,
     "router memory follows LuCI Used = total minus free while preserving cached pages separately");
 RouterMemoryTelemetry highCacheMemory = RouterMemoryTelemetryParser.Parse(
-    "MemTotal:1048576\nMemFree:900000\nBuffers:50000\nCached:75000\n");
+    "MemTotal:1048576\nMemFree:900000\nMemAvailable:975000\nBuffers:50000\nCached:75000\n");
 Require(highCacheMemory.UsedKilobytes == 148576 && highCacheMemory.UsagePercentage is > 14 and < 15,
     "high cache does not reduce LuCI-compatible used memory");
 RouterMemoryTelemetry zeroMemoryComponents = RouterMemoryTelemetryParser.Parse(
-    "MemTotal:1024\nMemFree:1024\nBuffers:0\nCached:0\n");
+    "MemTotal:1024\nMemFree:1024\nMemAvailable:1024\nBuffers:0\nCached:0\n");
 Require(zeroMemoryComponents.UsedKilobytes == 0 && zeroMemoryComponents.UsagePercentage == 0 &&
-    zeroMemoryComponents.CachedKilobytes == 0 && zeroMemoryComponents.BufferedKilobytes == 0,
+    zeroMemoryComponents.AvailableKilobytes == 1024 && zeroMemoryComponents.CachedKilobytes == 0 && zeroMemoryComponents.BufferedKilobytes == 0,
     "authoritative zero memory components remain zero");
 RouterMemoryTelemetry missingCacheMemory = RouterMemoryTelemetryParser.Parse("MemTotal:1024\nMemFree:512\n");
-Require(missingCacheMemory.IsAvailable && missingCacheMemory.CachedKilobytes is null,
-    "missing optional cached memory remains unavailable");
+Require(missingCacheMemory.IsAvailable && missingCacheMemory.AvailableKilobytes is null &&
+    missingCacheMemory.CachedKilobytes is null && missingCacheMemory.BufferedKilobytes is null,
+    "missing available, cached, and buffered memory remain unavailable");
 RouterMemoryTelemetry malformedMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:not-a-number\nMemFree:512\nCached:-1\n");
 Require(!malformedMemory.IsAvailable && malformedMemory.UsedKilobytes is null && malformedMemory.UsagePercentage is null,
     "malformed required memory telemetry remains unavailable");
 RouterMemoryTelemetry overFreeMemory = RouterMemoryTelemetryParser.Parse("MemTotal:1024\nMemFree:2048\nCached:0\n");
-Require(overFreeMemory.UsedKilobytes == 0 && overFreeMemory.UsagePercentage == 0,
-    "memory usage remains bounded when malformed telemetry reports more free than total");
+Require(!overFreeMemory.IsAvailable && overFreeMemory.UsedKilobytes is null && overFreeMemory.UsagePercentage is null,
+    "inconsistent required memory telemetry remains unavailable rather than being clamped into a misleading value");
 string capabilityFixture = "__SECTION__ SELECTED UCI SCHEMA\nnetwork.lan.ipaddr='192.168.1.1'\nwireless.@wifi-iface[0].ssid='Home WiFi'\nwireless.@wifi-iface[0].key='secret-key'\nservice.endpoint='https://vpn.example.test:443'\nmac='aa:bb:cc:dd:ee:ff'\naddress='2001:db8::1'";
 string sanitizedCapability = RouterCapabilityDiscoveryReportBuilder.Build(capabilityFixture);
 Require(!sanitizedCapability.Contains("192.168.1.1", StringComparison.Ordinal) && !sanitizedCapability.Contains("Home WiFi", StringComparison.Ordinal) && !sanitizedCapability.Contains("secret-key", StringComparison.Ordinal) && !sanitizedCapability.Contains("vpn.example.test", StringComparison.Ordinal) && !sanitizedCapability.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) && !sanitizedCapability.Contains("2001:db8::1", StringComparison.Ordinal), "capability report sanitizer removes network identity and secrets");

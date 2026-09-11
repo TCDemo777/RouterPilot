@@ -394,6 +394,12 @@ namespace RouterPilot.Views
                 _viewModel.MemoryUsed =
                     info.MemoryUsed;
 
+                _viewModel.MemoryAvailable =
+                    info.MemoryAvailable;
+
+                _viewModel.MemoryBuffered =
+                    info.MemoryBuffered;
+
                 _viewModel.MemoryCache =
                     info.MemoryCache;
 
@@ -1179,6 +1185,12 @@ namespace RouterPilot.Views
                 "-";
 
             _viewModel.MemoryUsed =
+                "-";
+
+            _viewModel.MemoryAvailable =
+                "-";
+
+            _viewModel.MemoryBuffered =
                 "-";
 
             _viewModel.MemoryCache =

@@ -201,13 +201,20 @@ namespace RouterPilot.ViewModels
         private string memoryUsed = "-";
 
         [ObservableProperty]
+        private string memoryAvailable = "-";
+
+        [ObservableProperty]
+        private string memoryBuffered = "-";
+
+        [ObservableProperty]
         private string memoryCache = "-";
 
         [ObservableProperty]
         private double memoryPercentage;
 
         public bool HasMemoryDetails =>
-            IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryCache);
+            IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryAvailable) ||
+            IsKnownMemoryDetail(MemoryBuffered) || IsKnownMemoryDetail(MemoryCache);
 
         private static bool IsKnownMemoryDetail(string? value) =>
             !string.IsNullOrWhiteSpace(value) && value != "-";
@@ -2104,6 +2111,12 @@ namespace RouterPilot.ViewModels
         }
 
         partial void OnMemoryUsedChanged(string value) =>
+            OnPropertyChanged(nameof(HasMemoryDetails));
+
+        partial void OnMemoryAvailableChanged(string value) =>
+            OnPropertyChanged(nameof(HasMemoryDetails));
+
+        partial void OnMemoryBufferedChanged(string value) =>
             OnPropertyChanged(nameof(HasMemoryDetails));
 
         partial void OnMemoryCacheChanged(string value) =>

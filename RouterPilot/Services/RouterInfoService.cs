@@ -313,7 +313,7 @@ namespace RouterPilot.Services
             {
                 string memory =
                     await _ssh.RunCommandAsync(
-                        "awk '/^(MemTotal|MemFree|Buffers|Cached):/ {print $1 $2}' /proc/meminfo");
+                        "awk '/^(MemTotal|MemFree|MemAvailable|Buffers|Cached):/ {print $1 $2}' /proc/meminfo");
 
                 RouterMemoryTelemetry snapshot = RouterMemoryTelemetryParser.Parse(memory);
 
@@ -324,6 +324,16 @@ namespace RouterPilot.Services
 
                     info.MemoryUsed =
                         FormatKilobytes(used);
+
+                    info.MemoryAvailable =
+                        snapshot.AvailableKilobytes is long available
+                            ? FormatKilobytes(available)
+                            : "-";
+
+                    info.MemoryBuffered =
+                        snapshot.BufferedKilobytes is long buffered
+                            ? FormatKilobytes(buffered)
+                            : "-";
 
                     info.MemoryCache =
                         snapshot.CachedKilobytes is long cached

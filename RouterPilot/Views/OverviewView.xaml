@@ -431,6 +431,10 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource Text.Muted}" Text="Used" />
                                         <TextBlock Margin="0,2,0,0"
@@ -440,7 +444,23 @@
                                                    Text="{Binding MemoryUsed}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
-                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Cache" />
+                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Available" />
+                                        <TextBlock Margin="0,2,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   TextAlignment="Left"
+                                                   Style="{StaticResource Overview.DetailValue}"
+                                                   Text="{Binding MemoryAvailable}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Buffered" />
+                                        <TextBlock Margin="0,2,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   TextAlignment="Left"
+                                                   Style="{StaticResource Overview.DetailValue}"
+                                                   Text="{Binding MemoryBuffered}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource Text.Muted}" Text="Cached" />
                                         <TextBlock Margin="0,2,0,0"
                                                    HorizontalAlignment="Left"
                                                    TextAlignment="Left"

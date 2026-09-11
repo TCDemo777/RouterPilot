@@ -687,8 +687,11 @@
                             <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding MemoryUsage}" />
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <TextBlock Style="{StaticResource Analytics.HealthMetric}" Text="{Binding MemoryUsed, StringFormat=Used: {0}}" />
-                                <TextBlock Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource Analytics.HealthMetric}" Text="{Binding MemoryCache, StringFormat=Cache: {0}}" />
+                                <TextBlock Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource Analytics.HealthMetric}" Text="{Binding MemoryAvailable, StringFormat=Available: {0}}" />
+                                <TextBlock Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource Analytics.HealthMetric}" Text="{Binding MemoryBuffered, StringFormat=Buffered: {0}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" HorizontalAlignment="Right" Style="{StaticResource Analytics.HealthMetric}" Text="{Binding MemoryCache, StringFormat=Cached: {0}}" />
                             </Grid>
                         </StackPanel>
 

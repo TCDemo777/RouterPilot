@@ -34,6 +34,10 @@ namespace RouterPilot.Models
 
         public string MemoryUsed { get; set; } = "-";
 
+        public string MemoryAvailable { get; set; } = "-";
+
+        public string MemoryBuffered { get; set; } = "-";
+
         public string MemoryCache { get; set; } = "-";
 
         public string StorageUsage { get; set; } = "-";

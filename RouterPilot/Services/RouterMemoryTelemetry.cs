@@ -10,10 +10,13 @@ namespace RouterPilot.Services;
 internal sealed record RouterMemoryTelemetry(
     long? TotalKilobytes,
     long? FreeKilobytes,
+    long? AvailableKilobytes,
     long? BufferedKilobytes,
     long? CachedKilobytes)
 {
-    public bool IsAvailable => TotalKilobytes is > 0 && FreeKilobytes is >= 0;
+    public bool IsAvailable => TotalKilobytes is > 0
+                               && FreeKilobytes is >= 0
+                               && FreeKilobytes <= TotalKilobytes;
 
     public long? UsedKilobytes => IsAvailable
         ? Math.Clamp(TotalKilobytes!.Value - FreeKilobytes!.Value, 0, TotalKilobytes.Value)
@@ -30,6 +33,7 @@ internal static class RouterMemoryTelemetryParser
     {
         long? total = null;
         long? free = null;
+        long? available = null;
         long? buffered = null;
         long? cached = null;
 
@@ -43,11 +47,30 @@ internal static class RouterMemoryTelemetryParser
             {
                 case "MemTotal": total = value; break;
                 case "MemFree": free = value; break;
+                case "MemAvailable": available = value; break;
                 case "Buffers": buffered = value; break;
                 case "Cached": cached = value; break;
             }
         }
 
-        return new RouterMemoryTelemetry(total, free, buffered, cached);
+        if (total is > 0)
+        {
+            if (available > total)
+            {
+                available = null;
+            }
+
+            if (buffered > total)
+            {
+                buffered = null;
+            }
+
+            if (cached > total)
+            {
+                cached = null;
+            }
+        }
+
+        return new RouterMemoryTelemetry(total, free, available, buffered, cached);
     }
 }
