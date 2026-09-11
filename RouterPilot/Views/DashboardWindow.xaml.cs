@@ -1863,6 +1863,13 @@ namespace RouterPilot.Views
                     if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
                         return;
 
+                    // The first post-resume attempt may have created a manager
+                    // while Windows networking was still unavailable.  Refresh
+                    // explicitly invalidates that transient transport before a
+                    // retry; do the same here so each bounded resume attempt
+                    // can establish a fresh router/AdGuard session.
+                    _routerManagerProvider.Invalidate();
+                    ResumeTrace($"Resume recovery attempt {attempt + 1} invalidated transient router/AdGuard state");
                     ResumeTrace($"Resume recovery attempt {attempt + 1}/{ResumeRecoveryPolicy.Delays.Length} started");
                     await _refreshCoordinator.RunNowAsync(
                         DashboardRefreshTask,
@@ -1876,6 +1883,12 @@ namespace RouterPilot.Views
                         _adGuardAvailabilityService.IsAvailable))
                     {
                         ResumeTrace($"Resume recovery generation {generation} completed");
+                        return;
+                    }
+
+                    if (!ResumeRecoveryPolicy.ShouldContinue(_adGuardAvailabilityService.State))
+                    {
+                        ResumeTrace($"Resume recovery generation {generation} stopped because AdGuard Home is not configured");
                         return;
                     }
 

@@ -137,6 +137,10 @@ Require(ResumeRecoveryPolicy.IsRecovered(true, true) &&
     !ResumeRecoveryPolicy.IsRecovered(true, false) &&
     !ResumeRecoveryPolicy.IsRecovered(false, true),
     "Resume recovery requires both router and AdGuard availability");
+Require(ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.Available) &&
+    ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.Unavailable) &&
+    !ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.NotConfigured),
+    "Resume recovery retries transient unavailability but not an unconfigured AdGuard Home");
 
 var adGuardRefreshEpoch = new AdGuardRefreshEpoch();
 long preSuspendEpoch = adGuardRefreshEpoch.Capture();
