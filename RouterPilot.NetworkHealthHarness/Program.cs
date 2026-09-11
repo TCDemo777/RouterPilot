@@ -398,18 +398,18 @@ try
         }
 
         await using (var upgraded = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
-                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.2"))
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.3"))
         {
             await upgraded.InitializeAsync();
             Require(upgraded.Notifications.Count == 2 &&
                     upgraded.Notifications.Single(item => item.DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.1")).IsRead &&
-                    !upgraded.Notifications.Single(item => item.DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.2")).IsRead &&
+                    !upgraded.Notifications.Single(item => item.DeduplicationKey == NotificationService.WelcomeDeduplicationKeyFor("2.4.3")).IsRead &&
                     welcomeToasts.Count == 2,
                 "a new version gets exactly one welcome while preserving the prior acknowledgement");
         }
 
         await using (var upgradedRestart = new NotificationService(notificationDispatcher, dataFolder: notificationFixtureFolder,
-                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.2"))
+                         settingsService: notificationSettings, toastNotificationService: welcomeToasts, applicationVersion: "2.4.3"))
         {
             await upgradedRestart.InitializeAsync();
             Require(upgradedRestart.Notifications.Count == 2 && welcomeToasts.Count == 2,
