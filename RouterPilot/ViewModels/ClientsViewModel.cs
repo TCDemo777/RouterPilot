@@ -40,6 +40,9 @@ namespace RouterPilot.ViewModels
         private readonly Dictionary<string, (int Total, int Blocked)> _lastActivityTotals =
             new(StringComparer.OrdinalIgnoreCase);
         private string _activityClientKey = string.Empty;
+        // A retained snapshot remains useful for details/navigation, but it must
+        // never be presented as current presence after a failed refresh.
+        private bool _hasCurrentAuthoritativeClientSnapshot;
 
         public ObservableCollection<ClientInfo> Clients { get; } = new();
         public ObservableCollection<ClientInfo> NewDevices { get; } = new();
@@ -224,33 +227,10 @@ namespace RouterPilot.ViewModels
 
             try
             {
-                if (await _clientInventoryCoordinator.EnsureAuthoritativeInventoryAsync())
-                {
-                    string? sharedSelectedKey = SelectedClient is null ? null : ClientKey(SelectedClient);
-                    _allClients.Clear();
-                    _allClients.AddRange(_clientInventoryState.Snapshot.Values);
-                    // The shared inventory is the authoritative router snapshot,
-                    // but it is intentionally transport-only.  Run the same
-                    // identity projection used by the direct refresh path before
-                    // exposing it to cards; otherwise router-provided values such
-                    // as an OS label can leak through as the visible device name.
-                    foreach (ClientInfo client in _allClients)
-                    {
-                        EnrichClient(client);
-                        client.AutomaticName = client.Name;
-                    }
-                    _displayNames.UpdateAdGuardClients(_allClients);
-                    ApplyConfiguredNames();
-                    if (SelectedClientNameSource?.Source == ClientNameSource.Router && !_displayNames.HasRouterConfiguredNames)
-                        _ = RefreshRouterConfiguredNamesAsync();
-                    _ = EnrichOnlineManufacturersAsync(_allClients.ToList());
-                    _ = EnrichMdnsAsync(_allClients.ToList());
-                    AdGuardDataAvailability = _adGuardAvailabilityService.State;
-                    _dataFreshnessService.MarkSuccess("Clients");
-                    StatusMessage = string.Empty;
-                    return;
-                }
-
+                // The coordinator's cached snapshot is intentionally retained
+                // for read-only navigation, but cannot establish current
+                // presence for this refreshing page. Reconcile using the
+                // existing authoritative router refresh lifecycle instead.
                 RouterManager routerManager =
                     await _routerManagerProvider.GetRouterManagerAsync();
 
@@ -350,6 +330,7 @@ namespace RouterPilot.ViewModels
 
                 _allClients.Clear();
                 _allClients.AddRange(clients);
+                _hasCurrentAuthoritativeClientSnapshot = true;
                 _clientInventoryState.Update(_allClients);
                 _clientInventoryCoordinator.MarkAuthoritativelyLoaded();
 
@@ -372,6 +353,13 @@ namespace RouterPilot.ViewModels
             }
             catch (Exception ex)
             {
+                _hasCurrentAuthoritativeClientSnapshot = false;
+                foreach (ClientInfo client in _allClients)
+                {
+                    client.HealthText = "Unknown";
+                    client.HealthColour = "#687386";
+                }
+                ApplyFilterAndSort(SelectedClient is null ? null : ClientKey(SelectedClient));
                 _dataFreshnessService.MarkUnavailable("Clients");
                 StatusMessage = OperationFailurePolicy.UserMessage(
                     ex,
@@ -1521,38 +1509,11 @@ namespace RouterPilot.ViewModels
         private static (string Text, string Colour) DetectHealth(
             ClientInfo client)
         {
-            if (client.AdGuardDataAvailability != AdGuardAvailabilityState.Available)
-            {
-                // Rows are created only from the current authoritative router
-                // snapshot, so DNS availability does not define online state.
-                return ("Online", "#16803C");
-            }
-
-            if (DateTime.TryParse(
-                client.LastSeen,
-                out DateTime lastSeen))
-            {
-                TimeSpan age = DateTime.Now - lastSeen;
-
-                if (age <= TimeSpan.FromMinutes(5))
-                {
-                    return ("Online", "#16803C");
-                }
-
-                if (age <= TimeSpan.FromHours(1))
-                {
-                    return ("Recently active", "#B26A00");
-                }
-
-                return ("Offline", "#687386");
-            }
-
-            if (client.TotalQueries > 0)
-            {
-                return ("Active", "#16803C");
-            }
-
-            return ("Unknown", "#687386");
+            // This method is called only while processing a successful current
+            // router inventory snapshot.  AdGuard's LastSeen is a DNS activity
+            // timestamp, not a router-presence signal, so it cannot downgrade a
+            // currently observed client to "Recently active" or "Offline".
+            return ("Online", "#16803C");
         }
 
         private ClientProfile GetOrCreateProfile(ClientInfo client)
@@ -1789,6 +1750,7 @@ namespace RouterPilot.ViewModels
         // path.  This filter only projects that state; it performs no new probe.
         private bool IsAuthoritativelyOnline(ClientInfo client)
         {
+            if (!_hasCurrentAuthoritativeClientSnapshot) return false;
             // All Clients is built exclusively from the current live-router
             // snapshot. Known Clients use the same snapshot for correlation;
             // persisted known records absent from it are offline.

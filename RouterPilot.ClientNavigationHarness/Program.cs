@@ -339,6 +339,21 @@ Require(Online("Online") && Online("Active") && Online("Recently active"), "live
 Require(!Online("Offline") && !Online("Unknown"), "offline and unknown status values are not online");
 Require(Online("Online"), "online classification is independent of manufacturer lookup");
 
+MethodInfo? detectHealth = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
+    "DetectHealth", BindingFlags.Static | BindingFlags.NonPublic);
+Require(detectHealth is not null, "client presence status helper is available");
+var currentRouterClientWithOldDnsActivity = new ClientInfo
+{
+    MacAddress = "AA:BB:CC:DD:EE:90",
+    AdGuardDataAvailability = AdGuardAvailabilityState.Available,
+    LastSeen = DateTime.Now.AddHours(-2).ToString("O"),
+    TotalQueries = 42
+};
+var currentRouterClientStatus = ((ValueTuple<string, string>)detectHealth!.Invoke(
+    null, new object?[] { currentRouterClientWithOldDnsActivity })!);
+Require(currentRouterClientStatus.Item1 == "Online",
+    "a current router snapshot remains online when its DNS activity is old");
+
 static ClientInfo Client(string mac, string name, string ip) => new()
 {
     MacAddress = mac,
