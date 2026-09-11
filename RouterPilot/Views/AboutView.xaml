@@ -271,6 +271,20 @@
 
                                 <TextBlock FontSize="15"
                                            FontWeight="Bold"
+                                           Text="AdGuard Home"/>
+                                <TextBlock Margin="0,5,0,0"
+                                           LineHeight="19"
+                                           TextWrapping="Wrap"
+                                           Text="DNS filtering, protection controls, statistics, client activity and query-log data are provided through AdGuard Home."/>
+                                <TextBlock Margin="0,5,0,0">
+                                    <Hyperlink NavigateUri="https://adguard.com/adguard-home/overview.html"
+                                               RequestNavigate="GitHubLink_RequestNavigate">Visit AdGuard Home</Hyperlink>
+                                </TextBlock>
+
+                                <Separator Margin="0,16,0,16"/>
+
+                                <TextBlock FontSize="15"
+                                           FontWeight="Bold"
                                            Text="Community maintenance tools"/>
                                 <TextBlock Margin="0,5,0,0"
                                            LineHeight="19"
