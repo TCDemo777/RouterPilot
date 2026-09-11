@@ -6,10 +6,10 @@
         <!-- All Router telemetry GroupBoxes use the shared card surface rather
              than WPF's default bright legend/border chrome. -->
         <Style TargetType="GroupBox" BasedOn="{StaticResource RouterPilot.CardGroup}" />
-        <Style x:Key="Router.PerformanceDetailLabel" TargetType="TextBlock" BasedOn="{DynamicResource Text.Secondary}">
+        <Style x:Key="Router.PerformanceDetailLabel" TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
             <Setter Property="VerticalAlignment" Value="Top" />
         </Style>
-        <Style x:Key="Router.PerformanceDetailValue" TargetType="TextBlock" BasedOn="{DynamicResource Text.Body}">
+        <Style x:Key="Router.PerformanceDetailValue" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
             <Setter Property="Grid.Column" Value="2" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="TextAlignment" Value="Right" />
