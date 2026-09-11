@@ -864,9 +864,12 @@ namespace RouterPilot.ViewModels
                 ? "Initializing"
                 : !InternetConnected
                 ? RouterPilotStatusPresentation.Text(RouterPilotStatus.Error)
-                : IsVpnConnected
-                    ? "Connected via VPN"
-                    : RouterPilotStatusPresentation.Text(RouterPilotStatus.Connected);
+                // A connected client tunnel does not prove that the router's
+                // default Internet path uses that tunnel. The currently
+                // proven VPN inventory has no authoritative routing-scope
+                // contract, so retain the normal Internet result here and
+                // present tunnel state in the dedicated VPN detail instead.
+                : RouterPilotStatusPresentation.Text(RouterPilotStatus.Connected);
 
         public string InternetStatusColour =>
             RouterPilotStatusPresentation.Colour(

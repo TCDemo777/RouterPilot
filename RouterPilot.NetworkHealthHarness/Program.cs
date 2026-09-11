@@ -138,6 +138,15 @@ vpnPresentation.VpnSummary = new VpnSummaryState { State = "Disconnecting" };
 Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Disconnecting" && vpnPresentation.VpnFooterStatusText == "Disconnecting", "main VPN surfaces share disconnecting presentation");
 vpnPresentation.VpnSummary = new VpnSummaryState { State = "Connecting" };
 Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Connecting", "main VPN surfaces preserve connecting presentation");
+var internetRoutePresentation = new DashboardViewModel { IsInitialising = false, InternetConnected = true };
+Require(internetRoutePresentation.InternetStatusText == "Connected", "Internet is connected when no VPN tunnel is active");
+internetRoutePresentation.VpnSummary = new VpnSummaryState { IsAvailable = true, IsConfigured = true, State = "Connected", Protocol = "WireGuard", ProfileName = "Client policy", Location = "London" };
+Require(internetRoutePresentation.IsVpnConnected && internetRoutePresentation.InternetStatusText == "Connected" &&
+    internetRoutePresentation.VpnStatusText == "Connected" && internetRoutePresentation.VpnStatusDetail == "London",
+    "a connected VPN tunnel remains visible without claiming an unproven default Internet route");
+internetRoutePresentation.InternetConnected = false;
+Require(internetRoutePresentation.InternetStatusText == RouterPilotStatusPresentation.Text(RouterPilotStatus.Error),
+    "Internet failure semantics remain authoritative even when a VPN tunnel is connected");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("DoH", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoT", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoQ", StringComparison.OrdinalIgnoreCase), "direct encrypted-DNS bypass is explained");
 ClientInfo unavailableDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };
 Require(unavailableDns.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "unmatched DNS activity is presented as unavailable");
