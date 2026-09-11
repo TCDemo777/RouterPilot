@@ -140,13 +140,22 @@ Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Disconnecting" && vp
 vpnPresentation.VpnSummary = new VpnSummaryState { State = "Connecting" };
 Require(vpnPresentation.VpnCompactFooterStatusText == "VPN: Connecting", "main VPN surfaces preserve connecting presentation");
 var internetRoutePresentation = new DashboardViewModel { IsInitialising = false, InternetConnected = true };
-Require(internetRoutePresentation.InternetStatusText == "Connected", "Internet is connected when no VPN tunnel is active");
-internetRoutePresentation.VpnSummary = new VpnSummaryState { IsAvailable = true, IsConfigured = true, State = "Connected", Protocol = "WireGuard", ProfileName = "Client policy", Location = "London" };
-Require(internetRoutePresentation.IsVpnConnected && internetRoutePresentation.InternetStatusText == "Connected" &&
-    internetRoutePresentation.VpnStatusText == "Connected" && internetRoutePresentation.VpnStatusDetail == "London",
-    "a connected VPN tunnel remains visible without claiming an unproven default Internet route");
+Require(internetRoutePresentation.InternetRouteStatusText == "Connected" && internetRoutePresentation.InternetStatusText == "Connected",
+    "both Overview Internet surfaces report Connected when no VPN tunnel is active");
+internetRoutePresentation.VpnSummary = new VpnSummaryState { IsAvailable = true, IsConfigured = true, State = "Connected", Protocol = "WireGuard", ProfileName = "Default route", Location = "London", InternetRoutingScope = VpnInternetRoutingScope.DefaultInternet };
+Require(internetRoutePresentation.InternetRouteStatusText == "Connected via VPN" && internetRoutePresentation.InternetStatusText == "Connected via VPN" &&
+    internetRoutePresentation.VpnContextLine.StartsWith("VPN tunnel connected", StringComparison.Ordinal),
+    "both Overview Internet surfaces use the same authoritative default-route VPN classification while preserving tunnel detail");
+internetRoutePresentation.VpnSummary = new VpnSummaryState { IsAvailable = true, IsConfigured = true, State = "Connected", Protocol = "WireGuard", ProfileName = "Client policy", Location = "London", InternetRoutingScope = VpnInternetRoutingScope.ClientOrPolicy };
+Require(internetRoutePresentation.IsVpnConnected && internetRoutePresentation.InternetRouteStatusText == "Connected" &&
+    internetRoutePresentation.InternetStatusText == "Connected" && internetRoutePresentation.VpnStatusText == "Connected" &&
+    internetRoutePresentation.VpnStatusDetail == "London",
+    "client-policy VPN remains visible without claiming a default Internet route");
+internetRoutePresentation.VpnSummary = new VpnSummaryState { IsAvailable = true, IsConfigured = true, State = "Connected", Protocol = "WireGuard", ProfileName = "Client policy", Location = "London", InternetRoutingScope = VpnInternetRoutingScope.Unknown };
+Require(internetRoutePresentation.InternetRouteStatusText == "Connected" && internetRoutePresentation.InternetStatusText == "Connected",
+    "unknown VPN routing scope remains conservative on both Overview Internet surfaces");
 internetRoutePresentation.InternetConnected = false;
-Require(internetRoutePresentation.InternetStatusText == RouterPilotStatusPresentation.Text(RouterPilotStatus.Error),
+Require(internetRoutePresentation.InternetRouteStatusText == RouterPilotStatusPresentation.Text(RouterPilotStatus.Error),
     "Internet failure semantics remain authoritative even when a VPN tunnel is connected");
 Require(observedZeroDns.ActivityAvailabilityToolTip.Contains("DoH", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoT", StringComparison.OrdinalIgnoreCase) && observedZeroDns.ActivityAvailabilityToolTip.Contains("DoQ", StringComparison.OrdinalIgnoreCase), "direct encrypted-DNS bypass is explained");
 ClientInfo unavailableDns = new() { AdGuardDataAvailability = AdGuardAvailabilityState.Unavailable };

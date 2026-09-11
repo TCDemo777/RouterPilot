@@ -124,7 +124,7 @@
                     IconGlyph="&#xE774;"
                     Subtitle="WAN connectivity"
                     Title="INTERNET"
-                    Value="{Binding InternetStatusText}" />
+                    Value="{Binding InternetRouteStatusText}" />
 
                 <controls:StatisticCard
                     Margin="0,0,12,12"
@@ -652,7 +652,7 @@
                                     FontSize="11"
                                     FontWeight="SemiBold"
                                     Foreground="{Binding InternetStatusColour}"
-                                    Text="{Binding InternetStatusText}" />
+                                    Text="{Binding InternetRouteStatusText}" />
                             </Border>
                         </Grid>
 

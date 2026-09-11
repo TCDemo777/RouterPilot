@@ -862,17 +862,21 @@ namespace RouterPilot.ViewModels
                         ? RouterPilotStatusPresentation.Colour(RouterPilotStatus.Pending)
                         : RouterPilotStatusPresentation.Colour(RouterPilotStatus.Disabled);
 
-        public string InternetStatusText =>
+        /// <summary>
+        /// Canonical presentation of the router's Internet route.  A connected
+        /// VPN tunnel alone is not route evidence; the tunnel detail is shown
+        /// separately on Overview.
+        /// </summary>
+        public string InternetRouteStatusText =>
             IsInitialising
                 ? "Initializing"
                 : !InternetConnected
                 ? RouterPilotStatusPresentation.Text(RouterPilotStatus.Error)
-                // A connected client tunnel does not prove that the router's
-                // default Internet path uses that tunnel. The currently
-                // proven VPN inventory has no authoritative routing-scope
-                // contract, so retain the normal Internet result here and
-                // present tunnel state in the dedicated VPN detail instead.
+                : VpnSummary.InternetRoutingScope == VpnInternetRoutingScope.DefaultInternet
+                    ? "Connected via VPN"
                 : RouterPilotStatusPresentation.Text(RouterPilotStatus.Connected);
+
+        public string InternetStatusText => InternetRouteStatusText;
 
         public string InternetStatusColour =>
             RouterPilotStatusPresentation.Colour(
@@ -903,12 +907,12 @@ namespace RouterPilot.ViewModels
         public string VpnContextLine => !IsVpnConnected
             ? string.Empty
             : !string.IsNullOrWhiteSpace(VpnSummary.Protocol) && !string.IsNullOrWhiteSpace(VpnSummary.Location)
-                ? $"Connected via VPN \u2022 {VpnSummary.Protocol} \u2022 {VpnSummary.Location}"
+                ? $"VPN tunnel connected \u2022 {VpnSummary.Protocol} \u2022 {VpnSummary.Location}"
                 : !string.IsNullOrWhiteSpace(VpnSummary.Location)
-                    ? $"Connected via VPN \u2022 {VpnSummary.Location}"
+                    ? $"VPN tunnel connected \u2022 {VpnSummary.Location}"
                     : !string.IsNullOrWhiteSpace(VpnSummary.Protocol)
-                        ? $"Connected via VPN \u2022 {VpnSummary.Protocol}"
-                        : "Connected via VPN";
+                        ? $"VPN tunnel connected \u2022 {VpnSummary.Protocol}"
+                        : "VPN tunnel connected";
 
         public string VpnDnsContext => IsVpnConnected
             ? "VPN active \u2014 router DNS shown"
@@ -931,8 +935,8 @@ namespace RouterPilot.ViewModels
         public string VpnProtocolDisplay => VpnSummary.Protocol;
 
         public string VpnNetworkSummary => VpnSummary.State == "Connected"
-            ? !string.IsNullOrWhiteSpace(VpnSummary.Location) ? $"Connected \u2022 {VpnSummary.Location}"
-                : string.IsNullOrWhiteSpace(VpnSummary.Protocol) ? "Connected" : $"Connected via {VpnSummary.Protocol}"
+            ? !string.IsNullOrWhiteSpace(VpnSummary.Location) ? $"VPN tunnel connected \u2022 {VpnSummary.Location}"
+                : string.IsNullOrWhiteSpace(VpnSummary.Protocol) ? "VPN tunnel connected" : $"VPN tunnel connected \u2022 {VpnSummary.Protocol}"
             : VpnSummary.State;
 
         public string OverallStatusColour =>
@@ -2057,6 +2061,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(AdGuardProtectionStatusText));
             OnPropertyChanged(nameof(AdGuardProtectionStatusColour));
             OnPropertyChanged(nameof(InternetStatusText));
+            OnPropertyChanged(nameof(InternetRouteStatusText));
             OnPropertyChanged(nameof(InternetStatusColour));
             OnPropertyChanged(nameof(VpnStatusText));
             OnPropertyChanged(nameof(VpnCompactFooterStatusText));

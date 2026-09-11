@@ -1,5 +1,16 @@
 namespace RouterPilot.Models;
 
+/// <summary>
+/// The scope of traffic routed through an active VPN tunnel. Unknown is the
+/// safe default when the router has not supplied an authoritative policy read.
+/// </summary>
+public enum VpnInternetRoutingScope
+{
+    Unknown,
+    DefaultInternet,
+    ClientOrPolicy
+}
+
 /// <summary>Safe, read-only application summary of the configured client VPN state.</summary>
 public sealed class VpnSummaryState
 {
@@ -11,4 +22,5 @@ public sealed class VpnSummaryState
     public string ProfileName { get; init; } = string.Empty;
     public string Location { get; init; } = string.Empty;
     public string VirtualIp { get; init; } = string.Empty;
+    public VpnInternetRoutingScope InternetRoutingScope { get; init; } = VpnInternetRoutingScope.Unknown;
 }
