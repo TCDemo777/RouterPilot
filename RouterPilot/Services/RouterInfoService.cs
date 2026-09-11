@@ -313,74 +313,22 @@ namespace RouterPilot.Services
             {
                 string memory =
                     await _ssh.RunCommandAsync(
-                        "awk '/^(MemTotal|MemFree|Buffers|Cached|SReclaimable):/ {print $1 $2}' /proc/meminfo");
+                        "awk '/^(MemTotal|MemFree|Buffers|Cached):/ {print $1 $2}' /proc/meminfo");
 
-                double total = 0;
-                double free = 0;
-                double buffers = 0;
-                double cached = 0;
-                double reclaimable = 0;
+                RouterMemoryTelemetry snapshot = RouterMemoryTelemetryParser.Parse(memory);
 
-                foreach (string line in
-                    memory.Split(
-                        new[] { '\r', '\n' },
-                        StringSplitOptions.RemoveEmptyEntries))
-                {
-                    string[] pair =
-                        line.Split(
-                            ':',
-                            StringSplitOptions.RemoveEmptyEntries);
-
-                    if (pair.Length != 2 ||
-                        !double.TryParse(
-                            pair[1].Trim(),
-                            System.Globalization.NumberStyles.Float,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out double value))
-                    {
-                        continue;
-                    }
-
-                    switch (pair[0].Trim())
-                    {
-                        case "MemTotal":
-                            total = value;
-                            break;
-                        case "MemFree":
-                            free = value;
-                            break;
-                        case "Buffers":
-                            buffers = value;
-                            break;
-                        case "Cached":
-                            cached = value;
-                            break;
-                        case "SReclaimable":
-                            reclaimable = value;
-                            break;
-                    }
-                }
-
-                double cache =
-                    cached + reclaimable;
-
-                double used =
-                    Math.Max(
-                        0,
-                        total - free - buffers - cache);
-
-                if (total > 0)
+                if (snapshot.IsAvailable && snapshot.UsedKilobytes is long used && snapshot.UsagePercentage is double percentage)
                 {
                     info.MemoryUsage =
-                        Math.Round(
-                            used / total * 100,
-                            1) + "%";
+                        percentage.ToString("0.#", CultureInfo.InvariantCulture) + "%";
 
                     info.MemoryUsed =
                         FormatKilobytes(used);
 
                     info.MemoryCache =
-                        FormatKilobytes(cache);
+                        snapshot.CachedKilobytes is long cached
+                            ? FormatKilobytes(cached)
+                            : "-";
                 }
                 else
                 {
