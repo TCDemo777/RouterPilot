@@ -43,7 +43,23 @@
                                 <TextBlock Text="CPU" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock FontSize="16" Text="{Binding CpuUsageDisplay}"/>
                                 <TextBlock Margin="0,10,0,0" Text="Memory" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding MemoryUsage}"/>
+                                <TextBlock FontSize="16" Text="{Binding MemoryUsage}"/>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryTotal, StringFormat=Total: {0}}"/>
+                                    <TextBlock Grid.Column="1" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryUsed, StringFormat=Used: {0}}"/>
+                                    <TextBlock Grid.Row="1" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryAvailable, StringFormat=Available: {0}}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryBuffered, StringFormat=Buffered: {0}}"/>
+                                    <TextBlock Grid.Row="2" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryCache, StringFormat=Cached: {0}}"/>
+                                </Grid>
                                 <TextBlock Margin="0,10,0,0" Text="Temperature" Style="{DynamicResource Text.Muted}"/>
                                 <TextBlock Text="{Binding Temperature}"/>
                                 <TextBlock Margin="0,10,0,0" Text="Storage" Style="{DynamicResource Text.Muted}"/>

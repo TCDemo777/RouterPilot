@@ -27,6 +27,44 @@ internal sealed record RouterMemoryTelemetry(
         : null;
 }
 
+/// <summary>
+/// The sole display projection for router memory telemetry.  Every router
+/// surface receives values already normalised from the same snapshot, rather
+/// than calculating or formatting memory values independently.
+/// </summary>
+internal sealed record RouterMemoryPresentation(
+    string Usage,
+    string Total,
+    string Used,
+    string Available,
+    string Buffered,
+    string Cached)
+{
+    public static RouterMemoryPresentation From(RouterMemoryTelemetry snapshot)
+    {
+        if (!snapshot.IsAvailable || snapshot.UsagePercentage is not double percentage || snapshot.UsedKilobytes is not long used)
+        {
+            return new RouterMemoryPresentation("-", "-", "-", "-", "-", "-");
+        }
+
+        return new RouterMemoryPresentation(
+            percentage.ToString("0.#", CultureInfo.InvariantCulture) + "%",
+            FormatKilobytes(snapshot.TotalKilobytes!.Value),
+            FormatKilobytes(used),
+            snapshot.AvailableKilobytes is long available ? FormatKilobytes(available) : "-",
+            snapshot.BufferedKilobytes is long buffered ? FormatKilobytes(buffered) : "-",
+            snapshot.CachedKilobytes is long cached ? FormatKilobytes(cached) : "-");
+    }
+
+    private static string FormatKilobytes(long kilobytes)
+    {
+        double megabytes = kilobytes / 1024d;
+        return megabytes >= 1024d
+            ? $"{megabytes / 1024d:0.0} GB"
+            : $"{megabytes:0} MB";
+    }
+}
+
 internal static class RouterMemoryTelemetryParser
 {
     public static RouterMemoryTelemetry Parse(string? telemetry)

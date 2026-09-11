@@ -316,41 +316,21 @@ namespace RouterPilot.Services
                         "awk '/^(MemTotal|MemFree|MemAvailable|Buffers|Cached):/ {print $1 $2}' /proc/meminfo");
 
                 RouterMemoryTelemetry snapshot = RouterMemoryTelemetryParser.Parse(memory);
-
-                if (snapshot.IsAvailable && snapshot.UsedKilobytes is long used && snapshot.UsagePercentage is double percentage)
-                {
-                    info.MemoryUsage =
-                        percentage.ToString("0.#", CultureInfo.InvariantCulture) + "%";
-
-                    info.MemoryUsed =
-                        FormatKilobytes(used);
-
-                    info.MemoryAvailable =
-                        snapshot.AvailableKilobytes is long available
-                            ? FormatKilobytes(available)
-                            : "-";
-
-                    info.MemoryBuffered =
-                        snapshot.BufferedKilobytes is long buffered
-                            ? FormatKilobytes(buffered)
-                            : "-";
-
-                    info.MemoryCache =
-                        snapshot.CachedKilobytes is long cached
-                            ? FormatKilobytes(cached)
-                            : "-";
-                }
-                else
-                {
-                    info.MemoryUsage = "-";
-                    info.MemoryUsed = "-";
-                    info.MemoryCache = "-";
-                }
+                RouterMemoryPresentation presentation = RouterMemoryPresentation.From(snapshot);
+                info.MemoryUsage = presentation.Usage;
+                info.MemoryTotal = presentation.Total;
+                info.MemoryUsed = presentation.Used;
+                info.MemoryAvailable = presentation.Available;
+                info.MemoryBuffered = presentation.Buffered;
+                info.MemoryCache = presentation.Cached;
             }
             catch
             {
                 info.MemoryUsage = "-";
+                info.MemoryTotal = "-";
                 info.MemoryUsed = "-";
+                info.MemoryAvailable = "-";
+                info.MemoryBuffered = "-";
                 info.MemoryCache = "-";
             }
 
@@ -496,17 +476,6 @@ namespace RouterPilot.Services
         }
 
         private static bool? ParseYesNo(string? value) => value?.Trim().ToLowerInvariant() switch { "yes" or "true" or "1" => true, "no" or "false" or "0" => false, _ => null };
-
-        private static string FormatKilobytes(
-            double kilobytes)
-        {
-            double megabytes =
-                kilobytes / 1024d;
-
-            return megabytes >= 1024d
-                ? $"{megabytes / 1024d:0.0} GB"
-                : $"{megabytes:0} MB";
-        }
 
         private static string FormatStorageSize(string value)
         {

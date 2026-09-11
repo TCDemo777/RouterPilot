@@ -195,6 +195,9 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string memoryUsage = "-";
 
+        [ObservableProperty]
+        private string memoryTotal = "-";
+
         // These are presentation copies of the existing RouterInfo memory snapshot.
         // They do not initiate router reads or participate in metric sampling.
         [ObservableProperty]
@@ -213,7 +216,7 @@ namespace RouterPilot.ViewModels
         private double memoryPercentage;
 
         public bool HasMemoryDetails =>
-            IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryAvailable) ||
+            IsKnownMemoryDetail(MemoryTotal) || IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryAvailable) ||
             IsKnownMemoryDetail(MemoryBuffered) || IsKnownMemoryDetail(MemoryCache);
 
         private static bool IsKnownMemoryDetail(string? value) =>
@@ -2111,6 +2114,9 @@ namespace RouterPilot.ViewModels
         }
 
         partial void OnMemoryUsedChanged(string value) =>
+            OnPropertyChanged(nameof(HasMemoryDetails));
+
+        partial void OnMemoryTotalChanged(string value) =>
             OnPropertyChanged(nameof(HasMemoryDetails));
 
         partial void OnMemoryAvailableChanged(string value) =>

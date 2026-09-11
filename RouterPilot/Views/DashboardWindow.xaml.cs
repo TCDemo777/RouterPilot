@@ -391,6 +391,9 @@ namespace RouterPilot.Views
                 _viewModel.MemoryUsage =
                     info.MemoryUsage;
 
+                _viewModel.MemoryTotal =
+                    info.MemoryTotal;
+
                 _viewModel.MemoryUsed =
                     info.MemoryUsed;
 
@@ -1182,6 +1185,9 @@ namespace RouterPilot.Views
                 false;
 
             _viewModel.MemoryUsage =
+                "-";
+
+            _viewModel.MemoryTotal =
                 "-";
 
             _viewModel.MemoryUsed =

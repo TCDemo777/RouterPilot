@@ -25,6 +25,9 @@
 
     <ApplicationIcon>Assets\RouterPilot.ico</ApplicationIcon>
     <RootNamespace>RouterPilot</RootNamespace>
+    <!-- Keep the installer’s established win-x64 publish target available
+         during ordinary solution restores as well. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
