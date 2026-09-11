@@ -113,6 +113,15 @@
                     TextTrimming="CharacterEllipsis"
                     TextWrapping="Wrap"
                     Visibility="{Binding SubtitleVisibility, ElementName=Root}" />
+
+                <TextBlock
+                    Margin="0,6,0,0"
+                    FontSize="11"
+                    LineHeight="15"
+                    Style="{StaticResource Text.Secondary}"
+                    Text="{Binding DetailText, ElementName=Root}"
+                    TextWrapping="Wrap"
+                    Visibility="{Binding DetailVisibility, ElementName=Root}" />
             </StackPanel>
 
             <Grid Grid.Row="2" MinHeight="15">

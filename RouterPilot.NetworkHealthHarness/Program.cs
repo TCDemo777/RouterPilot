@@ -24,9 +24,9 @@ Require(screenshotEquivalentMemory.IsAvailable && screenshotEquivalentMemory.Use
     screenshotEquivalentMemory.BufferedKilobytes == 353495 && screenshotEquivalentMemory.CachedKilobytes == 146227,
     "router memory follows LuCI Used = total minus free while preserving cached pages separately");
 RouterMemoryPresentation screenshotPresentation = RouterMemoryPresentation.From(screenshotEquivalentMemory);
-Require(screenshotPresentation.Usage is not "-" && screenshotPresentation.Total == "1.9 GB" &&
-    screenshotPresentation.Used == "1.2 GB" && screenshotPresentation.Available == "1.2 GB" &&
-    screenshotPresentation.Buffered == "345 MB" && screenshotPresentation.Cached == "143 MB",
+Require(screenshotPresentation.Usage is not "-" && screenshotPresentation.Total == "1.94 GiB" &&
+    screenshotPresentation.Used == "1.15 GiB" && screenshotPresentation.Available == "1.17 GiB" &&
+    screenshotPresentation.Buffered == "345.21 MiB" && screenshotPresentation.Cached == "142.8 MiB",
     "all RouterPilot memory surfaces can consume one normalised LuCI-compatible display projection");
 var dashboardMemory = new DashboardViewModel
 {
@@ -39,7 +39,8 @@ var dashboardMemory = new DashboardViewModel
 };
 Require(dashboardMemory.MemoryUsed == screenshotPresentation.Used && dashboardMemory.MemoryAvailable == screenshotPresentation.Available &&
     dashboardMemory.MemoryBuffered == screenshotPresentation.Buffered && dashboardMemory.MemoryCache == screenshotPresentation.Cached &&
-    dashboardMemory.MemoryPercentage is > 59 and < 60,
+    dashboardMemory.MemoryPercentage is > 59 and < 60 && dashboardMemory.MemoryDetailsText ==
+    "Used: 1.15 GiB\nAvailable: 1.17 GiB\nBuffered: 345.21 MiB\nCached: 142.8 MiB",
     "Overview, Analytics, and Router System receive identical memory detail and percentage values from the shared snapshot");
 RouterMemoryTelemetry highCacheMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:1048576\nMemFree:900000\nMemAvailable:975000\nBuffers:50000\nCached:75000\n");

@@ -219,6 +219,9 @@ namespace RouterPilot.ViewModels
             IsKnownMemoryDetail(MemoryTotal) || IsKnownMemoryDetail(MemoryUsed) || IsKnownMemoryDetail(MemoryAvailable) ||
             IsKnownMemoryDetail(MemoryBuffered) || IsKnownMemoryDetail(MemoryCache);
 
+        public string MemoryDetailsText =>
+            $"Used: {MemoryUsed}\nAvailable: {MemoryAvailable}\nBuffered: {MemoryBuffered}\nCached: {MemoryCache}";
+
         private static bool IsKnownMemoryDetail(string? value) =>
             !string.IsNullOrWhiteSpace(value) && value != "-";
 
@@ -2117,19 +2120,25 @@ namespace RouterPilot.ViewModels
         }
 
         partial void OnMemoryUsedChanged(string value) =>
-            OnPropertyChanged(nameof(HasMemoryDetails));
+            NotifyMemoryDetailsChanged();
 
         partial void OnMemoryTotalChanged(string value) =>
-            OnPropertyChanged(nameof(HasMemoryDetails));
+            NotifyMemoryDetailsChanged();
 
         partial void OnMemoryAvailableChanged(string value) =>
-            OnPropertyChanged(nameof(HasMemoryDetails));
+            NotifyMemoryDetailsChanged();
 
         partial void OnMemoryBufferedChanged(string value) =>
-            OnPropertyChanged(nameof(HasMemoryDetails));
+            NotifyMemoryDetailsChanged();
 
         partial void OnMemoryCacheChanged(string value) =>
+            NotifyMemoryDetailsChanged();
+
+        private void NotifyMemoryDetailsChanged()
+        {
             OnPropertyChanged(nameof(HasMemoryDetails));
+            OnPropertyChanged(nameof(MemoryDetailsText));
+        }
 
 
         //

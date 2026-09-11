@@ -60,8 +60,8 @@ internal sealed record RouterMemoryPresentation(
     {
         double megabytes = kilobytes / 1024d;
         return megabytes >= 1024d
-            ? $"{megabytes / 1024d:0.0} GB"
-            : $"{megabytes:0} MB";
+            ? $"{megabytes / 1024d:0.##} GiB"
+            : $"{megabytes:0.##} MiB";
     }
 }
 

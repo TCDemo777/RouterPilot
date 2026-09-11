@@ -91,6 +91,13 @@ public partial class StatisticCard : UserControl
             typeof(StatisticCard),
             new PropertyMetadata(string.Empty, OnFooterTextChanged));
 
+    public static readonly DependencyProperty DetailTextProperty =
+        DependencyProperty.Register(
+            nameof(DetailText),
+            typeof(string),
+            typeof(StatisticCard),
+            new PropertyMetadata(string.Empty, OnDetailTextChanged));
+
     private static readonly DependencyPropertyKey SubtitleVisibilityPropertyKey =
         DependencyProperty.RegisterReadOnly(
             nameof(SubtitleVisibility),
@@ -130,6 +137,16 @@ public partial class StatisticCard : UserControl
 
     public static readonly DependencyProperty FooterVisibilityProperty =
         FooterVisibilityPropertyKey.DependencyProperty;
+
+    private static readonly DependencyPropertyKey DetailVisibilityPropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(DetailVisibility),
+            typeof(Visibility),
+            typeof(StatisticCard),
+            new PropertyMetadata(Visibility.Collapsed));
+
+    public static readonly DependencyProperty DetailVisibilityProperty =
+        DetailVisibilityPropertyKey.DependencyProperty;
 
     public StatisticCard()
     {
@@ -209,6 +226,12 @@ public partial class StatisticCard : UserControl
         set => SetValue(FooterTextProperty, value);
     }
 
+    public string DetailText
+    {
+        get => (string)GetValue(DetailTextProperty);
+        set => SetValue(DetailTextProperty, value);
+    }
+
     public Visibility SubtitleVisibility =>
         (Visibility)GetValue(SubtitleVisibilityProperty);
 
@@ -220,6 +243,9 @@ public partial class StatisticCard : UserControl
 
     public Visibility FooterVisibility =>
         (Visibility)GetValue(FooterVisibilityProperty);
+
+    public Visibility DetailVisibility =>
+        (Visibility)GetValue(DetailVisibilityProperty);
 
     private static void OnOptionalTextChanged(
         DependencyObject dependencyObject,
@@ -254,6 +280,15 @@ public partial class StatisticCard : UserControl
     {
         ((StatisticCard)dependencyObject).SetValue(
             FooterVisibilityPropertyKey,
+                HasText(args.NewValue) ? Visibility.Visible : Visibility.Collapsed);
+    }
+
+    private static void OnDetailTextChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs args)
+    {
+        ((StatisticCard)dependencyObject).SetValue(
+            DetailVisibilityPropertyKey,
             HasText(args.NewValue) ? Visibility.Visible : Visibility.Collapsed);
     }
 
@@ -271,6 +306,9 @@ public partial class StatisticCard : UserControl
         SetValue(
             FooterVisibilityPropertyKey,
             HasText(FooterText) ? Visibility.Visible : Visibility.Collapsed);
+        SetValue(
+            DetailVisibilityPropertyKey,
+            HasText(DetailText) ? Visibility.Visible : Visibility.Collapsed);
     }
 
     private static bool HasText(object? value) =>
