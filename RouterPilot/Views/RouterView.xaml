@@ -6,6 +6,15 @@
         <!-- All Router telemetry GroupBoxes use the shared card surface rather
              than WPF's default bright legend/border chrome. -->
         <Style TargetType="GroupBox" BasedOn="{StaticResource RouterPilot.CardGroup}" />
+        <Style x:Key="Router.PerformanceDetailLabel" TargetType="TextBlock" BasedOn="{DynamicResource Text.Secondary}">
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="Router.PerformanceDetailValue" TargetType="TextBlock" BasedOn="{DynamicResource Text.Body}">
+            <Setter Property="Grid.Column" Value="2" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </UserControl.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -295,11 +304,57 @@
                             <GroupBox Header="MEMORY / STORAGE" Margin="12,0,0,12">
                                 <StackPanel Margin="14">
                                     <TextBlock Style="{DynamicResource Text.Muted}" Text="Memory"/>
-                                    <TextBlock x:Name="PerformanceMemoryText" FontSize="16" Text="—"/>
-                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Storage"/>
-                                    <TextBlock x:Name="PerformanceStorageText" Text="—" TextWrapping="Wrap"/>
-                                    <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Router uptime"/>
-                                    <TextBlock x:Name="PerformanceUptimeText" Text="—"/>
+                                    <TextBlock x:Name="PerformanceMemoryUsageText" FontSize="16" Text="{Binding MemoryUsage}"/>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Style="{StaticResource Router.PerformanceDetailLabel}" Text="Used"/>
+                                        <TextBlock x:Name="PerformanceMemoryUsedText" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding MemoryUsed}"/>
+                                        <TextBlock Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Available"/>
+                                        <TextBlock x:Name="PerformanceMemoryAvailableText" Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding MemoryAvailable}"/>
+                                        <TextBlock Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Buffered"/>
+                                        <TextBlock x:Name="PerformanceMemoryBufferedText" Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding MemoryBuffered}"/>
+                                        <TextBlock Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Cached"/>
+                                        <TextBlock x:Name="PerformanceMemoryCachedText" Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding MemoryCache}"/>
+                                    </Grid>
+
+                                    <TextBlock Margin="0,14,0,0" Style="{DynamicResource Text.Muted}" Text="Storage"/>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Style="{StaticResource Router.PerformanceDetailLabel}" Text="Used"/>
+                                        <TextBlock x:Name="PerformanceStorageUsedText" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding StorageUsed}"/>
+                                        <TextBlock Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Available"/>
+                                        <TextBlock x:Name="PerformanceStorageAvailableText" Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding StorageAvailable}"/>
+                                        <TextBlock Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Total"/>
+                                        <TextBlock x:Name="PerformanceStorageTotalText" Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding StorageTotal}"/>
+                                        <TextBlock Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Usage"/>
+                                        <TextBlock x:Name="PerformanceStorageUsageText" Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding StorageUsage}"/>
+                                        <TextBlock Grid.Row="4" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailLabel}" Text="Mount"/>
+                                        <TextBlock x:Name="PerformanceStorageMountText" Grid.Row="4" Margin="0,4,0,0" Style="{StaticResource Router.PerformanceDetailValue}" Text="{Binding StorageMountPoint}"/>
+                                    </Grid>
+
+                                    <TextBlock Margin="0,14,0,0" Style="{DynamicResource Text.Muted}" Text="Router uptime"/>
+                                    <TextBlock x:Name="PerformanceUptimeText" Text="{Binding Uptime}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </GroupBox>
                         </UniformGrid>

@@ -240,6 +240,9 @@ namespace RouterPilot.ViewModels
         [ObservableProperty]
         private string storageTotal = "-";
 
+        [ObservableProperty]
+        private string storageMountPoint = "-";
+
         private DashboardHealthProjection CurrentHealthProjection => DashboardHealthProjection.Create(new DashboardHealthInput(
             RouterConnected,
             InternetConnected,
@@ -2273,6 +2276,7 @@ namespace RouterPilot.ViewModels
             StorageUsed = "-";
             StorageAvailable = "-";
             StorageTotal = "-";
+            StorageMountPoint = "-";
 
             if (string.IsNullOrWhiteSpace(rawStorage))
             {
@@ -2323,6 +2327,9 @@ namespace RouterPilot.ViewModels
                     StorageUsed = FormatStorageSize(parts[percentIndex - 2]);
                     StorageAvailable = FormatStorageSize(parts[percentIndex - 1]);
                 }
+
+                if (percentIndex + 1 < parts.Length)
+                    StorageMountPoint = string.Join(" ", parts.Skip(percentIndex + 1));
 
                 StorageUsage = $"{StoragePercentage:0.#}% used";
             }

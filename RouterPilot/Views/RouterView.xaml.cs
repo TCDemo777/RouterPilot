@@ -485,9 +485,6 @@ public partial class RouterView : UserControl
             PerformanceCpuText.Text = string.IsNullOrWhiteSpace(info.CpuUsage) || info.CpuUsage == "-" ? "—" : info.CpuUsage;
             PerformanceLoadText.Text = string.IsNullOrWhiteSpace(info.LoadAverage) || info.LoadAverage == "-" ? "—" : info.LoadAverage;
             PerformanceTemperatureText.Text = string.IsNullOrWhiteSpace(info.Temperature) || info.Temperature == "-" ? "—" : info.Temperature;
-            PerformanceMemoryText.Text = info.MemoryUsed == "-" || info.MemoryUsage == "-" ? "—" : $"{info.MemoryUsed} · {info.MemoryUsage}";
-            PerformanceStorageText.Text = string.IsNullOrWhiteSpace(info.StorageUsage) || info.StorageUsage == "-" ? "—" : info.StorageUsage;
-            PerformanceUptimeText.Text = string.IsNullOrWhiteSpace(info.Uptime) || info.Uptime == "-" ? "—" : info.Uptime;
             RecordPerformanceSample(info);
             PerformanceSessionText.Text = $"Session: {_performanceSamples.Count} successful observation(s)";
             PerformancePeakText.Text = $"Peaks — CPU: {FormatPercent(_performancePeakCpu)}  Memory: {FormatPercent(_performancePeakMemory)}  Temperature: {FormatTemperature(_performancePeakTemperature)}";
@@ -498,7 +495,6 @@ public partial class RouterView : UserControl
         {
             PerformanceStatus.Text = "Router resource telemetry is currently unavailable.";
             PerformanceCpuText.Text = PerformanceLoadText.Text = PerformanceTemperatureText.Text = "—";
-            PerformanceMemoryText.Text = PerformanceStorageText.Text = PerformanceUptimeText.Text = "—";
             System.Diagnostics.Debug.WriteLine($"Router performance refresh failed ({exception.GetType().Name}).");
         }
         finally { _performanceRefreshing = false; }
@@ -580,8 +576,16 @@ public partial class RouterView : UserControl
         StringBuilder text = new("RouterPilot Performance Summary\n");
         text.AppendLine($"CPU: {PerformanceCpuText.Text}");
         text.AppendLine($"Load: {PerformanceLoadText.Text}");
-        text.AppendLine($"Memory: {PerformanceMemoryText.Text}");
-        text.AppendLine($"Root storage: {PerformanceStorageText.Text}");
+        text.AppendLine($"Memory: {PerformanceMemoryUsageText.Text}");
+        text.AppendLine($"Memory used: {PerformanceMemoryUsedText.Text}");
+        text.AppendLine($"Memory available: {PerformanceMemoryAvailableText.Text}");
+        text.AppendLine($"Memory buffered: {PerformanceMemoryBufferedText.Text}");
+        text.AppendLine($"Memory cached: {PerformanceMemoryCachedText.Text}");
+        text.AppendLine($"Root storage used: {PerformanceStorageUsedText.Text}");
+        text.AppendLine($"Root storage available: {PerformanceStorageAvailableText.Text}");
+        text.AppendLine($"Root storage total: {PerformanceStorageTotalText.Text}");
+        text.AppendLine($"Root storage usage: {PerformanceStorageUsageText.Text}");
+        text.AppendLine($"Root storage mount: {PerformanceStorageMountText.Text}");
         text.AppendLine($"Temperature: {PerformanceTemperatureText.Text}");
         text.AppendLine($"Uptime: {PerformanceUptimeText.Text}");
         text.AppendLine($"{PerformancePeakText.Text}");

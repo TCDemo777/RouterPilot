@@ -41,7 +41,14 @@ Require(dashboardMemory.MemoryUsed == screenshotPresentation.Used && dashboardMe
     dashboardMemory.MemoryBuffered == screenshotPresentation.Buffered && dashboardMemory.MemoryCache == screenshotPresentation.Cached &&
     dashboardMemory.MemoryPercentage is > 59 and < 60 && dashboardMemory.MemoryDetailsText ==
     "Used: 1.15 GiB\nAvailable: 1.17 GiB\nBuffered: 345.21 MiB\nCached: 142.8 MiB",
-    "Overview, Analytics, and Router System receive identical memory detail and percentage values from the shared snapshot");
+    "Overview, Analytics, Router System, and Router Performance receive identical memory detail and percentage values from the shared snapshot");
+dashboardMemory.UpdateStorageUsage("overlayfs:/overlay 7544832 472576 7072256 6% /");
+Require(dashboardMemory.StorageUsed != "-" && dashboardMemory.StorageAvailable != "-" && dashboardMemory.StorageTotal != "-" &&
+    dashboardMemory.StorageMountPoint == "/" && dashboardMemory.StorageUsage == "6% used",
+    "root storage values and mount point are parsed from the existing df telemetry");
+dashboardMemory.UpdateStorageUsage("overlayfs:/overlay 7544832 472576 7072256 6% /mnt/a-very-long-storage-mount-name");
+Require(dashboardMemory.StorageMountPoint == "/mnt/a-very-long-storage-mount-name",
+    "long storage mount points remain distinct and available for wrapped presentation");
 RouterMemoryTelemetry highCacheMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:1048576\nMemFree:900000\nMemAvailable:975000\nBuffers:50000\nCached:75000\n");
 Require(highCacheMemory.UsedKilobytes == 148576 && highCacheMemory.UsagePercentage is > 14 and < 15,
