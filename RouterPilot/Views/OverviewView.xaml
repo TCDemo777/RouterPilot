@@ -43,6 +43,11 @@
         <Style x:Key="Overview.CardHeading" TargetType="TextBlock" BasedOn="{StaticResource Text.SectionTitle}">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+
+        <Style x:Key="Overview.SystemHealthMetricCard" TargetType="controls:StatisticCard">
+            <Setter Property="MinHeight" Value="206" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -127,8 +132,8 @@
                     Value="{Binding InternetRouteStatusText}" />
 
                 <controls:StatisticCard
+                    Style="{StaticResource Overview.SystemHealthMetricCard}"
                     Margin="0,0,12,12"
-                    Height="146"
                     AccentBrush="{Binding CpuHealthColour}"
                     FooterText="{Binding CpuHealthText}"
                     IconBackground="{DynamicResource Brush.WarningSubtle}"
@@ -139,8 +144,8 @@
                     Value="{Binding CpuUsageDisplay}" />
 
                 <controls:StatisticCard
+                    Style="{StaticResource Overview.SystemHealthMetricCard}"
                     Margin="0,0,0,12"
-                    Height="206"
                     AccentBrush="{Binding MemoryHealthColour}"
                     DetailText="{Binding MemoryDetailsText}"
                     IconBackground="{DynamicResource Brush.PrimarySubtle}"
@@ -150,8 +155,8 @@
                     Value="{Binding MemoryUsage}" />
 
                 <controls:StatisticCard
+                    Style="{StaticResource Overview.SystemHealthMetricCard}"
                     Margin="0,0,0,12"
-                    Height="146"
                     AccentBrush="{Binding TemperatureHealthColour}"
                     FooterText="{Binding TemperatureHealthText}"
                     IconBackground="{DynamicResource Brush.WarningSubtle}"
