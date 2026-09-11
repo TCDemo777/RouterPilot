@@ -286,8 +286,8 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Performance">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,18,0,0">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,18,12,0">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Performance"/>
                         <TextBlock x:Name="PerformanceStatus" Margin="0,4,0,16" Style="{DynamicResource Text.Muted}" Text="Loading router resource telemetry…"/>
                         <UniformGrid Columns="2">
