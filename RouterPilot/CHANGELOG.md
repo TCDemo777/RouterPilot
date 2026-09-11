@@ -2,18 +2,26 @@
 
 ## 2.4.3
 
-### Router telemetry and interface
+### Memory and router telemetry
 
 - Aligned router memory reporting with the authoritative memory telemetry and made Used, Available, Buffered and Cached values consistent across Overview, Router System and Router Performance.
-- Expanded the Overview and Router Performance memory presentation with the detailed memory values, and improved the Memory / Storage layout for readable responsive sizing.
+- Added detailed Used, Available, Buffered and Cached memory values to the Overview and Router Performance cards, using the same normalized values as Router System.
+- Applied refreshed memory snapshots together across RouterPilot so memory values and percentage update promptly after an existing refresh without requiring navigation or a separate memory poll.
+- Improved the Router Performance Memory / Storage layout with labelled storage values, responsive sizing and clearer spacing beside the scrollbar.
 - Aligned the Overview CPU, Memory and Router Temperature cards to the same outer height while preserving the detailed memory information.
-- Fixed RouterView style-resource loading that could cause a runtime XAML navigation failure.
 
-### Connectivity and reliability
+### VPN and connectivity
 
 - Improved AdGuard Home recovery after Windows sleep/resume so a transient early resume failure does not prevent automatic recovery once connectivity is available.
 - Corrected Overview Internet status so a connected VPN tunnel is shown as "Connected via VPN" only when the router's default Internet traffic is routed through it; client-specific and unknown routing scopes remain "Connected" while VPN details stay visible.
+
+### Clients
+
 - Fixed client presence refresh so clients absent from a newer authoritative inventory do not remain shown as recently active indefinitely.
+
+### Interface and reliability
+
+- Fixed RouterView style-resource loading that could cause a runtime XAML navigation failure.
 
 ## 2.4.2
 
