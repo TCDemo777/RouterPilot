@@ -44,11 +44,14 @@ public partial class RouterView : UserControl
     private RouterManager? _portsManager;
     private RouterManager? _wifiManager;
     private readonly RouterLogsViewModel _routerLogsViewModel;
+    private readonly DashboardViewModel _dashboard;
 
     public RouterView()
     {
         InitializeComponent();
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
+        _dashboard = ((App)Application.Current).Services.GetRequiredService<DashboardViewModel>();
+        DataContext = _dashboard;
         _routerLogsViewModel = ((App)Application.Current).Services.GetRequiredService<RouterLogsViewModel>();
         _routerLogsViewModel.PropertyChanged += RouterLogsViewModel_PropertyChanged;
         PortsList.ItemsSource = _ports;
@@ -485,6 +488,7 @@ public partial class RouterView : UserControl
             PerformanceCpuText.Text = string.IsNullOrWhiteSpace(info.CpuUsage) || info.CpuUsage == "-" ? "—" : info.CpuUsage;
             PerformanceLoadText.Text = string.IsNullOrWhiteSpace(info.LoadAverage) || info.LoadAverage == "-" ? "—" : info.LoadAverage;
             PerformanceTemperatureText.Text = string.IsNullOrWhiteSpace(info.Temperature) || info.Temperature == "-" ? "—" : info.Temperature;
+            _dashboard.ApplyMemoryTelemetry(info);
             RecordPerformanceSample(info);
             PerformanceSessionText.Text = $"Session: {_performanceSamples.Count} successful observation(s)";
             PerformancePeakText.Text = $"Peaks — CPU: {FormatPercent(_performancePeakCpu)}  Memory: {FormatPercent(_performancePeakMemory)}  Temperature: {FormatTemperature(_performancePeakTemperature)}";

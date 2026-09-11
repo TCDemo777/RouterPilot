@@ -32,6 +32,8 @@ namespace RouterPilot.Models
 
         public string MemoryUsage { get; set; } = "-";
 
+        public double? MemoryUsagePercentage { get; set; }
+
         public string MemoryTotal { get; set; } = "-";
 
         public string MemoryUsed { get; set; } = "-";

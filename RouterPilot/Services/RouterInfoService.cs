@@ -318,6 +318,7 @@ namespace RouterPilot.Services
                 RouterMemoryTelemetry snapshot = RouterMemoryTelemetryParser.Parse(memory);
                 RouterMemoryPresentation presentation = RouterMemoryPresentation.From(snapshot);
                 info.MemoryUsage = presentation.Usage;
+                info.MemoryUsagePercentage = snapshot.UsagePercentage;
                 info.MemoryTotal = presentation.Total;
                 info.MemoryUsed = presentation.Used;
                 info.MemoryAvailable = presentation.Available;
@@ -327,6 +328,7 @@ namespace RouterPilot.Services
             catch
             {
                 info.MemoryUsage = "-";
+                info.MemoryUsagePercentage = null;
                 info.MemoryTotal = "-";
                 info.MemoryUsed = "-";
                 info.MemoryAvailable = "-";

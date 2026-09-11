@@ -222,6 +222,83 @@ namespace RouterPilot.ViewModels
         public string MemoryDetailsText =>
             $"Used: {MemoryUsed}\nAvailable: {MemoryAvailable}\nBuffered: {MemoryBuffered}\nCached: {MemoryCache}";
 
+        /// <summary>
+        /// Applies one already-normalized router memory observation as a single
+        /// presentation generation. Consumers never see a new percentage with
+        /// detail values from the preceding router refresh.
+        /// </summary>
+        public void ApplyMemoryTelemetry(RouterInfo info)
+        {
+            ArgumentNullException.ThrowIfNull(info);
+            ApplyMemoryTelemetry(
+                info.MemoryUsage,
+                info.MemoryUsagePercentage,
+                info.MemoryTotal,
+                info.MemoryUsed,
+                info.MemoryAvailable,
+                info.MemoryBuffered,
+                info.MemoryCache);
+        }
+
+        public void ClearMemoryTelemetry() =>
+            ApplyMemoryTelemetry("-", null, "-", "-", "-", "-", "-");
+
+#pragma warning disable MVVMTK0034 // Deliberately batch generated-property backing fields before raising notifications.
+        private void ApplyMemoryTelemetry(
+            string usage,
+            double? usagePercentage,
+            string total,
+            string used,
+            string available,
+            string buffered,
+            string cached)
+        {
+            double percentage = usagePercentage is double value && double.IsFinite(value)
+                ? Math.Clamp(value, 0, 100)
+                : 0;
+            bool usageChanged = memoryUsage != usage;
+            bool totalChanged = memoryTotal != total;
+            bool usedChanged = memoryUsed != used;
+            bool availableChanged = memoryAvailable != available;
+            bool bufferedChanged = memoryBuffered != buffered;
+            bool cachedChanged = memoryCache != cached;
+            bool percentageChanged = memoryPercentage != percentage;
+
+            memoryUsage = usage;
+            memoryTotal = total;
+            memoryUsed = used;
+            memoryAvailable = available;
+            memoryBuffered = buffered;
+            memoryCache = cached;
+            memoryPercentage = percentage;
+
+            if (usageChanged) OnPropertyChanged(nameof(MemoryUsage));
+            if (totalChanged) OnPropertyChanged(nameof(MemoryTotal));
+            if (usedChanged) OnPropertyChanged(nameof(MemoryUsed));
+            if (availableChanged) OnPropertyChanged(nameof(MemoryAvailable));
+            if (bufferedChanged) OnPropertyChanged(nameof(MemoryBuffered));
+            if (cachedChanged) OnPropertyChanged(nameof(MemoryCache));
+            if (percentageChanged) OnPropertyChanged(nameof(MemoryPercentage));
+
+            if (totalChanged || usedChanged || availableChanged || bufferedChanged || cachedChanged)
+                NotifyMemoryDetailsChanged();
+
+            if (percentageChanged && MemoryUsage != "-")
+            {
+                AddHistoryPoint(MemoryHistory, percentage);
+                UpdateSparklineAxis(MemoryHistory, MemorySparklineYAxes[0]);
+                OnPropertyChanged(nameof(HasMemoryTrend));
+                OnPropertyChanged(nameof(IsMemoryTrendCollecting));
+            }
+
+            if (usageChanged || totalChanged || usedChanged || availableChanged || bufferedChanged || cachedChanged || percentageChanged)
+            {
+                NotifyResourceHealthChanged();
+                OnPropertyChanged(nameof(NetworkHealthRouterSummary));
+            }
+        }
+#pragma warning restore MVVMTK0034
+
         private static bool IsKnownMemoryDetail(string? value) =>
             !string.IsNullOrWhiteSpace(value) && value != "-";
 

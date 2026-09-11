@@ -28,20 +28,33 @@ Require(screenshotPresentation.Usage is not "-" && screenshotPresentation.Total 
     screenshotPresentation.Used == "1.15 GiB" && screenshotPresentation.Available == "1.17 GiB" &&
     screenshotPresentation.Buffered == "345.21 MiB" && screenshotPresentation.Cached == "142.8 MiB",
     "all RouterPilot memory surfaces can consume one normalised LuCI-compatible display projection");
-var dashboardMemory = new DashboardViewModel
+var dashboardMemory = new DashboardViewModel();
+var memorySnapshotA = new RouterInfo
 {
-    MemoryUsage = screenshotPresentation.Usage,
-    MemoryTotal = screenshotPresentation.Total,
-    MemoryUsed = screenshotPresentation.Used,
-    MemoryAvailable = screenshotPresentation.Available,
-    MemoryBuffered = screenshotPresentation.Buffered,
+    MemoryUsage = screenshotPresentation.Usage, MemoryUsagePercentage = screenshotEquivalentMemory.UsagePercentage,
+    MemoryTotal = screenshotPresentation.Total, MemoryUsed = screenshotPresentation.Used,
+    MemoryAvailable = screenshotPresentation.Available, MemoryBuffered = screenshotPresentation.Buffered,
     MemoryCache = screenshotPresentation.Cached
 };
+dashboardMemory.ApplyMemoryTelemetry(memorySnapshotA);
 Require(dashboardMemory.MemoryUsed == screenshotPresentation.Used && dashboardMemory.MemoryAvailable == screenshotPresentation.Available &&
     dashboardMemory.MemoryBuffered == screenshotPresentation.Buffered && dashboardMemory.MemoryCache == screenshotPresentation.Cached &&
     dashboardMemory.MemoryPercentage is > 59 and < 60 && dashboardMemory.MemoryDetailsText ==
     "Used: 1.15 GiB\nAvailable: 1.17 GiB\nBuffered: 345.21 MiB\nCached: 142.8 MiB",
     "Overview, Analytics, Router System, and Router Performance receive identical memory detail and percentage values from the shared snapshot");
+var notifiedMemoryProperties = new List<string?>();
+dashboardMemory.PropertyChanged += (_, args) => notifiedMemoryProperties.Add(args.PropertyName);
+var memorySnapshotB = new RouterInfo
+{
+    MemoryUsage = "25%", MemoryUsagePercentage = 25, MemoryTotal = "2 GiB", MemoryUsed = "512 MiB",
+    MemoryAvailable = "1 GiB", MemoryBuffered = "256 MiB", MemoryCache = "128 MiB"
+};
+dashboardMemory.ApplyMemoryTelemetry(memorySnapshotB);
+Require(dashboardMemory.MemoryUsage == "25%" && dashboardMemory.MemoryPercentage == 25 && dashboardMemory.MemoryUsed == "512 MiB" &&
+    dashboardMemory.MemoryAvailable == "1 GiB" && dashboardMemory.MemoryBuffered == "256 MiB" && dashboardMemory.MemoryCache == "128 MiB" &&
+    notifiedMemoryProperties.Contains(nameof(DashboardViewModel.MemoryUsage)) && notifiedMemoryProperties.Contains(nameof(DashboardViewModel.MemoryPercentage)) &&
+    notifiedMemoryProperties.Contains(nameof(DashboardViewModel.MemoryDetailsText)) && notifiedMemoryProperties.Contains(nameof(DashboardViewModel.NetworkHealthRouterSummary)),
+    "a new shared memory snapshot immediately updates Overview, Router System, Router Performance, and dependent health presentation without navigation");
 dashboardMemory.UpdateStorageUsage("overlayfs:/overlay 7544832 472576 7072256 6% /");
 Require(dashboardMemory.StorageUsed != "-" && dashboardMemory.StorageAvailable != "-" && dashboardMemory.StorageTotal != "-" &&
     dashboardMemory.StorageMountPoint == "/" && dashboardMemory.StorageUsage == "6% used",

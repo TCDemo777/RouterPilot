@@ -388,23 +388,7 @@ namespace RouterPilot.Views
                 _viewModel.LoadAverage =
                     info.LoadAverage;
 
-                _viewModel.MemoryUsage =
-                    info.MemoryUsage;
-
-                _viewModel.MemoryTotal =
-                    info.MemoryTotal;
-
-                _viewModel.MemoryUsed =
-                    info.MemoryUsed;
-
-                _viewModel.MemoryAvailable =
-                    info.MemoryAvailable;
-
-                _viewModel.MemoryBuffered =
-                    info.MemoryBuffered;
-
-                _viewModel.MemoryCache =
-                    info.MemoryCache;
+                _viewModel.ApplyMemoryTelemetry(info);
 
                 _viewModel.UpdateStorageUsage(
                     info.StorageUsage);
@@ -1184,23 +1168,7 @@ namespace RouterPilot.Views
             _viewModel.CpuUtilisationPending =
                 false;
 
-            _viewModel.MemoryUsage =
-                "-";
-
-            _viewModel.MemoryTotal =
-                "-";
-
-            _viewModel.MemoryUsed =
-                "-";
-
-            _viewModel.MemoryAvailable =
-                "-";
-
-            _viewModel.MemoryBuffered =
-                "-";
-
-            _viewModel.MemoryCache =
-                "-";
+            _viewModel.ClearMemoryTelemetry();
 
             _viewModel.UpdateStorageUsage(
                 null);
