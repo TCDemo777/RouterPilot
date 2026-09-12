@@ -295,7 +295,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         OnPropertyChanged(nameof(TrafficSessionStatus));
     }
 
-    private static string FormatRate(long bytesPerSecond) => $"{FormatBytes(bytesPerSecond)}/s";
+    private static string FormatRate(long bytesPerSecond) => TrafficRateFormatter.Format(bytesPerSecond);
 
     private void Apply(DataStatisticsReadResult result)
     {

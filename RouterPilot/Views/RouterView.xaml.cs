@@ -53,6 +53,7 @@ public partial class RouterView : UserControl
         _dashboard = ((App)Application.Current).Services.GetRequiredService<DashboardViewModel>();
         DataContext = _dashboard;
         _routerLogsViewModel = ((App)Application.Current).Services.GetRequiredService<RouterLogsViewModel>();
+        RouterLogsTabContent.Content = new RouterLogsTabView();
         _routerLogsViewModel.PropertyChanged += RouterLogsViewModel_PropertyChanged;
         PortsList.ItemsSource = _ports;
         PortsHistoryList.ItemsSource = _portHistory;
@@ -105,9 +106,10 @@ public partial class RouterView : UserControl
 
     private void OpenRouterLogs_Click(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is DashboardWindow dashboard)
-            dashboard.NavigateToRouterLogs();
+        NavigateToLogs();
     }
+
+    public void NavigateToLogs() => RouterTabs.SelectedIndex = 7;
 
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
     {

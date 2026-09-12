@@ -8,12 +8,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
 using RouterPilot.Services;
+using RouterPilot.ViewModels;
 
 static void Require(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
 }
+
+string routerLogFixture = string.Join('\n', Enumerable.Range(0, 130)
+    .Select(index => $"<6>Sat router log entry {index}"));
+IReadOnlyList<RouterLogEntry> boundedRouterLogs = RouterLogParser.Parse(
+    routerLogFixture,
+    RouterLogsViewModel.RecentLogCapacity);
+Require(boundedRouterLogs.Count == RouterLogsViewModel.RecentLogCapacity,
+    "router logs retain the configured bounded capacity");
+Require(boundedRouterLogs.First().Message == "router log entry 30" &&
+        boundedRouterLogs.Last().Message == "router log entry 129",
+    "router logs retain the newest entries while preserving source order before newest-first projection");
+Require(boundedRouterLogs.Select(entry => entry.Message).Distinct().Count() == RouterLogsViewModel.RecentLogCapacity,
+    "router logs do not duplicate entries while applying the bound");
 
 MethodInfo? hasUsableIp = typeof(RouterPilot.ViewModels.ClientsViewModel).GetMethod(
     "HasUsableClientIp", BindingFlags.Static | BindingFlags.NonPublic);

@@ -6,9 +6,10 @@ namespace RouterPilot.Services;
 public static class RouterLogParser
 {
     private static readonly Regex Priority = new(@"^<(?<n>[0-7])>\s*", RegexOptions.Compiled);
-    public static IReadOnlyList<RouterLogEntry> Parse(string? output, int maximum = 250)
+    public static IReadOnlyList<RouterLogEntry> Parse(string? output, int maximum = 100)
     {
-        List<RouterLogEntry> entries = new();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
+        Queue<RouterLogEntry> entries = new(maximum);
         foreach (string raw in (output ?? string.Empty).Split('\n'))
         {
             string line = raw.TrimEnd('\r');
@@ -21,10 +22,10 @@ public static class RouterLogParser
             int firstSpace = message.IndexOf(' ');
             if (firstSpace > 0 && firstSpace < 32) { timestamp = message[..firstSpace]; message = message[(firstSpace + 1)..].Trim(); }
             string source = SourceFor(message);
-            entries.Add(new RouterLogEntry(timestamp, severity, CategoryFor(message), source, message));
-            if (entries.Count >= maximum) break;
+            entries.Enqueue(new RouterLogEntry(timestamp, severity, CategoryFor(message), source, message));
+            if (entries.Count > maximum) entries.Dequeue();
         }
-        return entries;
+        return entries.ToList();
     }
 
     private static string SeverityFor(int n) => n switch { 0 => "Emergency", 1 => "Alert", 2 => "Critical", 3 => "Error", 4 => "Warning", 5 => "Notice", 6 => "Info", 7 => "Debug", _ => "Unknown" };

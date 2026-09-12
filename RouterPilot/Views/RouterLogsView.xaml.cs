@@ -6,13 +6,22 @@ namespace RouterPilot.Views;
 public partial class RouterLogsView : System.Windows.Controls.UserControl
 {
     private readonly RouterLogsViewModel _viewModel;
-    public RouterLogsView()
+    private readonly bool _refreshOnLoad;
+
+    public RouterLogsView(bool refreshOnLoad = true)
     {
         InitializeComponent();
+        _refreshOnLoad = refreshOnLoad;
         _viewModel = ((App)Application.Current).Services.GetRequiredService<RouterLogsViewModel>();
         DataContext = _viewModel;
         ConfigureSearchVisuals();
-        Loaded += async (_, _) => await _viewModel.RefreshAsync();
+        Loaded += RouterLogsView_Loaded;
+    }
+
+    private async void RouterLogsView_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_refreshOnLoad)
+            await _viewModel.RefreshAsync();
     }
 
     private void ConfigureSearchVisuals()

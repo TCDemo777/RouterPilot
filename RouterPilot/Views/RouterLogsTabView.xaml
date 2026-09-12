@@ -1,0 +1,164 @@
+<UserControl x:Class="RouterPilot.Views.RouterLogsTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Brush.WindowBackground}">
+    <UserControl.Resources>
+        <!-- Keep the row and cell visuals driven solely by the row's IsSelected
+             state; the default DataGrid cell template can otherwise retain a
+             current-cell selection brush independently of SelectedItem. -->
+        <Style x:Key="RouterLogs.Row" TargetType="DataGridRow">
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.SurfaceHover}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.PrimarySubtle}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.PrimarySubtleBorder}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RouterLogs.Cell" TargetType="DataGridCell">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.PrimarySubtle}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Padding="0,0,12,0">
+        <StackPanel Margin="0,18,0,0">
+            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router Logs" />
+            <TextBlock Margin="0,5,0,14"
+                       Style="{DynamicResource Text.Muted}"
+                       Text="Search and filter the bounded recent router log entries."
+                       TextWrapping="Wrap" />
+
+            <Border Style="{DynamicResource Card}" Padding="14">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Margin="0,0,10,0">
+                            <TextBox x:Name="SearchBox"
+                                     Height="36"
+                                     Padding="36,7,10,7"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="Search router logs"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource Search.Icon}" />
+                            <TextBlock Margin="36,0,10,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Foreground="{DynamicResource Brush.TextSecondary}"
+                                       Text="Search">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Text, ElementName=SearchBox}" Value="" />
+                                                    <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <Button Grid.Column="1"
+                                Height="36"
+                                Padding="16,0"
+                                Content="Refresh"
+                                Command="{Binding RefreshCommand}" />
+                    </Grid>
+
+                    <WrapPanel Margin="0,12,0,0" VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,7,0" VerticalAlignment="Center" Text="Severity" />
+                        <ComboBox Width="130"
+                                  Height="36"
+                                  Margin="0,0,16,0"
+                                  Style="{StaticResource RouterPilot.ComboBox}"
+                                  ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}"
+                                  ItemsSource="{Binding SeverityOptions}"
+                                  SelectedItem="{Binding SelectedSeverity}" />
+                        <TextBlock Margin="0,0,7,0" VerticalAlignment="Center" Text="Category" />
+                        <ComboBox Width="155"
+                                  Height="36"
+                                  Style="{StaticResource RouterPilot.ComboBox}"
+                                  ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}"
+                                  ItemsSource="{Binding CategoryOptions}"
+                                  SelectedItem="{Binding SelectedCategory}" />
+                    </WrapPanel>
+
+                    <Border Margin="0,12,0,0"
+                            Height="112"
+                            Padding="12"
+                            Style="{DynamicResource Card.Compact}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Selected event" />
+                            <ScrollViewer Grid.Row="1"
+                                          Margin="0,5,0,0"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding SelectedEntry.Message, TargetNullValue=Select an event to view its full message.}"
+                                           TextWrapping="Wrap" />
+                            </ScrollViewer>
+                            <TextBlock Grid.Row="2"
+                                       Margin="0,5,0,0"
+                                       Style="{DynamicResource Text.Muted}"
+                                       Text="{Binding SelectedEntry.Category}" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Margin="0,12,0,8"
+                               Style="{DynamicResource Text.Muted}"
+                               Text="{Binding StatusMessage}" />
+
+                    <DataGrid AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserResizeRows="False"
+                              HeadersVisibility="Column"
+                              ItemsSource="{Binding Entries}"
+                              SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow"
+                              RowStyle="{StaticResource RouterLogs.Row}"
+                              CellStyle="{StaticResource RouterLogs.Cell}"
+                              MinHeight="280">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="70" Header="TIME" Binding="{Binding Timestamp}" />
+                            <DataGridTextColumn Width="95" Header="SEVERITY" Binding="{Binding Severity}" />
+                            <DataGridTextColumn Width="145" Header="CATEGORY" Binding="{Binding Category}" />
+                            <DataGridTextColumn Width="100" Header="SOURCE" Binding="{Binding Source}" />
+                            <DataGridTextColumn Width="*" Header="MESSAGE" Binding="{Binding Message}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,10,0,0"
+                               Style="{DynamicResource Text.Muted}"
+                               Text="{Binding EmptyMessage}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

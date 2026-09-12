@@ -1396,7 +1396,13 @@ namespace RouterPilot.Views
         }
 
         public void NavigateToRouterOverview() => Router_Click(this, new RoutedEventArgs());
-        public void NavigateToRouterLogs() { PageContent.Content = new RouterLogsView(); SelectNavigationButton(MaintenanceButton); }
+        public void NavigateToRouterLogs()
+        {
+            RouterView router = PageContent.Content as RouterView ?? new RouterView();
+            PageContent.Content = router;
+            SelectNavigationButton(RouterButton);
+            router.NavigateToLogs();
+        }
 
         private void NavigateToMaintenanceFirmware()
         {

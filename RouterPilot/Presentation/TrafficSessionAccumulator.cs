@@ -99,4 +99,9 @@ public readonly record struct TrafficSessionSample(
     long UploadBytesPerSecond,
     long DownloadedBytes,
     long UploadedBytes,
-    string InterfaceName);
+    string InterfaceName)
+{
+    public string DownloadRateDisplay => TrafficRateFormatter.Format(DownloadBytesPerSecond);
+
+    public string UploadRateDisplay => TrafficRateFormatter.Format(UploadBytesPerSecond);
+}

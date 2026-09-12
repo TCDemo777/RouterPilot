@@ -8,6 +8,7 @@ namespace RouterPilot.ViewModels;
 
 public partial class RouterLogsViewModel : ObservableObject
 {
+    public const int RecentLogCapacity = 100;
     private readonly IRouterManagerProvider _provider;
     private readonly IRouterProfileService _profiles;
     private List<RouterLogEntry> _all = new();
@@ -53,7 +54,7 @@ public partial class RouterLogsViewModel : ObservableObject
         try
         {
             string output = await (await _provider.GetRouterManagerAsync(_loadCancellation.Token)).GetRouterLogsAsync(_loadCancellation.Token);
-            _all = RouterLogParser.Parse(output, 250).Reverse().ToList();
+            _all = RouterLogParser.Parse(output, RecentLogCapacity).Reverse().ToList();
             HasLoaded = true;
             ApplyFilter(); StatusMessage = $"Showing {_all.Count:N0} bounded recent router log entries.";
             NotifySummaryChanged();

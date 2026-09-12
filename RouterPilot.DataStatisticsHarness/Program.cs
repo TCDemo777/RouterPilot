@@ -124,6 +124,11 @@ Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(6), "w
     "Interface changes must establish a new baseline.");
 Require(traffic.Add(new NetworkTrafficObservation(350, 260, t0.AddSeconds(8), "wwan")) is { DownloadBytesPerSecond: 0, UploadBytesPerSecond: 0 },
     "A genuine zero-rate sample was not retained.");
+Require(TrafficRateFormatter.Format(10_764) == "10.51 KiB/s" &&
+        TrafficRateFormatter.Format(12_346) == "12.06 KiB/s" &&
+        TrafficRateFormatter.Format(76_477) == "74.68 KiB/s" &&
+        TrafficRateFormatter.Format(2_107_392) == "2.01 MiB/s",
+    "Recent samples and main traffic figures share binary rate formatting and precision.");
 var throttled = new TrafficSessionAccumulator();
 Require(throttled.Add(new NetworkTrafficObservation(0, 0, t0, "wan")) is null,
     "Throttled traffic baseline must not count lifetime bytes.");
