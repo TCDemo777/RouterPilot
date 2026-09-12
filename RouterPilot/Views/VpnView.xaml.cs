@@ -722,11 +722,12 @@ public partial class VpnView : UserControl
         finally { _liveStatus.StatusChanged -= OnStatusChanged; }
     }
 
-    private async void VpnTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void VpnTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.Source != VpnTabs) return;
-        bool profiles = VpnTabs.SelectedIndex == 1; DashboardContent.Visibility = profiles ? Visibility.Collapsed : Visibility.Visible; ProfilesContent.Visibility = profiles ? Visibility.Visible : Visibility.Collapsed;
-        await RefreshAsync();
+        bool tailscale = VpnTabs.SelectedIndex == 1;
+        VpnClientContent.Visibility = tailscale ? Visibility.Collapsed : Visibility.Visible;
+        TailscaleContent.Visibility = tailscale ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void SetVpnCapability(RouterCapabilityState telemetryState)

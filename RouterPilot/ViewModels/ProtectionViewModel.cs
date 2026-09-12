@@ -343,6 +343,23 @@ namespace RouterPilot.ViewModels
             }
         }
 
+        /// <summary>
+        /// Runs the same full, transport-invalidating read-only refresh as the
+        /// user-facing Refresh All command. The dashboard resume coordinator
+        /// calls this only after it has re-established router connectivity, so
+        /// an already-open Protection view cannot remain stale after wake.
+        /// </summary>
+        internal async Task<bool> RecoverAfterResumeAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_disposed || IsBusy)
+                return false;
+
+            await RefreshAllAsync(refreshTransport: true, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return IsAdGuardAvailable;
+        }
+
         public void Stop()
         {
             _timer.Stop();
@@ -389,7 +406,7 @@ namespace RouterPilot.ViewModels
             _disposalCancellation.Cancel();
         }
 
-        private async Task RefreshAllAsync(bool refreshTransport)
+        private async Task RefreshAllAsync(bool refreshTransport, CancellationToken cancellationToken = default)
         {
             if (IsBusy) return;
             IsBusy = true;
@@ -408,7 +425,12 @@ namespace RouterPilot.ViewModels
             CancellationTokenSource activation = _activationCancellation ?? _disposalCancellation;
             string profileId = _activeRouter.CurrentProfileId;
             long contextVersion = _activeRouter.Version;
-            CancellationToken token = _activationCancellation?.Token ?? _disposalCancellation.Token;
+            using CancellationTokenSource? linkedCancellation = cancellationToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(
+                    _activationCancellation?.Token ?? _disposalCancellation.Token,
+                    cancellationToken)
+                : null;
+            CancellationToken token = linkedCancellation?.Token ?? _activationCancellation?.Token ?? _disposalCancellation.Token;
             bool IsCurrent() => !_disposed && !token.IsCancellationRequested && profileId == _activeRouter.CurrentProfileId && contextVersion == _activeRouter.Version && _refreshEpoch.IsCurrent(refreshEpoch);
             _refreshActivation = activation;
             try
@@ -470,6 +492,7 @@ namespace RouterPilot.ViewModels
                 foreach (var rewrite in rewrites) DnsRewrites.Add(rewrite);
                 ApplyQueryLog(queryLog);
                 IsAdGuardAvailable = true;
+                _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Available);
                 Message = "Protection settings refreshed.";
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -480,6 +503,7 @@ namespace RouterPilot.ViewModels
                 if (!IsCurrent()) return;
                 HasFilteringRulesData = false;
                 IsAdGuardAvailable = false;
+                _adGuardAvailabilityService.SetState(AdGuardAvailabilityState.Unavailable);
                 if (BlockedServices.Count == 0)
                     BlockedServicesStatus = "Blocked services could not be loaded. Use Refresh all to try again.";
                 Message = "AdGuard Home is unavailable. Router monitoring remains active.";

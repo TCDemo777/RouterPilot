@@ -1870,6 +1870,23 @@ namespace RouterPilot.Views
                     if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
                         return;
 
+                    // Dashboard telemetry proves the router is usable, but
+                    // the Protection page owns the full AdGuard snapshot that
+                    // the user-facing Refresh All command successfully uses.
+                    // Reuse that exact recovery boundary after resume rather
+                    // than leaving an already-open Protection view stale.
+                    if (_viewModel.RouterConnected)
+                    {
+                        ResumeTrace($"Resume recovery attempt {attempt + 1} starting canonical Protection Refresh All recovery");
+                        bool protectionRecovered = await _protectionViewModel.RecoverAfterResumeAsync(recoveryToken);
+                        ResumeTrace(protectionRecovered
+                            ? $"Resume recovery attempt {attempt + 1} canonical Protection recovery succeeded"
+                            : $"Resume recovery attempt {attempt + 1} canonical Protection recovery did not restore AdGuard");
+                    }
+
+                    if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
+                        return;
+
                     if (ResumeRecoveryPolicy.IsRecovered(
                         _viewModel.RouterConnected,
                         _adGuardAvailabilityService.IsAvailable))

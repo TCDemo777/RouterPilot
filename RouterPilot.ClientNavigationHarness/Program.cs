@@ -129,10 +129,12 @@ Require(!AdGuardRuntimeStatusParser.IsRunning("not running", ""),
     "AdGuard stopped state is not mistaken for running");
 Require(AdGuardRuntimeStatusParser.IsRunning("running", ""),
     "AdGuard init status running state is preserved");
-Require(ResumeRecoveryPolicy.Delays.Length == 3 &&
+Require(ResumeRecoveryPolicy.Delays.Length == 6 &&
     ResumeRecoveryPolicy.Delays[0] < ResumeRecoveryPolicy.Delays[1] &&
-    ResumeRecoveryPolicy.Delays[1] < ResumeRecoveryPolicy.Delays[2],
-    "Resume recovery uses a bounded increasing retry sequence");
+    ResumeRecoveryPolicy.Delays[1] < ResumeRecoveryPolicy.Delays[2] &&
+    ResumeRecoveryPolicy.Delays.Aggregate(TimeSpan.Zero, (total, delay) => total + delay) >= TimeSpan.FromSeconds(110) &&
+    ResumeRecoveryPolicy.Delays.Aggregate(TimeSpan.Zero, (total, delay) => total + delay) < ResumeRecoveryPolicy.MaximumRecoveryWindow,
+    "Resume recovery uses bounded attempts throughout the existing re-establishment window");
 Require(ResumeRecoveryPolicy.IsRecovered(true, true) &&
     !ResumeRecoveryPolicy.IsRecovered(true, false) &&
     !ResumeRecoveryPolicy.IsRecovered(false, true),
