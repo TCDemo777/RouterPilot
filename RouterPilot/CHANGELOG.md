@@ -1,5 +1,25 @@
 # RouterPilot Changelog
 
+## 2.4.4
+
+### VPN
+
+- Added visibility of devices assigned to client-specific VPN routing, with authoritative assignment and available device-presence status shown separately.
+- Separated VPN Client and Tailscale into dedicated internal VPN tabs while preserving existing tunnel, profile and Tailscale behaviour.
+- Preserved the Overview distinction between client-specific VPN routing and the default Internet route.
+
+### Router telemetry and interface
+
+- Aligned Recent traffic sample rates with RouterPilot's normal KiB/s and MiB/s traffic-rate formatting.
+
+### Router Logs
+
+- Added a dedicated Router Logs tab within Router.
+- Limited the bounded recent list to the newest 100 entries.
+- Improved search and filter presentation, including theme-aware filter controls.
+- Moved Selected event details above the log list and stabilized its layout when messages wrap to multiple lines.
+- Improved row-selection presentation and spacing beside the Router Logs scrollbar.
+
 ## 2.4.3
 
 ### Memory and router telemetry
