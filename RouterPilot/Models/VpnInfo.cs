@@ -23,6 +23,62 @@ public enum VpnProfileActivityState
     Inactive
 }
 
+public enum VpnRoutingPolicyState
+{
+    Unknown,
+    Available,
+    Unavailable
+}
+
+/// <summary>Current presence reported by the shared, aggregate GL.iNet client inventory.</summary>
+public enum VpnRoutingDevicePresence
+{
+    Unknown,
+    Online,
+    Offline
+}
+
+public enum VpnRoutingDeviceStatus
+{
+    Unknown,
+    Offline,
+    DeviceOnline,
+    UsingVpn
+}
+
+/// <summary>Read-only router policy assignment. The MAC remains the stable identity; the display is presentation-only.</summary>
+public sealed class VpnRoutingDeviceAssignment
+{
+    public string ClientIdentity { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public bool IsResolved { get; init; }
+    public VpnRoutingDevicePresence Presence { get; init; } = VpnRoutingDevicePresence.Unknown;
+    public VpnRoutingDeviceStatus Status { get; init; } = VpnRoutingDeviceStatus.Unknown;
+    public string StatusDisplay => Status switch
+    {
+        VpnRoutingDeviceStatus.UsingVpn => "Using VPN",
+        VpnRoutingDeviceStatus.DeviceOnline => "Device online",
+        VpnRoutingDeviceStatus.Offline => "Offline",
+        _ => "Unknown"
+    };
+
+    public static VpnRoutingDeviceAssignment WithTunnelConnection(
+        VpnRoutingDeviceAssignment assignment, bool tunnelConnected) => new()
+    {
+        ClientIdentity = assignment.ClientIdentity,
+        DisplayName = assignment.DisplayName,
+        IsResolved = assignment.IsResolved,
+        Presence = assignment.Presence,
+        Status = assignment.Presence switch
+        {
+            VpnRoutingDevicePresence.Offline => VpnRoutingDeviceStatus.Offline,
+            VpnRoutingDevicePresence.Online when tunnelConnected => VpnRoutingDeviceStatus.UsingVpn,
+            VpnRoutingDevicePresence.Online => VpnRoutingDeviceStatus.DeviceOnline,
+            _ => VpnRoutingDeviceStatus.Unknown
+        }
+    };
+}
+
 public sealed class VpnInventorySnapshot
 {
     public IReadOnlyList<VpnTunnelInfo> Tunnels { get; init; } = [];
@@ -57,6 +113,23 @@ public sealed class VpnTunnelInfo
     public bool? Masquerade { get; init; }
     public bool? LocalAccess { get; init; }
     public string? ServicePolicy { get; init; }
+    public VpnRoutingPolicyState RoutingPolicyState { get; init; } = VpnRoutingPolicyState.Unknown;
+    public VpnInternetRoutingScope InternetRoutingScope { get; init; } = VpnInternetRoutingScope.Unknown;
+    // Router-supplied identities are retained separately from friendly names.
+    public IReadOnlyList<string> RoutingDeviceIdentities { get; init; } = [];
+    public IReadOnlyList<VpnRoutingDeviceAssignment> RoutingDevices { get; init; } = [];
+    public bool HasRoutingInformation => RoutingPolicyState == VpnRoutingPolicyState.Available;
+    public string RoutingScopeDisplay => InternetRoutingScope switch
+    {
+        VpnInternetRoutingScope.DefaultInternet => "All devices / Default Internet route",
+        VpnInternetRoutingScope.SelectedDevices => "Selected devices",
+        VpnInternetRoutingScope.BypassOrExclusion => "Bypass or exclusion policy",
+        _ => "Unavailable"
+    };
+    public string RoutingDevicesHeading => RoutingDevices.Count == 0 ? string.Empty : RoutingDevices.Count == 1 ? "Devices assigned to VPN" : $"Devices assigned to VPN ({RoutingDevices.Count})";
+    public string RoutingEmptyDisplay => InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices && RoutingDevices.Count == 0 ? "No devices currently assigned" : string.Empty;
+    public bool HasRoutingDevices => RoutingDevices.Count > 0;
+    public bool HasRoutingEmptyDisplay => !string.IsNullOrEmpty(RoutingEmptyDisplay);
     // -1 means the router did not associate a profile group with this tunnel.
     public int ServerConfigCount { get; init; } = -1;
     public VpnLiveStatusInfo? LiveStatus { get; init; }

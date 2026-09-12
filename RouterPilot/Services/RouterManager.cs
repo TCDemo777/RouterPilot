@@ -1617,6 +1617,36 @@ namespace RouterPilot.Services
             return result;
         }
 
+        internal async Task<GlClientPresenceSnapshot> GetGlClientPresenceSnapshotAsync(CancellationToken token)
+        {
+            string clientJson = await _ssh.RunCommandAsync(
+                "ubus call gl-clients list 2>/dev/null || true");
+
+            return ParseGlClientPresenceSnapshot(clientJson);
+        }
+
+        internal static GlClientPresenceSnapshot ParseGlClientPresenceSnapshot(string clientJson)
+        {
+            if (string.IsNullOrWhiteSpace(clientJson)) return GlClientPresenceSnapshot.Unavailable;
+
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(clientJson);
+                var presence = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                foreach (JsonElement client in EnumerateClientPresenceObjects(document.RootElement))
+                {
+                    string mac = ClientIdentity.NormalizeHexMac(GetFlexibleString(client, "mac", "macaddr", "mac_address"));
+                    if (mac.Length != 12 || !TryGetPropertyIgnoreCase(client, "online", out _)) continue;
+                    presence[mac] = GetFlexibleBoolean(client, "online", false);
+                }
+                return new GlClientPresenceSnapshot(true, presence);
+            }
+            catch (JsonException)
+            {
+                return GlClientPresenceSnapshot.Unavailable;
+            }
+        }
+
         public async Task<List<WifiClientInfo>> GetGlClientInventoryAsync()
         {
             string clientJson = await _ssh.RunCommandAsync(
@@ -1703,6 +1733,36 @@ namespace RouterPilot.Services
                     {
                         yield return child;
                     }
+                }
+            }
+        }
+
+        // Presence is authoritative whenever GL.iNet supplies a MAC and an
+        // explicit online value. Unlike the richer client-inventory parser,
+        // it must not require an interface field because offline records can
+        // legitimately omit interface details.
+        private static IEnumerable<JsonElement> EnumerateClientPresenceObjects(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (HasAnyProperty(element, "mac", "macaddr", "mac_address") &&
+                    HasAnyProperty(element, "online"))
+                {
+                    yield return element;
+                }
+
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    foreach (JsonElement child in EnumerateClientPresenceObjects(property.Value))
+                        yield return child;
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement item in element.EnumerateArray())
+                {
+                    foreach (JsonElement child in EnumerateClientPresenceObjects(item))
+                        yield return child;
                 }
             }
         }

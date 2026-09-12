@@ -8,7 +8,11 @@ public enum VpnInternetRoutingScope
 {
     Unknown,
     DefaultInternet,
-    ClientOrPolicy
+    SelectedDevices,
+    BypassOrExclusion,
+    // Retained for existing callers compiled against the first conservative
+    // routing presentation. New code must state the policy explicitly.
+    ClientOrPolicy = SelectedDevices
 }
 
 /// <summary>Safe, read-only application summary of the configured client VPN state.</summary>
@@ -23,4 +27,12 @@ public sealed class VpnSummaryState
     public string Location { get; init; } = string.Empty;
     public string VirtualIp { get; init; } = string.Empty;
     public VpnInternetRoutingScope InternetRoutingScope { get; init; } = VpnInternetRoutingScope.Unknown;
+}
+
+/// <summary>Shared conservative decision for Internet-route presentation.</summary>
+public static class VpnInternetRoutePresentation
+{
+    public static bool UsesDefaultVpnRoute(VpnSummaryState summary) =>
+        string.Equals(summary.State, "Connected", StringComparison.Ordinal) &&
+        summary.InternetRoutingScope == VpnInternetRoutingScope.DefaultInternet;
 }

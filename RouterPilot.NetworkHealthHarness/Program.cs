@@ -19,15 +19,21 @@ using RouterPilot.ViewModels;
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
 RouterMemoryTelemetry screenshotEquivalentMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:2034236\nMemFree:825000\nMemAvailable:1230000\nBuffers:353495\nCached:146227\n");
-Require(screenshotEquivalentMemory.IsAvailable && screenshotEquivalentMemory.UsedKilobytes == 1209236 &&
-    screenshotEquivalentMemory.UsagePercentage is > 59 and < 60 && screenshotEquivalentMemory.AvailableKilobytes == 1230000 &&
+Require(screenshotEquivalentMemory.IsAvailable && screenshotEquivalentMemory.UsedKilobytes == 804236 &&
+    screenshotEquivalentMemory.UsagePercentage is > 39 and < 40 && screenshotEquivalentMemory.AvailableKilobytes == 1230000 &&
     screenshotEquivalentMemory.BufferedKilobytes == 353495 && screenshotEquivalentMemory.CachedKilobytes == 146227,
-    "router memory follows LuCI Used = total minus free while preserving cached pages separately");
+    "router memory follows the authoritative free Used = total minus available definition while preserving cached pages separately");
 RouterMemoryPresentation screenshotPresentation = RouterMemoryPresentation.From(screenshotEquivalentMemory);
 Require(screenshotPresentation.Usage is not "-" && screenshotPresentation.Total == "1.94 GiB" &&
-    screenshotPresentation.Used == "1.15 GiB" && screenshotPresentation.Available == "1.17 GiB" &&
+    screenshotPresentation.Used == "785.39 MiB" && screenshotPresentation.Available == "1.17 GiB" &&
     screenshotPresentation.Buffered == "345.21 MiB" && screenshotPresentation.Cached == "142.8 MiB",
-    "all RouterPilot memory surfaces can consume one normalised LuCI-compatible display projection");
+    "all RouterPilot memory surfaces can consume one normalised free-compatible display projection");
+RouterMemoryTelemetry consistencyExample = RouterMemoryTelemetryParser.Parse(
+    "MemTotal:1380864\nMemFree:127000\nMemAvailable:462264\nBuffers:190433\nCached:246507\n");
+Require(consistencyExample.UsedKilobytes == 918600 && consistencyExample.UsagePercentage is > 66 and < 67 &&
+    RouterMemoryPresentation.From(consistencyExample).Used == "897.07 MiB" &&
+    RouterMemoryPresentation.From(consistencyExample).Available == "451.43 MiB",
+    "used and available from one snapshot produce the matching 66.5 percent usage");
 var dashboardMemory = new DashboardViewModel();
 var memorySnapshotA = new RouterInfo
 {
@@ -39,9 +45,20 @@ var memorySnapshotA = new RouterInfo
 dashboardMemory.ApplyMemoryTelemetry(memorySnapshotA);
 Require(dashboardMemory.MemoryUsed == screenshotPresentation.Used && dashboardMemory.MemoryAvailable == screenshotPresentation.Available &&
     dashboardMemory.MemoryBuffered == screenshotPresentation.Buffered && dashboardMemory.MemoryCache == screenshotPresentation.Cached &&
-    dashboardMemory.MemoryPercentage is > 59 and < 60 && dashboardMemory.MemoryDetailsText ==
-    "Used: 1.15 GiB\nAvailable: 1.17 GiB\nBuffered: 345.21 MiB\nCached: 142.8 MiB",
+    dashboardMemory.MemoryPercentage is > 39 and < 40 && dashboardMemory.MemoryDetailsText ==
+    "Used: 785.39 MiB\nAvailable: 1.17 GiB\nBuffered: 345.21 MiB\nCached: 142.8 MiB",
     "Overview, Analytics, Router System, and Router Performance receive identical memory detail and percentage values from the shared snapshot");
+var healthMemory = new DashboardViewModel();
+RouterMemoryPresentation consistencyPresentation = RouterMemoryPresentation.From(consistencyExample);
+healthMemory.ApplyMemoryTelemetry(new RouterInfo
+{
+    MemoryUsage = consistencyPresentation.Usage, MemoryUsagePercentage = consistencyExample.UsagePercentage,
+    MemoryTotal = consistencyPresentation.Total, MemoryUsed = consistencyPresentation.Used,
+    MemoryAvailable = consistencyPresentation.Available, MemoryBuffered = consistencyPresentation.Buffered,
+    MemoryCache = consistencyPresentation.Cached
+});
+Require(healthMemory.MemoryHealthText == "Healthy" && healthMemory.MemoryHealthColour == "#16803C",
+    "memory health consumes the same canonical usage percentage as the detail values");
 var notifiedMemoryProperties = new List<string?>();
 dashboardMemory.PropertyChanged += (_, args) => notifiedMemoryProperties.Add(args.PropertyName);
 var memorySnapshotB = new RouterInfo
@@ -64,17 +81,17 @@ Require(dashboardMemory.StorageMountPoint == "/mnt/a-very-long-storage-mount-nam
     "long storage mount points remain distinct and available for wrapped presentation");
 RouterMemoryTelemetry highCacheMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:1048576\nMemFree:900000\nMemAvailable:975000\nBuffers:50000\nCached:75000\n");
-Require(highCacheMemory.UsedKilobytes == 148576 && highCacheMemory.UsagePercentage is > 14 and < 15,
-    "high cache does not reduce LuCI-compatible used memory");
+Require(highCacheMemory.UsedKilobytes == 73576 && highCacheMemory.UsagePercentage is >= 7 and < 8,
+    "high cache is already represented by MemAvailable and is not double-subtracted");
 RouterMemoryTelemetry zeroMemoryComponents = RouterMemoryTelemetryParser.Parse(
     "MemTotal:1024\nMemFree:1024\nMemAvailable:1024\nBuffers:0\nCached:0\n");
 Require(zeroMemoryComponents.UsedKilobytes == 0 && zeroMemoryComponents.UsagePercentage == 0 &&
     zeroMemoryComponents.AvailableKilobytes == 1024 && zeroMemoryComponents.CachedKilobytes == 0 && zeroMemoryComponents.BufferedKilobytes == 0,
     "authoritative zero memory components remain zero");
 RouterMemoryTelemetry missingCacheMemory = RouterMemoryTelemetryParser.Parse("MemTotal:1024\nMemFree:512\n");
-Require(missingCacheMemory.IsAvailable && missingCacheMemory.AvailableKilobytes is null &&
+Require(!missingCacheMemory.IsAvailable && missingCacheMemory.AvailableKilobytes is null &&
     missingCacheMemory.CachedKilobytes is null && missingCacheMemory.BufferedKilobytes is null,
-    "missing available, cached, and buffered memory remain unavailable");
+    "missing MemAvailable leaves the whole usage snapshot unavailable rather than substituting MemFree");
 RouterMemoryTelemetry malformedMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:not-a-number\nMemFree:512\nCached:-1\n");
 Require(!malformedMemory.IsAvailable && malformedMemory.UsedKilobytes is null && malformedMemory.UsagePercentage is null,

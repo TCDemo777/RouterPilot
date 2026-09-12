@@ -509,7 +509,7 @@ public partial class RouterView : UserControl
         DateTime now = DateTime.Now;
         _performanceSessionStarted ??= now;
         double? cpu = info.CpuUsagePercent ?? ParsePercent(info.CpuUsage);
-        double? memory = ParsePercent(info.MemoryUsage);
+        double? memory = info.MemoryUsagePercentage;
         double? temperature = ParseNumber(info.Temperature);
         double? load = info.LoadAverage1Minute;
         _performanceSamples.Add(new PerformanceSample(now, cpu, memory, temperature, load));

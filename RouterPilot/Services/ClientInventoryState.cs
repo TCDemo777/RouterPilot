@@ -6,10 +6,16 @@ namespace RouterPilot.Services;
 public sealed class ClientInventoryState
 {
     private readonly Dictionary<string, ClientInfo> _clients = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, bool> _presence = new(StringComparer.OrdinalIgnoreCase);
 
     public event EventHandler? Changed;
 
     public IReadOnlyDictionary<string, ClientInfo> Snapshot => _clients;
+    /// <summary>
+    /// Explicit current presence from a successfully-read aggregate client inventory.
+    /// Absence from this map is deliberately Unknown rather than Offline.
+    /// </summary>
+    public IReadOnlyDictionary<string, bool> PresenceSnapshot => _presence;
 
     public void Update(IEnumerable<ClientInfo> clients)
     {
@@ -24,8 +30,21 @@ public sealed class ClientInventoryState
 
     public void Clear()
     {
-        if (_clients.Count == 0) return;
+        if (_clients.Count == 0 && _presence.Count == 0) return;
         _clients.Clear();
+        _presence.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Replaces only presence values supplied by an authoritative aggregate router response.</summary>
+    public void UpdateAuthoritativePresence(IReadOnlyDictionary<string, bool> presence)
+    {
+        _presence.Clear();
+        foreach ((string identity, bool online) in presence)
+        {
+            string mac = ClientIdentity.NormalizeHexMac(identity);
+            if (mac.Length == 12) _presence[mac] = online;
+        }
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

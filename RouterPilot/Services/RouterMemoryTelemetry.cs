@@ -4,8 +4,9 @@ namespace RouterPilot.Services;
 
 /// <summary>
 /// Parses the memory fields obtained from the existing /proc/meminfo telemetry
-/// command.  Its Used value follows LuCI's Status Overview definition:
-/// MemTotal minus MemFree.  Cached and buffered pages remain separate values.
+/// command. Its Used value follows the authoritative <c>free</c> memory
+/// summary: <c>MemTotal - MemAvailable</c>. Buffered and cached pages remain
+/// separate informational values and are never subtracted a second time.
 /// </summary>
 internal sealed record RouterMemoryTelemetry(
     long? TotalKilobytes,
@@ -15,11 +16,11 @@ internal sealed record RouterMemoryTelemetry(
     long? CachedKilobytes)
 {
     public bool IsAvailable => TotalKilobytes is > 0
-                               && FreeKilobytes is >= 0
-                               && FreeKilobytes <= TotalKilobytes;
+                               && AvailableKilobytes is >= 0
+                               && AvailableKilobytes <= TotalKilobytes;
 
     public long? UsedKilobytes => IsAvailable
-        ? Math.Clamp(TotalKilobytes!.Value - FreeKilobytes!.Value, 0, TotalKilobytes.Value)
+        ? TotalKilobytes!.Value - AvailableKilobytes!.Value
         : null;
 
     public double? UsagePercentage => UsedKilobytes is long used && TotalKilobytes is long total && total > 0

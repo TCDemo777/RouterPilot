@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
@@ -37,6 +38,134 @@ public partial class RouterManager
         using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.GetProfiles, cancellationToken: token);
         return ParseVpnProfileInventory(document.RootElement, tunnels);
     }
+
+    // GL.iNet's VPN client UI stores device assignments in the same
+    // route_policy UCI configuration it uses for client-policy routing. This
+    // is a single, read-only bulk read; it never changes router policy.
+    internal async Task<VpnRoutingPolicySnapshot> GetVpnRoutingPolicyAsync(CancellationToken token)
+    {
+        string output = await RunReadOnlySshCommandAsync("uci -q show route_policy 2>/dev/null", token).ConfigureAwait(false);
+        return ParseVpnRoutingPolicy(output);
+    }
+
+    // GL.iNet keeps persistent client aliases in gl-client. Unlike the live
+    // gl-clients inventory, these labels remain available for an offline
+    // device. This stays a single optional aggregate read for VPN policy
+    // presentation; it never changes client or route-policy configuration.
+    internal async Task<IReadOnlyDictionary<string, string>> GetPersistentClientNamesAsync(CancellationToken token)
+    {
+        string output = await RunReadOnlySshCommandAsync("uci -q show gl-client 2>/dev/null", token).ConfigureAwait(false);
+        return ParsePersistentClientNames(output);
+    }
+
+    internal static IReadOnlyDictionary<string, string> ParsePersistentClientNames(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var sections = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            int equals = rawLine.IndexOf('=');
+            if (equals <= 0) continue;
+            string key = rawLine[..equals].Trim();
+            const string prefix = "gl-client.";
+            if (!key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            int propertySeparator = key.LastIndexOf('.');
+            if (propertySeparator <= prefix.Length) continue;
+            string section = key[..propertySeparator];
+            string property = key[(propertySeparator + 1)..];
+            if (!sections.TryGetValue(section, out Dictionary<string, string>? values)) sections[section] = values = new(StringComparer.OrdinalIgnoreCase);
+            values[property] = UnquoteUci(rawLine[(equals + 1)..].Trim());
+        }
+
+        return sections.Values
+            .Where(values => values.TryGetValue("mac", out string? mac) &&
+                TryGetPersistentClientName(values, out string? name) && !string.IsNullOrWhiteSpace(name))
+            .Select(values => (Mac: ClientIdentity.NormalizeHexMac(values["mac"]), Name: GetPersistentClientName(values)))
+            .Where(item => ClientIdentity.IsMacKey(item.Mac))
+            .GroupBy(item => item.Mac, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single().Name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetPersistentClientName(IReadOnlyDictionary<string, string> values, out string? name)
+    {
+        name = GetPersistentClientName(values);
+        return !string.IsNullOrWhiteSpace(name);
+    }
+
+    private static string GetPersistentClientName(IReadOnlyDictionary<string, string> values)
+    {
+        string alias = Read(values, "alias");
+        return string.IsNullOrWhiteSpace(alias) ? Read(values, "name") : alias;
+    }
+
+    internal static VpnRoutingPolicySnapshot ParseVpnRoutingPolicy(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable };
+
+        var sections = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            int equals = rawLine.IndexOf('=');
+            if (equals <= 0) continue;
+            string key = rawLine[..equals].Trim();
+            const string prefix = "route_policy.";
+            if (!key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            int propertySeparator = key.LastIndexOf('.');
+            if (propertySeparator <= prefix.Length) continue;
+            string section = key[..propertySeparator];
+            string property = key[(propertySeparator + 1)..];
+            if (!sections.TryGetValue(section, out Dictionary<string, string>? values)) sections[section] = values = new(StringComparer.OrdinalIgnoreCase);
+            values[property] = UnquoteUci(output: rawLine[(equals + 1)..].Trim());
+        }
+
+        var policies = new Dictionary<int, VpnTunnelRoutingPolicy>();
+        foreach ((string section, Dictionary<string, string> values) in sections)
+        {
+            if (!TryReadPositiveInt(values, "tunnel_id", out int tunnelId)) continue;
+            bool isDefault = section.Contains("@default[", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Read(values, "type"), "default", StringComparison.OrdinalIgnoreCase) && IsEnabled(values);
+            // On the live Flint 2, GL.iNet's selected-device VPN rule uses
+            // from_mac plus via_type=wireguard and references the tunnel,
+            // group and peer. Do not treat a generic MAC-based policy (such
+            // as a bypass rule) as a VPN inclusion without that proven via.
+            bool hasSelectedDevices = values.ContainsKey("from_mac") && IsVpnVia(Read(values, "via_type"));
+            if (!isDefault && !hasSelectedDevices) continue;
+
+            IReadOnlyList<string> devices = hasSelectedDevices
+                ? Regex.Matches(Read(values, "from_mac"), "(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}")
+                    .Select(match => ClientIdentity.NormalizeHexMac(match.Value)).Where(mac => mac.Length == 12).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : [];
+            VpnInternetRoutingScope scope = hasSelectedDevices ? VpnInternetRoutingScope.SelectedDevices : VpnInternetRoutingScope.DefaultInternet;
+            // A tunnel can have more than one selected-device rule. Union the
+            // stable identities without allowing a default rule to override it.
+            if (policies.TryGetValue(tunnelId, out VpnTunnelRoutingPolicy? existing))
+            {
+                scope = existing.Scope == VpnInternetRoutingScope.SelectedDevices || scope == VpnInternetRoutingScope.SelectedDevices
+                    ? VpnInternetRoutingScope.SelectedDevices : VpnInternetRoutingScope.DefaultInternet;
+                devices = existing.DeviceIdentities.Concat(devices).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+            policies[tunnelId] = new VpnTunnelRoutingPolicy
+            {
+                TunnelId = tunnelId,
+                GroupId = TryReadPositiveInt(values, "group_id", out int groupId) ? groupId : null,
+                PeerId = TryReadPositiveInt(values, "peer_id", out int peerId) ? peerId : null,
+                Enabled = TryReadBoolean(values, "enabled"),
+                Scope = scope,
+                DeviceIdentities = devices
+            };
+        }
+        return new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Available, Tunnels = policies.Values.ToList() };
+    }
+
+    private static bool TryReadPositiveInt(IReadOnlyDictionary<string, string> values, string key, out int value) => int.TryParse(Read(values, key), out value) && value > 0;
+    private static string Read(IReadOnlyDictionary<string, string> values, string key) => values.TryGetValue(key, out string? value) ? value : string.Empty;
+    private static bool IsEnabled(IReadOnlyDictionary<string, string> values) => !values.TryGetValue("enabled", out string? value) || value == "1";
+    private static bool? TryReadBoolean(IReadOnlyDictionary<string, string> values, string key) => values.TryGetValue(key, out string? value)
+        ? value == "1" ? true : value == "0" ? false : null : null;
+    private static bool IsVpnVia(string viaType) => viaType.Equals("wireguard", StringComparison.OrdinalIgnoreCase) || viaType.Equals("openvpn", StringComparison.OrdinalIgnoreCase);
+    private static string UnquoteUci(string output) => output.Length >= 2 && output[0] == '\'' && output[^1] == '\'' ? output[1..^1].Replace("'\\''", "'", StringComparison.Ordinal) : output;
 
     // The profile read is a bulk configured-profile inventory.  Do not use a
     // tunnel's live connection state to decide whether a group exists.

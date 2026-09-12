@@ -129,7 +129,7 @@ public partial class VpnView : UserControl
             {
                 List<VpnClientProfileInfo> linkedProfiles = tunnel.ProfileGroupIds.Where(profilesByGroup.ContainsKey).Select(id => profilesByGroup[id]).ToList();
                 int serverConfigCount = linkedProfiles.Count == 1 ? linkedProfiles[0].ServerConfigCount : -1;
-                return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount };
+                return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount, RoutingPolicyState=tunnel.RoutingPolicyState, InternetRoutingScope=tunnel.InternetRoutingScope, RoutingDeviceIdentities=tunnel.RoutingDeviceIdentities, RoutingDevices=tunnel.RoutingDevices };
             }).ToList();
             _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles), inventory.ProfileInventoryState);
             try { await _liveStatus.EnsureSubscribedAsync(token); }
@@ -141,6 +141,7 @@ public partial class VpnView : UserControl
             }
             _dataFreshnessService.MarkSuccess(VpnFreshnessSource);
             _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: true);
+            _ = EnrichRoutingPolicyAsync(linkedTunnels, IsCurrent, token);
             _viewModel.VpnSupported = true;
             SetVpnCapability(RouterCapabilityState.Supported);
             _viewModel.VpnStatus = $"{linkedTunnels.Count} tunnel(s), {linkedTunnels.Count(tunnel => tunnel.Enabled)} enabled";
@@ -199,6 +200,24 @@ public partial class VpnView : UserControl
                 preserveConnectedRuntime);
         }
         finally { _tailscaleRefreshGate.Release(); }
+    }
+
+    private async Task EnrichRoutingPolicyAsync(IReadOnlyList<VpnTunnelInfo> tunnels, Func<bool> isCurrent, CancellationToken token)
+    {
+        try
+        {
+            IReadOnlyList<VpnTunnelInfo> enriched = await _service.EnrichRoutingPolicyAsync(tunnels, token);
+            if (!isCurrent() || token.IsCancellationRequested) return;
+            // The primary inventory and live status have already been
+            // published. This optional update cannot delay or replace them.
+            _viewModel.ApplyRoutingPolicy(enriched);
+            _viewModel.ApplyLiveStatuses(_liveStatus.Current, vpnInventoryAuthoritative: true);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            VpnLiveStatusDiagnostics.Record($"VPN routing policy enrichment unavailable: {DiagnosticRedactor.FailureCategory(exception)}");
+        }
     }
 
     private async Task PublishTailscaleStateAsync(

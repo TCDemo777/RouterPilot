@@ -771,6 +771,7 @@ internal static class Program
     {
         RunVpnControlPresentationTests();
         RunVpnProfileInventoryTests();
+        RunVpnRoutingPolicyTests();
         RunRouterCertificateTrustPolicyTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
@@ -1061,6 +1062,177 @@ internal static class Program
         page.Replace([], [], VpnProfileInventoryState.Unavailable);
         Require(!page.ShowNoVpnProfiles && page.ShowVpnProfilesUnavailable,
             "unavailable configured-profile inventory has distinct UI semantics");
+    }
+
+    private static void RunVpnRoutingPolicyTests()
+    {
+        const string selectedPolicy = """
+            route_policy.@rule[0]=rule
+            route_policy.@rule[0].tunnel_id='38'
+            route_policy.@rule[0].enabled='0'
+            route_policy.@rule[0].via_type='wireguard'
+            route_policy.@rule[0].from_mac='aa:bb:cc:dd:ee:ff'
+            """;
+        VpnRoutingPolicySnapshot selected = RouterManager.ParseVpnRoutingPolicy(selectedPolicy);
+        VpnTunnelRoutingPolicy selectedRule = selected.Tunnels.Single();
+        Require(selected.State == VpnRoutingPolicyState.Available && selectedRule.TunnelId == 38 && selectedRule.Enabled == false &&
+            selectedRule.Scope == VpnInternetRoutingScope.SelectedDevices && selectedRule.DeviceIdentities.Single() == "AABBCCDDEEFF",
+            "route_policy selected-device rules retain normalized stable MAC identity even when disabled");
+
+        const string globalPolicy = """
+            route_policy.@default[0]=default
+            route_policy.@default[0].type='default'
+            route_policy.@default[0].tunnel_id='38'
+            route_policy.@default[0].enabled='1'
+            """;
+        VpnRoutingPolicySnapshot global = RouterManager.ParseVpnRoutingPolicy(globalPolicy);
+        Require(global.Tunnels.Single().Scope == VpnInternetRoutingScope.DefaultInternet,
+            "only an enabled default rule for the same tunnel is classified as a default Internet route");
+        Require(VpnInternetRoutePresentation.UsesDefaultVpnRoute(new VpnSummaryState { State = "Connected", InternetRoutingScope = VpnInternetRoutingScope.DefaultInternet }) &&
+            !VpnInternetRoutePresentation.UsesDefaultVpnRoute(new VpnSummaryState { State = "Connected", InternetRoutingScope = VpnInternetRoutingScope.SelectedDevices }) &&
+            !VpnInternetRoutePresentation.UsesDefaultVpnRoute(new VpnSummaryState { State = "Connected", InternetRoutingScope = VpnInternetRoutingScope.Unknown }),
+            "Overview route presentation only calls a connected VPN global when the shared policy proves a default route");
+
+        const string emptySelectedPolicy = """
+            route_policy.@rule[0]=rule
+            route_policy.@rule[0].tunnel_id='38'
+            route_policy.@rule[0].via_type='wireguard'
+            route_policy.@rule[0].from_mac=''
+            """;
+        Require(RouterManager.ParseVpnRoutingPolicy(emptySelectedPolicy).Tunnels.Single().Scope == VpnInternetRoutingScope.SelectedDevices &&
+            RouterManager.ParseVpnRoutingPolicy(emptySelectedPolicy).Tunnels.Single().DeviceIdentities.Count == 0,
+            "an authoritative empty selected-device rule is not represented as unavailable");
+        Require(RouterManager.ParseVpnRoutingPolicy(string.Empty).State == VpnRoutingPolicyState.Unavailable,
+            "missing optional routing policy is unavailable rather than an empty assignment");
+
+        var tunnel = new VpnTunnelInfo { TunnelId = 38, Name = "Primary", Enabled = false };
+        var clients = new Dictionary<string, ClientInfo>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["AABBCCDDEEFF"] = new ClientInfo { Name = "PS5", AutomaticName = "PS5", MacAddress = "aa:bb:cc:dd:ee:ff" }
+        };
+        VpnTunnelInfo projected = VpnService.ApplyRoutingPolicy([tunnel], selected, clients, new PassthroughClientDisplayNameService()).Single();
+        Require(projected.InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices && projected.RoutingDevices.Single().DisplayName == "PS5" &&
+            projected.RoutingDevices.Single().IsResolved && projected.RoutingDeviceIdentities.Single() == "AABBCCDDEEFF",
+            "selected device resolves through existing client naming while preserving MAC identity separately");
+        VpnTunnelInfo unknown = VpnService.ApplyRoutingPolicy([tunnel], selected, new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService()).Single();
+        Require(unknown.RoutingDevices.Single().DisplayName == "Unknown device 1" && !unknown.RoutingDevices.Single().IsResolved,
+            "unresolved selected device remains visible without exposing its raw identifier");
+
+        const string persistentClientNames = """
+            gl-client.@client[0]=client
+            gl-client.@client[0].mac='aa:bb:cc:dd:ee:ff'
+            gl-client.@client[0].alias='PS5'
+            gl-client.@client[1]=client
+            gl-client.@client[1].mac='11-22-33-44-55-66'
+            gl-client.@client[1].alias='Living Room TV'
+            """;
+        IReadOnlyDictionary<string, string> storedNames = RouterManager.ParsePersistentClientNames(persistentClientNames);
+        Require(storedNames.Count == 2 && storedNames["AABBCCDDEEFF"] == "PS5" && storedNames["112233445566"] == "Living Room TV",
+            "persistent GL.iNet client names are normalized by MAC from the aggregate gl-client configuration");
+        VpnTunnelInfo offlineNamed = VpnService.ApplyRoutingPolicy([tunnel], selected, new Dictionary<string, ClientInfo>(),
+            new PassthroughClientDisplayNameService(), storedNames).Single();
+        Require(offlineNamed.RoutingDevices.Single().DisplayName == "PS5" && offlineNamed.RoutingDevices.Single().IsResolved,
+            "an assigned offline device retains its authoritative persistent GL.iNet name");
+
+        const string presencePayload = """
+            { "clients": [
+                { "mac": "aa:bb:cc:dd:ee:ff", "iface": "br-lan", "online": false },
+                { "mac": "11:22:33:44:55:66", "iface": "br-lan", "online": true }
+            ] }
+            """;
+        GlClientPresenceSnapshot presence = RouterManager.ParseGlClientPresenceSnapshot(presencePayload);
+        Require(presence.IsAvailable && !presence.Presence["AABBCCDDEEFF"] && presence.Presence["112233445566"],
+            "aggregate GL.iNet client inventory preserves explicit offline and online presence independently of assignment");
+        VpnTunnelInfo offlineWithPresence = VpnService.ApplyRoutingPolicy([tunnel], selected,
+            new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService(), storedNames, presence.Presence).Single();
+        Require(offlineWithPresence.RoutingDevices.Single().DisplayName == "PS5" &&
+                offlineWithPresence.RoutingDevices.Single().Presence == VpnRoutingDevicePresence.Offline,
+            "an offline assigned device keeps its persistent name and authoritative offline state");
+
+        var onlineAssignment = new VpnRoutingDeviceAssignment
+        {
+            ClientIdentity = "112233445566", DisplayName = "Living Room TV", IsResolved = true,
+            Presence = VpnRoutingDevicePresence.Online
+        };
+        var offlineAssignment = new VpnRoutingDeviceAssignment
+        {
+            ClientIdentity = "AABBCCDDEEFF", DisplayName = "PS5", IsResolved = true,
+            Presence = VpnRoutingDevicePresence.Offline
+        };
+        var unknownAssignment = new VpnRoutingDeviceAssignment
+        {
+            ClientIdentity = "001122334455", DisplayName = "Unknown device 1",
+            Presence = VpnRoutingDevicePresence.Unknown
+        };
+        Require(VpnRoutingDeviceAssignment.WithTunnelConnection(onlineAssignment, false).Status == VpnRoutingDeviceStatus.DeviceOnline &&
+                VpnRoutingDeviceAssignment.WithTunnelConnection(onlineAssignment, true).Status == VpnRoutingDeviceStatus.UsingVpn &&
+                VpnRoutingDeviceAssignment.WithTunnelConnection(offlineAssignment, true).Status == VpnRoutingDeviceStatus.Offline &&
+                VpnRoutingDeviceAssignment.WithTunnelConnection(unknownAssignment, true).Status == VpnRoutingDeviceStatus.Unknown,
+            "assigned-device status distinguishes tunnel connection from LAN presence without inferring traffic");
+        Require(offlineWithPresence.RoutingDevices.Single().StatusDisplay == "Offline" &&
+                VpnRoutingDeviceAssignment.WithTunnelConnection(onlineAssignment, false).StatusDisplay == "Device online" &&
+                VpnRoutingDeviceAssignment.WithTunnelConnection(onlineAssignment, true).StatusDisplay == "Using VPN",
+            "assigned-device presentation uses Offline, Device online, and Using VPN only in their authoritative states");
+        Require(offlineWithPresence.RoutingDevicesHeading == "Devices assigned to VPN",
+            "assigned-device heading does not imply VPN use while the tunnel is disconnected");
+        var assignedDevicePresentation = new VpnViewModel();
+        assignedDevicePresentation.Replace([new VpnTunnelInfo
+        {
+            TunnelId = 38, Name = "Primary", Enabled = true,
+            RoutingDevices = [VpnRoutingDeviceAssignment.WithTunnelConnection(onlineAssignment, false)]
+        }], []);
+        assignedDevicePresentation.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 0 }], true);
+        Require(assignedDevicePresentation.VpnTunnels.Single().RoutingDevices.Single().Status == VpnRoutingDeviceStatus.DeviceOnline,
+            "a transitioning tunnel leaves an online assigned device as Device online");
+        assignedDevicePresentation.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 1 }], true);
+        Require(assignedDevicePresentation.VpnTunnels.Single().RoutingDevices.Single().Status == VpnRoutingDeviceStatus.UsingVpn,
+            "an authoritative connected tunnel changes an online assigned device to Using VPN");
+
+        Require(!projected.Enabled && projected.InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices,
+            "configured selected-device policy is retained while its tunnel is disconnected");
+
+        var connectionPresentation = new VpnViewModel();
+        connectionPresentation.Replace([new VpnTunnelInfo { TunnelId = 38, Name = "Primary", Enabled = true }], []);
+        connectionPresentation.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 1 }], vpnInventoryAuthoritative: true);
+        connectionPresentation.ApplyRoutingPolicy(VpnService.ApplyRoutingPolicy(
+            connectionPresentation.VpnTunnels.ToList(),
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable },
+            new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService()));
+        connectionPresentation.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 38, Enabled = true, Status = 1 }], vpnInventoryAuthoritative: true);
+        Require(connectionPresentation.VpnTunnels.Single().ConnectionState == "Connected" &&
+            connectionPresentation.VpnTunnels.Single().RoutingScopeDisplay == "Unavailable",
+            "unavailable routing enrichment never replaces an authoritative Connected tunnel state");
+
+        const string multiplePolicy = """
+            route_policy.@rule[0].tunnel_id='38'
+            route_policy.@rule[0].via_type='wireguard'
+            route_policy.@rule[0].from_mac='aa:bb:cc:dd:ee:ff 11-22-33-44-55-66'
+            route_policy.@rule[1].tunnel_id='38'
+            route_policy.@rule[1].via_type='wireguard'
+            route_policy.@rule[1].from_mac='aa:bb:cc:dd:ee:ff'
+            """;
+        VpnTunnelRoutingPolicy multiple = RouterManager.ParseVpnRoutingPolicy(multiplePolicy).Tunnels.Single();
+        Require(multiple.Scope == VpnInternetRoutingScope.SelectedDevices && multiple.DeviceIdentities.Count == 2,
+            "multiple selected-device rules are combined by stable identity without duplicate friendly-name matching");
+        VpnTunnelInfo twoNamed = VpnService.ApplyRoutingPolicy([tunnel], RouterManager.ParseVpnRoutingPolicy(multiplePolicy),
+            new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService(), storedNames, presence.Presence).Single();
+        Require(twoNamed.RoutingDevices.Select(device => device.DisplayName).OrderBy(name => name).SequenceEqual(["Living Room TV", "PS5"]),
+            "two assigned devices resolve independently by stable MAC without changing assignment count");
+        Require(twoNamed.RoutingDevices.Single(device => device.DisplayName == "PS5").Presence == VpnRoutingDevicePresence.Offline &&
+                twoNamed.RoutingDevices.Single(device => device.DisplayName == "Living Room TV").Presence == VpnRoutingDevicePresence.Online,
+            "mixed online and offline assigned devices retain independent presence state");
+        VpnTunnelInfo unknownPresence = VpnService.ApplyRoutingPolicy([tunnel], selected,
+            new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService(), storedNames).Single();
+        Require(unknownPresence.RoutingDevices.Single().Presence == VpnRoutingDevicePresence.Unknown,
+            "missing authoritative presence remains unknown rather than being inferred as offline");
+
+        const string unprovenBypassShape = """
+            route_policy.@rule[0].tunnel_id='38'
+            route_policy.@rule[0].via_type='wan'
+            route_policy.@rule[0].from_mac='aa:bb:cc:dd:ee:ff'
+            """;
+        Require(RouterManager.ParseVpnRoutingPolicy(unprovenBypassShape).Tunnels.Count == 0,
+            "a MAC policy without a proven VPN inclusion via remains unknown rather than being mislabelled as selected-device VPN routing");
     }
 
     private static async Task RunRuntimeValidationAsync(string targetField)

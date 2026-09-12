@@ -1800,7 +1800,7 @@ namespace RouterPilot.Views
             if (e.Mode != PowerModes.Resume) return;
             _protectionViewModel.InvalidateTransientConnectionState();
             long generation = Interlocked.Increment(ref _resumeGeneration);
-            _dataFreshnessService.BeginReestablishmentWindow(TimeSpan.FromMinutes(2));
+            _dataFreshnessService.BeginReestablishmentWindow(ResumeRecoveryPolicy.MaximumRecoveryWindow);
             _routerManagerProvider.Invalidate();
             _resumeRecoveryCancellation?.Cancel();
             _resumeRecoveryCancellation?.Dispose();
@@ -1838,13 +1838,16 @@ namespace RouterPilot.Views
 
         private async Task RecoverAfterResumeAsync(long generation, CancellationToken cancellationToken)
         {
+            using CancellationTokenSource recoveryWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            recoveryWindow.CancelAfter(ResumeRecoveryPolicy.MaximumRecoveryWindow);
+            CancellationToken recoveryToken = recoveryWindow.Token;
             try
             {
                 for (int attempt = 0; attempt < ResumeRecoveryPolicy.Delays.Length; attempt++)
                 {
                     await WaitForResumeRecoverySignalOrDelayAsync(
                         ResumeRecoveryPolicy.Delays[attempt],
-                        cancellationToken);
+                        recoveryToken);
 
                     if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
                         return;
@@ -1856,10 +1859,13 @@ namespace RouterPilot.Views
                     // can establish a fresh router/AdGuard session.
                     _routerManagerProvider.Invalidate();
                     ResumeTrace($"Resume recovery attempt {attempt + 1} invalidated transient router/AdGuard state");
-                    ResumeTrace($"Resume recovery attempt {attempt + 1}/{ResumeRecoveryPolicy.Delays.Length} started");
-                    await _refreshCoordinator.RunNowAsync(
+                    ResumeTrace($"Resume recovery attempt {attempt + 1}/{ResumeRecoveryPolicy.Delays.Length} waiting for the canonical dashboard refresh slot");
+                    bool executed = await _refreshCoordinator.RunWhenAvailableAsync(
                         DashboardRefreshTask,
-                        cancellationToken);
+                        recoveryToken);
+                    ResumeTrace(executed
+                        ? $"Resume recovery attempt {attempt + 1} executed the canonical dashboard/AdGuard refresh"
+                        : $"Resume recovery attempt {attempt + 1} did not acquire the canonical refresh slot");
 
                     if (generation != Volatile.Read(ref _resumeGeneration) || !IsLoaded)
                         return;
@@ -1884,6 +1890,10 @@ namespace RouterPilot.Views
                 ResumeTrace($"Resume recovery generation {generation} exhausted bounded attempts");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (recoveryWindow.IsCancellationRequested)
+            {
+                ResumeTrace($"Resume recovery generation {generation} reached its bounded recovery window");
+            }
             catch (Exception exception)
             {
                 ResumeTrace($"Resume recovery failed ({exception.GetType().Name}); manual Refresh remains available");

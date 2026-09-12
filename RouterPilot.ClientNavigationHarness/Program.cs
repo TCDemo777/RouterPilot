@@ -141,6 +141,78 @@ Require(ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.Available) 
     ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.Unavailable) &&
     !ResumeRecoveryPolicy.ShouldContinue(AdGuardAvailabilityState.NotConfigured),
     "Resume recovery retries transient unavailability but not an unconfigured AdGuard Home");
+Require(ResumeRecoveryPolicy.MaximumRecoveryWindow == TimeSpan.FromMinutes(2),
+    "resume recovery remains bounded by the existing freshness re-establishment window");
+
+await using (var coordinator = new RefreshCoordinator())
+{
+    const string recoveryTask = "resume-test";
+    var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    int calls = 0;
+    int active = 0;
+    int maximumActive = 0;
+    coordinator.Register(recoveryTask, TimeSpan.FromMinutes(1), async cancellationToken =>
+    {
+        int current = Interlocked.Increment(ref active);
+        maximumActive = Math.Max(maximumActive, current);
+        try
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                firstEntered.SetResult();
+                await releaseFirst.Task.WaitAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            Interlocked.Decrement(ref active);
+        }
+    }, enabled: false);
+
+    Task<bool> firstRefresh = coordinator.RunNowAsync(recoveryTask);
+    await firstEntered.Task;
+    Require(!await coordinator.RunNowAsync(recoveryTask),
+        "ordinary non-blocking refresh reports a busy scheduler slot");
+    Task<bool> recoveryRefresh = coordinator.RunWhenAvailableAsync(recoveryTask);
+    Require(!recoveryRefresh.IsCompleted,
+        "resume recovery waits for a cancelled pre-suspend refresh instead of spending an attempt");
+    releaseFirst.SetResult();
+    Require(await firstRefresh && await recoveryRefresh && calls == 2 && maximumActive == 1,
+        "resume recovery executes the same callback once the scheduler slot is available without overlap");
+}
+
+await using (var coordinator = new RefreshCoordinator())
+{
+    const string cancellationTask = "resume-cancellation-test";
+    var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    int calls = 0;
+    coordinator.Register(cancellationTask, TimeSpan.FromMinutes(1), async cancellationToken =>
+    {
+        if (Interlocked.Increment(ref calls) == 1)
+        {
+            entered.SetResult();
+            await release.Task.WaitAsync(cancellationToken);
+        }
+    }, enabled: false);
+    Task<bool> activeRefresh = coordinator.RunNowAsync(cancellationTask);
+    await entered.Task;
+    using var cancellation = new CancellationTokenSource();
+    Task<bool> cancelledRecovery = coordinator.RunWhenAvailableAsync(cancellationTask, cancellation.Token);
+    cancellation.Cancel();
+    try
+    {
+        await cancelledRecovery;
+        throw new InvalidOperationException("cancelled recovery unexpectedly ran");
+    }
+    catch (OperationCanceledException)
+    {
+    }
+    release.SetResult();
+    await activeRefresh;
+    Require(calls == 1, "cancelled resume recovery does not run after the active refresh completes");
+}
 
 var adGuardRefreshEpoch = new AdGuardRefreshEpoch();
 long preSuspendEpoch = adGuardRefreshEpoch.Capture();

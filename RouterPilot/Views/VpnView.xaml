@@ -79,6 +79,35 @@
                             <StackPanel><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Ellipse Width="8" Height="8" Margin="0,5,8,0" VerticalAlignment="Top"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/><Style.Triggers><DataTrigger Binding="{Binding ConnectionState}" Value="Connected"><Setter Property="Fill" Value="{DynamicResource Brush.Success}"/></DataTrigger><DataTrigger Binding="{Binding ConnectionState}" Value="Connecting"><Setter Property="Fill" Value="{DynamicResource Brush.Primary}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><StackPanel Grid.Column="1" Orientation="Horizontal"><TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Name}"/><Border Margin="10,0,0,0" Padding="8,3" CornerRadius="9" Background="{DynamicResource Brush.SurfaceMuted}"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Protocol}"/></Border><TextBlock Margin="10,2,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding ConnectionState}"/></StackPanel></Grid>
                                 <TextBlock Margin="16,7,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding LinkedProfilesDisplay}"/>
                                 <TextBlock Margin="16,5,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConfiguredLocation}" Visibility="{Binding HasConfiguredLocation, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="ROUTING"/>
+                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding RoutingScopeDisplay}"/>
+                                        <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.CardCaption}" Text="{Binding RoutingDevicesHeading}" Visibility="{Binding HasRoutingDevices, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <ItemsControl Margin="0,3,0,0" ItemsSource="{Binding RoutingDevices}" Visibility="{Binding HasRoutingDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2,0,0">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding DisplayName}" TextWrapping="Wrap"/>
+                                                        <TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding StatusDisplay}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="UsingVpn"><Setter Property="Foreground" Value="{DynamicResource Brush.Success}"/></DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Offline"><Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/></DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RoutingEmptyDisplay}" Visibility="{Binding HasRoutingEmptyDisplay, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </StackPanel>
+                                </Border>
                                 <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasConfigurationAttention, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConfigurationAttentionTitle}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ConfigurationAttentionDetail}"/></StackPanel></Border>
                                 <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasConnectionAttemptFailure, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ConnectionFailureTitle}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ConnectionFailureDetail}"/></StackPanel></Border>
                                 <Border Margin="16,10,0,0" Padding="10" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasServerSelectionLimitation, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding ServerSelectionLimitationText}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding ServerSelectionLimitationDetail}"/></StackPanel></Border>

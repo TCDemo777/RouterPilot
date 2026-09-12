@@ -952,7 +952,7 @@ namespace RouterPilot.ViewModels
                 ? "Initializing"
                 : !InternetConnected
                 ? RouterPilotStatusPresentation.Text(RouterPilotStatus.Error)
-                : VpnSummary.InternetRoutingScope == VpnInternetRoutingScope.DefaultInternet
+                : VpnInternetRoutePresentation.UsesDefaultVpnRoute(VpnSummary)
                     ? "Connected via VPN"
                 : RouterPilotStatusPresentation.Text(RouterPilotStatus.Connected);
 
@@ -2184,25 +2184,6 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(CpuUsageDisplay));
         }
 
-
-        //
-        // Convert memory text to progress value
-        //
-
-        partial void OnMemoryUsageChanged(
-            string value)
-        {
-            if (double.TryParse(
-                value.Replace("%", ""),
-                out double result))
-            {
-                MemoryPercentage = result;
-            }
-            else
-            {
-                MemoryPercentage = 0;
-            }
-        }
 
         partial void OnMemoryUsedChanged(string value) =>
             NotifyMemoryDetailsChanged();

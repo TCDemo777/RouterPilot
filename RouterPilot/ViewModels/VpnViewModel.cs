@@ -100,6 +100,16 @@ public sealed partial class VpnViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowNoVpnTunnels)); OnPropertyChanged(nameof(ShowNoVpnProfiles)); OnPropertyChanged(nameof(ShowVpnProfilesUnavailable));
     }
 
+    public void ApplyRoutingPolicy(IReadOnlyList<VpnTunnelInfo> routingTunnels)
+    {
+        var byId = routingTunnels.ToDictionary(tunnel => tunnel.TunnelId);
+        var updated = VpnTunnels.Select(tunnel => byId.TryGetValue(tunnel.TunnelId, out VpnTunnelInfo? routing)
+            ? CopyTunnel(tunnel, tunnel.TransitionIntent, routing: routing)
+            : tunnel).ToList();
+        VpnTunnels.Clear();
+        foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
+    }
+
     public void MarkVpnProfileInventoryUnavailable() => VpnProfileInventoryState = VpnProfileInventoryState.Unavailable;
 
     partial void OnVpnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsVpnInventoryLoading));
@@ -187,6 +197,9 @@ public sealed partial class VpnViewModel : ObservableObject
                 ConfiguredProfileName=configuredProfile?.Name ?? string.Empty, ConfiguredLocation=configuredProfile?.CurrentLocation ?? string.Empty,
                 ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy,
                 ServerConfigCount=tunnel.ServerConfigCount,
+                RoutingPolicyState=tunnel.RoutingPolicyState, InternetRoutingScope=tunnel.InternetRoutingScope,
+                RoutingDeviceIdentities=tunnel.RoutingDeviceIdentities,
+                RoutingDevices=RefreshRoutingDeviceStatuses(tunnel.RoutingDevices, selectedStatus?.IsConnected == true),
                 HasConnectionAttemptFailure=hasConnectionFailure,
                 TransitionIntent=_operationIntent?.GetIntent(tunnel.TunnelId) ?? VpnTransitionIntent.None,
                 // A disconnected status can still carry the authoritative group
@@ -207,7 +220,7 @@ public sealed partial class VpnViewModel : ObservableObject
         foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
     }
 
-    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null) => new()
+    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null, VpnTunnelInfo? routing = null) => new()
     {
         Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
         Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds,
@@ -216,9 +229,16 @@ public sealed partial class VpnViewModel : ObservableObject
         ConfiguredProfileName=tunnel.ConfiguredProfileName, ConfiguredLocation=tunnel.ConfiguredLocation,
         FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess,
         ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=tunnel.ServerConfigCount, LiveStatus=tunnel.LiveStatus,
+        RoutingPolicyState=routing?.RoutingPolicyState ?? tunnel.RoutingPolicyState, InternetRoutingScope=routing?.InternetRoutingScope ?? tunnel.InternetRoutingScope,
+        RoutingDeviceIdentities=routing?.RoutingDeviceIdentities ?? tunnel.RoutingDeviceIdentities,
+        RoutingDevices=RefreshRoutingDeviceStatuses(routing?.RoutingDevices ?? tunnel.RoutingDevices, tunnel.LiveStatus?.IsConnected == true),
         ConfigurationHealth=tunnel.ConfigurationHealth, HasConnectionAttemptFailure=hasConnectionAttemptFailure ?? tunnel.HasConnectionAttemptFailure,
         TransitionIntent=intent
     };
+
+    private static IReadOnlyList<VpnRoutingDeviceAssignment> RefreshRoutingDeviceStatuses(
+        IReadOnlyList<VpnRoutingDeviceAssignment> devices, bool tunnelConnected) =>
+        devices.Select(device => VpnRoutingDeviceAssignment.WithTunnelConnection(device, tunnelConnected)).ToList();
 
     private bool UpdateConnectionAttemptState(int tunnelId, int? groupId, string location, VpnConfigurationHealth configurationHealth, VpnLiveStatusInfo? status, bool fromLiveStatusEvent)
     {

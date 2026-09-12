@@ -149,6 +149,22 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Executes the registered callback after an in-flight instance has
+    /// finished. This is for bounded lifecycle recovery only: ordinary UI and
+    /// periodic refreshes remain non-blocking through <see cref="RunNowAsync"/>.
+    /// </summary>
+    public Task<bool> RunWhenAvailableAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_syncRoot)
+        {
+            ThrowIfDisposed();
+            return ExecuteAsync(GetTask(name), cancellationToken, waitForGate: true);
+        }
+    }
+
     public async Task StopAllAsync()
     {
         (RefreshTaskRegistration Registration, long Version)[] tasks;
@@ -333,11 +349,20 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
     private static async Task<bool> ExecuteAsync(
         RefreshTaskRegistration registration,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool waitForGate = false)
     {
-        if (!await registration.Gate
-                .WaitAsync(0, cancellationToken)
-                .ConfigureAwait(false))
+        bool entered;
+        if (waitForGate)
+        {
+            await registration.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            entered = true;
+        }
+        else
+        {
+            entered = await registration.Gate.WaitAsync(0, cancellationToken).ConfigureAwait(false);
+        }
+        if (!entered)
         {
             return false;
         }

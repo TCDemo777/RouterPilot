@@ -20,6 +20,7 @@ public sealed class VpnSummaryService : IVpnSummaryService
     private IReadOnlyList<VpnTunnelInfo> _tunnels = [];
     private IReadOnlyList<VpnClientProfileInfo> _profiles = [];
     private IReadOnlyList<VpnLiveStatusInfo> _statuses = [];
+    private long _routingRefreshVersion;
     private VpnSummaryState _current = new();
 
     public VpnSummaryService(IVpnService vpnService, IVpnLiveStatusService liveStatus, VpnOperationIntentService operationIntent)
@@ -49,6 +50,8 @@ public sealed class VpnSummaryService : IVpnSummaryService
                 _statuses = _liveStatus.Current;
             }
             Publish();
+            long routingVersion = Interlocked.Increment(ref _routingRefreshVersion);
+            _ = EnrichRoutingPolicyAsync(inventory.Tunnels, routingVersion, cancellationToken);
 
             // Socket delivery enriches the already-confirmed tunnel state. A
             // temporary live-status failure must not make a configured VPN look unsupported.
@@ -78,6 +81,27 @@ public sealed class VpnSummaryService : IVpnSummaryService
     {
         lock (_sync) _statuses = statuses;
         Publish();
+    }
+
+    private async Task EnrichRoutingPolicyAsync(IReadOnlyList<VpnTunnelInfo> tunnels, long version, CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<VpnTunnelInfo> enriched = await _vpnService.EnrichRoutingPolicyAsync(tunnels, cancellationToken).ConfigureAwait(false);
+            if (version != Interlocked.Read(ref _routingRefreshVersion) || cancellationToken.IsCancellationRequested) return;
+            lock (_sync)
+            {
+                if (version != Interlocked.Read(ref _routingRefreshVersion)) return;
+                _tunnels = enriched;
+                _statuses = _liveStatus.Current;
+            }
+            Publish();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            VpnLiveStatusDiagnostics.Record($"VPN summary routing enrichment unavailable: {DiagnosticRedactor.FailureCategory(exception)}");
+        }
     }
 
     private void OnOperationIntentChanged() => Publish();
@@ -116,7 +140,11 @@ public sealed class VpnSummaryService : IVpnSummaryService
                     TunnelName = tunnel.Name,
                     ProfileName = profile,
                     Location = connected ? status?.LocationDisplay ?? string.Empty : string.Empty,
-                    VirtualIp = connected ? status?.VirtualIpv4 ?? string.Empty : string.Empty
+                    VirtualIp = connected ? status?.VirtualIpv4 ?? string.Empty : string.Empty,
+                    // This routing decision is intentionally shared with the
+                    // VPN details page. A connected tunnel is not evidence of
+                    // a default Internet route.
+                    InternetRoutingScope = tunnel.InternetRoutingScope
                 };
             }
             summary = _current;
