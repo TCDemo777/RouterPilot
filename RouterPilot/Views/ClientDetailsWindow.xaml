@@ -148,8 +148,8 @@
                                 CornerRadius="9">
                             <TextBlock FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="{Binding HealthColour}"
-                                       Text="{Binding HealthText}"/>
+                                       Foreground="{Binding CurrentPresenceStatusColour}"
+                                       Text="{Binding CurrentPresenceStatus}"/>
                         </Border>
                         <Border Grid.Column="0" Width="42" Height="42"
                                 Background="{DynamicResource Brush.PrimarySubtle}" CornerRadius="21">
@@ -163,11 +163,18 @@
                             <TextBlock Margin="0,3,0,0" FontSize="15" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" Text="{Binding ClientName}"/>
                             <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
-                                       Text="{Binding NameSource, StringFormat=Name source: {0}}"/>
+                                       Text="{Binding ConnectionType, StringFormat=Connection: {0}}"/>
+                            <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding DeviceType}"/>
                         </StackPanel>
                     </Grid>
 
-                    <Grid Grid.Row="2">
+                    <Expander Grid.Row="2" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="TECHNICAL DETAILS &amp; IDENTITY"/>
+                        </Expander.Header>
+                    <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="12"/>
@@ -206,6 +213,7 @@
                             </Grid>
                         </StackPanel>
                     </Grid>
+                    </Expander>
 
                     <Border Grid.Row="3" Height="1" VerticalAlignment="Center"
                             Background="{DynamicResource Brush.Border}"/>
@@ -399,6 +407,21 @@
                     </ItemsControl>
                     <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding RecentAvailability}" TextWrapping="Wrap"/>
                     <Button Margin="0,9,0,0" HorizontalAlignment="Left" Style="{DynamicResource Button.Secondary}" Command="{Binding ClearPresenceHistoryCommand}" Content="Clear presence history"/>
+                    <Border Height="1" Margin="0,14,0,12" Background="{DynamicResource Brush.Border}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextSecondary}" Text="VPN ROUTING"/>
+                            <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding VpnRoutingProfile}" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding VpnRoutingDetail}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Margin="16,2,0,0" VerticalAlignment="Top" FontWeight="SemiBold"
+                                   Foreground="{Binding VpnRoutingStateColour}" Text="{Binding VpnRoutingState}"/>
+                    </Grid>
                 </StackPanel>
             </Border>
 

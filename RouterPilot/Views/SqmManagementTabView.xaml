@@ -1,0 +1,19 @@
+<UserControl x:Class="RouterPilot.Views.SqmManagementTabView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{DynamicResource Brush.WindowBackground}">
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,18,12,0">
+  <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Smart Queue Management"/>
+  <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}" Text="Use the router’s native GL.iNet SQM Management API. Changes are staged until Apply." TextWrapping="Wrap"/>
+  <Border Padding="14" Style="{DynamicResource Card}"><StackPanel>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.CardCaption}" Text="SQM MANAGEMENT"/><Button Grid.Column="1" Command="{Binding RefreshCommand}" Content="Refresh" Style="{DynamicResource Button.Secondary}"/></Grid>
+   <TextBlock Margin="0,8,0,14" Style="{DynamicResource Text.Muted}" Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+   <Grid IsEnabled="{Binding IsNative}"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Enable"/><CheckBox Margin="0,8,0,0" IsChecked="{Binding Enable}" Content="Enable SQM"/></StackPanel>
+    <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Queue Rule"/><ComboBox Margin="0,6,0,0" MinWidth="108" MaxWidth="132" HorizontalAlignment="Left" Style="{StaticResource RouterPilot.ComboBox}" ItemContainerStyle="{StaticResource RouterPilot.ComboBoxItem}" ItemsSource="{Binding QueueRules}" SelectedItem="{Binding Qdisc}"/></StackPanel>
+    <StackPanel Grid.Row="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Upload (Mbps)"/><TextBox Margin="0,6,0,0" Text="{Binding Upload, UpdateSourceTrigger=PropertyChanged}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding UploadEquivalent}"/></StackPanel>
+    <StackPanel Grid.Row="2" Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Download (Mbps)"/><TextBox Margin="0,6,0,0" Text="{Binding Download, UpdateSourceTrigger=PropertyChanged}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding DownloadEquivalent}"/></StackPanel>
+   </Grid>
+   <TextBlock Margin="0,12,0,0" Style="{DynamicResource Text.Muted}" Text="Bandwidth uses whole Mbps values from 1 to 10000. MB/s is presentation only."/>
+   <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.Warning}" Text="{Binding ValidationMessage}" TextWrapping="Wrap"/>
+   <StackPanel Margin="0,14,0,0" Orientation="Horizontal"><Button Command="{Binding CancelCommand}" IsEnabled="{Binding IsDirty}" Content="Cancel" Style="{DynamicResource Button.Secondary}"/><Button Margin="8,0,0,0" Command="{Binding ApplyCommand}" Content="Apply"/></StackPanel>
+  </StackPanel></Border>
+ </StackPanel></ScrollViewer>
+</UserControl>

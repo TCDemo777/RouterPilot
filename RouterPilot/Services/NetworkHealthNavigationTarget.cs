@@ -16,12 +16,13 @@ public static class NetworkHealthNavigationTarget
     public const string Wifi = "wifi";
     public const string Dhcp = "dhcp";
     public const string Vpn = "vpn";
+    public const string RouterFirmware = "router-firmware";
     public const string MaintenanceFirmware = "maintenance-firmware";
 
     public static bool IsSupported(string? target) => target?.Trim().ToLowerInvariant() switch
     {
         Overview or Router or Clients or Protection or Analytics or Network or
-        NetworkHealth or Health or Wifi or Dhcp or Vpn or MaintenanceFirmware => true,
+        NetworkHealth or Health or Wifi or Dhcp or Vpn or RouterFirmware or MaintenanceFirmware => true,
         _ => false
     };
 

@@ -180,7 +180,7 @@ namespace RouterPilot.ViewModels
             ("Network Health", "Maintenance · Health", "diagnostics diagnose troubleshoot troubleshooting internet problem wifi problem dns problem vpn problem client problem ethernet problem storage problem network problem network not working slow internet slow wifi", "maintenance-health"),
             ("Network Health", "Maintenance · Health", "network health health network status", "maintenance-health"),
             ("Configuration Snapshot", "Maintenance · Snapshots", "configuration snapshot router snapshot configuration changes router changes change detection compare router before update after update change journal observable changes known good", "maintenance-snapshots"),
-            ("Firmware & Lifecycle", "Maintenance · Firmware", "firmware upgrade pre upgrade post upgrade upgrade check lifecycle OpenWrt system version", "maintenance-firmware"),
+            ("Router Firmware", "Router · Firmware", "firmware upgrade pre upgrade post upgrade upgrade check lifecycle OpenWrt system version", "router-firmware"),
             ("Router Logs & Events", "Maintenance · Logs & Events", "router logs logs system log syslog logread events event timeline maintenance history maintenance log", "maintenance-logs"),
             ("Support Toolkit", "Maintenance · Support", "support support toolkit privacy-safe support diagnostics", "maintenance-support"),
             ("About", "Page", "about version information", "about"),

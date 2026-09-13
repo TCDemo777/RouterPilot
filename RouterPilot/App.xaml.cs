@@ -160,6 +160,8 @@ namespace RouterPilot
             serviceCollection.AddTransient<KnownDevicesViewModel>();
             serviceCollection.AddTransient<LogsViewModel>();
             serviceCollection.AddSingleton<RouterLogsViewModel>();
+            serviceCollection.AddSingleton<ISqmManagementService, SqmManagementService>();
+            serviceCollection.AddSingleton<SqmManagementViewModel>();
             serviceCollection.AddSingleton<IPluginPackageService, PluginPackageService>();
             serviceCollection.AddSingleton<IPluginPackageMutationService, PluginPackageMutationService>();
             serviceCollection.AddSingleton<PluginPackagesViewModel>();

@@ -119,11 +119,11 @@ public static class NetworkHealthViewProjection
     }
     private static NetworkHealthViewCheck Firmware(NetworkHealthViewInput x) => x.FirmwareStatus switch
     {
-        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "maintenance-firmware"),
-        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.RouterFirmwareVersion), RouterPilotStatus.Active, "maintenance-firmware"),
-        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "maintenance-firmware", false),
-        FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "maintenance-firmware", false),
-        _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "maintenance-firmware", false)
+        FirmwareUpdateCheckStatus.UpdateAvailable => Check("Firmware", "Update available", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "router-firmware"),
+        FirmwareUpdateCheckStatus.UpToDate => Check("Firmware", "Up to date", Known(x.RouterFirmwareVersion), RouterPilotStatus.Active, "router-firmware"),
+        FirmwareUpdateCheckStatus.Pending => Check("Firmware", "Checking", Known(x.RouterFirmwareVersion), RouterPilotStatus.Pending, "router-firmware", false),
+        FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "router-firmware", false),
+        _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "router-firmware", false)
     };
     private static NetworkHealthViewCheck DataStatistics(NetworkHealthViewInput x) => !x.DataStatisticsLoaded
         ? Check("Data Statistics", "Not loaded", "Open Analytics to load its existing Data Statistics state.", RouterPilotStatus.NotAvailable, "analytics", false)

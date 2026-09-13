@@ -22,6 +22,7 @@ namespace RouterPilot.ViewModels
         private readonly KnownDeviceForgetService _knownDeviceForgetService;
         private readonly ClientInventoryState _clientInventory;
         private readonly IClientDisplayNameService _displayNames;
+        private readonly IVpnSummaryService _vpnSummary;
         private readonly Dictionary<string, ClientProfile> _clientProfiles;
         private readonly DispatcherTimer _refreshTimer;
         private readonly ClientInfo _client;
@@ -100,6 +101,9 @@ namespace RouterPilot.ViewModels
         public bool IsWifiConnection => LiveClient?.IsWifiConnection == true;
         public string ConnectionType => IsEthernetConnection ? "Ethernet" :
             IsWifiConnection ? "Wi-Fi" : "Unknown";
+        public string DeviceType => string.IsNullOrWhiteSpace(CurrentClientOrSnapshot.DeviceType)
+            ? "Device type unavailable"
+            : CurrentClientOrSnapshot.DeviceType;
         public string ConnectionLabel => IsCurrentlyObserved ? "CONNECTION" : "LAST CONNECTION";
         public string ConnectionSummary => LiveClient?.ConnectionSummary ??
             (!string.IsNullOrWhiteSpace(Profile?.LastKnownConnectionSummary)
@@ -130,6 +134,36 @@ namespace RouterPilot.ViewModels
             "Offline" => RouterPilotStatus.Error,
             _ => RouterPilotStatus.Pending
         });
+
+        // VPN assignments are configuration state supplied by the shared VPN
+        // summary.  The MAC remains the lookup key; names are never used to
+        // associate a client with a policy rule.
+        private VpnTunnelInfo? AssignedVpnTunnel => ClientIdentity.IsMacKey(_client.MacAddress)
+            ? _vpnSummary.Tunnels.FirstOrDefault(tunnel => tunnel.RoutingDevices.Any(assignment =>
+                ClientIdentity.MacEquals(assignment.ClientIdentity, _client.MacAddress)))
+            : null;
+        private VpnRoutingDeviceAssignment? VpnAssignment => AssignedVpnTunnel?.RoutingDevices.FirstOrDefault(assignment =>
+            ClientIdentity.MacEquals(assignment.ClientIdentity, _client.MacAddress));
+        public bool HasVpnAssignment => VpnAssignment is not null;
+        public string VpnRoutingState => VpnAssignment?.StatusDisplay ?? "Not assigned to a client-specific VPN route";
+        public string VpnRoutingStateColour => VpnAssignment?.Status switch
+        {
+            VpnRoutingDeviceStatus.UsingVpn => RouterPilotStatusPresentation.Colour(RouterPilotStatus.Active),
+            VpnRoutingDeviceStatus.Offline => RouterPilotStatusPresentation.Colour(RouterPilotStatus.Error),
+            _ => RouterPilotStatusPresentation.Colour(RouterPilotStatus.NotAvailable)
+        };
+        public string VpnRoutingProfile => AssignedVpnTunnel is null
+            ? "No client-specific VPN assignment"
+            : !string.IsNullOrWhiteSpace(AssignedVpnTunnel.ActiveProfileName)
+                ? AssignedVpnTunnel.ActiveProfileName
+                : !string.IsNullOrWhiteSpace(AssignedVpnTunnel.ConfiguredProfileName)
+                    ? AssignedVpnTunnel.ConfiguredProfileName
+                    : !string.IsNullOrWhiteSpace(AssignedVpnTunnel.Name)
+                        ? AssignedVpnTunnel.Name
+                        : "VPN profile unavailable";
+        public string VpnRoutingDetail => VpnAssignment is null
+            ? "This device is not assigned to a client-specific VPN policy."
+            : "Assignment is configuration state; status does not claim observed packet flow.";
         public string ObservedOnlineToday => FormatDuration(_presenceHistory.GetObservedOnlineToday(_client.MacAddress, DateTimeOffset.UtcNow));
         public string CurrentObservedOnline => _presenceHistory.GetCurrentPeriod(_client.MacAddress) is { State: ClientPresenceState.Online } period
             ? $"At least {FormatDuration(DateTimeOffset.UtcNow - period.StartedAt)}" : "—";
@@ -333,6 +367,7 @@ namespace RouterPilot.ViewModels
             KnownDeviceForgetService knownDeviceForgetService,
             ClientInventoryState clientInventory,
             IClientDisplayNameService displayNames,
+            IVpnSummaryService vpnSummary,
             IEnumerable<DhcpLeaseInfo>? dhcpLeases = null,
             IEnumerable<DhcpReservationInfo>? dhcpReservations = null,
             IEnumerable<PortForwardRuleInfo>? portForwardRules = null)
@@ -344,6 +379,7 @@ namespace RouterPilot.ViewModels
             _knownDeviceForgetService = knownDeviceForgetService;
             _clientInventory = clientInventory;
             _displayNames = displayNames;
+            _vpnSummary = vpnSummary;
             _clientProfileService = new ClientProfileService();
             _clientProfiles = _clientProfileService.Load();
 
@@ -369,6 +405,7 @@ namespace RouterPilot.ViewModels
             _refreshTimer.Tick += RefreshTimer_Tick;
             _clientInventory.Changed += ClientInventoryState_Changed;
             _displayNames.Changed += DisplayNames_Changed;
+            _vpnSummary.SummaryChanged += VpnSummary_Changed;
         }
 
         public async Task StartAsync()
@@ -395,6 +432,29 @@ namespace RouterPilot.ViewModels
             _refreshTimer.Tick -= RefreshTimer_Tick;
             _clientInventory.Changed -= ClientInventoryState_Changed;
             _displayNames.Changed -= DisplayNames_Changed;
+            _vpnSummary.SummaryChanged -= VpnSummary_Changed;
+        }
+
+        private void VpnSummary_Changed(VpnSummaryState summary)
+        {
+            if (_disposed) return;
+
+            if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+            {
+                _ = dispatcher.InvokeAsync(RefreshVpnRoutingPresentation);
+                return;
+            }
+
+            RefreshVpnRoutingPresentation();
+        }
+
+        private void RefreshVpnRoutingPresentation()
+        {
+            OnPropertyChanged(nameof(HasVpnAssignment));
+            OnPropertyChanged(nameof(VpnRoutingState));
+            OnPropertyChanged(nameof(VpnRoutingStateColour));
+            OnPropertyChanged(nameof(VpnRoutingProfile));
+            OnPropertyChanged(nameof(VpnRoutingDetail));
         }
 
         private void ClientInventoryState_Changed(object? sender, EventArgs e)
@@ -425,6 +485,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(IsEthernetConnection));
             OnPropertyChanged(nameof(IsWifiConnection));
             OnPropertyChanged(nameof(ConnectionType));
+            OnPropertyChanged(nameof(DeviceType));
             OnPropertyChanged(nameof(ConnectionLabel));
             OnPropertyChanged(nameof(ConnectionSummary));
             OnPropertyChanged(nameof(ConnectionToolTip));
@@ -442,6 +503,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(HealthColour));
             OnPropertyChanged(nameof(LastSeen));
             OnPropertyChanged(nameof(LastSeenByRouterPilot));
+            RefreshVpnRoutingPresentation();
             OnPropertyChanged(nameof(TotalQueriesDisplay));
             OnPropertyChanged(nameof(BlockedQueriesDisplay));
             OnPropertyChanged(nameof(BlockRateDisplay));

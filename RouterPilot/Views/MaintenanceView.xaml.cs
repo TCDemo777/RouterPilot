@@ -22,7 +22,6 @@ public partial class MaintenanceView : UserControl
     private readonly IMaintenanceInteractiveSessionFactory _interactiveSessionFactory;
     private MaintenanceInteractiveSessionWindow? _interactiveConsole;
     private bool _backupPrivacyWarningAcknowledged;
-    private bool _navigateToFirmwareWhenLoaded;
     private MaintenanceTab _selectedTab = MaintenanceTab.Overview;
 
     public MaintenanceView(MaintenanceViewModel viewModel, DashboardViewModel dashboard, Func<Task> refreshAll,
@@ -36,7 +35,6 @@ public partial class MaintenanceView : UserControl
             .GetRequiredService<IMaintenanceInteractiveSessionFactory>();
         viewModel.AttachDashboard(dashboard);
         DataContext = viewModel;
-        Loaded += MaintenanceView_Loaded;
         ApplyMaintenanceTab(_selectedTab);
     }
 
@@ -52,17 +50,12 @@ public partial class MaintenanceView : UserControl
 
     private void ApplyMaintenanceTab(MaintenanceTab tab)
     {
-        if (tab == MaintenanceTab.Firmware)
-            PlaceFirmwareUpdateFirst();
         Set(OverviewStatusSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(QuickActionsSection, tab == MaintenanceTab.Overview);
-        Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Firmware);
+        Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview);
         Set(DiagnosticsSection, tab == MaintenanceTab.Support);
         Set(SnapshotsSection, tab == MaintenanceTab.Snapshots);
-        Set(FirmwareLifecycleSection, tab == MaintenanceTab.Firmware);
-        Set(FirmwareReadinessSection, tab == MaintenanceTab.Firmware);
-        Set(FirmwareSection, tab == MaintenanceTab.Firmware);
         Set(AdGuardHomeSection, tab == MaintenanceTab.AdGuardHome);
         Set(TailscaleSection, tab == MaintenanceTab.Tailscale);
         Set(ReportsSection, tab == MaintenanceTab.Reports);
@@ -74,42 +67,11 @@ public partial class MaintenanceView : UserControl
 
     private static void Set(UIElement element, bool visible) => element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
-    private void PlaceFirmwareUpdateFirst()
-    {
-        if (MaintenanceContent.Children.IndexOf(FirmwareSection) < 0)
-            return;
-
-        MaintenanceContent.Children.Remove(FirmwareSection);
-        int tabIndex = MaintenanceContent.Children.IndexOf(MaintenanceTabs);
-        MaintenanceContent.Children.Insert(Math.Max(0, tabIndex + 1), FirmwareSection);
-    }
-
     public void NavigateToTab(MaintenanceTab tab)
     {
         _selectedTab = tab;
         MaintenanceTabs.SelectedIndex = (int)tab;
         ApplyMaintenanceTab(tab);
-    }
-
-    public void NavigateToFirmware()
-    {
-        NavigateToTab(MaintenanceTab.Firmware);
-        if (IsLoaded)
-        {
-            FirmwareSection.BringIntoView();
-            return;
-        }
-
-        _navigateToFirmwareWhenLoaded = true;
-    }
-
-    private void MaintenanceView_Loaded(object sender, RoutedEventArgs e)
-    {
-        if (!_navigateToFirmwareWhenLoaded)
-            return;
-
-        _navigateToFirmwareWhenLoaded = false;
-        FirmwareSection.BringIntoView();
     }
 
     private async void RunAction_Click(object sender, RoutedEventArgs e)
@@ -128,18 +90,6 @@ public partial class MaintenanceView : UserControl
     {
         if (DataContext is MaintenanceViewModel viewModel)
             viewModel.CaptureStateSnapshot();
-    }
-
-    private async void PrepareFirmwareUpgrade_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MaintenanceViewModel viewModel)
-            await viewModel.PrepareForFirmwareUpgradeAsync(_refreshAll);
-    }
-
-    private async void RunPostUpgradeCheck_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MaintenanceViewModel viewModel)
-            await viewModel.RunPostUpgradeCheckAsync(_refreshAll);
     }
 
     private void CopyHomeReport_Click(object sender, RoutedEventArgs e)

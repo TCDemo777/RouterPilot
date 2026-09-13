@@ -16,16 +16,24 @@ internal sealed class RouterAdvancedTelemetryService
 
     internal static RouterAdvancedSnapshot Parse(string output)
     {
-        string Value(string key) => output.Split('\n').Select(line => line.Trim()).FirstOrDefault(line => line.StartsWith(key + "=", StringComparison.Ordinal))?.Split('=', 2)[1].Trim(' ', '\'', '"') ?? string.Empty;
+        string[] lines = output.Split('\n').Select(line => line.Trim()).ToArray();
+        string Value(string key) => lines.FirstOrDefault(line => line.StartsWith(key + "=", StringComparison.Ordinal))?.Split('=', 2)[1].Trim(' ', '\'', '"') ?? string.Empty;
         bool? Bool(string key) => Value(key).ToLowerInvariant() switch { "1" or "yes" or "true" => true, "0" or "no" or "false" => false, _ => null };
         bool hasSection(string section) => output.Contains(section, StringComparison.Ordinal);
+        string[] sqmSections = lines
+            .Where(line => line.StartsWith("sqm.", StringComparison.Ordinal) && line.EndsWith("=queue", StringComparison.Ordinal))
+            .Select(line => line["sqm.".Length..line.IndexOf('=')])
+            .ToArray();
+        string? sqmSection = sqmSections.FirstOrDefault(section => Bool($"sqm.{section}.enabled") == true) ?? sqmSections.FirstOrDefault();
+        string SqmValue(string option) => sqmSection is null ? string.Empty : Value($"sqm.{sqmSection}.{option}");
+        bool? SqmBool(string option) => sqmSection is null ? null : Bool($"sqm.{sqmSection}.{option}");
         return new RouterAdvancedSnapshot(
             Value("glconfig.general.mode") is { Length: > 0 } mode ? mode : "Unknown",
             Bool("network.iot.disabled") is bool disabledIot ? !disabledIot : null,
             Bool("network.guest.disabled") is bool disabledGuest ? !disabledGuest : null,
             Bool("network.guest.igmp_snooping"), Bool("network.iot.igmp_snooping"),
             FirewallZoneBool(output, "wan", "masq"), FirewallZoneBool(output, "wan", "masq6"),
-            Bool("sqm.eth1.enabled"), Value("sqm.eth1.qdisc") is { Length: > 0 } qdisc ? qdisc : "Unknown", Value("sqm.eth1.download") is { Length: > 0 } down ? down : "Unknown", Value("sqm.eth1.upload") is { Length: > 0 } up ? up : "Unknown",
+            SqmBool("enabled"), SqmValue("qdisc") is { Length: > 0 } qdisc ? qdisc : "Unknown", SqmValue("download") is { Length: > 0 } down ? down : "Unknown", SqmValue("upload") is { Length: > 0 } up ? up : "Unknown",
             Bool("gl_dpi.enabled"), hasSection("/usr/bin/eco /usr/bin/gl-dpi"), hasSection("zerotier.gl=zerotier"),
             Bool("zerotier.gl.enabled"), Bool("nas.conf.webdav_enable"), Bool("nas.conf.webdav_wan_access"), null,
             null, hasSection("minidlnad"), DateTimeOffset.UtcNow);

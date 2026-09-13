@@ -44,6 +44,7 @@ public partial class RouterView : UserControl
     private RouterManager? _portsManager;
     private RouterManager? _wifiManager;
     private readonly RouterLogsViewModel _routerLogsViewModel;
+    private readonly SqmManagementViewModel _sqmManagementViewModel;
     private readonly DashboardViewModel _dashboard;
 
     public RouterView()
@@ -53,7 +54,10 @@ public partial class RouterView : UserControl
         _dashboard = ((App)Application.Current).Services.GetRequiredService<DashboardViewModel>();
         DataContext = _dashboard;
         _routerLogsViewModel = ((App)Application.Current).Services.GetRequiredService<RouterLogsViewModel>();
+        _sqmManagementViewModel = ((App)Application.Current).Services.GetRequiredService<SqmManagementViewModel>();
         RouterLogsTabContent.Content = new RouterLogsTabView();
+        SqmTabContent.Content = new SqmManagementTabView();
+        RouterFirmwareTabContent.Content = new RouterFirmwareTabView();
         _routerLogsViewModel.PropertyChanged += RouterLogsViewModel_PropertyChanged;
         PortsList.ItemsSource = _ports;
         PortsHistoryList.ItemsSource = _portHistory;
@@ -76,7 +80,8 @@ public partial class RouterView : UserControl
         else if (RouterTabs.SelectedIndex == 2) await RefreshWifiAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
-        else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
+        else if (RouterTabs.SelectedIndex == 5) await _sqmManagementViewModel.RefreshAsync();
+        else if (RouterTabs.SelectedIndex == 6) await RefreshPerformanceAsync();
     }
 
     private void RouterLogsViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -109,7 +114,9 @@ public partial class RouterView : UserControl
         NavigateToLogs();
     }
 
-    public void NavigateToLogs() => RouterTabs.SelectedIndex = 7;
+    public void NavigateToLogs() => RouterTabs.SelectedIndex = 9;
+
+    public void NavigateToFirmware() => RouterTabs.SelectedIndex = 8;
 
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
     {
@@ -124,7 +131,8 @@ public partial class RouterView : UserControl
         else if (RouterTabs.SelectedIndex == 2) await RefreshWifiAsync();
         else if (RouterTabs.SelectedIndex == 3) await RefreshMultiWanAsync();
         else if (RouterTabs.SelectedIndex == 4) await RefreshDnsAsync();
-        else if (RouterTabs.SelectedIndex == 5) await RefreshPerformanceAsync();
+        else if (RouterTabs.SelectedIndex == 5) await _sqmManagementViewModel.RefreshAsync();
+        else if (RouterTabs.SelectedIndex == 6) await RefreshPerformanceAsync();
     }
 
     private async Task RefreshPortsAsync()

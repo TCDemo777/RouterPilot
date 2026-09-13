@@ -20,7 +20,6 @@
                 <TabItem Header="Overview" Tag="Overview" />
                 <TabItem Header="Health" Tag="Health" />
                 <TabItem Header="Snapshots" Tag="Snapshots" />
-                <TabItem Header="Firmware" Tag="Firmware" />
                 <TabItem Header="Logs &amp; Events" Tag="LogsEvents" />
                 <TabItem Header="Reports" Tag="Reports" />
                 <TabItem Header="Support" Tag="Support" />
@@ -214,21 +213,23 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="FirmwareLifecycleSection" Style="{StaticResource SectionContainerStyle}">
+            <!-- Router firmware presentation moved to Router > Firmware. -->
+            <!--
+            <Border x:Name="FirmwareLifecycleSection" Visibility="Collapsed" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Firmware &amp; Lifecycle" />
                     <TextBlock Margin="0,5,0,4" Style="{StaticResource Text.Secondary}" Text="Save a read-only baseline before you upgrade, then compare the router's observed state after it reconnects. RouterPilot does not install firmware or change the router." TextWrapping="Wrap" />
                     <TextBlock Margin="0,0,0,10" Style="{StaticResource Text.Muted}" Text="Use the GL.iNet administration interface to install firmware. Return here afterwards to run the post-upgrade check." TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal">
-                        <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Save Pre-Upgrade Baseline" Click="PrepareFirmwareUpgrade_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
-                        <Button Style="{DynamicResource Button.Secondary}" Content="Run Post-Upgrade Check" Click="RunPostUpgradeCheck_Click" IsEnabled="{Binding Dashboard.RouterConnected}" />
+                        <Button Margin="0,0,10,0" Style="{DynamicResource Button.Primary}" Content="Save Pre-Upgrade Baseline" IsEnabled="False" />
+                        <Button Style="{DynamicResource Button.Secondary}" Content="Run Post-Upgrade Check" IsEnabled="False" />
                     </StackPanel>
                     <TextBlock Margin="0,10,0,0" Style="{StaticResource Text.Muted}" Text="{Binding LifecycleStatus}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Secondary}" Text="{Binding RouterFirmwareText, StringFormat=Current GL.iNet firmware: {0}}" />
                 </StackPanel>
             </Border>
 
-            <Border x:Name="FirmwareReadinessSection" Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="FirmwareReadinessSection" Visibility="Collapsed" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Firmware update readiness" />
                     <TextBlock Style="{StaticResource Text.Secondary}" Text="{Binding UpdateReadinessText}" TextWrapping="Wrap"/>
@@ -236,7 +237,7 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="FirmwareSection" Style="{StaticResource SectionContainerStyle}">
+            <Border x:Name="FirmwareSection" Visibility="Collapsed" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="System identity" />
             <TextBlock Margin="0,0,0,10" Style="{StaticResource Text.Muted}" Text="GL.iNet firmware and the underlying OpenWrt/system identity are shown separately where RouterPilot can observe them." TextWrapping="Wrap" />
@@ -297,6 +298,7 @@
                 </StackPanel>
             </Border>
 
+            -->
             <Border x:Name="AdGuardHomeSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="AdGuard Home" />

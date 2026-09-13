@@ -1339,6 +1339,10 @@ namespace RouterPilot.Views
                     NavigateToMaintenanceFirmware();
                     break;
 
+                case "router-firmware":
+                    NavigateToRouterFirmware();
+                    break;
+
                 case "router":
                     Router_Click(this, new RoutedEventArgs());
                     break;
@@ -1404,9 +1408,19 @@ namespace RouterPilot.Views
             router.NavigateToLogs();
         }
 
+        public void NavigateToRouterFirmware()
+        {
+            RouterView router = PageContent.Content as RouterView ?? new RouterView();
+            PageContent.Content = router;
+            SelectNavigationButton(RouterButton);
+            router.NavigateToFirmware();
+        }
+
+        internal Task RefreshForFirmwareLifecycleAsync() => RefreshNowAsync();
+
         private void NavigateToMaintenanceFirmware()
         {
-            NavigateToMaintenanceTab(MaintenanceTab.Firmware);
+            NavigateToRouterFirmware();
         }
 
         public void NavigateToMaintenanceTab(MaintenanceTab tab)
@@ -1452,7 +1466,8 @@ namespace RouterPilot.Views
                 case "maintenance-overview": NavigateToMaintenanceTab(MaintenanceTab.Overview); break;
                 case "maintenance-health": NavigateToMaintenanceTab(MaintenanceTab.Health); break;
                 case "maintenance-snapshots": NavigateToMaintenanceTab(MaintenanceTab.Snapshots); break;
-                case "maintenance-firmware": NavigateToMaintenanceTab(MaintenanceTab.Firmware); break;
+                case "maintenance-firmware":
+                case "router-firmware": NavigateToRouterFirmware(); break;
                 case "maintenance-logs": NavigateToMaintenanceTab(MaintenanceTab.LogsEvents); break;
                 case "maintenance-reports": NavigateToMaintenanceTab(MaintenanceTab.Reports); break;
                 case "maintenance-support": NavigateToMaintenanceTab(MaintenanceTab.Support); break;

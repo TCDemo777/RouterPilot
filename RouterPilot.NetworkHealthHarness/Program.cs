@@ -362,7 +362,7 @@ Require(firmwareUpToDate.Status == "Up to date" && firmwareUpToDate.Detail == "C
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.UpdateAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Update available", "GL.iNet firmware update available");
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.Pending)).Checks.Single(x => x.Title == "Firmware").Status == "Checking", "GL.iNet firmware checking");
 Require(NetworkHealthViewProjection.Create(Input(firmwareStatus: FirmwareUpdateCheckStatus.NotAvailable)).Checks.Single(x => x.Title == "Firmware").Status == "Unavailable", "GL.iNet firmware unavailable");
-Require(firmwareUpToDate.NavigationTarget == "maintenance-firmware", "Firmware navigation targets Maintenance firmware.");
+Require(firmwareUpToDate.NavigationTarget == NetworkHealthNavigationTarget.RouterFirmware, "Firmware navigation targets Router firmware.");
 Require(nameof(NetworkHealthViewInput.RouterFirmwareVersion) == "RouterFirmwareVersion", "Network Health has no LuCI firmware input.");
 Require(NetworkHealthNavigationTarget.ForDataFreshness([new DataFreshnessInfo("Clients", null, null, DataFreshnessState.Stale, TimeSpan.FromSeconds(10))]) == NetworkHealthNavigationTarget.Clients,
     "a client refresh issue opens Clients rather than recreating Overview");
@@ -726,6 +726,7 @@ firewall.@zone[1].name='wan'
 firewall.@zone[1].masq='1'
 firewall.@zone[1].masq6='0'
 __SQM__
+sqm.eth1=queue
 sqm.eth1.enabled='1'
 sqm.eth1.qdisc='cake'
 sqm.eth1.download='100000'
@@ -747,6 +748,33 @@ using JsonDocument firmwareCatalog = JsonDocument.Parse("""
 GlInetFirmwareRelease? latestRelease = GlInetFirmwareCatalogService.ParseLatest(firmwareCatalog.RootElement);
 Require(latestRelease?.Version == "4.9.1", "Public GL.iNet release selection was not semantic or stable-only.");
 Require(GlInetFirmwareCatalogService.NormalizeModel("GL-MT6000") == "MT6000", "GL.iNet model normalization failed.");
+Require(new SqmConfiguration(true, 885, 100, "cake").IsValid && new SqmConfiguration(false, 10000, 1, "fq_codel").IsValid,
+    "native SQM contract accepts the two proven queue rules and the inclusive 1-10000 Mbps range");
+Require(!new SqmConfiguration(true, 0, 100, "cake").IsValid && !new SqmConfiguration(true, 100, 10001, "fq_codel").IsValid && !new SqmConfiguration(true, 100, 100, "unknown").IsValid,
+    "native SQM contract rejects invalid bandwidths and queue rules before mutation");
+var sqmNativeFixture = new FakeSqmManagementService(new SqmReadResult(SqmCapabilityState.Native, new SqmConfiguration(true, 885, 100, "cake"), "Native GL.iNet SQM Management"));
+var sqmEditor = new SqmManagementViewModel(sqmNativeFixture);
+await sqmEditor.RefreshAsync();
+Require(sqmEditor.IsNative && sqmEditor.Upload == "100" && sqmEditor.Download == "885" && !sqmEditor.CanApply,
+    "native SQM read establishes the authoritative staged editor baseline");
+sqmEditor.Download = "886";
+Require(sqmEditor.IsDirty && sqmEditor.CanApply && sqmEditor.DownloadEquivalent == "110.75 MB/s equivalent",
+    "SQM editing tracks a valid local draft and derives MB/s as presentation only");
+await sqmEditor.ApplyCommand.ExecuteAsync(null);
+Require(sqmNativeFixture.ApplyCount == 1 && !sqmEditor.IsDirty,
+    "SQM Apply submits one native mutation only after validation and resets dirty state after verified success");
+var sqmReadOnlyFixture = new FakeSqmManagementService(new SqmReadResult(SqmCapabilityState.LegacyReadOnly, new SqmConfiguration(false, 10, 20, "cake"), "Legacy read-only SQM configuration"));
+var sqmReadOnlyEditor = new SqmManagementViewModel(sqmReadOnlyFixture);
+await sqmReadOnlyEditor.RefreshAsync();
+Require(!sqmReadOnlyEditor.IsNative && sqmReadOnlyEditor.IsReadOnly && !sqmReadOnlyEditor.CanApply,
+    "native capability absence keeps the legacy SQM path read-only");
+var sqmMismatchFixture = new FakeSqmManagementService(new SqmReadResult(SqmCapabilityState.Native, new SqmConfiguration(true, 100, 100, "cake"), "Native GL.iNet SQM Management"), new SqmApplyResult(false, false, "The router returned different SQM settings after apply."));
+var sqmMismatchEditor = new SqmManagementViewModel(sqmMismatchFixture);
+await sqmMismatchEditor.RefreshAsync();
+sqmMismatchEditor.Upload = "101";
+await sqmMismatchEditor.ApplyCommand.ExecuteAsync(null);
+Require(sqmMismatchEditor.IsDirty && sqmMismatchFixture.ApplyCount == 1,
+    "a failed native read-back verification retains the staged SQM draft instead of claiming success");
 Console.WriteLine("Network Health, notification, blocklist, SSH and router-profile fixtures passed.");
 
 static void RequireThrows(Action action, string message)
@@ -800,5 +828,26 @@ sealed class CountingToastNotificationService : IToastNotificationService
     {
         Count++;
         return Task.FromResult(ToastDeliveryResult.Delivered);
+    }
+}
+
+sealed class FakeSqmManagementService : ISqmManagementService
+{
+    private readonly SqmReadResult _read;
+    private readonly SqmApplyResult _applyResult;
+    public int ApplyCount { get; private set; }
+
+    public FakeSqmManagementService(SqmReadResult read, SqmApplyResult? applyResult = null)
+    {
+        _read = read;
+        _applyResult = applyResult ?? new SqmApplyResult(true, true, "SQM settings applied and verified.");
+    }
+
+    public Task<SqmReadResult> LoadAsync(CancellationToken token = default) => Task.FromResult(_read);
+
+    public Task<SqmApplyResult> ApplyAsync(SqmConfiguration requested, CancellationToken token = default)
+    {
+        ApplyCount++;
+        return Task.FromResult(_applyResult);
     }
 }
