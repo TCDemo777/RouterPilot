@@ -311,6 +311,11 @@ internal static class Program
             await RunInventoryReadAsync();
             return;
         }
+        if (args.Any(argument => string.Equals(argument, "--vpn-stale-capture", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunVpnStaleStateCaptureAsync();
+            return;
+        }
         if (args.Any(argument => string.Equals(argument, "--plugins", StringComparison.OrdinalIgnoreCase)))
         {
             await RunPluginDiscoveryAsync();
@@ -364,6 +369,93 @@ internal static class Program
         {
             Console.WriteLine($"READ_ONLY_INVENTORY_FAILURE: {Sanitize(exception.Message)}");
         }
+    }
+
+    // Temporary, manually invoked incident capture. It is intentionally
+    // limited to RouterPilot's established read contracts plus its existing
+    // read-only VPN live-status subscription. Do not add provider/config
+    // generation, tunnel mutation, UCI writes, or service actions here.
+    private static async Task RunVpnStaleStateCaptureAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+
+            RouterInfo identity = await manager.GetRouterInfoAsync();
+            IReadOnlyList<VpnTunnelInfo> tunnels = await manager.GetVpnTunnelsAsync(timeout.Token);
+            (IReadOnlyList<VpnClientProfileInfo> profileInventory, VpnProfileInventoryState inventoryState) = await manager.GetVpnProfilesAsync(tunnels, timeout.Token);
+            IReadOnlyList<VpnConfigMetadata> configMetadata = await manager.GetVpnConfigMetadataAsync(timeout.Token);
+            VpnRoutingPolicySnapshot routingPolicy = await manager.GetVpnRoutingPolicyAsync(timeout.Token);
+            IReadOnlyList<VpnLiveStatusInfo> liveStatuses = await CaptureVpnLiveStatusesAsync(manager, timeout.Token);
+
+            Console.WriteLine("VPN_STALE_STATE_CAPTURE_READ_ONLY");
+            Console.WriteLine($"Router={Sanitize(identity.Model)};TunnelCount={tunnels.Count};ProfileInventory={inventoryState};ConfigObjectCount={configMetadata.Count};RoutePolicy={routingPolicy.State};LiveStatusCount={liveStatuses.Count}");
+
+            foreach (VpnTunnelInfo tunnel in tunnels.OrderBy(item => item.TunnelId))
+            {
+                VpnTunnelRoutingPolicy? route = routingPolicy.Tunnels.SingleOrDefault(item => item.TunnelId == tunnel.TunnelId);
+                IReadOnlyList<int> groupIds = tunnel.ProfileGroupIds;
+                string groups = groupIds.Count == 0 ? "NONE" : string.Join(',', groupIds);
+                Console.WriteLine($"TunnelId={tunnel.TunnelId};Enabled={tunnel.Enabled};Protocol={Sanitize(tunnel.Protocol)};Interface={Sanitize(tunnel.InterfaceName)};GroupIds={groups};Runtime={DescribeCapturedRuntime(liveStatuses.SingleOrDefault(item => item.TunnelId == tunnel.TunnelId))};RouteScope={route?.Scope.ToString() ?? "UNAVAILABLE"};RouteGroup={route?.GroupId?.ToString() ?? "UNAVAILABLE"};RoutePeer={route?.PeerId?.ToString() ?? "UNAVAILABLE"};ErrorStatus=NOT_EXPOSED_BY_PROVEN_READS");
+
+                foreach (int groupId in groupIds)
+                {
+                    VpnClientProfileInfo? profile = profileInventory.SingleOrDefault(item => item.GroupId == groupId);
+                    List<VpnConfigMetadata> configs = configMetadata.Where(item => item.GroupId == groupId).ToList();
+                    int? selectedPeerId = profile?.CurrentPeerId;
+                    VpnConfigMetadata? selectedConfig = selectedPeerId is int peerId
+                        ? configs.SingleOrDefault(item => item.PeerId == peerId)
+                        : configs.Count == 1 ? configs[0] : null;
+                    string peerIds = configs.Count == 0 ? "NONE" : string.Join(',', configs.Select(item => item.PeerId).Distinct().OrderBy(item => item));
+                    Console.WriteLine($"  GroupId={groupId};ProfileResolved={(profile is null ? "NO" : "YES")};Profile={Sanitize(profile?.Name ?? "UNAVAILABLE")};Provider={(selectedConfig?.IsProvider ?? configs.Any(item => item.IsProvider) ? "YES" : "NO")};ConfiguredPeerIds={peerIds};SelectedPeerId={selectedPeerId?.ToString() ?? "UNAVAILABLE"};SelectedServerResolved={(selectedConfig is null ? "NO_OR_AMBIGUOUS" : "YES")};Server={Sanitize(selectedConfig?.Name ?? "UNAVAILABLE")};Location={Sanitize(selectedConfig?.Location ?? "UNAVAILABLE")};GeneratedConfigReference=NOT_EXPOSED_BY_PROVEN_READS;ProviderRevision=NOT_EXPOSED_BY_PROVEN_READS");
+                }
+            }
+
+            Console.WriteLine("READ_METHODS=vpn-client.get_tunnel,vpn-client.get_all_config_list,route_policy UCI read,existing VPN live-status subscription");
+            Console.WriteLine("MUTATIONS=NONE");
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("VPN_STALE_STATE_CAPTURE=TIMED_OUT;MUTATIONS=NONE");
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"VPN_STALE_STATE_CAPTURE_FAILURE={Sanitize(exception.Message)};MUTATIONS=NONE");
+        }
+    }
+
+    private static async Task<IReadOnlyList<VpnLiveStatusInfo>> CaptureVpnLiveStatusesAsync(RouterManager manager, CancellationToken cancellationToken)
+    {
+        var received = new TaskCompletionSource<IReadOnlyList<VpnLiveStatusInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnStatus(IReadOnlyList<VpnLiveStatusInfo> statuses) => received.TrySetResult(statuses);
+
+        manager.VpnStatusReceived += OnStatus;
+        try
+        {
+            await manager.EnsureVpnStatusSubscriptionAsync(cancellationToken);
+            Task timeout = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            Task completed = await Task.WhenAny(received.Task, timeout);
+            return completed == received.Task ? await received.Task : [];
+        }
+        finally
+        {
+            manager.VpnStatusReceived -= OnStatus;
+        }
+    }
+
+    private static string DescribeCapturedRuntime(VpnLiveStatusInfo? status)
+    {
+        if (status is null) return "UNAVAILABLE";
+        string state = status.IsConnected ? "Connected" : status.Enabled ? "Transitioning" : "Disconnected";
+        return $"{state};StatusCode={status.Status};GroupId={status.GroupId?.ToString() ?? "UNAVAILABLE"};PeerId={status.PeerId?.ToString() ?? "UNAVAILABLE"}";
     }
 
     private static async Task RunPluginDiscoveryAsync()
