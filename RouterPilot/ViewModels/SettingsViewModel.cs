@@ -52,6 +52,7 @@ namespace RouterPilot.ViewModels
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
         private bool _useRouterCredentialsForAdGuard = true;
+        private bool _dedicatedAdGuardHttpCredentialsAcknowledged;
         private string _adGuardUsername = "";
         private string _adGuardPassword = "";
         private bool _adGuardPasswordChanged;
@@ -270,6 +271,8 @@ namespace RouterPilot.ViewModels
             {
                 if (SetProperty(ref _useRouterCredentialsForAdGuard, value))
                 {
+                    if (!_isLoading && AdGuardCredentialTransportPolicy.RequiresHttpAcknowledgement(value, _useAdGuardHttps))
+                        _dedicatedAdGuardHttpCredentialsAcknowledged = false;
                     OnPropertyChanged(nameof(UsesDedicatedAdGuardCredentials));
                     MarkChanged();
                 }
@@ -418,7 +421,10 @@ namespace RouterPilot.ViewModels
                 PrivateKeyPath = settings.PrivateKeyPath;
                 PrivateKeyPassphrase = string.IsNullOrWhiteSpace(settings.EncryptedPrivateKeyPassphrase) ? "" : _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase);
                 _useAdGuardHttps = settings.UseAdGuardHttps;
-                UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                _useRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                _dedicatedAdGuardHttpCredentialsAcknowledged = settings.DedicatedAdGuardHttpCredentialsAcknowledged;
+                OnPropertyChanged(nameof(UseRouterCredentialsForAdGuard));
+                OnPropertyChanged(nameof(UsesDedicatedAdGuardCredentials));
                 AdGuardUsername = settings.AdGuardUsername;
                 _adGuardPassword = string.Empty;
                 _adGuardPasswordChanged = false;
@@ -490,7 +496,10 @@ namespace RouterPilot.ViewModels
                         ? 30
                         : settings.DefaultPauseMinutes;
                 _useAdGuardHttps = settings.UseAdGuardHttps;
-                UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                _useRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                _dedicatedAdGuardHttpCredentialsAcknowledged = settings.DedicatedAdGuardHttpCredentialsAcknowledged;
+                OnPropertyChanged(nameof(UseRouterCredentialsForAdGuard));
+                OnPropertyChanged(nameof(UsesDedicatedAdGuardCredentials));
                 AdGuardUsername = settings.AdGuardUsername;
                 _adGuardPassword = string.Empty;
                 _adGuardPasswordChanged = false;
@@ -549,6 +558,9 @@ namespace RouterPilot.ViewModels
                 return;
             }
 
+            if (!EnsureDedicatedAdGuardHttpAcknowledged())
+                return;
+
             try
             {
                 AppSettings existing = _settingsService.Load();
@@ -561,6 +573,10 @@ namespace RouterPilot.ViewModels
                         UseRouterHttps = existing.UseRouterHttps,
                         UseAdGuardHttps = existing.UseAdGuardHttps,
                         UseRouterCredentialsForAdGuard = UseRouterCredentialsForAdGuard,
+                        DedicatedAdGuardHttpCredentialsAcknowledged =
+                            AdGuardCredentialTransportPolicy.RequiresHttpAcknowledgement(
+                                UseRouterCredentialsForAdGuard,
+                                _useAdGuardHttps) && _dedicatedAdGuardHttpCredentialsAcknowledged,
                         AdGuardUsername = AdGuardUsername.Trim(),
                         EncryptedAdGuardPassword = UseRouterCredentialsForAdGuard
                             ? existing.EncryptedAdGuardPassword
@@ -691,6 +707,9 @@ namespace RouterPilot.ViewModels
             if (IsTestingAdGuardConnection)
                 return;
 
+            if (!EnsureDedicatedAdGuardHttpAcknowledged())
+                return;
+
             IsTestingAdGuardConnection = true;
             TestAdGuardConnectionCommand.NotifyCanExecuteChanged();
             try
@@ -751,6 +770,26 @@ namespace RouterPilot.ViewModels
 
         private async Task CheckFirmwareUpdateAsync() =>
             await _firmwareUpdateService.CheckManuallyAsync();
+
+        private bool EnsureDedicatedAdGuardHttpAcknowledged()
+        {
+            if (AdGuardCredentialTransportPolicy.IsAcknowledgementValid(
+                    _dedicatedAdGuardHttpCredentialsAcknowledged,
+                    UseRouterCredentialsForAdGuard,
+                    _useAdGuardHttps))
+            {
+                return true;
+            }
+
+            if (!RouterPilot.Views.AdGuardHttpCredentialsWarningDialog.Confirm(Application.Current?.MainWindow))
+            {
+                StatusMessage = "Dedicated AdGuard Home credentials were not used over HTTP.";
+                return false;
+            }
+
+            _dedicatedAdGuardHttpCredentialsAcknowledged = true;
+            return true;
+        }
 
         private bool IsQuietHoursActive() =>
             new NotificationPreferences

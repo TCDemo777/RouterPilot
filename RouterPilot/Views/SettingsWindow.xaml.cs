@@ -79,6 +79,10 @@ namespace RouterPilot.Views
                         AdGuardPort = existing.AdGuardPort,
                         UseRouterHttps = existing.UseRouterHttps,
                         UseAdGuardHttps = existing.UseAdGuardHttps,
+                        UseRouterCredentialsForAdGuard = existing.UseRouterCredentialsForAdGuard,
+                        DedicatedAdGuardHttpCredentialsAcknowledged = existing.DedicatedAdGuardHttpCredentialsAcknowledged,
+                        AdGuardUsername = existing.AdGuardUsername,
+                        EncryptedAdGuardPassword = existing.EncryptedAdGuardPassword,
                         TrustedSshHostFingerprints =
                             existing.TrustedSshHostFingerprints ??
                             new Dictionary<string, string>(

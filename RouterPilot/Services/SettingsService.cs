@@ -167,6 +167,7 @@ public sealed class SettingsService
         settings.UseRouterHttps = profile.UseRouterHttps;
         settings.UseAdGuardHttps = profile.UseAdGuardHttps;
         settings.UseRouterCredentialsForAdGuard = profile.UseRouterCredentialsForAdGuard;
+        settings.DedicatedAdGuardHttpCredentialsAcknowledged = profile.DedicatedAdGuardHttpCredentialsAcknowledged;
         settings.AdGuardUsername = profile.AdGuardUsername;
         settings.EncryptedAdGuardPassword = profile.EncryptedAdGuardPassword;
         settings.Username = profile.Username;
@@ -194,6 +195,7 @@ public sealed class SettingsService
         profile.UseRouterHttps = settings.UseRouterHttps;
         profile.UseAdGuardHttps = settings.UseAdGuardHttps;
         profile.UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+        profile.DedicatedAdGuardHttpCredentialsAcknowledged = settings.DedicatedAdGuardHttpCredentialsAcknowledged;
         profile.AdGuardUsername = settings.AdGuardUsername;
         profile.EncryptedAdGuardPassword = settings.EncryptedAdGuardPassword;
         profile.Username = settings.Username;
@@ -259,6 +261,7 @@ public sealed class SettingsService
                 UseRouterHttps = settings.UseRouterHttps,
                 UseAdGuardHttps = settings.UseAdGuardHttps,
                 UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard,
+                DedicatedAdGuardHttpCredentialsAcknowledged = settings.DedicatedAdGuardHttpCredentialsAcknowledged,
                 AdGuardUsername = settings.AdGuardUsername,
                 EncryptedAdGuardPassword = settings.EncryptedAdGuardPassword,
                 Username = settings.Username,

@@ -864,6 +864,7 @@ internal static class Program
         RunVpnControlPresentationTests();
         RunVpnProfileInventoryTests();
         RunVpnRoutingPolicyTests();
+        RunVpnDiagnosticExportTests();
         RunRouterCertificateTrustPolicyTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
@@ -947,6 +948,24 @@ internal static class Program
             ["auth_key"] = "never-send"
         });
         Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
+    }
+
+    private static void RunVpnDiagnosticExportTests()
+    {
+        string vpnViewSource = File.ReadAllText(Path.Combine(
+            Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml.cs"));
+        Require(!vpnViewSource.Contains("Append(report, \"Server\", tunnel.LiveEndpoint)", StringComparison.Ordinal) &&
+                !vpnViewSource.Contains("Append(report, \"Virtual IP\", tunnel.LiveVirtualIp)", StringComparison.Ordinal),
+            "shareable VPN reports omit live endpoint and virtual IP fields");
+        Require(vpnViewSource.Contains("DiagnosticRedactor.RedactForExport(BuildDiagnosticReport())", StringComparison.Ordinal) &&
+                vpnViewSource.Contains("DiagnosticRedactor.RedactForExport(BuildVpnDetailsReport())", StringComparison.Ordinal),
+            "copy and export VPN diagnostics use the common privacy redactor");
+        string redacted = DiagnosticRedactor.RedactForExport(
+            "Authorization: Bearer secret\nMAC=aa:bb:cc:dd:ee:ff\nAddress=192.168.1.9");
+        Require(!redacted.Contains("secret", StringComparison.Ordinal) &&
+                !redacted.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) &&
+                !redacted.Contains("192.168.1.9", StringComparison.Ordinal),
+            "VPN diagnostic export redacts credential and network identifiers");
     }
 
     private static void RunRouterCertificateTrustPolicyTests()

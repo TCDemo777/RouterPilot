@@ -34,6 +34,10 @@ namespace RouterPilot.Services
                         ? AdGuardConnectionTestResult.AuthenticationFailed
                         : AdGuardConnectionTestResult.Unavailable;
             }
+            catch (AdGuardDedicatedCredentialsTransportException)
+            {
+                return AdGuardConnectionTestResult.Unavailable;
+            }
             catch (AdGuardAuthenticationException)
             {
                 return AdGuardConnectionTestResult.AuthenticationFailed;
@@ -2341,6 +2345,12 @@ namespace RouterPilot.Services
 
             try
             {
+                if (!_adGuardAuthentication.UseRouterCredentials &&
+                    !_adGuardAuthentication.IsDedicatedCredentialsTransportAcknowledged)
+                {
+                    throw new AdGuardDedicatedCredentialsTransportException();
+                }
+
                 if (!string.IsNullOrWhiteSpace(
                         _adminToken))
                 {

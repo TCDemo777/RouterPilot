@@ -25,7 +25,10 @@ public sealed class AdGuardService : IDisposable
         _endpoints = endpoints ??
             throw new ArgumentNullException(nameof(endpoints));
 
-        _client = new HttpClient
+        _client = new HttpClient(new HttpClientHandler
+        {
+            AllowAutoRedirect = AdGuardHttpClientSecurityPolicy.AllowAutoRedirect
+        })
         {
             BaseAddress = endpoints.AdGuardBaseUri,
             Timeout = TimeSpan.FromSeconds(

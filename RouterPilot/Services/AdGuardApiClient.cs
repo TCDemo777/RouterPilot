@@ -24,6 +24,7 @@ public sealed class AdGuardApiClient : IDisposable
         {
             CookieContainer = _cookies,
             UseCookies = true,
+            AllowAutoRedirect = AdGuardHttpClientSecurityPolicy.AllowAutoRedirect,
             AutomaticDecompression =
                 DecompressionMethods.GZip |
                 DecompressionMethods.Deflate

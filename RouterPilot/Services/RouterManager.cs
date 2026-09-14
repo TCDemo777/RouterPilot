@@ -137,6 +137,7 @@ namespace RouterPilot.Services
             {
                 CookieContainer = _adGuardCookies,
                 UseCookies = true,
+                AllowAutoRedirect = AdGuardHttpClientSecurityPolicy.AllowAutoRedirect,
                 AutomaticDecompression =
                     DecompressionMethods.GZip |
                     DecompressionMethods.Deflate

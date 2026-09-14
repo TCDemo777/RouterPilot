@@ -8,7 +8,8 @@ namespace RouterPilot.Models;
 public sealed record AdGuardAuthenticationConfiguration(
     bool UseRouterCredentials,
     string Username,
-    string Password)
+    string Password,
+    bool IsDedicatedCredentialsTransportAcknowledged = true)
 {
     public static AdGuardAuthenticationConfiguration RouterCredentials { get; } =
         new(true, string.Empty, string.Empty);

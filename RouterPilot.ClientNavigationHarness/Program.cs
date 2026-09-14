@@ -16,6 +16,19 @@ static void Require(bool condition, string message)
         throw new InvalidOperationException(message);
 }
 
+Require(!AdGuardCredentialTransportPolicy.RequiresHttpAcknowledgement(useRouterCredentials: true, useHttps: false),
+    "router credential HTTP compatibility does not require the dedicated-credential acknowledgement");
+Require(!AdGuardCredentialTransportPolicy.RequiresHttpAcknowledgement(useRouterCredentials: false, useHttps: true),
+    "dedicated HTTPS credentials do not require the HTTP acknowledgement");
+Require(AdGuardCredentialTransportPolicy.RequiresHttpAcknowledgement(useRouterCredentials: false, useHttps: false),
+    "dedicated HTTP credentials require an explicit acknowledgement");
+Require(!AdGuardCredentialTransportPolicy.IsAcknowledgementValid(false, useRouterCredentials: false, useHttps: false),
+    "unacknowledged dedicated HTTP credentials remain blocked");
+Require(AdGuardCredentialTransportPolicy.IsAcknowledgementValid(true, useRouterCredentials: false, useHttps: false),
+    "acknowledged dedicated HTTP credentials may proceed");
+Require(!AdGuardHttpClientSecurityPolicy.AllowAutoRedirect,
+    "authenticated AdGuard clients do not automatically follow redirects");
+
 string routerLogFixture = string.Join('\n', Enumerable.Range(0, 130)
     .Select(index => $"<6>Sat router log entry {index}"));
 IReadOnlyList<RouterLogEntry> boundedRouterLogs = RouterLogParser.Parse(

@@ -17,6 +17,7 @@ public sealed class PluginPackageMutationService : IPluginPackageMutationService
     {
         if (operation is not ("install" or "remove" or "update-package" or "force-update-package" or "update-indexes")) throw new ArgumentOutOfRangeException(nameof(operation));
         if (operation != "update-indexes" && !IsSafePackageName(packageName)) throw new InvalidOperationException("The selected package name is invalid.");
+        PluginPackageSafetyPolicy.EnsureMutationAllowed(operation, packageName);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {

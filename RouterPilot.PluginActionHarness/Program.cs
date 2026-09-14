@@ -10,6 +10,12 @@ static class Program
         Verify("CASE D", new PluginPackage { Name = "busybox", IsInstalled = true, IsUpgradable = true, MutationSafety = PluginMutationSafety.BlockedSystem }, install: false, remove: false, update: false, showRemove: true, showUpdate: true, reason: true);
         Verify("CASE E", new PluginPackage { Name = "ordinary-with-reverse-dependency", IsInstalled = true, IsUpgradable = true, MutationSafety = PluginMutationSafety.BlockedDependencyRisk }, install: false, remove: false, update: false, showRemove: true, showUpdate: true, reason: true);
         Verify("available unknown", new PluginPackage { Name = "normal-authoritative-package", IsAvailable = true, MutationSafety = PluginMutationSafety.Unknown }, install: true, remove: false, update: false, showRemove: false, showUpdate: false, reason: true);
+        Require(PluginPackageSafetyPolicy.IsCriticalPackage("busybox"), "critical package policy recognizes busybox");
+        Require(PluginPackageSafetyPolicy.IsCriticalPackage("kmod-wireguard"), "critical package policy recognizes kernel modules");
+        Require(!PluginPackageSafetyPolicy.IsCriticalPackage("tree"), "normal package remains eligible");
+        AssertRejected(() => PluginPackageSafetyPolicy.EnsureMutationAllowed("remove", "busybox"), "direct critical-package removal is rejected");
+        AssertRejected(() => PluginPackageSafetyPolicy.EnsureMutationAllowed("force-update-package", "busybox"), "force update cannot bypass critical-package protection");
+        PluginPackageSafetyPolicy.EnsureMutationAllowed("update-package", "tree");
         Console.WriteLine("Plugin action matrix: PASS");
         return 0;
     }
@@ -20,5 +26,25 @@ static class Program
         if (package.CanInstall != install || package.CanRemove != remove || package.CanUpdate != update || package.ShouldShowUninstall != showRemove || package.ShouldShowUpdate != showUpdate || actualReason != reason)
             throw new InvalidOperationException($"{name}: action presentation did not match the expected state.");
         Console.WriteLine($"{name}: install={package.CanInstall}, uninstall={package.CanRemove}/{package.ShouldShowUninstall}, update={package.CanUpdate}/{package.ShouldShowUpdate}, reason={actualReason}");
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+            throw new InvalidOperationException(message);
+    }
+
+    private static void AssertRejected(Action action, string message)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(message);
     }
 }

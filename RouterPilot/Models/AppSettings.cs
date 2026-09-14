@@ -18,6 +18,8 @@ public sealed class AppSettings
     public bool UseRouterHttps { get; set; }
     public bool UseAdGuardHttps { get; set; }
     public bool UseRouterCredentialsForAdGuard { get; set; } = true;
+    // Applies only to dedicated AdGuard credentials over HTTP; never stores credentials.
+    public bool DedicatedAdGuardHttpCredentialsAcknowledged { get; set; }
     public string AdGuardUsername { get; set; } = string.Empty;
     public string EncryptedAdGuardPassword { get; set; } = string.Empty;
 

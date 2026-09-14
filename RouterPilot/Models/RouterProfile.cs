@@ -12,6 +12,8 @@ public sealed class RouterProfile
     public bool UseAdGuardHttps { get; set; }
     // Defaults to the established GL.iNet Admin-Token path for existing profiles.
     public bool UseRouterCredentialsForAdGuard { get; set; } = true;
+    // Applies only to dedicated AdGuard credentials over HTTP; never stores credentials.
+    public bool DedicatedAdGuardHttpCredentialsAcknowledged { get; set; }
     public string AdGuardUsername { get; set; } = string.Empty;
     public string EncryptedAdGuardPassword { get; set; } = string.Empty;
     public string Username { get; set; } = "root";

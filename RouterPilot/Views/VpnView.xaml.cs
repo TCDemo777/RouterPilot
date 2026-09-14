@@ -411,7 +411,7 @@ public partial class VpnView : UserControl
     }
     private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
     {
-        string report = BuildDiagnosticReport();
+        string report = BuildShareableDiagnosticReport();
         Clipboard.SetText(report);
         DiagnosticsTextBox.Text = report;
         DiagnosticsNotice.Text = "✓ Diagnostics copied";
@@ -426,13 +426,13 @@ public partial class VpnView : UserControl
             FileName = $"RouterPilot_Debug_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
         };
         if (dialog.ShowDialog() != true) return;
-        File.WriteAllText(dialog.FileName, BuildDiagnosticReport(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        File.WriteAllText(dialog.FileName, BuildShareableDiagnosticReport(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         DiagnosticsNotice.Text = "✓ Report exported";
     }
 
     private void CopyVpnDetails_Click(object sender, RoutedEventArgs e)
     {
-        Clipboard.SetText(BuildVpnDetailsReport());
+        Clipboard.SetText(DiagnosticRedactor.RedactForExport(BuildVpnDetailsReport()));
         _viewModel.VpnStatus = "✓ VPN details copied";
     }
 
@@ -521,6 +521,9 @@ public partial class VpnView : UserControl
         return report.ToString();
     }
 
+    private string BuildShareableDiagnosticReport() =>
+        DiagnosticRedactor.RedactForExport(BuildDiagnosticReport());
+
     private string BuildVpnDetailsReport()
     {
         var report = new StringBuilder();
@@ -536,8 +539,8 @@ public partial class VpnView : UserControl
             Append(report, "Profile", tunnel.ActiveProfileName);
             Append(report, "Location", tunnel.LiveLocation);
             Append(report, "Active server", tunnel.LiveServerName);
-            Append(report, "Server", tunnel.LiveEndpoint);
-            Append(report, "Virtual IP", tunnel.LiveVirtualIp);
+            // Endpoint and virtual-address information remains available in the
+            // local UI, but is intentionally excluded from shareable reports.
             if (tunnel.HasLiveConnection)
             {
                 Append(report, "Download", tunnel.LiveDownload);

@@ -53,6 +53,7 @@ internal static class AdGuardNativeSessionAuthenticator
             {
                 CookieContainer = cookies,
                 UseCookies = true,
+                AllowAutoRedirect = AdGuardHttpClientSecurityPolicy.AllowAutoRedirect,
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
             };
             using var client = new HttpClient(handler)
@@ -86,6 +87,10 @@ internal static class AdGuardNativeSessionAuthenticator
     }
 }
 
-internal sealed class AdGuardAuthenticationException : Exception
+internal class AdGuardAuthenticationException : Exception
+{
+}
+
+internal sealed class AdGuardDedicatedCredentialsTransportException : AdGuardAuthenticationException
 {
 }

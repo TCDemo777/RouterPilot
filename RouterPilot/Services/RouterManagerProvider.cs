@@ -21,6 +21,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         bool UseAdGuardHttps,
         int AdGuardPort,
         bool UseRouterCredentialsForAdGuard,
+        bool DedicatedAdGuardHttpCredentialsAcknowledged,
         string AdGuardUsername,
         string EncryptedAdGuardPassword);
 
@@ -79,6 +80,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 settings.UseAdGuardHttps,
                 settings.AdGuardPort,
                 settings.UseRouterCredentialsForAdGuard,
+                settings.DedicatedAdGuardHttpCredentialsAcknowledged,
                 settings.AdGuardUsername.Trim(),
                 settings.EncryptedAdGuardPassword);
             long invalidationVersion =
@@ -108,13 +110,20 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
             string keyPassphrase = settings.SshAuthenticationMethod == SshAuthenticationMethod.PrivateKey
                 ? _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase)
                 : string.Empty;
+            bool dedicatedCredentialsAcknowledged =
+                AdGuardCredentialTransportPolicy.IsAcknowledgementValid(
+                    settings.DedicatedAdGuardHttpCredentialsAcknowledged,
+                    settings.UseRouterCredentialsForAdGuard,
+                    settings.UseAdGuardHttps);
             AdGuardAuthenticationConfiguration adGuardAuthentication =
                 settings.UseRouterCredentialsForAdGuard
                     ? AdGuardAuthenticationConfiguration.RouterCredentials
-                    : new AdGuardAuthenticationConfiguration(
-                        false,
-                        settings.AdGuardUsername.Trim(),
-                        _settingsService.DecryptPassword(settings.EncryptedAdGuardPassword));
+                    : dedicatedCredentialsAcknowledged
+                        ? new AdGuardAuthenticationConfiguration(
+                            false,
+                            settings.AdGuardUsername.Trim(),
+                            _settingsService.DecryptPassword(settings.EncryptedAdGuardPassword))
+                        : new AdGuardAuthenticationConfiguration(false, string.Empty, string.Empty, false);
             var sshSettings = new SshConnectionSettings
             {
                 Host = RouterConnectionOptions.NormaliseHost(settings.RouterHost),
