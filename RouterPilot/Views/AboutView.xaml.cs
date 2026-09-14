@@ -1947,6 +1947,16 @@ namespace RouterPilot.Views
             OpenExternalUrl(buyMeACoffeeUrl);
         }
 
+        private void PayPal_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            const string paypalUrl = "https://paypal.me/TCDemo777";
+
+            AppendLog("Opening PayPal support page...");
+            OpenExternalUrl(paypalUrl);
+        }
+
         private static void OpenExternalUrl(string url)
         {
             try

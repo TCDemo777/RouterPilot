@@ -33,6 +33,7 @@ namespace RouterPilot.Services
         private readonly HttpClient _adGuardClient;
         private readonly Uri _adGuardBaseUri;
         private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
+        private readonly AdGuardAuthenticationConfiguration _adGuardAuthentication;
         private readonly object _adGuardCookieLock = new();
         private bool _disposed;
         private IReadOnlyList<DhcpConfigurationInfo>? _dhcpConfigurationCache;
@@ -55,7 +56,8 @@ namespace RouterPilot.Services
             IRouterCertificateTrustService certificateTrustService,
             int adGuardPort,
             bool useAdGuardHttps,
-            AdGuardTransportSecurityService adGuardTransportSecurity)
+            AdGuardTransportSecurityService adGuardTransportSecurity,
+            AdGuardAuthenticationConfiguration? adGuardAuthentication = null)
         {
             if (string.IsNullOrWhiteSpace(routerIp))
             {
@@ -92,6 +94,8 @@ namespace RouterPilot.Services
             _adGuardTransportSecurity = adGuardTransportSecurity ??
                 throw new ArgumentNullException(
                     nameof(adGuardTransportSecurity));
+            _adGuardAuthentication = adGuardAuthentication ??
+                AdGuardAuthenticationConfiguration.RouterCredentials;
 
             _ssh = new GLInetSshService(sshSettings, sshConnectionFactory, hostKeyTrustService);
 

@@ -14,6 +14,7 @@ namespace RouterPilot.Views
         private readonly SettingsViewModel _viewModel;
         private bool _isUpdatingPassword;
         private bool _isUpdatingPrivateKeyPassphrase;
+        private bool _isUpdatingAdGuardPassword;
 
         public SettingsView()
         {
@@ -39,7 +40,7 @@ namespace RouterPilot.Views
             if (e.Source is not TabControl tabs || tabs.SelectedItem is not TabItem tab)
                 return;
             if (RouterSettingsSection is null || GeneralSettingsHeader is null || GeneralSettingsSection is null ||
-                AdGuardSettingsSection is null || NotificationsSettingsHeader is null ||
+                AdGuardSettingsHeader is null || AdGuardSettingsSection is null || NotificationsSettingsHeader is null ||
                 NotificationsSettingsSection is null || DashboardSettingsSection is null)
                 return;
 
@@ -48,7 +49,9 @@ namespace RouterPilot.Views
             bool general = selected == "General";
             GeneralSettingsHeader.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
             GeneralSettingsSection.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
-            AdGuardSettingsSection.Visibility = general ? Visibility.Visible : Visibility.Collapsed;
+            bool adGuard = selected == "AdGuard";
+            AdGuardSettingsHeader.Visibility = adGuard ? Visibility.Visible : Visibility.Collapsed;
+            AdGuardSettingsSection.Visibility = adGuard ? Visibility.Visible : Visibility.Collapsed;
             bool notifications = selected == "Notifications";
             NotificationsSettingsHeader.Visibility = notifications ? Visibility.Visible : Visibility.Collapsed;
             NotificationsSettingsSection.Visibility = notifications ? Visibility.Visible : Visibility.Collapsed;
@@ -61,6 +64,7 @@ namespace RouterPilot.Views
         {
             UpdatePasswordBox();
             UpdatePrivateKeyPassphraseBox();
+            UpdateAdGuardPasswordBox();
         }
 
         private void PasswordInput_PasswordChanged(
@@ -86,6 +90,12 @@ namespace RouterPilot.Views
             }
 
             _viewModel.PrivateKeyPassphrase = PrivateKeyPassphraseInput.Password;
+        }
+
+        private void AdGuardPasswordInput_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (!_isUpdatingAdGuardPassword)
+                _viewModel.AdGuardPassword = AdGuardPasswordInput.Password;
         }
 
         private void BrowsePrivateKey_Click(
@@ -163,6 +173,8 @@ namespace RouterPilot.Views
                 UpdatePasswordBox();
             else if (e.PropertyName == nameof(SettingsViewModel.PrivateKeyPassphrase))
                 UpdatePrivateKeyPassphraseBox();
+            else if (e.PropertyName == nameof(SettingsViewModel.AdGuardPassword))
+                UpdateAdGuardPasswordBox();
         }
 
         private void UpdatePrivateKeyPassphraseBox()
@@ -170,6 +182,13 @@ namespace RouterPilot.Views
             _isUpdatingPrivateKeyPassphrase = true;
             PrivateKeyPassphraseInput.Password = _viewModel.PrivateKeyPassphrase;
             _isUpdatingPrivateKeyPassphrase = false;
+        }
+
+        private void UpdateAdGuardPasswordBox()
+        {
+            _isUpdatingAdGuardPassword = true;
+            AdGuardPasswordInput.Password = _viewModel.AdGuardPassword;
+            _isUpdatingAdGuardPassword = false;
         }
 
         private void ResetDashboard_Click(

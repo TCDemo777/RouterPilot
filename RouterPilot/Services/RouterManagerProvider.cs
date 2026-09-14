@@ -19,7 +19,10 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         bool UseRouterHttps,
         int RouterPort,
         bool UseAdGuardHttps,
-        int AdGuardPort);
+        int AdGuardPort,
+        bool UseRouterCredentialsForAdGuard,
+        string AdGuardUsername,
+        string EncryptedAdGuardPassword);
 
     private readonly SettingsService _settingsService;
     private readonly IActiveRouterContext _activeRouter;
@@ -74,7 +77,10 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 settings.UseRouterHttps,
                 settings.RouterPort,
                 settings.UseAdGuardHttps,
-                settings.AdGuardPort);
+                settings.AdGuardPort,
+                settings.UseRouterCredentialsForAdGuard,
+                settings.AdGuardUsername.Trim(),
+                settings.EncryptedAdGuardPassword);
             long invalidationVersion =
                 Interlocked.Read(ref _invalidationVersion);
 
@@ -102,6 +108,13 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
             string keyPassphrase = settings.SshAuthenticationMethod == SshAuthenticationMethod.PrivateKey
                 ? _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase)
                 : string.Empty;
+            AdGuardAuthenticationConfiguration adGuardAuthentication =
+                settings.UseRouterCredentialsForAdGuard
+                    ? AdGuardAuthenticationConfiguration.RouterCredentials
+                    : new AdGuardAuthenticationConfiguration(
+                        false,
+                        settings.AdGuardUsername.Trim(),
+                        _settingsService.DecryptPassword(settings.EncryptedAdGuardPassword));
             var sshSettings = new SshConnectionSettings
             {
                 Host = RouterConnectionOptions.NormaliseHost(settings.RouterHost),
@@ -123,7 +136,8 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 _certificateTrustService,
                 settings.AdGuardPort,
                 settings.UseAdGuardHttps,
-                _adGuardTransportSecurity);
+                _adGuardTransportSecurity,
+                adGuardAuthentication);
             _signature = signature;
             _managerInvalidationVersion = invalidationVersion;
             return _manager;

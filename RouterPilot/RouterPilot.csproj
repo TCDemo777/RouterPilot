@@ -17,10 +17,10 @@
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
 
-    <Version>2.4.4</Version>
-    <AssemblyVersion>2.4.4.0</AssemblyVersion>
-    <FileVersion>2.4.4.0</FileVersion>
-    <InformationalVersion>2.4.4</InformationalVersion>
+    <Version>2.4.5</Version>
+    <AssemblyVersion>2.4.5.0</AssemblyVersion>
+    <FileVersion>2.4.5.0</FileVersion>
+    <InformationalVersion>2.4.5</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <ApplicationIcon>Assets\RouterPilot.ico</ApplicationIcon>
@@ -68,6 +68,7 @@
   <ItemGroup>
     <Resource Include="Assets\RouterPilot.ico" />
     <Resource Include="Assets\RouterPilotLogo.png" />
+    <Resource Include="Assets\PayPalMonogram.png" />
   </ItemGroup>
 
   <ItemGroup>

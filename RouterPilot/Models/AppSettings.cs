@@ -17,6 +17,9 @@ public sealed class AppSettings
     public int AdGuardPort { get; set; } = 3000;
     public bool UseRouterHttps { get; set; }
     public bool UseAdGuardHttps { get; set; }
+    public bool UseRouterCredentialsForAdGuard { get; set; } = true;
+    public string AdGuardUsername { get; set; } = string.Empty;
+    public string EncryptedAdGuardPassword { get; set; } = string.Empty;
 
     public string Username { get; set; } = "root";
     public string EncryptedPassword { get; set; } = string.Empty;

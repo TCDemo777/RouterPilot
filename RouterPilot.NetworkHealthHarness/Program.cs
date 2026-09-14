@@ -671,11 +671,23 @@ Require(migratedProfileSettings.RouterProfiles.Count == 1, "legacy settings migr
 RouterProfile migratedProfile = migratedProfileSettings.RouterProfiles.Single();
 Require(migratedProfile.Id == migratedProfileSettings.ActiveRouterProfileId, "migration selects the stable router profile as active");
 Require(migratedProfile.RouterHost == "router-a.example" && migratedProfile.RouterPort == 8443 && migratedProfile.AdGuardPort == 3001 && migratedProfile.UseAdGuardHttps, "router and AdGuard settings are preserved in the profile");
+Require(migratedProfile.UseRouterCredentialsForAdGuard && AdGuardAuthenticationConfiguration.RouterCredentials.UseRouterCredentials,
+    "existing profiles retain router-derived AdGuard authentication by default");
 Require(migratedProfile.SshPort == 2222 && migratedProfile.SshAuthenticationMethod == SshAuthenticationMethod.PrivateKey && migratedProfile.PrivateKeyPath == "C:\\keys\\router-a", "SSH settings are preserved in the profile");
 Require(profileSettingsStorage.DecryptPassword(migratedProfile.EncryptedPassword) == "profile-password-fixture" && profileSettingsStorage.DecryptPassword(migratedProfile.EncryptedPrivateKeyPassphrase) == "profile-passphrase-fixture", "protected credentials remain available through the migrated profile");
 Require(migratedProfileSettings.Theme == "Dark", "application-global settings remain outside the profile");
 AppSettings migratedProfileSettingsAgain = profileSettingsStorage.Load();
 Require(migratedProfileSettingsAgain.RouterProfiles.Count == 1 && migratedProfileSettingsAgain.ActiveRouterProfileId == migratedProfile.Id, "profile migration is idempotent and retains its stable ID");
+string protectedAdGuardPassword = profileSettingsStorage.EncryptPassword("adguard-password-fixture");
+migratedProfileSettingsAgain.RouterProfiles[0].UseRouterCredentialsForAdGuard = false;
+migratedProfileSettingsAgain.RouterProfiles[0].AdGuardUsername = "adguard-admin";
+migratedProfileSettingsAgain.RouterProfiles[0].EncryptedAdGuardPassword = protectedAdGuardPassword;
+profileSettingsStorage.Save(migratedProfileSettingsAgain);
+AppSettings dedicatedAdGuardSettings = profileSettingsStorage.Load();
+RouterProfile dedicatedAdGuardProfile = dedicatedAdGuardSettings.RouterProfiles.Single(profile => profile.Id == migratedProfile.Id);
+Require(!dedicatedAdGuardProfile.UseRouterCredentialsForAdGuard && dedicatedAdGuardProfile.AdGuardUsername == "adguard-admin" &&
+        profileSettingsStorage.DecryptPassword(dedicatedAdGuardProfile.EncryptedAdGuardPassword) == "adguard-password-fixture",
+    "dedicated AdGuard credentials persist independently within the active router profile");
 var profileService = new RouterProfileService(profileSettingsStorage);
 var activeRouterContext = new ActiveRouterContext(profileService);
 Require(activeRouterContext.CurrentProfileId == migratedProfile.Id && activeRouterContext.CurrentProfile.SshPort == 2222, "active router context resolves the migrated profile configuration");
@@ -694,7 +706,9 @@ profileSettingsStorage.Save(migratedProfileSettingsAgain);
 AppSettings isolatedProfiles = profileSettingsStorage.Load();
 Require(isolatedProfiles.RouterProfiles.Select(profile => profile.Id).Distinct().Count() == 2 && isolatedProfiles.RouterProfiles.Single(profile => profile.Id == secondProfile.Id).SshPort == 2202, "profiles retain isolated connection configuration");
 string profileSettingsJson = File.ReadAllText(Path.Combine(profileSettingsFolder, "settings.json"));
-Require(!profileSettingsJson.Contains("profile-password-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-passphrase-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-b-password", StringComparison.Ordinal), "profile settings never serialize secrets as plain text");
+Require(!profileSettingsJson.Contains("profile-password-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-passphrase-fixture", StringComparison.Ordinal) && !profileSettingsJson.Contains("profile-b-password", StringComparison.Ordinal) && !profileSettingsJson.Contains("adguard-password-fixture", StringComparison.Ordinal), "profile settings never serialize secrets as plain text");
+Require(!DiagnosticRedactor.RedactForExport("EncryptedAdGuardPassword=adguard-password-fixture").Contains("adguard-password-fixture", StringComparison.Ordinal),
+    "diagnostic redaction removes dedicated AdGuard password values");
 Directory.Delete(profileSettingsFolder, recursive: true);
 
 MethodInfo? parseBlocklists = typeof(RouterManager).GetMethod("ParseBlocklists", BindingFlags.Static | BindingFlags.NonPublic);

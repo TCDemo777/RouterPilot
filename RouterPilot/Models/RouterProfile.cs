@@ -10,6 +10,10 @@ public sealed class RouterProfile
     public int AdGuardPort { get; set; } = 3000;
     public bool UseRouterHttps { get; set; }
     public bool UseAdGuardHttps { get; set; }
+    // Defaults to the established GL.iNet Admin-Token path for existing profiles.
+    public bool UseRouterCredentialsForAdGuard { get; set; } = true;
+    public string AdGuardUsername { get; set; } = string.Empty;
+    public string EncryptedAdGuardPassword { get; set; } = string.Empty;
     public string Username { get; set; } = "root";
     public string EncryptedPassword { get; set; } = string.Empty;
     public bool RememberPassword { get; set; } = true;

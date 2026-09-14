@@ -51,6 +51,12 @@ namespace RouterPilot.ViewModels
         private string _quietHoursStart = "22:00";
         private string _quietHoursEnd = "07:00";
         private bool _useAdGuardHttps;
+        private bool _useRouterCredentialsForAdGuard = true;
+        private string _adGuardUsername = "";
+        private string _adGuardPassword = "";
+        private bool _adGuardPasswordChanged;
+        private bool _hasStoredAdGuardPassword;
+        private bool _isTestingAdGuardConnection;
         private bool _includeAdGuardHomeInRouterHealth;
         private int _sshPort = 22;
         private SshAuthenticationMethod _sshAuthenticationMethod = RouterPilot.Models.SshAuthenticationMethod.Password;
@@ -257,6 +263,50 @@ namespace RouterPilot.ViewModels
 
         public bool IsAdGuardHttpConfigured => !_useAdGuardHttps;
 
+        public bool UseRouterCredentialsForAdGuard
+        {
+            get => _useRouterCredentialsForAdGuard;
+            set
+            {
+                if (SetProperty(ref _useRouterCredentialsForAdGuard, value))
+                {
+                    OnPropertyChanged(nameof(UsesDedicatedAdGuardCredentials));
+                    MarkChanged();
+                }
+            }
+        }
+
+        public bool UsesDedicatedAdGuardCredentials => !UseRouterCredentialsForAdGuard;
+
+        public string AdGuardUsername
+        {
+            get => _adGuardUsername;
+            set { if (SetProperty(ref _adGuardUsername, value)) MarkChanged(); }
+        }
+
+        // Never populated from persistent storage.  The view owns its PasswordBox.
+        public string AdGuardPassword
+        {
+            get => _adGuardPassword;
+            set
+            {
+                if (SetProperty(ref _adGuardPassword, value))
+                {
+                    _adGuardPasswordChanged = true;
+                    OnPropertyChanged(nameof(HasStoredAdGuardPassword));
+                    MarkChanged();
+                }
+            }
+        }
+
+        public bool HasStoredAdGuardPassword => _hasStoredAdGuardPassword && !_adGuardPasswordChanged;
+
+        public bool IsTestingAdGuardConnection
+        {
+            get => _isTestingAdGuardConnection;
+            private set => SetProperty(ref _isTestingAdGuardConnection, value);
+        }
+
         public string AdGuardTransportStatus => AdGuardTransportSecurity.Status switch
         {
             AdGuardTransportSecurityStatus.Secure => "Secure",
@@ -301,6 +351,7 @@ namespace RouterPilot.ViewModels
         public IRelayCommand ReloadCommand { get; }
 
         public IAsyncRelayCommand CheckFirmwareUpdateCommand { get; }
+        public IAsyncRelayCommand TestAdGuardConnectionCommand { get; }
         public IRelayCommand<DashboardCardPreference> MoveDashboardCardUpCommand { get; }
         public IRelayCommand<DashboardCardPreference> MoveDashboardCardDownCommand { get; }
 
@@ -343,6 +394,7 @@ namespace RouterPilot.ViewModels
                 new RelayCommand(Load);
 
             CheckFirmwareUpdateCommand = new AsyncRelayCommand(CheckFirmwareUpdateAsync);
+            TestAdGuardConnectionCommand = new AsyncRelayCommand(TestAdGuardConnectionAsync, () => !IsTestingAdGuardConnection);
             MoveDashboardCardUpCommand = new RelayCommand<DashboardCardPreference>(_dashboardPreferences.MoveUp);
             MoveDashboardCardDownCommand = new RelayCommand<DashboardCardPreference>(_dashboardPreferences.MoveDown);
 
@@ -366,6 +418,13 @@ namespace RouterPilot.ViewModels
                 PrivateKeyPath = settings.PrivateKeyPath;
                 PrivateKeyPassphrase = string.IsNullOrWhiteSpace(settings.EncryptedPrivateKeyPassphrase) ? "" : _settingsService.DecryptPassword(settings.EncryptedPrivateKeyPassphrase);
                 _useAdGuardHttps = settings.UseAdGuardHttps;
+                UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                AdGuardUsername = settings.AdGuardUsername;
+                _adGuardPassword = string.Empty;
+                _adGuardPasswordChanged = false;
+                _hasStoredAdGuardPassword = !string.IsNullOrWhiteSpace(settings.EncryptedAdGuardPassword);
+                OnPropertyChanged(nameof(AdGuardPassword));
+                OnPropertyChanged(nameof(HasStoredAdGuardPassword));
                 OnPropertyChanged(nameof(IsAdGuardHttpConfigured));
                 HasUnsavedChanges = false;
                 StatusMessage = "Router settings reloaded for the active router.";
@@ -431,6 +490,13 @@ namespace RouterPilot.ViewModels
                         ? 30
                         : settings.DefaultPauseMinutes;
                 _useAdGuardHttps = settings.UseAdGuardHttps;
+                UseRouterCredentialsForAdGuard = settings.UseRouterCredentialsForAdGuard;
+                AdGuardUsername = settings.AdGuardUsername;
+                _adGuardPassword = string.Empty;
+                _adGuardPasswordChanged = false;
+                _hasStoredAdGuardPassword = !string.IsNullOrWhiteSpace(settings.EncryptedAdGuardPassword);
+                OnPropertyChanged(nameof(AdGuardPassword));
+                OnPropertyChanged(nameof(HasStoredAdGuardPassword));
                 IncludeAdGuardHomeInRouterHealth = settings.IncludeAdGuardHomeInRouterHealth ?? false;
                 _dashboard.IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth;
                 OnPropertyChanged(nameof(IsAdGuardHttpConfigured));
@@ -494,6 +560,13 @@ namespace RouterPilot.ViewModels
                         AdGuardPort = existing.AdGuardPort,
                         UseRouterHttps = existing.UseRouterHttps,
                         UseAdGuardHttps = existing.UseAdGuardHttps,
+                        UseRouterCredentialsForAdGuard = UseRouterCredentialsForAdGuard,
+                        AdGuardUsername = AdGuardUsername.Trim(),
+                        EncryptedAdGuardPassword = UseRouterCredentialsForAdGuard
+                            ? existing.EncryptedAdGuardPassword
+                            : _adGuardPasswordChanged
+                                ? _settingsService.EncryptPassword(AdGuardPassword)
+                                : existing.EncryptedAdGuardPassword,
                         TrustedSshHostFingerprints =
                             existing.TrustedSshHostFingerprints ??
                             new Dictionary<string, string>(
@@ -564,6 +637,12 @@ namespace RouterPilot.ViewModels
                     settings);
                 _dashboard.IncludeAdGuardHomeInRouterHealth = IncludeAdGuardHomeInRouterHealth;
                 _routerManagerProvider.Invalidate();
+                _adGuardPasswordChanged = false;
+                _hasStoredAdGuardPassword = !UseRouterCredentialsForAdGuard &&
+                    !string.IsNullOrWhiteSpace(settings.EncryptedAdGuardPassword);
+                _adGuardPassword = string.Empty;
+                OnPropertyChanged(nameof(AdGuardPassword));
+                OnPropertyChanged(nameof(HasStoredAdGuardPassword));
 
                 HasUnsavedChanges =
                     false;
@@ -605,6 +684,69 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(FirmwareStatus));
             OnPropertyChanged(nameof(FirmwareLastChecked));
             OnPropertyChanged(nameof(HasFirmwareReleaseNotes));
+        }
+
+        private async Task TestAdGuardConnectionAsync()
+        {
+            if (IsTestingAdGuardConnection)
+                return;
+
+            IsTestingAdGuardConnection = true;
+            TestAdGuardConnectionCommand.NotifyCanExecuteChanged();
+            try
+            {
+                AdGuardConnectionTestResult result;
+                if (UseRouterCredentialsForAdGuard)
+                {
+                    RouterManager router = await _routerManagerProvider.GetRouterManagerAsync();
+                    result = await router.TestAdGuardConnectionAsync();
+                }
+                else
+                {
+                    string testPassword = _adGuardPasswordChanged
+                        ? AdGuardPassword
+                        : _settingsService.DecryptPassword(
+                            _settingsService.Load().EncryptedAdGuardPassword);
+                    if (string.IsNullOrWhiteSpace(AdGuardUsername) ||
+                        string.IsNullOrEmpty(testPassword))
+                    {
+                        StatusMessage = "Enter AdGuard Home username and password to test the connection.";
+                        return;
+                    }
+
+                    RouterProfile? profile = _profiles.GetActiveProfile();
+                    if (profile is null)
+                    {
+                        StatusMessage = "No active router profile is available.";
+                        return;
+                    }
+
+                    Uri endpoint = new UriBuilder(
+                        _useAdGuardHttps ? Uri.UriSchemeHttps : Uri.UriSchemeHttp,
+                        RouterConnectionOptions.NormaliseHost(RouterIp),
+                        profile.AdGuardPort,
+                        "/").Uri;
+                    result = await AdGuardNativeSessionAuthenticator.TestConnectionAsync(
+                        endpoint, AdGuardUsername.Trim(), testPassword, CancellationToken.None);
+                }
+
+                StatusMessage = result switch
+                {
+                    AdGuardConnectionTestResult.Connected => "AdGuard Home connected.",
+                    AdGuardConnectionTestResult.AuthenticationFailed => "AdGuard Home authentication failed.",
+                    _ => "AdGuard Home is unavailable."
+                };
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = OperationFailurePolicy.UserMessage(
+                    ex, "AdGuard connection test", "AdGuard Home is unavailable.");
+            }
+            finally
+            {
+                IsTestingAdGuardConnection = false;
+                TestAdGuardConnectionCommand.NotifyCanExecuteChanged();
+            }
         }
 
         private async Task CheckFirmwareUpdateAsync() =>
@@ -676,6 +818,13 @@ namespace RouterPilot.ViewModels
                 DefaultPauseMinutes > 1440)
             {
                 return "Default pause must be between 1 and 1,440 minutes.";
+            }
+
+            if (!UseRouterCredentialsForAdGuard &&
+                (string.IsNullOrWhiteSpace(AdGuardUsername) ||
+                 (!_hasStoredAdGuardPassword && string.IsNullOrEmpty(AdGuardPassword))))
+            {
+                return "Enter AdGuard Home username and password, or use the router login credentials.";
             }
 
             return null;

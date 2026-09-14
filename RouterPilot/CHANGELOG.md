@@ -1,5 +1,31 @@
 # RouterPilot Changelog
 
+## 2.4.5
+
+### SQM
+
+- Added a dedicated Router → SQM tab with native GL.iNet Smart Queue Management controls where the router exposes the native SQM API.
+- Added guarded staged editing for SQM enable state, upload/download limits and supported queue rules, with authoritative read-back verification.
+- Preserved a read-only legacy SQM fallback when the native API is unavailable and improved SQM control theme/layout presentation.
+
+### Router
+
+- Moved connected-router firmware information, update checks and firmware lifecycle tools to Router → Firmware.
+- Removed the redundant Recent router events card from Router Overview; Router → Logs remains the canonical log viewer.
+
+### Clients
+
+- Improved Client Details with clearer connection and device context plus client-specific VPN routing status based on the existing shared VPN state.
+
+### AdGuard Home and Protection
+
+- Added an optional dedicated AdGuard Home username and securely protected password, while retaining router-login authentication as the default.
+- Improved Light and Dark Mode presentation of the blocklist editor dialog.
+
+### Interface
+
+- Refined the About support area and added a PayPal support link alongside GitHub Sponsors and Buy Me a Coffee.
+
 ## 2.4.4
 
 ### VPN

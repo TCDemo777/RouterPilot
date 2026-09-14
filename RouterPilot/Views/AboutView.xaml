@@ -24,6 +24,14 @@
             <Setter Property="Height" Value="38"/>
             <Setter Property="Margin" Value="8,0,0,0"/>
         </Style>
+        <Style x:Key="About.SupportButton" TargetType="Button"
+               BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Width" Value="178"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="16,7"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
     </UserControl.Resources>
 
     <Grid x:Name="AboutRoot"
@@ -135,48 +143,63 @@
 
                         <Border Margin="0,14,0,0"
                                 Style="{DynamicResource Card}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                            <StackPanel>
 
-                                <StackPanel Margin="0,0,22,0">
+                                <StackPanel>
                                     <TextBlock Style="{DynamicResource Text.SectionTitle}"
-                                               Text="Support Development"/>
+                                               Text="Support RouterPilot"/>
                                     <TextBlock Margin="0,6,0,0"
                                                FontSize="14"
                                                LineHeight="20"
                                                TextWrapping="Wrap"
-                                               Text="RouterPilot is free and open source and is developed independently in my spare time."/>
+                                               Text="RouterPilot is free and open source. If you find it useful and would like to support continued development, it's always appreciated."/>
                                     <TextBlock Margin="0,7,0,0"
                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                LineHeight="20"
                                                TextWrapping="Wrap"
-                                               Text="If it has helped you manage your GL.iNet router or saved you time, you can support future development through GitHub Sponsors. Every contribution helps fund development time, testing hardware and future features."/>
-                                    <TextBlock Margin="0,9,0,0"
+                                               Text="Choose the support option that works best for you."/>
+                                </StackPanel>
+
+                                <StackPanel Margin="0,14,0,0">
+                                    <WrapPanel VerticalAlignment="Top">
+                                    <Button
+                                        Style="{StaticResource About.SupportButton}"
+                                        VerticalAlignment="Center"
+                                        Click="SupportDevelopment_Click"
+                                        Content="GitHub Sponsors"
+                                        ToolTip="Support RouterPilot through GitHub Sponsors"/>
+                                    <Button Style="{StaticResource About.SupportButton}"
+                                            Click="BuyMeACoffee_Click"
+                                            Content="☕ Buy Me a Coffee"
+                                            ToolTip="Support RouterPilot development"/>
+                                    <Button Style="{StaticResource About.SupportButton}"
+                                            Click="PayPal_Click"
+                                            ToolTip="Open PayPal support page">
+                                        <Grid HorizontalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock VerticalAlignment="Center" Text="PayPal"/>
+                                            <Image Grid.Column="2"
+                                                   Width="15"
+                                                   Height="18"
+                                                   VerticalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   ToolTip="PayPal logo"
+                                                   Source="/Assets/PayPalMonogram.png"/>
+                                        </Grid>
+                                    </Button>
+                                    </WrapPanel>
+                                    <TextBlock Margin="0,10,0,0"
                                                FontStyle="Italic"
                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                Text="Thank you for using RouterPilot."/>
                                 </StackPanel>
-
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button
-                                        MinWidth="178"
-                                        Height="40"
-                                        Padding="16,7"
-                                        VerticalAlignment="Center"
-                                        Click="SupportDevelopment_Click"
-                                        Content="★ Support Development"/>
-                                    <Button MinWidth="170"
-                                            Height="40"
-                                            Margin="8,0,0,0"
-                                            Padding="16,7"
-                                            Click="BuyMeACoffee_Click"
-                                            Content="☕ Buy Me a Coffee"
-                                            ToolTip="Support RouterPilot development"/>
-                                </StackPanel>
-                            </Grid>
+                            </StackPanel>
                         </Border>
 
                         <Border Margin="0,14,0,0"

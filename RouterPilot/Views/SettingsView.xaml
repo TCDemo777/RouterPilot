@@ -52,6 +52,7 @@
         <TabControl Grid.Row="1" Margin="24,0,24,0" Style="{StaticResource RouterPilotTabControlStyle}" ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}" SelectionChanged="SettingsTabs_SelectionChanged">
             <TabItem Header="General" Tag="General" />
             <TabItem Header="Router &amp; Connections" Tag="Router" />
+            <TabItem Header="AdGuard Home" Tag="AdGuard" />
             <TabItem Header="Notifications &amp; Refresh" Tag="Notifications" />
             <TabItem Header="Advanced" Tag="Advanced" />
         </TabControl>
@@ -250,7 +251,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border x:Name="AdGuardSettingsSection" Margin="0,16,0,0" Style="{DynamicResource Card}">
+                        <TextBlock x:Name="AdGuardSettingsHeader" Margin="0,0,0,12" Style="{DynamicResource Text.SectionTitle}" Text="AdGuard Home" Visibility="Collapsed" />
+                        <Border x:Name="AdGuardSettingsSection" Margin="0,16,0,0" Style="{DynamicResource Card}" Visibility="Collapsed">
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="AdGuard Home"/>
                                 <TextBlock Margin="0,8,0,0"
@@ -259,6 +261,42 @@
                                 <TextBlock Margin="0,5,0,18" Style="{DynamicResource Text.Secondary}"
                                            TextWrapping="Wrap"
                                            Text="Defaults used by protection controls and background refresh."/>
+
+                                <TextBlock Style="{StaticResource Settings.FieldLabel}" Text="AUTHENTICATION"/>
+                                <CheckBox Content="Use router login credentials"
+                                          IsChecked="{Binding UseRouterCredentialsForAdGuard, Mode=TwoWay}"/>
+                                <TextBlock Margin="0,5,0,14" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                           Text="When enabled, RouterPilot keeps using the established GL.iNet router session. Turn it off only when AdGuard Home has separate credentials."/>
+
+                                <TextBlock Style="{StaticResource Settings.FieldLabel}" Text="ADGUARD HOME USERNAME"/>
+                                <TextBox Style="{StaticResource Settings.Input}"
+                                         IsEnabled="{Binding UsesDedicatedAdGuardCredentials}"
+                                         Text="{Binding AdGuardUsername, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Margin="0,16,0,7" Style="{StaticResource Settings.FieldLabel}" Text="ADGUARD HOME PASSWORD"/>
+                                <PasswordBox x:Name="AdGuardPasswordInput"
+                                             Height="38"
+                                             Padding="10,6"
+                                             IsEnabled="{Binding UsesDedicatedAdGuardCredentials}"
+                                             PasswordChanged="AdGuardPasswordInput_PasswordChanged"/>
+                                <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Brush.TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasStoredAdGuardPassword}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    A protected password is already saved. Leave this field empty to keep it.
+                                </TextBlock>
+                                <Button Margin="0,14,0,0" HorizontalAlignment="Left"
+                                        MinWidth="132" Height="38"
+                                        Style="{DynamicResource Button.Secondary}"
+                                        Command="{Binding TestAdGuardConnectionCommand}"
+                                        Content="Test connection"/>
 
                                 <TextBlock Style="{StaticResource Settings.FieldLabel}"
                                            Text="CONTROL TRANSPORT"/>
@@ -313,10 +351,10 @@
                                 <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
                                            Text="When enabled, AdGuard Home availability contributes to the overall Router Health status. Turn this off if you don't use AdGuard Home."/>
 
-                                 <Border Style="{StaticResource Settings.SectionNote}">
+                                <Border Style="{StaticResource Settings.SectionNote}">
                                     <TextBlock Style="{DynamicResource Text.Secondary}"
                                                TextWrapping="Wrap"
-                                               Text="RouterPilot reaches AdGuard Home through the configured router connection. No separate API credentials are required."/>
+                                               Text="Dedicated passwords are protected with Windows Data Protection and are never shown after saving."/>
                                 </Border>
                             </StackPanel>
                         </Border>

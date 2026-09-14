@@ -19,6 +19,35 @@ namespace RouterPilot.Services
 
     public partial class RouterManager
     {
+        /// <summary>Performs the same read-only status request used by normal AdGuard operations.</summary>
+        public async Task<AdGuardConnectionTestResult> TestAdGuardConnectionAsync(
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                string token = await GetAdminTokenAsync(cancellationToken).ConfigureAwait(false);
+                AdGuardControlResponse response = await RequestAdGuardControlAsync(
+                    HttpMethod.Get, "status", token, cancellationToken: cancellationToken).ConfigureAwait(false);
+                return response.IsSuccess
+                    ? AdGuardConnectionTestResult.Connected
+                    : response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                        ? AdGuardConnectionTestResult.AuthenticationFailed
+                        : AdGuardConnectionTestResult.Unavailable;
+            }
+            catch (AdGuardAuthenticationException)
+            {
+                return AdGuardConnectionTestResult.AuthenticationFailed;
+            }
+            catch (HttpRequestException)
+            {
+                return AdGuardConnectionTestResult.Unavailable;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return AdGuardConnectionTestResult.Unavailable;
+            }
+        }
+
         // AdGuard Status
         //
 
@@ -235,9 +264,12 @@ namespace RouterPilot.Services
 
             lock (_adGuardCookieLock)
             {
-                _adGuardCookies.SetCookies(
-                    _adGuardBaseUri,
-                    $"Admin-Token={token}; Path=/");
+                if (_adGuardAuthentication.UseRouterCredentials)
+                {
+                    _adGuardCookies.SetCookies(
+                        _adGuardBaseUri,
+                        $"Admin-Token={token}; Path=/");
+                }
             }
 
             Uri url = new Uri(
@@ -345,9 +377,10 @@ namespace RouterPilot.Services
                     cancellationToken.IsCancellationRequested,
                     alreadyRetried: false))
             {
-                Debug.WriteLine("AdGuard transport failed; invalidating session and retrying once.");
+                Debug.WriteLine("AdGuard transport failed; invalidating authentication and retrying once.");
                 InvalidateAdminToken();
-                _sessionService.InvalidateSession();
+                if (_adGuardAuthentication.UseRouterCredentials)
+                    _sessionService.InvalidateSession();
                 string freshToken = await GetAdminTokenAsync();
                 return await SendAdGuardRequestAsync(
                     method, relativeUrl, freshToken, json, timeout, noCache, cancellationToken);
@@ -954,8 +987,8 @@ namespace RouterPilot.Services
                 if (firstAttempt.RequiresNewToken)
                 {
                     Debug.WriteLine(
-                        "The GL.iNet Admin-Token was rejected. " +
-                        "Obtaining a new token and retrying.");
+                        "AdGuard Home authentication was rejected. " +
+                        "Refreshing it once before retrying.");
 
                     InvalidateAdminToken();
 
@@ -2283,7 +2316,7 @@ namespace RouterPilot.Services
             if (response.RequiresNewToken)
             {
                 Debug.WriteLine(
-                    "The GL.iNet Admin-Token is missing, " +
+                    "AdGuard Home authentication is missing, " +
                     "invalid or expired.");
             }
 
@@ -2314,28 +2347,39 @@ namespace RouterPilot.Services
                     return _adminToken;
                 }
 
-                Debug.WriteLine(
-                    "No cached GL.iNet Admin-Token is available. " +
-                    "Logging in automatically.");
+                string token;
+                if (_adGuardAuthentication.UseRouterCredentials)
+                {
+                    Debug.WriteLine(
+                        "No cached GL.iNet Admin-Token is available. " +
+                        "Logging in automatically.");
 
-                string token =
-                    await _sessionService
-                        .GetAdminTokenAsync(
-                            cancellationToken);
+                    token = await _sessionService
+                        .GetAdminTokenAsync(cancellationToken);
+                }
+                else
+                {
+                    await AdGuardNativeSessionAuthenticator.LoginAsync(
+                        _adGuardClient,
+                        _adGuardAuthentication.Username,
+                        _adGuardAuthentication.Password,
+                        cancellationToken).ConfigureAwait(false);
+                    token = "native-session";
+                }
 
                 if (string.IsNullOrWhiteSpace(
                         token))
                 {
                     throw new InvalidOperationException(
-                        "GL.iNet login succeeded but no " +
-                        "Admin-Token was returned.");
+                        "AdGuard Home authentication returned no session.");
                 }
 
                 _adminToken =
                     token;
 
-                Debug.WriteLine(
-                    "GL.iNet Admin-Token obtained successfully.");
+                Debug.WriteLine(_adGuardAuthentication.UseRouterCredentials
+                    ? "GL.iNet Admin-Token obtained successfully."
+                    : "AdGuard Home native session obtained successfully.");
 
                 return token;
             }
@@ -2349,6 +2393,16 @@ namespace RouterPilot.Services
         {
             _adminToken =
                 null;
+
+            if (!_adGuardAuthentication.UseRouterCredentials)
+            {
+                lock (_adGuardCookieLock)
+                {
+                    _adGuardCookies.SetCookies(
+                        _adGuardBaseUri,
+                        "session=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/");
+                }
+            }
         }
 
         private async Task<AdGuardStatsResponse>
@@ -2421,7 +2475,7 @@ namespace RouterPilot.Services
             if (response.RequiresNewToken)
             {
                 Debug.WriteLine(
-                    "The GL.iNet Admin-Token is missing, " +
+                    "AdGuard Home authentication is missing, " +
                     "invalid or expired.");
             }
 
