@@ -12,12 +12,19 @@ public static class RouterTemperatureHealth
 
     public static TemperatureHealthState Evaluate(string? model, string? displayValue)
     {
-        if (!IsFlint2(model) || !TryParseCelsius(displayValue, out double celsius))
+        return TryParseCelsius(displayValue, out double celsius)
+            ? Evaluate(model, celsius)
+            : TemperatureHealthState.Unavailable;
+    }
+
+    public static TemperatureHealthState Evaluate(string? model, double? celsius)
+    {
+        if (!IsFlint2(model) || celsius is not double value || !double.IsFinite(value))
         {
             return TemperatureHealthState.Unavailable;
         }
 
-        return celsius switch
+        return value switch
         {
             < 65d => TemperatureHealthState.Normal,
             < 80d => TemperatureHealthState.Elevated,
@@ -25,8 +32,20 @@ public static class RouterTemperatureHealth
         };
     }
 
+    public static string Text(string? model, double? celsius) =>
+        Text(Evaluate(model, celsius));
+
+    public static string Colour(string? model, double? celsius) =>
+        Colour(Evaluate(model, celsius));
+
+    public static string ToolTip(string? model, double? celsius) =>
+        ToolTip(Evaluate(model, celsius));
+
     public static string Text(string? model, string? displayValue) =>
-        Evaluate(model, displayValue) switch
+        Text(Evaluate(model, displayValue));
+
+    private static string Text(TemperatureHealthState state) =>
+        state switch
         {
             TemperatureHealthState.Normal => "Normal",
             TemperatureHealthState.Elevated => "Elevated",
@@ -35,7 +54,10 @@ public static class RouterTemperatureHealth
         };
 
     public static string Colour(string? model, string? displayValue) =>
-        Evaluate(model, displayValue) switch
+        Colour(Evaluate(model, displayValue));
+
+    private static string Colour(TemperatureHealthState state) =>
+        state switch
         {
             TemperatureHealthState.Normal => RouterPilotStatusPresentation.Colour(RouterPilotStatus.Active),
             TemperatureHealthState.Elevated => RouterPilotStatusPresentation.Colour(RouterPilotStatus.Pending),
@@ -44,7 +66,10 @@ public static class RouterTemperatureHealth
         };
 
     public static string ToolTip(string? model, string? displayValue) =>
-        Evaluate(model, displayValue) switch
+        ToolTip(Evaluate(model, displayValue));
+
+    private static string ToolTip(TemperatureHealthState state) =>
+        state switch
         {
             TemperatureHealthState.Normal => "Temperature is within the normal RouterPilot range for this router.",
             TemperatureHealthState.Elevated => "Router temperature is elevated.",

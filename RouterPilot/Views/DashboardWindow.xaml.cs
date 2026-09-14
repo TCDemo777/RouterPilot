@@ -382,8 +382,8 @@ namespace RouterPilot.Views
                 Debug.WriteLine(
                     $"Dashboard CPU assigned: {info.CpuUsage}");
 
-                _viewModel.Temperature =
-                    info.Temperature;
+                _viewModel.TemperatureCelsius =
+                    info.TemperatureCelsius;
 
                 _viewModel.LoadAverage =
                     info.LoadAverage;
@@ -1156,8 +1156,8 @@ namespace RouterPilot.Views
             _viewModel.Uptime =
                 "-";
 
-            _viewModel.Temperature =
-                "-";
+            _viewModel.TemperatureCelsius =
+                null;
 
             _viewModel.LoadAverage =
                 "-";

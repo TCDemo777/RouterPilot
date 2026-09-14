@@ -21,6 +21,7 @@ namespace RouterPilot.ViewModels
         private readonly DashboardPreferencesService _dashboardPreferences;
         private readonly DashboardViewModel _dashboard;
         private readonly IRouterProfileService _profiles;
+        private readonly TemperatureDisplayService _temperatureDisplay;
         public AdGuardAvailabilityService AdGuardAvailability { get; }
         public AdGuardTransportSecurityService AdGuardTransportSecurity { get; }
         public ObservableCollection<DashboardCardPreference> DashboardCards => _dashboardPreferences.Cards;
@@ -31,6 +32,7 @@ namespace RouterPilot.ViewModels
         private bool _rememberPassword;
         private bool _startWithWindows;
         private string _theme = ThemeService.SystemTheme;
+        private TemperatureUnit _temperatureUnit = TemperatureUnit.Celsius;
         private int _refreshIntervalSeconds = 30;
         private int _defaultPauseMinutes = 30;
         private string _statusMessage = "Settings loaded.";
@@ -211,6 +213,23 @@ namespace RouterPilot.ViewModels
             }
         }
 
+        public TemperatureUnit TemperatureUnit
+        {
+            get => _temperatureUnit;
+            set
+            {
+                TemperatureUnit normalized = Enum.IsDefined(value)
+                    ? value
+                    : TemperatureUnit.Celsius;
+
+                if (SetProperty(ref _temperatureUnit, normalized))
+                {
+                    _temperatureDisplay.SetUnit(normalized);
+                    MarkChanged();
+                }
+            }
+        }
+
         public int RefreshIntervalSeconds
         {
             get => _refreshIntervalSeconds;
@@ -373,7 +392,8 @@ namespace RouterPilot.ViewModels
             FirmwareUpdateService firmwareUpdateService,
             DashboardPreferencesService dashboardPreferences,
             DashboardViewModel dashboard,
-            IRouterProfileService profiles)
+            IRouterProfileService profiles,
+            TemperatureDisplayService temperatureDisplay)
         {
             _settingsService = settingsService;
             _routerManagerProvider = routerManagerProvider;
@@ -384,6 +404,7 @@ namespace RouterPilot.ViewModels
             _dashboardPreferences = dashboardPreferences;
             _dashboard = dashboard;
             _profiles = profiles;
+            _temperatureDisplay = temperatureDisplay;
             _notificationService.PropertyChanged += (_, _) => RefreshNotificationSummary();
             AdGuardTransportSecurity.PropertyChanged +=
                 (_, _) => RefreshAdGuardTransportStatus();
@@ -485,6 +506,7 @@ namespace RouterPilot.ViewModels
 
                 Theme =
                     ThemeService.Normalize(settings.Theme);
+                TemperatureUnit = settings.TemperatureUnit;
 
                 RefreshIntervalSeconds =
                     settings.RefreshIntervalSeconds <= 0
@@ -623,6 +645,7 @@ namespace RouterPilot.ViewModels
 
                         Theme =
                             Theme,
+                        TemperatureUnit = TemperatureUnit,
 
                         RefreshIntervalSeconds =
                             RefreshIntervalSeconds,

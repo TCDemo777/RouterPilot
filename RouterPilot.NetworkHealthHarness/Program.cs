@@ -17,6 +17,27 @@ using Renci.SshNet.Common;
 using RouterPilot.ViewModels;
 
 static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+var temperatureDisplay = new TemperatureDisplayService();
+Require(temperatureDisplay.Unit == TemperatureUnit.Celsius &&
+    temperatureDisplay.Format(0) == "0 °C" &&
+    temperatureDisplay.Format(52.5) == "52.5 °C",
+    "temperature display defaults to Celsius with concise canonical formatting");
+temperatureDisplay.SetUnit(TemperatureUnit.Fahrenheit);
+Require(temperatureDisplay.Format(0) == "32 °F" &&
+    temperatureDisplay.Format(52.5) == "126.5 °F" &&
+    temperatureDisplay.Format(100) == "212 °F",
+    "temperature display converts authoritative Celsius values to Fahrenheit consistently");
+var temperatureDashboard = new DashboardViewModel(temperatureDisplay: temperatureDisplay)
+{
+    RouterModel = "GL-MT6000",
+    TemperatureCelsius = 52.5
+};
+Require(temperatureDashboard.Temperature == "126.5 °F" &&
+    temperatureDashboard.TemperatureHealthText == "Normal",
+    "display-unit switching changes presentation without changing authoritative health semantics");
+temperatureDisplay.SetUnit(TemperatureUnit.Celsius);
+Require(temperatureDashboard.Temperature == "52.5 °C",
+    "dashboard temperature updates from the shared display preference without a router refresh");
 RouterMemoryTelemetry screenshotEquivalentMemory = RouterMemoryTelemetryParser.Parse(
     "MemTotal:2034236\nMemFree:825000\nMemAvailable:1230000\nBuffers:353495\nCached:146227\n");
 Require(screenshotEquivalentMemory.IsAvailable && screenshotEquivalentMemory.UsedKilobytes == 804236 &&

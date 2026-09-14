@@ -244,13 +244,12 @@ namespace RouterPilot.Services
                             ? rawTemperature / 1000d
                             : rawTemperature;
 
-                    info.Temperature =
-                        $"{celsius:0.#} °C";
+                    info.TemperatureCelsius = celsius;
                 }
             }
             catch
             {
-                info.Temperature = "-";
+                info.TemperatureCelsius = null;
             }
 
             try

@@ -40,6 +40,7 @@ public sealed class AppSettings
         new(StringComparer.OrdinalIgnoreCase);
     public bool StartWithWindows { get; set; }
     public string Theme { get; set; } = "System";
+    public TemperatureUnit TemperatureUnit { get; set; } = TemperatureUnit.Celsius;
     public int RefreshIntervalSeconds { get; set; } = 30;
     public int DefaultPauseMinutes { get; set; } = 30;
     // Null means the first established AdGuard state has not selected a default yet.

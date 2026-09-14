@@ -42,6 +42,14 @@ public partial class StatisticCard : UserControl
             typeof(StatisticCard),
             new PropertyMetadata(false));
 
+    /// <summary>Anchors the metric area under the title instead of centring it within available card space.</summary>
+    public static readonly DependencyProperty TopAlignMetricContentProperty =
+        DependencyProperty.Register(
+            nameof(TopAlignMetricContent),
+            typeof(bool),
+            typeof(StatisticCard),
+            new PropertyMetadata(false));
+
     public static readonly DependencyProperty IconGlyphProperty =
         DependencyProperty.Register(
             nameof(IconGlyph),
@@ -182,6 +190,12 @@ public partial class StatisticCard : UserControl
     {
         get => (bool)GetValue(UseCompactStatusValueProperty);
         set => SetValue(UseCompactStatusValueProperty, value);
+    }
+
+    public bool TopAlignMetricContent
+    {
+        get => (bool)GetValue(TopAlignMetricContentProperty);
+        set => SetValue(TopAlignMetricContentProperty, value);
     }
 
     public string IconGlyph

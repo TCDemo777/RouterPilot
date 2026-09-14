@@ -348,7 +348,7 @@
                                 <ItemsControl x:Name="PerformanceHistoryList" Margin="0,8,0,0" Visibility="Collapsed"/>
                             </StackPanel>
                         </GroupBox>
-                        <TextBlock Style="{DynamicResource Text.Muted}" Text="Session values reflect successful RouterPilot observations only; they are not continuous monitoring. Temperature guidance: normal below 65 °C, elevated 65–79 °C, high at 80 °C or above." TextWrapping="Wrap"/>
+                        <TextBlock x:Name="PerformanceGuidanceText" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

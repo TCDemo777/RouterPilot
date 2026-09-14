@@ -15,7 +15,7 @@ public static class NetworkHealthCentreProjection
             dashboard.RouterConnected ? (dashboard.InternetConnected ? "The current Internet path is online." : "The current Internet path is unavailable.") : "Router connectivity is unavailable.",
             dashboard.InternetStatusText, "health"));
 
-        string temperatureState = TemperatureState(dashboard.Temperature);
+        string temperatureState = TemperatureState(dashboard.TemperatureCelsius);
         items.Add(new("Router", "Router", temperatureState,
             temperatureState switch { "Healthy" => "Router resources are within RouterPilot guidance.", "Attention" => "Router temperature is elevated.", "Unavailable" => "Router resource telemetry is unavailable.", _ => "Router resource state is unknown." },
             $"Temperature: {dashboard.Temperature}; memory: {dashboard.MemoryUsage}", "router"));
@@ -40,10 +40,10 @@ public static class NetworkHealthCentreProjection
         return items;
     }
 
-    public static string TemperatureState(string? value)
+    public static string TemperatureState(double? celsius)
     {
-        if (!double.TryParse(value?.Replace("°", string.Empty).Replace("C", string.Empty, StringComparison.OrdinalIgnoreCase).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double celsius)) return "Unavailable";
-        return celsius >= 80 ? "Attention" : celsius >= 65 ? "Attention" : "Healthy";
+        if (celsius is not double value || !double.IsFinite(value)) return "Unavailable";
+        return value >= 80 ? "Attention" : value >= 65 ? "Attention" : "Healthy";
     }
 
     public static string BuildHomeNetworkReport(DashboardViewModel dashboard)
@@ -55,7 +55,7 @@ public static class NetworkHealthCentreProjection
         report.AppendLine("ROUTER");
         report.AppendLine($"Model: {Safe(dashboard.RouterModel)}");
         report.AppendLine($"Firmware: {Safe(dashboard.FirmwareVersion)}");
-        report.AppendLine($"Temperature: {Safe(dashboard.Temperature)} ({TemperatureState(dashboard.Temperature)})");
+        report.AppendLine($"Temperature: {Safe(dashboard.Temperature)} ({TemperatureState(dashboard.TemperatureCelsius)})");
         report.AppendLine("\nDOMAINS");
         foreach (NetworkHealthObservation item in observations)
             report.AppendLine($"{item.Domain}: {item.State} — {item.Summary}");

@@ -45,12 +45,15 @@ public partial class RouterView : UserControl
     private RouterManager? _wifiManager;
     private readonly SqmManagementViewModel _sqmManagementViewModel;
     private readonly DashboardViewModel _dashboard;
+    private readonly TemperatureDisplayService _temperatureDisplay;
+    private double? _performanceCurrentTemperature;
 
     public RouterView()
     {
         InitializeComponent();
         _routerManagerProvider = ((App)Application.Current).Services.GetRequiredService<IRouterManagerProvider>();
         _dashboard = ((App)Application.Current).Services.GetRequiredService<DashboardViewModel>();
+        _temperatureDisplay = ((App)Application.Current).Services.GetRequiredService<TemperatureDisplayService>();
         DataContext = _dashboard;
         _sqmManagementViewModel = ((App)Application.Current).Services.GetRequiredService<SqmManagementViewModel>();
         RouterLogsTabContent.Content = new RouterLogsTabView();
@@ -67,6 +70,8 @@ public partial class RouterView : UserControl
         Loaded += RouterView_Loaded;
         Unloaded += RouterView_Unloaded;
         RouterTabs.SelectionChanged += RouterTabs_SelectionChanged;
+        _temperatureDisplay.UnitChanged += TemperatureDisplay_UnitChanged;
+        UpdatePerformanceTemperaturePresentation();
     }
 
     private async void RouterView_Loaded(object sender, RoutedEventArgs e)
@@ -86,6 +91,17 @@ public partial class RouterView : UserControl
     private void RouterView_Unloaded(object sender, RoutedEventArgs e)
     {
         _refreshCancellation?.Cancel();
+    }
+
+    private void TemperatureDisplay_UnitChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.InvokeAsync(() => TemperatureDisplay_UnitChanged(sender, e));
+            return;
+        }
+
+        UpdatePerformanceTemperaturePresentation();
     }
 
     private async void RouterTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -461,7 +477,8 @@ public partial class RouterView : UserControl
             PerformanceStatus.Text = "Read-only router resource telemetry.";
             PerformanceCpuText.Text = string.IsNullOrWhiteSpace(info.CpuUsage) || info.CpuUsage == "-" ? "—" : info.CpuUsage;
             PerformanceLoadText.Text = string.IsNullOrWhiteSpace(info.LoadAverage) || info.LoadAverage == "-" ? "—" : info.LoadAverage;
-            PerformanceTemperatureText.Text = string.IsNullOrWhiteSpace(info.Temperature) || info.Temperature == "-" ? "—" : info.Temperature;
+            _performanceCurrentTemperature = info.TemperatureCelsius;
+            UpdatePerformanceTemperaturePresentation();
             _dashboard.ApplyMemoryTelemetry(info);
             RecordPerformanceSample(info);
             PerformanceSessionText.Text = $"Session: {_performanceSamples.Count} successful observation(s)";
@@ -472,7 +489,9 @@ public partial class RouterView : UserControl
         catch (Exception exception)
         {
             PerformanceStatus.Text = "Router resource telemetry is currently unavailable.";
-            PerformanceCpuText.Text = PerformanceLoadText.Text = PerformanceTemperatureText.Text = "—";
+            PerformanceCpuText.Text = PerformanceLoadText.Text = "—";
+            _performanceCurrentTemperature = null;
+            UpdatePerformanceTemperaturePresentation();
             System.Diagnostics.Debug.WriteLine($"Router performance refresh failed ({exception.GetType().Name}).");
         }
         finally { _performanceRefreshing = false; }
@@ -484,7 +503,7 @@ public partial class RouterView : UserControl
         _performanceSessionStarted ??= now;
         double? cpu = info.CpuUsagePercent ?? ParsePercent(info.CpuUsage);
         double? memory = info.MemoryUsagePercentage;
-        double? temperature = ParseNumber(info.Temperature);
+        double? temperature = info.TemperatureCelsius;
         double? load = info.LoadAverage1Minute;
         _performanceSamples.Add(new PerformanceSample(now, cpu, memory, temperature, load));
         while (_performanceSamples.Count > 120) _performanceSamples.RemoveAt(0);
@@ -538,7 +557,19 @@ public partial class RouterView : UserControl
     }
 
     private static string FormatPercent(double? value) => value.HasValue ? $"{value.Value:0.#}%" : "—";
-    private static string FormatTemperature(double? value) => value.HasValue ? $"{value.Value:0.#} °C" : "—";
+    private string FormatTemperature(double? value) => _temperatureDisplay.Format(value);
+
+    private void UpdatePerformanceTemperaturePresentation()
+    {
+        if (PerformanceTemperatureText is null)
+            return;
+
+        PerformanceTemperatureText.Text = _temperatureDisplay.Format(_performanceCurrentTemperature);
+        PerformancePeakText.Text = $"Peaks — CPU: {FormatPercent(_performancePeakCpu)}  Memory: {FormatPercent(_performancePeakMemory)}  Temperature: {FormatTemperature(_performancePeakTemperature)}";
+        PerformanceGuidanceText.Text =
+            $"Session values reflect successful RouterPilot observations only; they are not continuous monitoring. " +
+            $"Temperature guidance: normal below {_temperatureDisplay.Format(65)}, elevated {_temperatureDisplay.Format(65)}–{_temperatureDisplay.Format(79)}, high at {_temperatureDisplay.Format(80)} or above.";
+    }
 
     private void ResetPerformanceSession_Click(object sender, RoutedEventArgs e)
     {

@@ -248,6 +248,11 @@ public sealed class SettingsService
             settings.ClientNameSource = ClientNameSource.Automatic;
             changed = true;
         }
+        if (!Enum.IsDefined(settings.TemperatureUnit))
+        {
+            settings.TemperatureUnit = TemperatureUnit.Celsius;
+            changed = true;
+        }
 
         settings.RouterProfiles ??= new List<RouterProfile>();
         if (settings.RouterProfiles.Count == 0 && !string.IsNullOrWhiteSpace(settings.RouterHost))

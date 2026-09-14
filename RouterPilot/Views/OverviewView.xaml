@@ -47,6 +47,7 @@
         <Style x:Key="Overview.SystemHealthMetricCard" TargetType="controls:StatisticCard">
             <Setter Property="MinHeight" Value="206" />
             <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="TopAlignMetricContent" Value="True" />
         </Style>
     </UserControl.Resources>
 

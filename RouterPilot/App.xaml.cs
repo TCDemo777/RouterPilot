@@ -57,6 +57,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<TemperatureDisplayService>();
             serviceCollection.AddSingleton<IClientDisplayNameService, ClientDisplayNameService>();
             serviceCollection.AddSingleton<IRouterProfileService, RouterProfileService>();
             serviceCollection.AddSingleton<IActiveRouterContext, ActiveRouterContext>();
@@ -190,6 +191,8 @@ namespace RouterPilot
                 .GetRequiredService<SettingsService>()
                 .Load();
             ThemeService.Initialize(savedSettings.Theme);
+            Services.GetRequiredService<TemperatureDisplayService>()
+                .SetUnit(savedSettings.TemperatureUnit);
 
             if (!HasUsableSavedSettings())
             {

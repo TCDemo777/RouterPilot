@@ -60,8 +60,17 @@
 
             <StackPanel
                 Grid.Row="1"
-                Margin="0,4,0,3"
-                VerticalAlignment="Center">
+                Margin="0,4,0,3">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding TopAlignMetricContent, ElementName=Root}" Value="True">
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
                 <TextBlock
                     LineHeight="25"
                     MaxHeight="54"

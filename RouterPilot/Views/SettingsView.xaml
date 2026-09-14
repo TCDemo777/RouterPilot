@@ -228,6 +228,16 @@
                                 </ComboBox>
 
                                 <TextBlock Margin="0,18,0,7" Style="{StaticResource Settings.FieldLabel}"
+                                           Text="TEMPERATURE UNIT"/>
+                                <ComboBox Height="38"
+                                          Style="{StaticResource RouterPilot.ComboBox}"
+                                          SelectedValue="{Binding TemperatureUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="Celsius (°C)" Tag="{x:Static models:TemperatureUnit.Celsius}"/>
+                                    <ComboBoxItem Content="Fahrenheit (°F)" Tag="{x:Static models:TemperatureUnit.Fahrenheit}"/>
+                                </ComboBox>
+
+                                <TextBlock Margin="0,18,0,7" Style="{StaticResource Settings.FieldLabel}"
                                            Text="DASHBOARD REFRESH INTERVAL"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>

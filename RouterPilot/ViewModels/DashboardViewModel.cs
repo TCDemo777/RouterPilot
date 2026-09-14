@@ -181,7 +181,10 @@ namespace RouterPilot.ViewModels
         private string cpuUsage = "-";
 
         [ObservableProperty]
-        private string temperature = "-";
+        private double? temperatureCelsius;
+
+        /// <summary>Theme-independent, user-facing presentation of native Celsius telemetry.</summary>
+        public string Temperature => _temperatureDisplay.Format(TemperatureCelsius);
 
         [ObservableProperty]
         private string loadAverage = "-";
@@ -473,13 +476,13 @@ namespace RouterPilot.ViewModels
         }
 
         public string TemperatureHealthText =>
-            RouterTemperatureHealth.Text(RouterModel, Temperature);
+            RouterTemperatureHealth.Text(RouterModel, TemperatureCelsius);
 
         public string TemperatureHealthColour =>
-            RouterTemperatureHealth.Colour(RouterModel, Temperature);
+            RouterTemperatureHealth.Colour(RouterModel, TemperatureCelsius);
 
         public string TemperatureHealthToolTip =>
-            RouterTemperatureHealth.ToolTip(RouterModel, Temperature);
+            RouterTemperatureHealth.ToolTip(RouterModel, TemperatureCelsius);
 
 
         //
@@ -705,10 +708,20 @@ namespace RouterPilot.ViewModels
 
         public Axis[] NetworkTrafficYAxes { get; }
 
-        public DashboardViewModel(IClientDisplayNameService? displayNames = null)
+        private readonly TemperatureDisplayService _temperatureDisplay;
+
+        public DashboardViewModel(
+            IClientDisplayNameService? displayNames = null,
+            TemperatureDisplayService? temperatureDisplay = null)
         {
             _displayNames = displayNames ?? new PassthroughClientDisplayNameService();
             _displayNames.Changed += (_, _) => RebuildLanClients();
+            _temperatureDisplay = temperatureDisplay ?? new TemperatureDisplayService();
+            _temperatureDisplay.UnitChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(Temperature));
+                OnPropertyChanged(nameof(NetworkHealthRouterSummary));
+            };
             QueryHistorySeries = new ISeries[]
             {
                 new LineSeries<AdGuardTimePoint>
@@ -2482,6 +2495,13 @@ namespace RouterPilot.ViewModels
         partial void OnStoragePercentageChanged(double value)
         {
             NotifyResourceHealthChanged();
+        }
+
+        partial void OnTemperatureCelsiusChanged(double? value)
+        {
+            OnPropertyChanged(nameof(Temperature));
+            NotifyResourceHealthChanged();
+            OnPropertyChanged(nameof(NetworkHealthRouterSummary));
         }
 
         partial void OnLatencyChanged(string value)

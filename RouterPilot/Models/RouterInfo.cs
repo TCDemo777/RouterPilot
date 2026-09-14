@@ -26,7 +26,8 @@ namespace RouterPilot.Models
 
         public int? LogicalProcessorCount { get; set; }
 
-        public string Temperature { get; set; } = "-";
+        /// <summary>Authoritative router telemetry in Celsius; presentation is formatted separately.</summary>
+        public double? TemperatureCelsius { get; set; }
 
         public string LoadAverage { get; set; } = "-";
 
