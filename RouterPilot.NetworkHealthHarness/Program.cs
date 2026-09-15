@@ -689,6 +689,13 @@ profileSettingsStorage.Save(new AppSettings
 });
 AppSettings migratedProfileSettings = profileSettingsStorage.Load();
 Require(migratedProfileSettings.RouterProfiles.Count == 1, "legacy settings migrate to exactly one router profile");
+Require(migratedProfileSettings.TemperatureUnit == TemperatureUnit.Celsius,
+    "settings written before the temperature preference default safely to Celsius");
+migratedProfileSettings.TemperatureUnit = TemperatureUnit.Fahrenheit;
+profileSettingsStorage.Save(migratedProfileSettings);
+Require(profileSettingsStorage.Load().TemperatureUnit == TemperatureUnit.Fahrenheit,
+    "temperature preference persists through the existing settings store");
+migratedProfileSettings = profileSettingsStorage.Load();
 RouterProfile migratedProfile = migratedProfileSettings.RouterProfiles.Single();
 Require(migratedProfile.Id == migratedProfileSettings.ActiveRouterProfileId, "migration selects the stable router profile as active");
 Require(migratedProfile.RouterHost == "router-a.example" && migratedProfile.RouterPort == 8443 && migratedProfile.AdGuardPort == 3001 && migratedProfile.UseAdGuardHttps, "router and AdGuard settings are preserved in the profile");
