@@ -33,9 +33,15 @@ namespace RouterPilot.Services
             return RunCommandAsync(command, CancellationToken.None);
         }
 
-        public async Task<string> RunCommandAsync(
+        public Task<string> RunCommandAsync(
             string command,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken) =>
+            RunCommandAsync(command, cancellationToken, commandTimeout: null);
+
+        internal async Task<string> RunCommandAsync(
+            string command,
+            CancellationToken cancellationToken,
+            TimeSpan? commandTimeout)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             ArgumentException.ThrowIfNullOrWhiteSpace(command);
@@ -51,7 +57,7 @@ namespace RouterPilot.Services
             try
             {
                 return await Task.Run(
-                        () => ExecuteCommand(command),
+                        () => ExecuteCommand(command, commandTimeout),
                         cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -61,7 +67,7 @@ namespace RouterPilot.Services
             }
         }
 
-        private string ExecuteCommand(string command)
+        private string ExecuteCommand(string command, TimeSpan? commandTimeout)
         {
             try
             {
@@ -70,8 +76,7 @@ namespace RouterPilot.Services
                 using SshCommand result =
                     _client!.CreateCommand(command);
 
-                result.CommandTimeout =
-                    TimeSpan.FromSeconds(20);
+                result.CommandTimeout = commandTimeout ?? TimeSpan.FromSeconds(20);
 
                 string output = result.Execute();
 

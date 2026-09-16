@@ -11,6 +11,7 @@ public interface IVpnService
     Task<IReadOnlyList<VpnTunnelInfo>> EnrichRoutingPolicyAsync(IReadOnlyList<VpnTunnelInfo> tunnels, CancellationToken cancellationToken);
     Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<VpnClientProfileInfo>> GetClientProfilesAsync(CancellationToken cancellationToken);
+    Task<VpnWireGuardHandshakeSnapshot> GetWireGuardHandshakeSnapshotAsync(VpnTunnelInfo tunnel, CancellationToken cancellationToken);
 #if DEBUG
     Task<VpnStateCaptureSnapshot> GetDebugStateCaptureAsync(CancellationToken cancellationToken);
 #endif

@@ -862,6 +862,7 @@ internal static class Program
     private static void RunUnitTests()
     {
         RunVpnControlPresentationTests();
+        RunWireGuardHandshakeDetectionTests();
         RunVpnProfileInventoryTests();
         RunVpnRoutingPolicyTests();
         RunVpnDiagnosticExportTests();
@@ -1072,6 +1073,87 @@ internal static class Program
         Require(page.VpnTunnels.Count == 1, "Tailscale refresh does not clear Unified VPN inventory");
 
         RunVpnConnectionFailureLifecycleTests();
+    }
+
+    private static void RunWireGuardHandshakeDetectionTests()
+    {
+        static VpnWireGuardHandshakeSnapshot Snapshot(string value) => RouterManager.ParseWireGuardHandshakeSnapshot(value);
+        static VpnWireGuardHandshakeState Compare(string before, string after) =>
+            RouterManager.CompareWireGuardHandshakeSnapshots(Snapshot(before), Snapshot(after));
+
+        Require(Compare("peer-public-key\t0\n", "peer-public-key\t0\n") == VpnWireGuardHandshakeState.NoHandshake,
+            "a zero baseline and zero post-attempt timestamp confirms no new handshake");
+        Require(Compare("peer-public-key\t100\n", "peer-public-key\t100\n") == VpnWireGuardHandshakeState.NoHandshake,
+            "an unchanged historical positive timestamp does not count as the current attempt succeeding");
+        Require(Compare("peer-public-key\t100\n", "peer-public-key\t101\n") == VpnWireGuardHandshakeState.Successful,
+            "a timestamp newer than the attempt baseline proves a current handshake");
+        Require(Compare("peer-public-key\t0\n", "peer-public-key\t101\n") == VpnWireGuardHandshakeState.Successful,
+            "a positive post-attempt timestamp advances a zero baseline");
+        Require(Compare("SSH_CONNECTION_FAILED\n", "peer-public-key\t0\n") == VpnWireGuardHandshakeState.Unavailable &&
+                Compare("peer-public-key\t0\n", "SSH_CONNECTION_FAILED\n") == VpnWireGuardHandshakeState.Unavailable,
+            "unavailable baseline or post-attempt diagnostics preserve the safe fallback");
+        Require(Compare("peer-a\t0\npeer-b\t100\n", "peer-b\t101\npeer-a\t0\n") == VpnWireGuardHandshakeState.Successful &&
+                Compare("peer-a\t0\npeer-b\t100\n", "peer-b\t100\npeer-a\t0\n") == VpnWireGuardHandshakeState.NoHandshake,
+            "sorted multi-peer timestamps are independent of output ordering");
+        Require(Compare("peer-a\t100\npeer-b\t100\n", "peer-b\t100\npeer-a\t100\n") == VpnWireGuardHandshakeState.NoHandshake,
+            "duplicate handshake timestamps remain stable when peer output order changes");
+        Require(Compare("peer-a\t100\n", "peer-a\t100\npeer-b\t100\n") == VpnWireGuardHandshakeState.Unavailable,
+            "a peer-count change is ambiguous and falls back safely");
+        Require(Compare("peer-a\t0\npeer-b\t100\n", "peer-a\t50\npeer-b\t100\n") == VpnWireGuardHandshakeState.Successful,
+            "an equal-count peer replacement can only suppress stuck detection, never create a failure");
+        Require(!RouterManager.IsSafeWireGuardInterfaceName("wgclient1\n") && RouterManager.IsSafeWireGuardInterfaceName("wgclient1"),
+            "a final-newline interface name is rejected before shell command construction");
+
+        VpnClientProfileInfo wireGuardProfile = new() { GroupId = 101, Name = "PIA", Protocol = "WireGuard", CurrentLocation = "US / Alabama" };
+        VpnTunnelInfo wireGuard = new() { TunnelId = 10, Name = "Primary", Enabled = true, Protocol = "WireGuard", InterfaceName = "wgclient1", ProfileGroupIds = [101] };
+        static VpnLiveStatusInfo Transitioning(string protocol) => new() { TunnelId = 10, GroupId = 101, Enabled = true, Status = 2, Protocol = protocol };
+
+        VpnOperationIntentService connectingIntent = new();
+        connectingIntent.Begin(10, connecting: true);
+        var gracePeriod = new VpnViewModel(connectingIntent);
+        gracePeriod.Replace([wireGuard], [wireGuardProfile], VpnProfileInventoryState.Available);
+        gracePeriod.BeginConnectionAttempt(gracePeriod.VpnTunnels.Single());
+        gracePeriod.ApplyLiveStatuses([Transitioning("WireGuard")], vpnInventoryAuthoritative: true, fromLiveStatusEvent: true);
+        Require(!gracePeriod.VpnTunnels.Single().HasConnectionAttemptFailure && gracePeriod.VpnTunnels.Single().ConnectionState == "Connecting",
+            "a normal WireGuard transition remains Connecting during the runtime grace period");
+
+        gracePeriod.MarkWireGuardHandshakeFailure(10);
+        Require(gracePeriod.VpnTunnels.Single().HasConnectionAttemptFailure && gracePeriod.VpnTunnels.Single().HasWireGuardHandshakeFailure &&
+                gracePeriod.VpnTunnels.Single().ConnectionState == "Connection did not complete" &&
+                gracePeriod.VpnTunnels.Single().ConnectionFailureDetail.Contains("not completing a handshake", StringComparison.Ordinal),
+            "prolonged transitioning with confirmed no handshake becomes a recoverable failure");
+        gracePeriod.ApplyLiveStatuses([Transitioning("WireGuard")], vpnInventoryAuthoritative: true);
+        Require(gracePeriod.VpnTunnels.Single().HasWireGuardHandshakeFailure,
+            "an authoritative StatusCode=2 refresh preserves the confirmed stuck-handshake presentation");
+        gracePeriod.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 10, GroupId = 101, Enabled = true, Status = 1, Protocol = "WireGuard" }], vpnInventoryAuthoritative: true);
+        Require(!gracePeriod.VpnTunnels.Single().HasConnectionAttemptFailure,
+            "a successful subsequent handshake clears the recoverable failure");
+
+        gracePeriod.ApplyLiveStatuses([Transitioning("WireGuard")], vpnInventoryAuthoritative: true);
+        gracePeriod.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 10, GroupId = 101, Enabled = true, Status = 1, Protocol = "WireGuard" }], vpnInventoryAuthoritative: true);
+        gracePeriod.MarkWireGuardHandshakeFailure(10);
+        Require(!gracePeriod.VpnTunnels.Single().HasConnectionAttemptFailure,
+            "a tunnel that becomes Connected while a diagnostic is running cannot publish a stale failure");
+
+        VpnOperationIntentService staleIntent = new();
+        long staleGeneration = staleIntent.Begin(10, connecting: true);
+        staleIntent.ClearAll();
+        Require(!staleIntent.IsCurrent(10, staleGeneration, VpnTransitionIntent.Connecting),
+            "cancellation or view disposal invalidates an in-flight handshake baseline");
+        long firstGeneration = staleIntent.Begin(10, connecting: true);
+        staleIntent.Begin(10, connecting: false);
+        Require(!staleIntent.IsCurrent(10, firstGeneration, VpnTransitionIntent.Connecting),
+            "Disconnect or a superseding operation invalidates the prior handshake baseline");
+
+        var openVpn = new VpnViewModel();
+        openVpn.Replace([new VpnTunnelInfo { TunnelId = 10, Enabled = true, Protocol = "OpenVPN", ProfileGroupIds = [101] }], [wireGuardProfile], VpnProfileInventoryState.Available);
+        openVpn.ApplyLiveStatuses([Transitioning("OpenVPN")], vpnInventoryAuthoritative: true);
+        openVpn.MarkWireGuardHandshakeFailure(10);
+        Require(!openVpn.VpnTunnels.Single().HasConnectionAttemptFailure,
+            "OpenVPN is unaffected by the WireGuard handshake diagnostic");
+
+        Require(typeof(VpnWireGuardHandshakeSnapshot).GetProperties().All(property => property.PropertyType != typeof(string)),
+            "WireGuard handshake snapshots retain no peer keys, endpoints, private material, or raw command output");
     }
 
     private static void RunVpnConnectionFailureLifecycleTests()

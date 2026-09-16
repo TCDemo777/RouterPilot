@@ -126,6 +126,23 @@ public sealed class VpnService : IVpnService
         return Correlate(tunnels, profiles);
     }
 
+    public async Task<VpnWireGuardHandshakeSnapshot> GetWireGuardHandshakeSnapshotAsync(VpnTunnelInfo tunnel, CancellationToken token)
+    {
+        if (!string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase))
+            return new VpnWireGuardHandshakeSnapshot();
+        try
+        {
+            RouterManager manager = await _provider.GetRouterManagerAsync(token).ConfigureAwait(false);
+            return await manager.GetWireGuardHandshakeSnapshotAsync(tunnel.InterfaceName, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"WireGuard handshake diagnostic unavailable ({DiagnosticRedactor.FailureCategory(exception)}).");
+            return new VpnWireGuardHandshakeSnapshot();
+        }
+    }
+
 #if DEBUG
     public async Task<VpnStateCaptureSnapshot> GetDebugStateCaptureAsync(CancellationToken token) =>
         await (await _provider.GetRouterManagerAsync(token)).GetVpnStateCaptureAsync(token);
@@ -238,6 +255,7 @@ public sealed class VpnService : IVpnService
         FromType = tunnel.FromType, ToType = tunnel.ToType, Masquerade = tunnel.Masquerade, LocalAccess = tunnel.LocalAccess,
         ServicePolicy = tunnel.ServicePolicy, ServerConfigCount = tunnel.ServerConfigCount, LiveStatus = tunnel.LiveStatus,
         ConfigurationHealth = tunnel.ConfigurationHealth, HasConnectionAttemptFailure = tunnel.HasConnectionAttemptFailure,
+        HasWireGuardHandshakeFailure = tunnel.HasWireGuardHandshakeFailure,
         TransitionIntent = tunnel.TransitionIntent, RoutingPolicyState = state, InternetRoutingScope = scope,
         RoutingDeviceIdentities = identities, RoutingDevices = devices
     };

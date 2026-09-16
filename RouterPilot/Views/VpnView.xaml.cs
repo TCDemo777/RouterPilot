@@ -665,8 +665,26 @@ public partial class VpnView : UserControl
         _viewModel.VpnIsLoading = true; _viewModel.VpnOperationTunnelId = tunnel.TunnelId;
         using CancellationTokenSource operationCts = new(TimeSpan.FromSeconds(30));
         lock (_operationSync) _operationCts = operationCts;
+        string operationProfileId = _activeRouter.CurrentProfileId;
+        long operationContextVersion = _activeRouter.Version;
+        bool IsCurrentConnectOperation() => !operationCts.IsCancellationRequested &&
+            operationProfileId == _activeRouter.CurrentProfileId && operationContextVersion == _activeRouter.Version &&
+            _operationIntent.IsCurrent(tunnel.TunnelId, operationGeneration, VpnTransitionIntent.Connecting);
         try
         {
+            // Capture a timestamp-only baseline before the enable mutation. An
+            // unavailable diagnostic never blocks the user-requested connect.
+            VpnWireGuardHandshakeSnapshot baseline = new();
+            if (target && string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase))
+            {
+                baseline = await _service.GetWireGuardHandshakeSnapshotAsync(tunnel, operationCts.Token);
+                operationCts.Token.ThrowIfCancellationRequested();
+                if (!IsCurrentConnectOperation())
+                {
+                    _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
+                    return;
+                }
+            }
             VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, operationCts.Token);
             if (!result.Success)
             {
@@ -677,6 +695,19 @@ public partial class VpnView : UserControl
             }
             bool runtimeReachedTarget = await WaitForTunnelRuntimeAsync(tunnel.TunnelId, target, operationCts.Token);
             VpnLiveStatusDiagnostics.Record($"VPN tunnel runtime reconciliation: {(runtimeReachedTarget ? "PASS" : "TIMEOUT")}; target={(target ? "Connected" : "Disconnected")}");
+            if (target && !runtimeReachedTarget && baseline.IsAvailable && IsCurrentConnectOperation())
+            {
+                VpnLiveStatusInfo? current = _liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnel.TunnelId);
+                if (current is { Enabled: true, Status: 2 } && string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase))
+                {
+                    VpnWireGuardHandshakeSnapshot postAttempt = await _service.GetWireGuardHandshakeSnapshotAsync(tunnel, operationCts.Token);
+                    operationCts.Token.ThrowIfCancellationRequested();
+                    current = _liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnel.TunnelId);
+                    if (IsCurrentConnectOperation() && current is { Enabled: true, Status: 2 } &&
+                        RouterManager.CompareWireGuardHandshakeSnapshots(baseline, postAttempt) == VpnWireGuardHandshakeState.NoHandshake)
+                        _viewModel.MarkWireGuardHandshakeFailure(tunnel.TunnelId);
+                }
+            }
             _viewModel.VpnIsLoading = false;
             await RefreshAsync(force: true, refreshTailscale: false);
         }

@@ -55,4 +55,9 @@ public sealed class VpnOperationIntentService
     {
         lock (_sync) return _tunnelId == tunnelId ? _intent : VpnTransitionIntent.None;
     }
+
+    public bool IsCurrent(int tunnelId, long generation, VpnTransitionIntent intent)
+    {
+        lock (_sync) return _tunnelId == tunnelId && _generation == generation && _intent == intent;
+    }
 }

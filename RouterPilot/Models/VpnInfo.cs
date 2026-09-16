@@ -30,6 +30,22 @@ public enum VpnRoutingPolicyState
     Unavailable
 }
 
+/// <summary>Sanitized comparison result for read-only WireGuard handshake timestamps.</summary>
+public enum VpnWireGuardHandshakeState
+{
+    Unavailable,
+    Successful,
+    NoHandshake
+}
+
+public sealed class VpnWireGuardHandshakeSnapshot
+{
+    // Sorted timestamps only. Peer keys, endpoints, and raw command output are
+    // deliberately discarded before this value crosses the router boundary.
+    public IReadOnlyList<long> LatestHandshakeTimestamps { get; init; } = [];
+    public bool IsAvailable { get; init; }
+}
+
 /// <summary>Current presence reported by the shared, aggregate GL.iNet client inventory.</summary>
 public enum VpnRoutingDevicePresence
 {
@@ -136,11 +152,16 @@ public sealed class VpnTunnelInfo
     public VpnConfigurationHealth ConfigurationHealth { get; init; } = VpnConfigurationHealth.Unknown;
     public bool HasConfigurationAttention => ConfigurationHealth == VpnConfigurationHealth.Unlinked;
     public bool HasConnectionAttemptFailure { get; init; }
+    // This is set only after a bounded, read-only WireGuard handshake check
+    // confirms the router is still transitioning without a handshake.
+    public bool HasWireGuardHandshakeFailure { get; init; }
     public VpnTransitionIntent TransitionIntent { get; init; }
     public string ConfigurationAttentionTitle => "VPN profile is not linked to the Primary Tunnel.";
     public string ConfigurationAttentionDetail => "The VPN provider profile is available, but the router's Primary Tunnel is not currently associated with it.";
     public string ConnectionFailureTitle => "VPN connection did not complete";
-    public string ConnectionFailureDetail => "The selected VPN server or location may be unavailable. You can retry or choose another location.";
+    public string ConnectionFailureDetail => HasWireGuardHandshakeFailure
+        ? "WireGuard is not completing a handshake. Refresh the provider/server configuration in the router VPN settings, reselect the server, and try again."
+        : "The selected VPN server or location may be unavailable. You can retry or choose another location.";
     public string ConnectionState => HasConfigurationAttention ? "Configuration needs attention" : HasConnectionAttemptFailure ? "Connection did not complete" : TransitionIntent switch
     {
         VpnTransitionIntent.Connecting => "Connecting",

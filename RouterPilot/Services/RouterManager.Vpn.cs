@@ -269,6 +269,59 @@ public partial class RouterManager
         return !document.RootElement.TryGetProperty("error", out _) && document.RootElement.TryGetProperty("result", out _);
     }
 
+    // This intentionally requests only the latest-handshake counters. It
+    // never reads WireGuard configuration, private keys, or peer details.
+    // The command itself is limited to six seconds; a new SSH connection can
+    // additionally consume the existing five-second connection timeout.
+    internal async Task<VpnWireGuardHandshakeSnapshot> GetWireGuardHandshakeSnapshotAsync(string? interfaceName, CancellationToken token)
+    {
+        if (!IsSafeWireGuardInterfaceName(interfaceName)) return new VpnWireGuardHandshakeSnapshot();
+
+        string output = await RunReadOnlySshCommandAsync(
+            $"wg show {interfaceName} latest-handshakes 2>/dev/null", TimeSpan.FromSeconds(6), token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        return ParseWireGuardHandshakeSnapshot(output);
+    }
+
+    internal static bool IsSafeWireGuardInterfaceName(string? interfaceName) =>
+        !string.IsNullOrWhiteSpace(interfaceName) && Regex.IsMatch(interfaceName, "\\A[A-Za-z0-9_.-]{1,32}\\z");
+
+    internal static VpnWireGuardHandshakeSnapshot ParseWireGuardHandshakeSnapshot(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output) || output.StartsWith("SSH_", StringComparison.Ordinal))
+            return new VpnWireGuardHandshakeSnapshot();
+
+        var timestamps = new List<long>();
+        foreach (string line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separator = line.LastIndexOf('\t');
+            if (separator < 0 || !long.TryParse(line[(separator + 1)..].Trim(), out long latestHandshake) || latestHandshake < 0)
+                return new VpnWireGuardHandshakeSnapshot();
+            timestamps.Add(latestHandshake);
+        }
+
+        return timestamps.Count == 0
+            ? new VpnWireGuardHandshakeSnapshot()
+            : new VpnWireGuardHandshakeSnapshot { IsAvailable = true, LatestHandshakeTimestamps = timestamps.OrderBy(value => value).ToList() };
+    }
+
+    internal static VpnWireGuardHandshakeState CompareWireGuardHandshakeSnapshots(
+        VpnWireGuardHandshakeSnapshot baseline, VpnWireGuardHandshakeSnapshot current)
+    {
+        if (!baseline.IsAvailable || !current.IsAvailable || baseline.LatestHandshakeTimestamps.Count != current.LatestHandshakeTimestamps.Count)
+            return VpnWireGuardHandshakeState.Unavailable;
+
+        bool advanced = false;
+        for (int index = 0; index < baseline.LatestHandshakeTimestamps.Count; index++)
+        {
+            long before = baseline.LatestHandshakeTimestamps[index];
+            long after = current.LatestHandshakeTimestamps[index];
+            if (after < before) return VpnWireGuardHandshakeState.Unavailable;
+            if (after > before) advanced = true;
+        }
+        return advanced ? VpnWireGuardHandshakeState.Successful : VpnWireGuardHandshakeState.NoHandshake;
+    }
+
     private static VpnTunnelInfo ParseTunnel(JsonElement tunnel)
     {
         JsonElement via = tunnel.TryGetProperty("via", out JsonElement viaValue) && viaValue.ValueKind == JsonValueKind.Object ? viaValue : default;

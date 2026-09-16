@@ -185,6 +185,9 @@ namespace RouterPilot.Services
         internal Task<string> RunReadOnlySshCommandAsync(string command, CancellationToken cancellationToken = default) =>
             _ssh.RunCommandAsync(command, cancellationToken);
 
+        internal Task<string> RunReadOnlySshCommandAsync(string command, TimeSpan commandTimeout, CancellationToken cancellationToken = default) =>
+            _ssh.RunCommandAsync(command, cancellationToken, commandTimeout);
+
         public async Task<RouterSpeedTestCapability> DiscoverSpeedTestCapabilityAsync(
             CancellationToken cancellationToken = default)
             => await _speedTestCapabilityService.DiscoverAsync(cancellationToken);

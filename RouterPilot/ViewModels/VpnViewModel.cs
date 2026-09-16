@@ -84,6 +84,7 @@ public sealed partial class VpnViewModel : ObservableObject
     private int? _failedConnectionTunnelId;
     private int? _failedConnectionGroupId;
     private string _failedConnectionLocation = string.Empty;
+    private bool _failedWireGuardHandshake;
     public bool HasVpnTunnels => VpnTunnels.Count > 0;
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
     public bool ShowNoVpnProfiles => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Available && !HasVpnProfiles;
@@ -150,6 +151,25 @@ public sealed partial class VpnViewModel : ObservableObject
         ClearFailedAttempt(tunnelId);
     }
 
+    public void MarkWireGuardHandshakeFailure(int tunnelId)
+    {
+        VpnTunnelInfo? tunnel = VpnTunnels.SingleOrDefault(item => item.TunnelId == tunnelId);
+        if (tunnel?.LiveStatus is not { Enabled: true, Status: 2 } status ||
+            !string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(status.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase)) return;
+
+        _failedConnectionTunnelId = tunnelId;
+        _failedConnectionGroupId = tunnel.SelectedProfileGroupId;
+        _failedConnectionLocation = tunnel.ConfiguredLocation;
+        _failedWireGuardHandshake = true;
+        ClearConnectionAttempt();
+        var updated = VpnTunnels.Select(item => item.TunnelId == tunnelId
+            ? CopyTunnel(item, item.TransitionIntent, hasConnectionAttemptFailure: true, hasWireGuardHandshakeFailure: true)
+            : item).ToList();
+        VpnTunnels.Clear();
+        foreach (VpnTunnelInfo item in updated) VpnTunnels.Add(item);
+    }
+
     public void ApplyLiveStatuses(IReadOnlyList<VpnLiveStatusInfo> statuses, bool vpnInventoryAuthoritative, bool fromLiveStatusEvent = false)
     {
         var statusMap = statuses.ToDictionary(status => status.TunnelId);
@@ -201,6 +221,7 @@ public sealed partial class VpnViewModel : ObservableObject
                 RoutingDeviceIdentities=tunnel.RoutingDeviceIdentities,
                 RoutingDevices=RefreshRoutingDeviceStatuses(tunnel.RoutingDevices, selectedStatus?.IsConnected == true),
                 HasConnectionAttemptFailure=hasConnectionFailure,
+                HasWireGuardHandshakeFailure=hasConnectionFailure && _failedWireGuardHandshake,
                 TransitionIntent=_operationIntent?.GetIntent(tunnel.TunnelId) ?? VpnTransitionIntent.None,
                 // A disconnected status can still carry the authoritative group
                 // association needed to recognise an unlinked profile. It is not
@@ -220,7 +241,7 @@ public sealed partial class VpnViewModel : ObservableObject
         foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
     }
 
-    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null, VpnTunnelInfo? routing = null) => new()
+    private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null, bool? hasWireGuardHandshakeFailure = null, VpnTunnelInfo? routing = null) => new()
     {
         Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
         Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds,
@@ -233,6 +254,7 @@ public sealed partial class VpnViewModel : ObservableObject
         RoutingDeviceIdentities=routing?.RoutingDeviceIdentities ?? tunnel.RoutingDeviceIdentities,
         RoutingDevices=RefreshRoutingDeviceStatuses(routing?.RoutingDevices ?? tunnel.RoutingDevices, tunnel.LiveStatus?.IsConnected == true),
         ConfigurationHealth=tunnel.ConfigurationHealth, HasConnectionAttemptFailure=hasConnectionAttemptFailure ?? tunnel.HasConnectionAttemptFailure,
+        HasWireGuardHandshakeFailure=hasWireGuardHandshakeFailure ?? tunnel.HasWireGuardHandshakeFailure,
         TransitionIntent=intent
     };
 
@@ -258,6 +280,16 @@ public sealed partial class VpnViewModel : ObservableObject
         if (status?.IsConnected == true)
         {
             if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+            ClearFailedAttempt(tunnelId);
+            return false;
+        }
+
+        // Keep a confirmed stuck-handshake failure visible only while the
+        // router continues to report this exact transitioning condition.
+        if (_failedConnectionTunnelId == tunnelId && _failedWireGuardHandshake)
+        {
+            if (status is { Enabled: true, Status: 2 })
+                return true;
             ClearFailedAttempt(tunnelId);
             return false;
         }
@@ -307,6 +339,7 @@ public sealed partial class VpnViewModel : ObservableObject
         _failedConnectionTunnelId = null;
         _failedConnectionGroupId = null;
         _failedConnectionLocation = string.Empty;
+        _failedWireGuardHandshake = false;
     }
 
     private void ClearFailurePresentation(int tunnelId)
