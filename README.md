@@ -22,9 +22,14 @@ Companion for GL.iNet Routers & AdGuard Home
 - Secure password storage, SSH host-key verification, HTTPS certificate trust-on-first-use and diagnostic redaction
 - Light, dark and system themes plus notification-area close-to-tray behaviour
 
-## What's new in RouterPilot 2.4.5
+## What's new in RouterPilot 2.4.6
 
-RouterPilot 2.4.5 adds native GL.iNet SQM management, clearer Router maintenance, and AdGuard Home credential flexibility.
+RouterPilot 2.4.6 focuses on WireGuard reliability, safe operational diagnostics, and Private Internet Access (PIA) server management.
+
+- PIA Server Management provides explicit Refresh Servers, Apply, Apply & Connect, and Regenerate VPN Server workflows for an authoritatively detected PIA provider setup.
+- Normal VPN controls remain available for compatible non-PIA configurations; advanced provider management is intentionally PIA-specific.
+- Devlog now records safe router/RPC, VPN, PIA, refresh and operation-lifecycle activity without storing credentials or raw RPC payloads.
+- Improved dark and light theme readability for Devlog filters and the PIA location selector.
 
 - Router → SQM now uses the native GL.iNet SQM API where available, with guarded staged controls for enable state, bandwidth limits and queue rule.
 - Router firmware information and checks are now available from Router → Firmware.
@@ -67,7 +72,7 @@ The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/Ro
 
 User settings are stored under `%LocalAppData%\RouterPilot`. Passwords are protected for the current Windows user. Existing supported settings, notification, client-profile and AdGuard schedule files are copied automatically from `%LocalAppData%\AdGuardTray` when no RouterPilot replacement exists.
 
-Release assets are published as `RouterPilot-2.4.5-x64.msi` and `RouterPilot-v2.4.5-win-x64.zip`.
+Release assets are published as `RouterPilot-2.4.6-x64.msi` and `RouterPilot-v2.4.6-win-x64.zip`.
 
 ## Upgrading
 
@@ -110,4 +115,4 @@ Support is completely optional. Using RouterPilot, reporting bugs, suggesting im
 
 ## Licence
 
-RouterPilot v2.4.5 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.
+RouterPilot v2.4.6 is released under the GNU General Public License v3.0 only (GPL-3.0-only). Previously distributed versions remain available under the licence terms under which they were originally distributed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.txt](RouterPilot/THIRD_PARTY_NOTICES.txt) for details.

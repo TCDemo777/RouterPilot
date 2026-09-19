@@ -15,6 +15,6 @@ Then rebuild RouterPilot.Installer in Visual Studio.
 
 Expected MSI output name:
 
-  RouterPilot-2.4.5-x64.msi
+  RouterPilot-2.4.6-x64.msi
 
 Do not commit bin, obj, or publish output folders.

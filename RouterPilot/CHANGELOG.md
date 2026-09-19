@@ -1,5 +1,40 @@
 # RouterPilot Changelog
 
+## 2.4.6
+
+### VPN and WireGuard reliability
+
+- Improved WireGuard operation-state handling, stale-operation protection, cancellation handling and authoritative post-operation reconciliation.
+- Added clearer incomplete-connection handling for the existing WireGuard handshake detector, including a recoverable `Connection did not complete` path when the detector has the required evidence.
+- Expanded safe VPN diagnostics, including the DEBUG-only sanitized Capture PIA State snapshot. No credentials, keys, endpoints, addresses or MAC values are exported.
+- Testing confirmed that an individual generated concrete configuration can fail through both RouterPilot and the stock GL.iNet client, while the same healthy configuration can connect through both. This release improves RouterPilot's lifecycle, verification, detection and recovery UX; it does not claim to diagnose an upstream provider-server handshake cause.
+
+### Private Internet Access server management
+
+- Added authoritative PIA-specific provider detection using safe GL.iNet provider metadata rather than development-router numeric IDs.
+- Added PIA Server Management with Refresh Servers, location selection, Apply, Apply & Connect and Regenerate VPN Server.
+- Apply resolves the current logical PIA target, generates once, reads fresh configuration metadata, assigns the fresh configuration while preserving Primary routing policy, verifies the assignment, and remains disconnected.
+- Apply & Connect runs the verified Apply lifecycle first and then uses the existing Connect path. It has no shortcut payload, automatic retry or automatic regeneration after a failed connection.
+- Regenerate VPN Server explicitly regenerates the same logical PIA location once, resolves and verifies the fresh configuration, reassigns Primary, and leaves the VPN disconnected for the user to connect.
+- Handles current provider hostname rotation and treats GL.iNet numeric provider configuration IDs as ephemeral transaction-local identifiers rather than durable server identity.
+- Refresh Servers is now the interactive catalogue gate: selector, Apply and Apply & Connect remain unavailable until a successful current-context refresh returns usable locations.
+- PIA management is hidden when PIA is absent or provider identity is ambiguous. Normal compatible VPN controls remain available for non-PIA configurations; advanced provider management is specifically validated for PIA.
+
+### Operational Devlog and diagnostics
+
+- Expanded the bounded, safe operational Devlog with application, router/authentication, RPC, Dashboard, VPN and PIA lifecycle events, timings, outcomes and operation identifiers where available.
+- Added safe RPC dispatch/completion visibility using only service, method, duration and outcome; request/response payloads are never logged automatically.
+- Suppressed repetitive `RpcConnection.Reuse existing RouterManager` noise while retaining useful connection lifecycle and individual RPC activity.
+- Devlog defence-in-depth redaction excludes passwords, provider credentials, sessions, tokens, cookies, WireGuard keys, peer keys, Wi-Fi credentials, MAC values, raw RPC data and DNS-query/client data.
+
+### Interface
+
+- Fixed theme-aware ComboBox presentation in Devlog Level/Category filters and PIA location selection, including popup background, item foreground, hover and selected states in both Dark and Light themes.
+
+### Validation
+
+- The corrected PIA lifecycle was compared directly with the stock GL.iNet PIA workflow on a real router without publishing private router or account data.
+
 ## 2.4.5
 
 ### SQM
