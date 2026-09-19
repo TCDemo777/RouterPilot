@@ -17,11 +17,18 @@ public sealed partial class VpnViewModel : ObservableObject
     public string TailscaleAttention => TailscaleStatus?.State switch { TailscaleState.NeedsLogin => "Tailscale needs login.", TailscaleState.Stopped => "Tailscale daemon is stopped.", TailscaleState.Unavailable => "Tailscale telemetry is unavailable.", _ => string.Empty };
     public ObservableCollection<VpnTunnelInfo> VpnTunnels { get; } = new();
     public ObservableCollection<VpnClientProfileInfo> VpnProfiles { get; } = new();
+    public ObservableCollection<VpnProviderServerInfo> PiaProviderServers { get; } = new();
     [ObservableProperty] private bool vpnIsLoading;
     [ObservableProperty] private bool vpnInventoryLoadCompleted;
     [ObservableProperty] private string vpnStatus = string.Empty;
     [ObservableProperty] private bool vpnSupported;
     [ObservableProperty] private VpnProfileInventoryState vpnProfileInventoryState = VpnProfileInventoryState.Unknown;
+    [ObservableProperty] private int piaProviderTunnelId;
+    [ObservableProperty] private int piaProviderGroupId;
+    [ObservableProperty] private VpnProviderServerInfo? selectedPiaProviderServer;
+    [ObservableProperty] private bool piaProviderOperationRunning;
+    [ObservableProperty] private bool piaProviderServerCatalogueReady;
+    [ObservableProperty] private string piaProviderStatus = string.Empty;
     [ObservableProperty] private TailscaleStatus? tailscaleStatus;
     [ObservableProperty] private bool tailscaleIsLoading;
     [ObservableProperty] private TailscaleConfigurationSnapshot tailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown;
@@ -86,6 +93,12 @@ public sealed partial class VpnViewModel : ObservableObject
     private string _failedConnectionLocation = string.Empty;
     private bool _failedWireGuardHandshake;
     public bool HasVpnTunnels => VpnTunnels.Count > 0;
+    public bool HasPiaProviderManagement => PiaProviderTunnelId > 0 && PiaProviderGroupId > 0;
+    public bool SupportsPiaServerManagement => HasPiaProviderManagement;
+    public bool ShowPiaServerManagementNote => !SupportsPiaServerManagement;
+    public bool CanManagePiaProviderServers => HasPiaProviderManagement && !PiaProviderOperationRunning && !VpnIsLoading && VpnTunnels.SingleOrDefault(tunnel => tunnel.TunnelId == PiaProviderTunnelId) is { Enabled: false, Protocol: var protocol } && string.Equals(protocol, "WireGuard", StringComparison.OrdinalIgnoreCase);
+    public bool CanSelectPiaProviderServer => CanManagePiaProviderServers && PiaProviderServerCatalogueReady;
+    public bool CanApplyPiaProviderServer => CanSelectPiaProviderServer && SelectedPiaProviderServer is not null && PiaProviderServers.Contains(SelectedPiaProviderServer);
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
     public bool ShowNoVpnProfiles => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Available && !HasVpnProfiles;
     public bool ShowVpnProfilesUnavailable => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Unavailable;
@@ -99,6 +112,54 @@ public sealed partial class VpnViewModel : ObservableObject
         VpnProfileInventoryState = profileInventoryState;
         OnPropertyChanged(nameof(HasVpnTunnels)); OnPropertyChanged(nameof(HasVpnProfiles));
         OnPropertyChanged(nameof(ShowNoVpnTunnels)); OnPropertyChanged(nameof(ShowNoVpnProfiles)); OnPropertyChanged(nameof(ShowVpnProfilesUnavailable));
+        OnPropertyChanged(nameof(CanManagePiaProviderServers));
+    }
+
+    public void SetPiaProviderManagement(VpnProviderGroupInfo? group, IReadOnlyList<VpnTunnelInfo> tunnels)
+    {
+        VpnTunnelInfo? tunnel = group is null ? null : tunnels.SingleOrDefault(item => string.Equals(item.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) && item.ProfileGroupIds.Contains(group.GroupId));
+        int newTunnelId = tunnel?.TunnelId ?? 0;
+        int newGroupId = tunnel is null || group is null ? 0 : group.GroupId;
+        if (PiaProviderTunnelId != newTunnelId || PiaProviderGroupId != newGroupId || tunnel is null || tunnel.Enabled)
+        {
+            InvalidatePiaProviderServerCatalogue();
+            PiaProviderStatus = tunnel?.Enabled == true ? "Disconnect the PIA WireGuard tunnel to manage provider servers." : string.Empty;
+        }
+        PiaProviderTunnelId = newTunnelId; PiaProviderGroupId = newGroupId;
+        if (tunnel?.Enabled == true)
+            PiaProviderStatus = "Disconnect the PIA WireGuard tunnel to manage provider servers.";
+        OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability();
+    }
+
+    public void BeginPiaProviderServerCatalogueRefresh()
+    {
+        InvalidatePiaProviderServerCatalogue();
+    }
+
+    public void ReplacePiaProviderServers(IReadOnlyList<VpnProviderServerInfo> servers)
+    {
+        PiaProviderServers.Clear(); foreach (VpnProviderServerInfo server in servers) PiaProviderServers.Add(server);
+        SelectedPiaProviderServer = null;
+        PiaProviderServerCatalogueReady = servers.Count > 0;
+        PiaProviderStatus = PiaProviderServerCatalogueReady ? "Choose one server and generate provider configuration." : "No usable PIA servers were returned by the router.";
+        NotifyPiaProviderServerAvailability();
+    }
+
+    public void FailPiaProviderServerCatalogueRefresh(string status)
+    {
+        InvalidatePiaProviderServerCatalogue();
+        PiaProviderStatus = status;
+    }
+
+    public void ApplyAuthoritativePiaProviderServer(VpnProviderServerInfo server)
+    {
+        VpnProviderServerInfo? existing = PiaProviderServers.SingleOrDefault(item => item.CatalogueIdentity == server.CatalogueIdentity);
+        if (existing is null)
+        {
+            PiaProviderServers.Add(server);
+            existing = server;
+        }
+        SelectedPiaProviderServer = existing;
     }
 
     public void ApplyRoutingPolicy(IReadOnlyList<VpnTunnelInfo> routingTunnels)
@@ -113,7 +174,29 @@ public sealed partial class VpnViewModel : ObservableObject
 
     public void MarkVpnProfileInventoryUnavailable() => VpnProfileInventoryState = VpnProfileInventoryState.Unavailable;
 
-    partial void OnVpnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsVpnInventoryLoading));
+    partial void OnVpnIsLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsVpnInventoryLoading));
+        OnPropertyChanged(nameof(CanManagePiaProviderServers));
+    }
+    private void InvalidatePiaProviderServerCatalogue()
+    {
+        PiaProviderServerCatalogueReady = false;
+        PiaProviderServers.Clear();
+        SelectedPiaProviderServer = null;
+        NotifyPiaProviderServerAvailability();
+    }
+    private void NotifyPiaProviderServerAvailability()
+    {
+        OnPropertyChanged(nameof(CanManagePiaProviderServers));
+        OnPropertyChanged(nameof(CanSelectPiaProviderServer));
+        OnPropertyChanged(nameof(CanApplyPiaProviderServer));
+    }
+    partial void OnPiaProviderOperationRunningChanged(bool value) => NotifyPiaProviderServerAvailability();
+    partial void OnPiaProviderServerCatalogueReadyChanged(bool value) => NotifyPiaProviderServerAvailability();
+    partial void OnSelectedPiaProviderServerChanged(VpnProviderServerInfo? value) => NotifyPiaProviderServerAvailability();
+    partial void OnPiaProviderTunnelIdChanged(int value) { OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability(); }
+    partial void OnPiaProviderGroupIdChanged(int value) { OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability(); }
     partial void OnVpnInventoryLoadCompletedChanged(bool value)
     {
         OnPropertyChanged(nameof(IsVpnInventoryLoading));

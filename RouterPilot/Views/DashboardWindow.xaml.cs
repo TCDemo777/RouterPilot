@@ -66,6 +66,7 @@ namespace RouterPilot.Views
         private bool _trafficRefreshInProgress;
         private bool _initialFirmwareCheckScheduled;
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly IRouterPilotDevLog _devLog;
         private readonly ProtectionViewModel _protectionViewModel;
         private readonly IActiveRouterContext _activeRouter;
         private readonly IRouterSwitchCoordinator _routerSwitchCoordinator;
@@ -126,6 +127,8 @@ namespace RouterPilot.Views
                 .Services.GetRequiredService<AdGuardProtectionNotificationTracker>();
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
+            _devLog = ((App)Application.Current).Services
+                .GetRequiredService<IRouterPilotDevLog>();
             _protectionViewModel = ((App)Application.Current).Services
                 .GetRequiredService<ProtectionViewModel>();
             _activeRouter = ((App)Application.Current).Services
@@ -277,10 +280,14 @@ namespace RouterPilot.Views
         private async Task RefreshDashboard(
             CancellationToken cancellationToken = default)
         {
+            _devLog.Write(RouterPilotDevLogCategory.UI,
+                "Page.Enter page=Dashboard", RouterPilotDevLogLevel.Debug);
             cancellationToken.ThrowIfCancellationRequested();
 
             if (_refreshInProgress)
             {
+                _devLog.Write(RouterPilotDevLogCategory.Dashboard,
+                    "Refresh.Skipped reason=OperationAlreadyRunning", RouterPilotDevLogLevel.Debug);
                 return;
             }
 
@@ -293,6 +300,10 @@ namespace RouterPilot.Views
             cancellationToken = lifecycleCancellation.Token;
 
             _refreshInProgress = true;
+            string operation = _devLog.CreateOperationId("DASH");
+            Stopwatch refreshTiming = Stopwatch.StartNew();
+            _devLog.Write(RouterPilotDevLogCategory.Dashboard, operation,
+                "Refresh.Start source=Automatic", RouterPilotDevLogLevel.Debug);
             long routerSession = _activeRouter.Version;
             long resumeGeneration = Volatile.Read(ref _resumeGeneration);
             bool routerCommunicationConfirmed = false;
@@ -343,6 +354,8 @@ namespace RouterPilot.Views
 
                 RouterInfo info =
                     await router.GetRouterInfoAsync();
+                _devLog.Write(RouterPilotDevLogCategory.Dashboard, operation,
+                    "RouterStatus.Read.Result", RouterPilotDevLogLevel.Trace);
 
                 cancellationToken.ThrowIfCancellationRequested();
                 ThrowIfRouterSessionChanged(routerSession);
@@ -494,11 +507,17 @@ namespace RouterPilot.Views
                     "Last refresh: " +
                     DateTime.Now.ToString(
                         "dd MMM yyyy HH:mm:ss");
+                _devLog.Write(RouterPilotDevLogCategory.Dashboard, operation,
+                    "Refresh.Completed", RouterPilotDevLogLevel.Debug,
+                    refreshTiming.ElapsedMilliseconds, "Success");
             }
             catch (OperationCanceledException)
                 when (cancellationToken.IsCancellationRequested || !IsCurrentRouterSession(routerSession) || resumeGeneration != Volatile.Read(ref _resumeGeneration))
             {
                 ResumeTrace("Dashboard refresh cancelled for lifecycle/recovery generation");
+                _devLog.Write(RouterPilotDevLogCategory.Dashboard, operation,
+                    "Refresh.Cancelled reason=LifecycleOrGenerationChanged", RouterPilotDevLogLevel.Debug,
+                    refreshTiming.ElapsedMilliseconds, "Cancelled");
             }
             catch (SshAuthenticationException)
             {
@@ -512,6 +531,9 @@ namespace RouterPilot.Views
             }
             catch (Exception ex)
             {
+                _devLog.Write(RouterPilotDevLogCategory.Dashboard, operation,
+                    $"Refresh.Failed reason={DiagnosticRedactor.FailureCategory(ex)}", RouterPilotDevLogLevel.Warn,
+                    refreshTiming.ElapsedMilliseconds, "Failed");
                 await ShowConnectionErrorAsync(
                     OperationFailurePolicy.UserMessage(
                         ex,

@@ -54,6 +54,7 @@ namespace RouterPilot
             applicationDataPaths.MigrateLegacyData();
 
             var serviceCollection = new ServiceCollection();
+            serviceCollection.AddSingleton<IRouterPilotDevLog, RouterPilotDevLog>();
             serviceCollection.AddSingleton(applicationDataPaths);
             serviceCollection.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
             serviceCollection.AddSingleton<SettingsService>();
@@ -174,6 +175,7 @@ namespace RouterPilot
             serviceCollection.AddTransient<GlobalSearchViewModel>();
             serviceCollection.AddTransient<SettingsViewModel>();
             _services = serviceCollection.BuildServiceProvider();
+            Services.GetRequiredService<IRouterPilotDevLog>().Write(RouterPilotDevLogCategory.App, "RouterPilot started");
 
             await Services.GetRequiredService<NotificationService>()
                 .InitializeAsync();

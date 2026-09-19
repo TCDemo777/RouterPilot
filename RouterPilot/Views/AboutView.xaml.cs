@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -35,6 +36,10 @@ namespace RouterPilot.Views
         private readonly DiagnosticsExecutionService _diagnosticsExecutionService;
         private readonly RouterDiagnosticsToolService _routerDiagnosticsToolService;
         private readonly DiagnosticsHistoryService _diagnosticsHistoryService;
+        private readonly IRouterPilotDevLog _devLog;
+        private readonly ObservableCollection<RouterPilotDevLogEntry> _devLogEntries = new();
+        private bool _devLogSubscribed;
+        private bool _aboutControlsInitialized;
 
         private readonly StringBuilder _supportLog =
             new StringBuilder();
@@ -123,6 +128,7 @@ namespace RouterPilot.Views
         public AboutView()
         {
             InitializeComponent();
+            _aboutControlsInitialized = true;
             ChangelogDocument.RenderTransform = _changelogTranslate;
             Debug.WriteLine("CHANGELOG_TRANSFORM_CREATED=TranslateTransform");
             Debug.WriteLine("CHANGELOG_TRANSFORM_ASSIGNED=ChangelogDocument.RenderTransform");
@@ -138,6 +144,9 @@ namespace RouterPilot.Views
                 .GetRequiredService<RouterDiagnosticsToolService>();
             _diagnosticsHistoryService = ((App)Application.Current).Services
                 .GetRequiredService<DiagnosticsHistoryService>();
+            _devLog = ((App)Application.Current).Services
+                .GetRequiredService<IRouterPilotDevLog>();
+            DevlogListBox.DataContext = _devLogEntries;
             _diagnosticsExecutionService.LatestResultChanged += DiagnosticsExecution_LatestResultChanged;
             Loaded += AboutView_Loaded;
             Unloaded += AboutView_Unloaded;
@@ -151,6 +160,12 @@ namespace RouterPilot.Views
 
         private void AboutView_Loaded(object sender, RoutedEventArgs e)
         {
+            if (!_devLogSubscribed)
+            {
+                _devLog.EntryAdded += DevLog_EntryAdded;
+                _devLogSubscribed = true;
+            }
+            RefreshDevLog();
             if (!_diagnosticsHistorySubscribed)
             {
                 _diagnosticsHistoryService.HistoryChanged +=
@@ -163,6 +178,11 @@ namespace RouterPilot.Views
 
         private void AboutView_Unloaded(object sender, RoutedEventArgs e)
         {
+            if (_devLogSubscribed)
+            {
+                _devLog.EntryAdded -= DevLog_EntryAdded;
+                _devLogSubscribed = false;
+            }
             ResetFlightDeck();
             if (!_diagnosticsHistorySubscribed)
             {
@@ -172,6 +192,73 @@ namespace RouterPilot.Views
             _diagnosticsHistoryService.HistoryChanged -=
                 DiagnosticsHistory_CollectionChanged;
             _diagnosticsHistorySubscribed = false;
+        }
+
+        private void RefreshDevLog()
+        {
+            if (!_aboutControlsInitialized) return;
+            _devLogEntries.Clear();
+            foreach (RouterPilotDevLogEntry entry in _devLog.Entries.Where(DevLogMatchesFilter)) _devLogEntries.Add(entry);
+            if (DevlogAutoScrollCheckBox.IsChecked == true && _devLogEntries.Count > 0)
+                DevlogListBox.ScrollIntoView(_devLogEntries[^1]);
+        }
+
+        private void DevLog_EntryAdded(object? sender, RouterPilotDevLogEntry entry)
+        {
+            if (!_aboutControlsInitialized) return;
+            if (!Dispatcher.CheckAccess())
+            {
+                _ = Dispatcher.BeginInvoke(new Action(() => DevLog_EntryAdded(sender, entry)));
+                return;
+            }
+            if (DevlogPauseCheckBox.IsChecked == true) return;
+            if (!DevLogMatchesFilter(entry)) return;
+            _devLogEntries.Add(entry);
+            while (_devLogEntries.Count > RouterPilotDevLog.DefaultCapacity) _devLogEntries.RemoveAt(0);
+            if (DevlogAutoScrollCheckBox.IsChecked == true) DevlogListBox.ScrollIntoView(entry);
+        }
+
+        private bool DevLogMatchesFilter(RouterPilotDevLogEntry entry)
+        {
+            string level = (DevlogLevelFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+            string category = (DevlogCategoryFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+            string search = DevlogSearchTextBox.Text.Trim();
+            bool levelMatch = level switch
+            {
+                "Trace" => entry.Level >= RouterPilotDevLogLevel.Trace,
+                "Debug" => entry.Level >= RouterPilotDevLogLevel.Debug,
+                "Info" => entry.Level >= RouterPilotDevLogLevel.Info,
+                "Warn" => entry.Level >= RouterPilotDevLogLevel.Warn,
+                "Error" => entry.Level == RouterPilotDevLogLevel.Error,
+                _ => true
+            };
+            return levelMatch && (category == "All" || string.Equals(category, entry.Category.ToString(), StringComparison.OrdinalIgnoreCase)) &&
+                   (search.Length == 0 || entry.DisplayText.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void DevlogFilterChanged(object sender, RoutedEventArgs e) => RefreshDevLog();
+
+        private void DevlogPauseChanged(object sender, RoutedEventArgs e)
+        {
+            if (!_aboutControlsInitialized) return;
+            if (DevlogPauseCheckBox.IsChecked != true) RefreshDevLog();
+        }
+
+        private void ClearDevlog_Click(object sender, RoutedEventArgs e)
+        {
+            _devLog.Clear();
+            _devLogEntries.Clear();
+        }
+
+        private void CopyDevlog_Click(object sender, RoutedEventArgs e)
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, _devLogEntries.Select(entry => entry.DisplayText)));
+        }
+
+        private void CopyAllDevlog_Click(object sender, RoutedEventArgs e)
+        {
+            string header = $"RouterPilot Devlog{Environment.NewLine}Version={GetApplicationVersion()}{Environment.NewLine}Timestamp={DateTimeOffset.Now:O}{Environment.NewLine}EntryCount={_devLog.Entries.Count}{Environment.NewLine}";
+            Clipboard.SetText(header + string.Join(Environment.NewLine, _devLog.Entries.Select(entry => entry.DisplayText)));
         }
 
         private async void RouterPilotLogo_Changed(object sender, System.Windows.Input.MouseButtonEventArgs e)

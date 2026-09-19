@@ -28,7 +28,7 @@ public sealed partial class GLInetSessionService
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation));
         }
-        return PostRpcAsync(new { jsonrpc = "2.0", id = 7, method = "call", @params = new object[] { sessionId, "vpn-client", method, payload } }, cancellationToken);
+        return PostRpcAsync(new { jsonrpc = "2.0", id = 7, method = "call", @params = new object[] { sessionId, "vpn-client", method, payload } }, cancellationToken, "vpn-client", method);
     }
 }
 

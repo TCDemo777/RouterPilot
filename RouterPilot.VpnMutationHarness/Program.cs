@@ -296,6 +296,13 @@ internal static class Program
 {
     private static async Task Main(string[] args)
     {
+        // Keep this incident diagnostic's output limited to its documented
+        // safe projection; it does not need to run the mutation self-tests.
+        if (args.Any(argument => string.Equals(argument, "--vpn-config-resolution", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunVpnConfigResolutionAsync();
+            return;
+        }
         Console.WriteLine("RouterPilot VPN mutation harness");
         RunUnitTests();
         Console.WriteLine("Local coordinator tests: PASS");
@@ -314,6 +321,11 @@ internal static class Program
         if (args.Any(argument => string.Equals(argument, "--vpn-stale-capture", StringComparison.OrdinalIgnoreCase)))
         {
             await RunVpnStaleStateCaptureAsync();
+            return;
+        }
+        if (args.Any(argument => string.Equals(argument, "--vpn-tunnel-shape", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunVpnTunnelShapeAsync();
             return;
         }
         if (args.Any(argument => string.Equals(argument, "--plugins", StringComparison.OrdinalIgnoreCase)))
@@ -430,6 +442,54 @@ internal static class Program
         {
             Console.WriteLine($"VPN_STALE_STATE_CAPTURE_FAILURE={Sanitize(exception.Message)};MUTATIONS=NONE");
         }
+    }
+
+    // Temporary, read-only incident diagnostic. The RouterManager projection
+    // emits only structural JSON metadata, safe numeric config IDs, and
+    // allowlisted tunnel types; it never exposes raw response content.
+    private static async Task RunVpnTunnelShapeAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            Console.WriteLine("VPN_TUNNEL_SHAPE_READ_ONLY");
+            foreach (string line in await manager.GetVpnTunnelShapeLinesAsync(38, timeout.Token)) Console.WriteLine(line);
+            Console.WriteLine("READ_METHODS=vpn-client.get_tunnel");
+            Console.WriteLine("MUTATIONS=NONE");
+        }
+        catch (OperationCanceledException) { Console.WriteLine("VPN_TUNNEL_SHAPE=TIMED_OUT;MUTATIONS=NONE"); }
+        catch (Exception exception) { Console.WriteLine($"VPN_TUNNEL_SHAPE_FAILURE={Sanitize(exception.Message)};MUTATIONS=NONE"); }
+    }
+
+    // Temporary read-only incident diagnostic. It deliberately prints only
+    // the current numeric association and safe config presentation metadata.
+    private static async Task RunVpnConfigResolutionAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(
+                settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings),
+                new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            Console.WriteLine("CONFIG_RESOLUTION_READ_ONLY");
+            foreach (string line in await manager.GetVpnTunnelConfigResolutionLinesAsync(38, timeout.Token)) Console.WriteLine(line);
+            Console.WriteLine("MUTATIONS=NONE");
+        }
+        catch (OperationCanceledException) { Console.WriteLine("CONFIG_RESOLUTION_READ_ONLY\nMATCH_COUNT=0\nMUTATIONS=NONE"); }
+        catch (Exception) { Console.WriteLine("CONFIG_RESOLUTION_READ_ONLY\nMATCH_COUNT=0\nMUTATIONS=NONE"); }
     }
 
     private static async Task<IReadOnlyList<VpnLiveStatusInfo>> CaptureVpnLiveStatusesAsync(RouterManager manager, CancellationToken cancellationToken)
@@ -864,8 +924,11 @@ internal static class Program
         RunVpnControlPresentationTests();
         RunWireGuardHandshakeDetectionTests();
         RunVpnProfileInventoryTests();
+        RunPiaProviderServerManagementTests();
+        RunPiaManualSnapshotPresentationTests();
         RunVpnRoutingPolicyTests();
         RunVpnDiagnosticExportTests();
+        RunDevLogTests();
         RunRouterCertificateTrustPolicyTests();
         static JsonObject Settings(int value) => new() { ["lan_enabled"] = value, ["wan_enabled"] = value, ["enabled"] = 0, ["masq"] = 0 };
 
@@ -951,6 +1014,267 @@ internal static class Program
         Require(request.Count == 3 && request["lan_enabled"]!.GetValue<bool>() && request["lan_ip"] is null && request["auth_key"] is null, "set_config envelope excludes derived and secret fields");
     }
 
+    private static void RunDevLogTests()
+    {
+        string aboutSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AboutView.xaml.cs"));
+        Require(aboutSource.Contains("_aboutControlsInitialized = true", StringComparison.Ordinal) && aboutSource.Contains("if (!_aboutControlsInitialized) return;", StringComparison.Ordinal),
+            "About Devlog event handlers are gated until InitializeComponent has completed");
+        RouterPilotDevLog log = new(100);
+        List<RouterPilotDevLogEntry> notified = [];
+        log.EntryAdded += (_, entry) => notified.Add(entry);
+        for (int index = 0; index < 125; index++) log.Write(RouterPilotDevLogCategory.App, $"entry {index}");
+        Require(log.Entries.Count == 100, "devlog retains bounded history without unbounded growth");
+        Require(log.Entries[0].Message == "entry 25" && log.Entries[^1].Message == "entry 124" && notified.Count == 125, "devlog preserves chronological ordering and notifies subscribers");
+        Task.Run(() => log.Write(RouterPilotDevLogCategory.VPN, "worker entry")).GetAwaiter().GetResult();
+        Require(log.Entries[^1].Message == "worker entry", "devlog accepts worker-thread logging");
+        log.Write(RouterPilotDevLogCategory.App, "password=fake username=fake sid=fake token=fake Authorization=fake private_key=fake preshared_key=fake wifi_psk=fake 02:00:00:00:00:01");
+        string retained = string.Join("\n", log.Entries.Select(entry => entry.Message));
+        Require(!retained.Contains("fake", StringComparison.OrdinalIgnoreCase) && !retained.Contains("02:00:00:00:00:01", StringComparison.Ordinal), "devlog backstop excludes fake credentials, tokens, keys, and MAC addresses");
+        log.Clear();
+        Require(log.Entries.Count == 0, "devlog clear affects only in-memory history");
+    }
+
+    private static void RunPiaProviderServerManagementTests()
+    {
+        string routerVpnSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "RouterManager.Vpn.cs"));
+        string vpnServiceSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "VpnService.cs"));
+        string vpnRpcSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "GLInetSessionService.Vpn.cs"));
+        string vpnViewSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml.cs"));
+        string vpnViewXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml"));
+        string vpnViewModelSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "ViewModels", "VpnViewModel.cs"));
+        Require(vpnViewModelSource.Contains("PiaProviderServerCatalogueReady", StringComparison.Ordinal) &&
+                vpnViewModelSource.Contains("BeginPiaProviderServerCatalogueRefresh", StringComparison.Ordinal) &&
+                vpnViewModelSource.Contains("FailPiaProviderServerCatalogueRefresh", StringComparison.Ordinal),
+            "PIA interactive catalogue readiness has explicit state transitions");
+        Require(vpnViewXaml.Contains("IsEnabled=\"{Binding CanSelectPiaProviderServer}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("IsEnabled=\"{Binding CanApplyPiaProviderServer}\"", StringComparison.Ordinal),
+            "PIA selection and mutations require refreshed catalogue readiness");
+        Require(vpnViewSource.IndexOf("BeginPiaProviderServerCatalogueRefresh", StringComparison.Ordinal) <
+                vpnViewSource.IndexOf("RefreshPiaProviderServersAsync", StringComparison.Ordinal) &&
+                vpnViewSource.Contains("result.Success && result.Servers.Count > 0", StringComparison.Ordinal),
+            "refresh invalidates stale selection before RPC and only enables usable results");
+        Require(vpnViewXaml.Contains("Content=\"Apply &amp; Connect\"", StringComparison.Ordinal) &&
+                vpnViewSource.Contains("ApplyAndConnectPiaProviderConfig_Click", StringComparison.Ordinal),
+            "PIA Apply & Connect is exposed as an explicit user action");
+        Require(vpnViewSource.Contains("RunPiaProviderConfigAsync(false, applyAndConnect: true)", StringComparison.Ordinal) &&
+                vpnViewSource.Contains("RunTunnelOperationAsync(freshTunnel, target: true, button: null)", StringComparison.Ordinal),
+            "Apply & Connect composes the existing Apply and Connect paths");
+        Require(vpnViewSource.IndexOf("GeneratePiaProviderConfigAsync", StringComparison.Ordinal) <
+                vpnViewSource.IndexOf("RunTunnelOperationAsync(freshTunnel, target: true, button: null)", StringComparison.Ordinal) &&
+                vpnViewSource.Contains("ApplyAndConnect.ApplyCompleted", StringComparison.Ordinal),
+            "Apply & Connect orders verified Apply before Connect");
+        Require(!vpnViewSource.Contains("GeneratePiaProviderConfigAsync(_viewModel.PiaProviderTunnelId, _viewModel.PiaProviderGroupId, selection, IsCurrent, operationCts.Token);\r\n            await _service.SetTunnelEnabledAsync", StringComparison.Ordinal),
+            "Apply & Connect does not introduce a combined mutation shortcut");
+        Require(!routerVpnSource.Contains("SetVpnTunnelGeneratedWireGuardConfigAsync", StringComparison.Ordinal) &&
+                !routerVpnSource.Contains("BuildTunnelGeneratedConfigRequest", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("AssignWireGuardProviderConfigAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal) &&
+                vpnServiceSource.IndexOf("GeneratePiaProviderConfigAsync(groupId, selection, token, trace", StringComparison.Ordinal) <
+                vpnServiceSource.IndexOf("AssignWireGuardProviderConfigAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal),
+            "provider Apply generates the selected configuration before issuing the explicit Primary Tunnel assignment");
+        Require(vpnRpcSource.Contains("payload = new { tunnel_id = tunnelId.Value, enabled = enabled.Value };", StringComparison.Ordinal),
+            "normal DISCONNECT remains the minimal tunnel_id/enabled payload with no via configuration");
+        using JsonDocument groups = JsonDocument.Parse("{\"result\":{\"groups\":[{\"group_id\":5456,\"group_name\":\"PIA\",\"group_type\":1,\"username\":\"synthetic-user\",\"password\":\"synthetic-password\",\"public_key\":\"synthetic-key\"}]}}");
+        VpnProviderGroupInfo? pia = RouterManager.ParsePiaProviderGroup(groups.RootElement);
+        Require(pia is { GroupId: 5456 } && !JsonSerializer.Serialize(pia).Contains("synthetic", StringComparison.Ordinal),
+            "PIA discovery accepts the proven provider group and exposes no credential or key material");
+        using JsonDocument alternatePiaId = JsonDocument.Parse("{\"result\":{\"groups\":[{\"group_id\":9876,\"group_name\":\"PIA\",\"group_type\":1}]}}");
+        Require(RouterManager.ParsePiaProviderGroup(alternatePiaId.RootElement) is { GroupId: 9876 },
+            "PIA discovery uses the authoritative current group ID rather than 5456");
+        using JsonDocument nonPia5456 = JsonDocument.Parse("{\"result\":{\"groups\":[{\"group_id\":5456,\"group_name\":\"Other Provider\",\"group_type\":1}]}}");
+        Require(RouterManager.ParsePiaProviderGroup(nonPia5456.RootElement) is null,
+            "group ID 5456 without the authoritative PIA identity is not detected as PIA");
+        using JsonDocument ambiguousPia = JsonDocument.Parse("{\"result\":{\"groups\":[{\"group_id\":1,\"group_name\":\"PIA\",\"group_type\":1},{\"group_id\":2,\"group_name\":\"PIA\",\"group_type\":1}]}}");
+        Require(RouterManager.ParsePiaProviderGroup(ambiguousPia.RootElement) is null,
+            "ambiguous PIA provider groups fail closed");
+        Require(vpnViewXaml.Contains("SupportsPiaServerManagement", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("ShowPiaServerManagementNote", StringComparison.Ordinal) &&
+                vpnViewModelSource.Contains("Advanced server management is", StringComparison.Ordinal) == false,
+            "PIA controls have a dedicated capability gate while generic VPN remains outside it");
+        const string catalogueJson = """
+            {"result":{"provider":"PIA","server_info":[{"country_name":"GB","cities":[{"city_id":"1","city_name":"UK London","hostname":["London-new","London-alt"]}]},{"country_name":"US","cities":[{"city_id":"2","city_name":"Alabama","hostname":["Alabama-1"]}]}]}}
+            """;
+        using JsonDocument catalogueDocument = JsonDocument.Parse(catalogueJson);
+        IReadOnlyList<VpnProviderServerInfo> catalogue = RouterManager.ParseProviderServerCatalogue(catalogueDocument.RootElement, 5456);
+        Require(catalogue.Count == 3 && catalogue.Any(server => server.CityName == "UK London" && server.Hostname == "London-new") && catalogue.All(server => server.GroupId == 5456),
+            "PIA provider catalogue parser retains only safe country/city/hostname metadata across countries and cities");
+        VpnProviderServerInfo targetServer = catalogue.Single(server => server.Hostname == "London-new");
+        VpnService.VpnProviderServerResolution rotated = VpnService.ResolveLogicalProviderServer(
+            [new VpnProviderServerInfo { GroupId = 5456, CountryName = "GB", CityName = "UK London", Hostname = "Server-NEW" }, new VpnProviderServerInfo { GroupId = 5456, CountryName = "AD", CityName = "Andorra", Hostname = "Server-OTHER" }],
+            "GB", "UK London");
+        Require(rotated.Result == "FOUND" && rotated.Server?.Hostname == "Server-NEW",
+            "logical country/city resolution replaces a stale hostname with the current authoritative hostname");
+        Require(VpnService.ResolveLogicalProviderServer(
+            [new VpnProviderServerInfo { GroupId = 5456, CountryName = "GB", CityName = "UK London", Hostname = "Server-A" }, new VpnProviderServerInfo { GroupId = 5456, CountryName = "GB", CityName = "UK London", Hostname = "Server-B" }],
+            "GB", "UK London").Result == "AMBIGUOUS",
+            "logical resolution fails closed when a location has multiple current hostnames");
+        Require(!vpnServiceSource.Contains("GeneratePiaProviderConfigAsync(groupId, resetServer, token)", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("GetPiaProviderServerCatalogueAsync(groupId, token)", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("GeneratePiaProviderConfigAsync(groupId, targetSelection, token, trace)", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("ProviderCatalogueUnavailable", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("ProviderCatalogueEmpty", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("TargetLocationNotInCatalogue", StringComparison.Ordinal),
+            "provider Apply resolves and generates the same logical target exactly once");
+        Require(catalogue.Single(server => server.Hostname == "London-new").DisplayName == "GB — UK London — London-new",
+            "PIA provider server display text uses the safe country, city, and hostname metadata");
+        Require(!JsonSerializer.Serialize(catalogue).Contains("password", StringComparison.OrdinalIgnoreCase) && !JsonSerializer.Serialize(catalogue).Contains("private_key", StringComparison.OrdinalIgnoreCase),
+            "PIA catalogue UI model cannot contain provider credentials or WireGuard key material");
+
+        object refreshRequest = RouterManager.BuildProviderServerListRequest(5456, "synthetic-user", "synthetic-password");
+        string refreshPayload = JsonSerializer.Serialize(refreshRequest);
+        Require(refreshPayload == "{\"group_id\":5456,\"username\":\"synthetic-user\",\"password\":\"synthetic-password\"}",
+            "provider server refresh request has the proven group_id/username/password payload");
+        object generateRequest = RouterManager.BuildGenerateProviderConfigRequest(5456, catalogue.Single(server => server.Hostname == "London-new"));
+        string generatePayload = JsonSerializer.Serialize(generateRequest);
+        Require(generatePayload == "{\"group_id\":5456,\"server_info\":[{\"country_name\":\"GB\",\"cities\":[{\"city_name\":\"UK London\",\"hostname\":[\"London-new\"]}]}]}",
+            "provider generation request has the proven single-server structure");
+
+        using JsonDocument malformed = JsonDocument.Parse("{\"result\":{\"server_info\":[{\"country_name\":\"GB\",\"cities\":[{\"city_name\":\"London\",\"hostname\":null}]}]}}");
+        Require(RouterManager.ParseProviderServerCatalogue(malformed.RootElement, 5456).Count == 0,
+            "malformed or incomplete provider catalogues fail safely");
+        using JsonDocument generated = JsonDocument.Parse("{\"result\":{\"peers\":[{\"peer_id\":999,\"name\":\"London-new\",\"location\":\"GB, UK London\",\"private_key\":\"synthetic-private\",\"preshared_key\":\"synthetic-psk\"}]}}");
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> configs = RouterManager.ParseGeneratedProviderConfigs(generated.RootElement);
+        Require(configs.Count == 1 && RouterManager.GeneratedConfigMatchesSelection(configs[0], catalogue.Single(server => server.Hostname == "London-new")),
+            "authoritative generated-config read-back matches safe catalogue metadata rather than peer ID");
+        Require(!JsonSerializer.Serialize(configs).Contains("synthetic-private", StringComparison.Ordinal) && !JsonSerializer.Serialize(configs).Contains("synthetic-psk", StringComparison.Ordinal),
+            "generated-config read-back discards private and preshared keys");
+        using JsonDocument changedPeerId = JsonDocument.Parse("{\"result\":{\"peers\":[{\"peer_id\":1,\"name\":\"London-new\",\"location\":\"GB, UK London\"}]}}");
+        Require(RouterManager.GeneratedConfigMatchesSelection(RouterManager.ParseGeneratedProviderConfigs(changedPeerId.RootElement).Single(), catalogue.Single(server => server.Hostname == "London-new")),
+            "peer ID changes or reuse do not affect generated-config verification");
+
+        // Synthetic end-to-end Apply identity chain: the Primary Tunnel starts
+        // on config 100, the dropdown selects Server-B, and only fresh
+        // post-generation metadata may supply config 200 for assignment.
+        const int selectedGroupId = 7001;
+        VpnProviderServerInfo selectedServer = new()
+        {
+            GroupId = selectedGroupId,
+            CountryName = "XY",
+            CityName = "Test City",
+            Hostname = "Server-B"
+        };
+        using JsonDocument postGeneration = JsonDocument.Parse("{\"result\":{\"peers\":[{\"peer_id\":200,\"name\":\"Server-B\",\"location\":\"XY, Test City\"}]}}");
+        List<VpnProviderGeneratedConfigInfo> selectedConfigs = RouterManager.ParseGeneratedProviderConfigs(postGeneration.RootElement)
+            .Where(config => RouterManager.GeneratedConfigMatchesSelection(config, selectedServer)).ToList();
+        Require(selectedConfigs.Count == 1 && selectedConfigs[0].PeerId == 200,
+            "Apply resolves Server-B to its current post-generation config ID, not a prior tunnel ID");
+        using JsonDocument primaryBefore = JsonDocument.Parse("""
+            {"tunnel_id":91,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":7001,"id_list":[100]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:0B"]},"to":{"type":"default"}}
+            """);
+        RouterManager.VpnWireGuardAssignmentState? primaryBeforeState = RouterManager.ParseWireGuardAssignmentState(primaryBefore.RootElement);
+        using JsonDocument selectedAssignmentPayload = JsonDocument.Parse(JsonSerializer.Serialize(
+            RouterManager.BuildWireGuardProviderAssignmentRequest(primaryBeforeState!, selectedGroupId, selectedConfigs[0].PeerId)));
+        Require(selectedAssignmentPayload.RootElement.GetProperty("via").GetProperty("configs")[0].GetProperty("id_list")[0].GetInt32() == 200,
+            "Apply assigns the selected Server-B config ID 200 rather than the previous Primary Tunnel config ID 100");
+        using JsonDocument primaryAfterSelected = JsonDocument.Parse("""
+            {"tunnel_id":91,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":7001,"id_list":[200]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:0B"]},"to":{"type":"default"}}
+            """);
+        RouterManager.VpnWireGuardAssignmentState? primaryAfterSelectedState = RouterManager.ParseWireGuardAssignmentState(primaryAfterSelected.RootElement);
+        Require(RouterManager.VerifyWireGuardProviderAssignment(primaryBeforeState, primaryAfterSelectedState, selectedGroupId, selectedConfigs[0].PeerId),
+            "Apply succeeds only when authoritative Primary Tunnel read-back contains selected config ID 200 and remains disconnected");
+        using JsonDocument primaryAfterOld = JsonDocument.Parse("""
+            {"tunnel_id":91,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":7001,"id_list":[100]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:0B"]},"to":{"type":"default"}}
+            """);
+        Require(!RouterManager.VerifyWireGuardProviderAssignment(primaryBeforeState, RouterManager.ParseWireGuardAssignmentState(primaryAfterOld.RootElement), selectedGroupId, selectedConfigs[0].PeerId),
+            "Apply fails verification when read-back retains config ID 100; verification cannot connect or retry");
+        IReadOnlyList<VpnClientProfileInfo> selectedInventory = VpnService.ReconcilePiaProfileInventory(
+            [new VpnClientProfileInfo { GroupId = selectedGroupId, Name = "PIA", Protocol = "WireGuard", CurrentPeerId = 100, CurrentLocation = "Old location" }],
+            [new VpnTunnelInfo { TunnelId = 91, Name = "Primary Tunnel", Protocol = "WireGuard", Enabled = false, ProfileGroupIds = [selectedGroupId] }],
+            new VpnProviderGroupInfo { GroupId = selectedGroupId },
+            [new RouterManager.VpnPiaTunnelConfigResolution(91, selectedGroupId, 200, "Server-B", "XY, Test City")]);
+        Require(selectedInventory.Single().CurrentPeerId == 200 && selectedInventory.Single().CurrentLocation == "XY, Test City",
+            "refreshed inventory resolves the verified selected Server-B metadata rather than stale config 100 metadata");
+
+        using JsonDocument connectTunnel = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":6123,"id_list":[88]}]}}
+            """);
+        RouterManager.VpnWireGuardConnectAssociation? association = RouterManager.ParseWireGuardConnectAssociation(connectTunnel.RootElement);
+        Require(association is { GroupId: 6123, ConfigId: 88 }, "WireGuard provider CONNECT uses the current authoritative tunnel config ID");
+        using JsonDocument connectPayload = JsonDocument.Parse(JsonSerializer.Serialize(RouterManager.BuildWireGuardProviderConnectRequest(73, association!)));
+        JsonElement payload = connectPayload.RootElement;
+        Require(payload.EnumerateObject().Select(property => property.Name).OrderBy(name => name).SequenceEqual(["enabled", "tunnel_id", "via"]) &&
+                payload.GetProperty("enabled").ValueKind == JsonValueKind.True && payload.GetProperty("tunnel_id").ValueKind == JsonValueKind.Number &&
+                payload.GetProperty("via").GetProperty("type").GetString() == "wireguard" &&
+                payload.GetProperty("via").GetProperty("configs").ValueKind == JsonValueKind.Array &&
+                payload.GetProperty("via").GetProperty("configs")[0].GetProperty("group_id").ValueKind == JsonValueKind.Number &&
+                payload.GetProperty("via").GetProperty("configs")[0].GetProperty("id_list")[0].ValueKind == JsonValueKind.Number &&
+                !payload.TryGetProperty("from", out _) && !payload.TryGetProperty("to", out _) && !payload.TryGetProperty("killswitch", out _) && !payload.TryGetProperty("options", out _) && !payload.TryGetProperty("name", out _),
+            "WireGuard provider CONNECT exactly uses enabled/tunnel_id/via with numeric current config IDs only");
+        using JsonDocument ambiguousConnectTunnel = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":6123,"id_list":[88]},{"group_id":6123,"id_list":[89]}]}}
+            """);
+        Require(RouterManager.ParseWireGuardConnectAssociation(ambiguousConnectTunnel.RootElement) is null,
+            "ambiguous provider WireGuard associations abort before CONNECT mutation");
+
+        using JsonDocument assignmentTunnel = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":6123,"id_list":[41]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:01","02:00:00:00:00:02"]},"to":{"type":"default"}}
+            """);
+        RouterManager.VpnWireGuardAssignmentState? assignmentState = RouterManager.ParseWireGuardAssignmentState(assignmentTunnel.RootElement);
+        Require(assignmentState is { TunnelId: 73, Enabled: false, IsSupportedRouting: true } && assignmentState.MacList.Count == 2,
+            "fresh authoritative assignment state preserves supported selected-device routing internally");
+        using JsonDocument assignmentPayload = JsonDocument.Parse(JsonSerializer.Serialize(RouterManager.BuildWireGuardProviderAssignmentRequest(assignmentState!, 6123, 88)));
+        JsonElement assignment = assignmentPayload.RootElement;
+        Require(assignment.EnumerateObject().Select(property => property.Name).OrderBy(name => name).SequenceEqual(["from", "to", "tunnel_id", "via"]) &&
+                assignment.GetProperty("tunnel_id").ValueKind == JsonValueKind.Number && assignment.GetProperty("from").GetProperty("type").GetString() == "mac" &&
+                assignment.GetProperty("from").GetProperty("mac_list").ValueKind == JsonValueKind.Array && assignment.GetProperty("from").GetProperty("mac_list").GetArrayLength() == 2 &&
+                assignment.GetProperty("to").GetProperty("type").GetString() == "default" && assignment.GetProperty("via").GetProperty("type").GetString() == "wireguard" &&
+                assignment.GetProperty("via").GetProperty("configs")[0].GetProperty("group_id").ValueKind == JsonValueKind.Number &&
+                assignment.GetProperty("via").GetProperty("configs")[0].GetProperty("id_list")[0].ValueKind == JsonValueKind.Number &&
+                !assignment.TryGetProperty("enabled", out _) && !assignment.TryGetProperty("killswitch", out _) && !assignment.TryGetProperty("options", out _) && !assignment.TryGetProperty("name", out _),
+            "explicit Primary Tunnel assignment DTO matches the proven stock structural contract without extra fields");
+        using JsonDocument assignedTunnel = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":6123,"id_list":[88]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:01","02:00:00:00:00:02"]},"to":{"type":"default"}}
+            """);
+        RouterManager.VpnWireGuardAssignmentState? assignedState = RouterManager.ParseWireGuardAssignmentState(assignedTunnel.RootElement);
+        Require(RouterManager.VerifyWireGuardProviderAssignment(assignmentState, assignedState, 6123, 88) && !RouterManager.VerifyWireGuardProviderAssignment(assignmentState, assignedState, 6123, 41),
+            "authoritative read-back requires the current post-generation config ID rather than the old tunnel ID");
+        using JsonDocument enabledAssignedTunnel = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":true,"via":{"type":"wireguard","configs":[{"group_id":6123,"id_list":[88]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:01","02:00:00:00:00:02"]},"to":{"type":"default"}}
+            """);
+        Require(!RouterManager.VerifyWireGuardProviderAssignment(assignmentState, RouterManager.ParseWireGuardAssignmentState(enabledAssignedTunnel.RootElement), 6123, 88),
+            "an unexpectedly enabled tunnel is never accepted as a successful Primary Tunnel assignment");
+        using JsonDocument missingViaType = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"configs":[{"group_id":6123,"id_list":[88]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:01"]},"to":{"type":"default"}}
+            """);
+        Require(RouterManager.ParseWireGuardAssignmentState(missingViaType.RootElement) is null,
+            "missing post-assignment via.type is rejected rather than treated as a verified tunnel");
+        using JsonDocument changedRouting = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":9999,"id_list":[88]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:09"]},"to":{"type":"default"}}
+            """);
+        Require(!RouterManager.VerifyWireGuardProviderAssignment(assignmentState, RouterManager.ParseWireGuardAssignmentState(changedRouting.RootElement), 6123, 88),
+            "wrong group or changed selected-device routing fails authoritative assignment verification");
+        Require(VpnService.IsExpectedProviderGenerationTransition(
+                [new VpnTunnelInfo { TunnelId = 73, Enabled = false, Protocol = "Unknown", ProfileGroupIds = [], FromType = "mac", ToType = "default" }], 73),
+            "generation-cleared via is accepted only for the same disconnected tunnel and preserved routing shape");
+        Require(!VpnService.IsExpectedProviderGenerationTransition(
+                [new VpnTunnelInfo { TunnelId = 73, Enabled = false, Protocol = "WireGuard", ProfileGroupIds = [6123], FromType = "mac", ToType = "default" }], 73) &&
+                !VpnService.IsExpectedProviderGenerationTransition(
+                [new VpnTunnelInfo { TunnelId = 73, Enabled = true, Protocol = "Unknown", ProfileGroupIds = [], FromType = "mac", ToType = "default" }], 73) &&
+                !VpnService.IsExpectedProviderGenerationTransition(
+                [new VpnTunnelInfo { TunnelId = 74, Enabled = false, Protocol = "Unknown", ProfileGroupIds = [], FromType = "mac", ToType = "default" }], 73),
+            "unexpected post-generation tunnel states fail closed before assignment");
+
+        VpnTunnelInfo linkedPiaTunnel = new() { TunnelId = 73, Name = "Primary Tunnel", Protocol = "WireGuard", Enabled = false, ProfileGroupIds = [6123] };
+        IReadOnlyList<VpnClientProfileInfo> relinked = VpnService.ReconcilePiaProfileInventory(
+            [new VpnClientProfileInfo { GroupId = 6123, Name = "PIA", Protocol = "WireGuard", CurrentPeerId = 41, CurrentLocation = "Old location" }],
+            [linkedPiaTunnel], new VpnProviderGroupInfo { GroupId = 6123 },
+            [new RouterManager.VpnPiaTunnelConfigResolution(73, 6123, 88, "London-new", "GB, UK London")]);
+        Require(relinked.Single().Protocol == "WireGuard" && relinked.Single().CurrentPeerId == 88 && relinked.Single().CurrentLocation == "GB, UK London" && relinked.Single().IsUsedByTunnel,
+            "current authoritative PIA tunnel group/config resolution replaces stale generated metadata after assignment");
+        Require(VpnService.ReconcilePiaProfileInventory(relinked, [linkedPiaTunnel], new VpnProviderGroupInfo { GroupId = 6123 }, []).Single().CurrentPeerId == 88,
+            "missing or ambiguous current resolution preserves prior inventory rather than inventing a link");
+        IReadOnlyList<VpnTunnelInfo> malformedInitial = [new VpnTunnelInfo { TunnelId = 73, Protocol = "Unknown", ProfileGroupIds = [] }];
+        IReadOnlyList<VpnTunnelInfo> refreshedLinked = [new VpnTunnelInfo { TunnelId = 73, Protocol = "WireGuard", ProfileGroupIds = [6123] }];
+        Require(ReferenceEquals(VpnService.PreferPiaLinkedTunnelInventory(malformedInitial, refreshedLinked, 6123, new HashSet<int> { 73 }), refreshedLinked),
+            "a fresh authoritative snapshot that proves the PIA group restores group-based tunnel linkage");
+        IReadOnlyList<VpnTunnelInfo> changedConfigSameGroup = [new VpnTunnelInfo { TunnelId = 73, Protocol = "WireGuard", ProfileGroupIds = [6123] }];
+        Require(ReferenceEquals(VpnService.PreferPiaLinkedTunnelInventory(refreshedLinked, changedConfigSameGroup, 6123, new HashSet<int> { 73 }), changedConfigSameGroup),
+            "changing the ephemeral config ID does not affect provider linkage established by group ID");
+        IReadOnlyList<VpnTunnelInfo> ambiguousRefresh = [new VpnTunnelInfo { TunnelId = 73, Protocol = "Unknown", ProfileGroupIds = [] }, new VpnTunnelInfo { TunnelId = 74 }];
+        Require(ReferenceEquals(VpnService.PreferPiaLinkedTunnelInventory(malformedInitial, ambiguousRefresh, 6123, new HashSet<int> { 73 }), malformedInitial),
+            "a mismatched tunnel inventory is retained rather than applied speculatively");
+
+    }
+
     private static void RunVpnDiagnosticExportTests()
     {
         string vpnViewSource = File.ReadAllText(Path.Combine(
@@ -1021,6 +1345,25 @@ internal static class Program
 
     private static void RunVpnControlPresentationTests()
     {
+        var providerManagement = new VpnViewModel();
+        VpnProviderGroupInfo pia = new() { GroupId = 5456 };
+        VpnTunnelInfo linkedDisconnected = new() { TunnelId = 38, Protocol = "WireGuard", Enabled = false, ProfileGroupIds = [5456] };
+        providerManagement.VpnIsLoading = true;
+        providerManagement.Replace([linkedDisconnected], [], VpnProfileInventoryState.Available);
+        providerManagement.SetPiaProviderManagement(pia, [linkedDisconnected]);
+        Require(!providerManagement.CanManagePiaProviderServers,
+            "provider management remains disabled while VPN inventory is loading");
+        bool managementNotification = false;
+        providerManagement.PropertyChanged += (_, eventArgs) => managementNotification |= eventArgs.PropertyName == nameof(VpnViewModel.CanManagePiaProviderServers);
+        providerManagement.VpnIsLoading = false;
+        Require(managementNotification && providerManagement.CanManagePiaProviderServers,
+            "ending VPN inventory loading re-notifies and enables a disconnected linked PIA WireGuard tunnel");
+        VpnTunnelInfo linkedEnabled = new() { TunnelId = 38, Protocol = "WireGuard", Enabled = true, ProfileGroupIds = [5456] };
+        providerManagement.Replace([linkedEnabled], [], VpnProfileInventoryState.Available);
+        providerManagement.SetPiaProviderManagement(pia, [linkedEnabled]);
+        Require(!providerManagement.CanManagePiaProviderServers,
+            "an enabled linked PIA WireGuard tunnel remains blocked from provider management");
+
         VpnTunnelInfo disabled = new() { TunnelId = 38, Name = "Test tunnel", Protocol = "WireGuard", Enabled = false,
             LiveStatus = new VpnLiveStatusInfo { TunnelId = 38, Enabled = false, Status = 0 } };
         Require(disabled.ConnectionState == "Disconnected" && disabled.ActionDisplay == "Connect" && disabled.CanToggle,
@@ -1255,6 +1598,43 @@ internal static class Program
         page.Replace([], [], VpnProfileInventoryState.Unavailable);
         Require(!page.ShowNoVpnProfiles && page.ShowVpnProfilesUnavailable,
             "unavailable configured-profile inventory has distinct UI semantics");
+    }
+
+    private static void RunPiaManualSnapshotPresentationTests()
+    {
+        string viewSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml.cs"));
+        string managerSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "RouterManager.Vpn.cs"));
+        int handlerStart = viewSource.IndexOf("private async void CapturePiaState_Click", StringComparison.Ordinal);
+        int handlerEnd = viewSource.IndexOf("private void DiagnosticsExpander_Expanded", handlerStart, StringComparison.Ordinal);
+        string handler = handlerStart >= 0 && handlerEnd > handlerStart ? viewSource[handlerStart..handlerEnd] : string.Empty;
+        int snapshotStart = viewSource.IndexOf("private static string BuildPiaManualStateSnapshot", StringComparison.Ordinal);
+        int snapshotEnd = viewSource.IndexOf("private static string BuildVpnStateCaptureReport", snapshotStart, StringComparison.Ordinal);
+        string formatter = snapshotStart >= 0 && snapshotEnd > snapshotStart ? viewSource[snapshotStart..snapshotEnd] : string.Empty;
+        int readStart = managerSource.IndexOf("CapturePiaManualStateAsync", StringComparison.Ordinal);
+        int readEnd = managerSource.IndexOf("// One-shot DEBUG diagnostic read", readStart, StringComparison.Ordinal);
+        string readPath = readStart >= 0 && readEnd > readStart ? managerSource[readStart..readEnd] : string.Empty;
+
+        Require(formatter.Contains("PIA_MANUAL_STATE_SNAPSHOT", StringComparison.Ordinal) &&
+                formatter.Contains("PIA_MANUAL_STATE_SNAPSHOT_END", StringComparison.Ordinal) &&
+                formatter.Contains("Provider.Config[", StringComparison.Ordinal) &&
+                formatter.Contains("Primary.MacListCount", StringComparison.Ordinal) &&
+                !formatter.Contains("Endpoint", StringComparison.Ordinal) && !formatter.Contains("PeerId", StringComparison.Ordinal),
+            "manual PIA snapshot formatter emits only the allowlisted structural fields and MAC count");
+        Require(formatter.Contains("password", StringComparison.OrdinalIgnoreCase) &&
+                formatter.Contains("private", StringComparison.OrdinalIgnoreCase) &&
+                formatter.Contains("public", StringComparison.OrdinalIgnoreCase) &&
+                formatter.Contains("endpoint", StringComparison.OrdinalIgnoreCase) &&
+                formatter.Contains("return \"<unavailable>\"", StringComparison.Ordinal),
+            "manual PIA snapshot formatter rejects credentials, keys, endpoints, and raw structured content before presentation");
+        Require(handler.IndexOf("BuildPiaManualStateSnapshot", StringComparison.Ordinal) < handler.IndexOf("Clipboard.SetText(report)", StringComparison.Ordinal) &&
+                handler.Contains("ShowPiaSnapshotFallback(report)", StringComparison.Ordinal) &&
+                !handler.Contains("RefreshAsync", StringComparison.Ordinal),
+            "manual PIA snapshot is safely built before clipboard presentation and fallback without refresh");
+        Require(readPath.Contains("GetPiaGeneratedConfigsAsync", StringComparison.Ordinal) && readPath.Contains("VpnRpcOperation.GetTunnels", StringComparison.Ordinal) &&
+                !readPath.Contains("generate_provider_config", StringComparison.OrdinalIgnoreCase) &&
+                !readPath.Contains("get_provider_server_list", StringComparison.OrdinalIgnoreCase) &&
+                !readPath.Contains("set_tunnel", StringComparison.OrdinalIgnoreCase),
+            "manual PIA snapshot read path contains only get_config_list and get_tunnel, with no mutation RPC");
     }
 
     private static void RunVpnRoutingPolicyTests()

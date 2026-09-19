@@ -983,6 +983,65 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Devlog">
+                <Border Margin="0,12,24,0" Padding="18" Background="{DynamicResource Brush.Surface}"
+                        CornerRadius="12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel>
+                            <StackPanel>
+                                <TextBlock FontSize="18" FontWeight="Bold" Text="Devlog"/>
+                                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextSecondary}"
+                                           Text="Safe, in-memory application activity"/>
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <ComboBox x:Name="DevlogLevelFilter" Style="{DynamicResource RouterPilot.ComboBox}" Width="92" Margin="0,0,8,0" SelectionChanged="DevlogFilterChanged">
+                                    <ComboBoxItem Content="All levels" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="Trace+" Tag="Trace"/>
+                                    <ComboBoxItem Content="Debug+" Tag="Debug"/>
+                                    <ComboBoxItem Content="Info+" Tag="Info"/>
+                                    <ComboBoxItem Content="Warnings" Tag="Warn"/>
+                                    <ComboBoxItem Content="Errors" Tag="Error"/>
+                                </ComboBox>
+                                <ComboBox x:Name="DevlogCategoryFilter" Style="{DynamicResource RouterPilot.ComboBox}" Width="92" Margin="0,0,8,0" SelectionChanged="DevlogFilterChanged">
+                                    <ComboBoxItem Content="All areas" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="App" Tag="App"/>
+                                    <ComboBoxItem Content="UI" Tag="UI"/>
+                                    <ComboBoxItem Content="VPN" Tag="VPN"/>
+                                    <ComboBoxItem Content="PIA" Tag="PIA"/>
+                                    <ComboBoxItem Content="Router" Tag="Router"/>
+                                    <ComboBoxItem Content="RPC" Tag="RPC"/>
+                                    <ComboBoxItem Content="AdGuard" Tag="AdGuard"/>
+                                    <ComboBoxItem Content="WiFi" Tag="WiFi"/>
+                                    <ComboBoxItem Content="System" Tag="System"/>
+                                    <ComboBoxItem Content="WireGuard" Tag="WireGuard"/>
+                                    <ComboBoxItem Content="Background" Tag="Background"/>
+                                </ComboBox>
+                                <TextBox x:Name="DevlogSearchTextBox" Width="150" Margin="0,0,8,0" VerticalContentAlignment="Center" TextChanged="DevlogFilterChanged" ToolTip="Search Devlog"/>
+                                <CheckBox x:Name="DevlogAutoScrollCheckBox" Margin="12,0,12,0" VerticalAlignment="Center" IsChecked="True" Content="Auto-scroll"/>
+                                <CheckBox x:Name="DevlogPauseCheckBox" Margin="0,0,12,0" VerticalAlignment="Center" Content="Pause" Checked="DevlogPauseChanged" Unchecked="DevlogPauseChanged"/>
+                                <Button MinWidth="78" Height="32" Margin="0,0,8,0" Click="ClearDevlog_Click" Content="Clear"/>
+                                <Button MinWidth="78" Height="32" Click="CopyDevlog_Click" Content="Copy Visible"/>
+                                <Button MinWidth="72" Height="32" Margin="8,0,0,0" Click="CopyAllDevlog_Click" Content="Copy All"/>
+                            </StackPanel>
+                        </DockPanel>
+                        <ListBox x:Name="DevlogListBox" Grid.Row="2" ItemsSource="{Binding}" Background="{DynamicResource Brush.SurfaceMuted}"
+                                 BorderBrush="{DynamicResource Brush.Border}" Foreground="{DynamicResource Brush.TextPrimary}"
+                                 FontFamily="Cascadia Mono, Consolas" FontSize="12" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayText}" Padding="4,2"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+            </TabItem>
+
             <TabItem Header="System">
                 <Border Margin="0,12,0,0" Padding="18" Background="{DynamicResource Brush.Surface}"
                         CornerRadius="12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">

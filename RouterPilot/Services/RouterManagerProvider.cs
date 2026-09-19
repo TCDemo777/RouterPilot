@@ -31,6 +31,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
     private readonly IRouterCertificateTrustService _certificateTrustService;
     private readonly AdGuardTransportSecurityService _adGuardTransportSecurity;
     private readonly ISshConnectionFactory _sshConnectionFactory;
+    private readonly IRouterPilotDevLog? _devLog;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly object _disposeLock = new();
     private RouterManager? _manager;
@@ -46,7 +47,8 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         ISshHostKeyTrustService hostKeyTrustService,
         IRouterCertificateTrustService certificateTrustService,
         AdGuardTransportSecurityService adGuardTransportSecurity,
-        ISshConnectionFactory sshConnectionFactory)
+        ISshConnectionFactory sshConnectionFactory,
+        IRouterPilotDevLog? devLog = null)
     {
         _settingsService = settingsService;
         _activeRouter = activeRouter;
@@ -54,6 +56,7 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
         _certificateTrustService = certificateTrustService;
         _adGuardTransportSecurity = adGuardTransportSecurity;
         _sshConnectionFactory = sshConnectionFactory;
+        _devLog = devLog;
     }
 
     public async Task<RouterManager> GetRouterManagerAsync(
@@ -101,6 +104,9 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
 
             if (oldManager is not null)
             {
+                _devLog?.Write(RouterPilotDevLogCategory.Router,
+                    "RpcConnection.Replace stale RouterManager",
+                    RouterPilotDevLogLevel.Debug);
                 await DisposeManagerAsync(oldManager).ConfigureAwait(false);
             }
 
@@ -146,7 +152,11 @@ public sealed class RouterManagerProvider : IRouterManagerProvider
                 settings.AdGuardPort,
                 settings.UseAdGuardHttps,
                 _adGuardTransportSecurity,
-                adGuardAuthentication);
+                adGuardAuthentication,
+                _devLog);
+            _devLog?.Write(RouterPilotDevLogCategory.Router,
+                "RpcConnection.Create RouterManager ready for authenticated acquisition",
+                RouterPilotDevLogLevel.Debug);
             _signature = signature;
             _managerInvalidationVersion = invalidationVersion;
             return _manager;

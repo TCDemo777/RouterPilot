@@ -100,6 +100,57 @@ public sealed class VpnInventorySnapshot
     public IReadOnlyList<VpnTunnelInfo> Tunnels { get; init; } = [];
     public IReadOnlyList<VpnClientProfileInfo> Profiles { get; init; } = [];
     public VpnProfileInventoryState ProfileInventoryState { get; init; } = VpnProfileInventoryState.Unknown;
+    // Safe provider identity only; provider credentials never leave the router service.
+    public VpnProviderGroupInfo? PiaProviderGroup { get; init; }
+}
+
+/// <summary>Safe, display-only identity of a discovered PIA WireGuard provider group.</summary>
+public sealed class VpnProviderGroupInfo
+{
+    public int GroupId { get; init; }
+    public string ProviderName { get; init; } = "PIA";
+}
+
+/// <summary>Safe catalogue identity. Peer IDs and WireGuard material are deliberately excluded.</summary>
+public sealed class VpnProviderServerInfo
+{
+    public int GroupId { get; init; }
+    public string CountryName { get; init; } = string.Empty;
+    public string CityName { get; init; } = string.Empty;
+    public string Hostname { get; init; } = string.Empty;
+    public string DisplayName => string.IsNullOrWhiteSpace(CityName) ? Hostname : $"{CountryName} — {CityName} — {Hostname}";
+    public string CatalogueIdentity => $"{GroupId}\u001f{CountryName}\u001f{CityName}\u001f{Hostname}";
+}
+
+public sealed class VpnProviderServerCatalogueResult
+{
+    public bool Success { get; init; }
+    public int TunnelId { get; init; }
+    public int GroupId { get; init; }
+    public IReadOnlyList<VpnProviderServerInfo> Servers { get; init; } = [];
+    public string Message { get; init; } = string.Empty;
+}
+
+public sealed class VpnProviderConfigGenerationResult
+{
+    public bool Success { get; init; }
+    public int TunnelId { get; init; }
+    public string Message { get; init; } = string.Empty;
+    // The generated config is verified, but RouterPilot has no proven mutation
+    // contract for switching the active tunnel reference to it.
+    public bool GeneratedConfigVerified { get; init; }
+    public VpnProviderServerInfo? AuthoritativeServer { get; init; }
+}
+
+/// <summary>Sanitized generated-config metadata used only for authoritative read-back.</summary>
+public sealed class VpnProviderGeneratedConfigInfo
+{
+    // Current read-back reference only; never a durable server identity and
+    // not exposed through UI bindings or diagnostic exports.
+    internal int PeerId { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Location { get; init; } = string.Empty;
+    public string Endpoint { get; init; } = string.Empty;
 }
 
 public sealed class VpnTunnelInfo

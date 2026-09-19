@@ -1,5 +1,6 @@
 using CryptSharp;
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -18,6 +19,7 @@ namespace RouterPilot.Services
         private readonly string _password;
         private readonly string _routerHost;
         private readonly IRouterCertificateTrustService _certificateTrustService;
+        private readonly IRouterPilotDevLog? _devLog;
         private bool _disposed;
         private string? _currentSessionId;
         private readonly SemaphoreSlim _sessionGate = new(1, 1);
@@ -26,7 +28,8 @@ namespace RouterPilot.Services
         string routerIp,
         string username,
         string password,
-        IRouterCertificateTrustService certificateTrustService)
+        IRouterCertificateTrustService certificateTrustService,
+        IRouterPilotDevLog? devLog = null)
         {
             if (string.IsNullOrWhiteSpace(routerIp))
             {
@@ -55,6 +58,7 @@ namespace RouterPilot.Services
             _certificateTrustService = certificateTrustService ??
                 throw new ArgumentNullException(
                     nameof(certificateTrustService));
+            _devLog = devLog;
 
             string normalisedRouterIp = routerIp
                 .Trim()
@@ -119,6 +123,9 @@ namespace RouterPilot.Services
 
             if (!string.IsNullOrWhiteSpace(_currentSessionId))
             {
+                _devLog?.Write(RouterPilotDevLogCategory.Router,
+                    "RpcConnection.Reuse existing authenticated connection",
+                    RouterPilotDevLogLevel.Trace);
                 return _currentSessionId;
             }
 
@@ -127,8 +134,19 @@ namespace RouterPilot.Services
             {
                 if (!string.IsNullOrWhiteSpace(_currentSessionId))
                 {
+                    _devLog?.Write(RouterPilotDevLogCategory.Router,
+                        "RpcConnection.Reuse existing authenticated connection",
+                        RouterPilotDevLogLevel.Trace);
                     return _currentSessionId;
                 }
+
+                Stopwatch authenticationTiming = Stopwatch.StartNew();
+                _devLog?.Write(RouterPilotDevLogCategory.Router,
+                    "RpcConnection.Acquire new authenticated connection required",
+                    RouterPilotDevLogLevel.Trace);
+                _devLog?.Write(RouterPilotDevLogCategory.Auth,
+                    "Authentication.Start",
+                    RouterPilotDevLogLevel.Debug);
 
                 ChallengeResult challenge =
                     await GetChallengeAsync(cancellationToken);
@@ -152,6 +170,17 @@ namespace RouterPilot.Services
                     loginHash,
                     cancellationToken);
                 _currentSessionId = sessionId;
+                string connectionOperation = _devLog?.CreateOperationId("ROUTER") ?? string.Empty;
+                _devLog?.Write(RouterPilotDevLogCategory.Auth, connectionOperation,
+                    "Authentication.Success",
+                    RouterPilotDevLogLevel.Info,
+                    authenticationTiming.ElapsedMilliseconds,
+                    "Success");
+                _devLog?.Write(RouterPilotDevLogCategory.Router, connectionOperation,
+                    "RpcConnection.Ready",
+                    RouterPilotDevLogLevel.Info,
+                    authenticationTiming.ElapsedMilliseconds,
+                    "Success");
                 return sessionId;
             }
             finally
@@ -203,7 +232,9 @@ namespace RouterPilot.Services
                     method = "call",
                     @params = new object[] { sessionId, service, method, parameters }
                 },
-                cancellationToken);
+                cancellationToken,
+                service,
+                method);
         }
 
         internal Task<JsonDocument> CallPortForwardAsync(string sessionId, PortForwardRpcOperation operation, object parameters, CancellationToken cancellationToken = default)
@@ -215,7 +246,7 @@ namespace RouterPilot.Services
                 PortForwardRpcOperation.Delete => "remove_port_forward",
                 _ => throw new ArgumentOutOfRangeException(nameof(operation))
             };
-            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, cancellationToken);
+            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, cancellationToken, "firewall", method);
         }
 #if DEBUG
         internal Task<JsonDocument> CallPortForwardVerifierAsync(string sessionId, string operation, object parameters)
@@ -227,7 +258,7 @@ namespace RouterPilot.Services
                 "remove" => "remove_port_forward",
                 _ => throw new ArgumentOutOfRangeException(nameof(operation))
             };
-            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, CancellationToken.None);
+            return PostRpcAsync(new { jsonrpc = "2.0", id = 4, method = "call", @params = new object[] { sessionId, "firewall", method, parameters } }, CancellationToken.None, "firewall", method);
         }
 #endif
 
@@ -248,7 +279,9 @@ namespace RouterPilot.Services
             using JsonDocument document =
                 await PostRpcAsync(
                     request,
-                    cancellationToken);
+                    cancellationToken,
+                    "auth",
+                    "challenge");
 
             JsonElement root =
                 document.RootElement;
@@ -301,7 +334,9 @@ namespace RouterPilot.Services
             using JsonDocument document =
                 await PostRpcAsync(
                     request,
-                    cancellationToken);
+                    cancellationToken,
+                    "auth",
+                    "login");
 
             JsonElement root =
                 document.RootElement;
@@ -334,50 +369,92 @@ namespace RouterPilot.Services
 
         private async Task<JsonDocument> PostRpcAsync(
             object request,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string service = "rpc",
+            string method = "unknown")
         {
-            string json =
-                JsonSerializer.Serialize(request);
-
-            using StringContent content = new(
-                json,
-                Encoding.UTF8,
-                "application/json");
-
-            using HttpResponseMessage response =
-                await _httpClient.PostAsync(
-                    _rpcUrl,
-                    content,
-                    cancellationToken);
-
-            string responseText =
-                await response.Content.ReadAsStringAsync(
-                    cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException(
-                    $"Router RPC returned HTTP {(int)response.StatusCode} " +
-                    $"{response.StatusCode}.");
-            }
-
-            if (string.IsNullOrWhiteSpace(responseText))
-            {
-                throw new InvalidOperationException(
-                    "The router returned an empty RPC response.");
-            }
+            Stopwatch timing = Stopwatch.StartNew();
+            string operation = _devLog?.CreateOperationId("RPC") ?? string.Empty;
+            _devLog?.Write(RouterPilotDevLogCategory.RPC, operation,
+                $"Dispatch service={service} method={method}",
+                RouterPilotDevLogLevel.Trace);
 
             try
             {
-                return JsonDocument.Parse(responseText);
+                string json = JsonSerializer.Serialize(request);
+
+                using StringContent content = new(
+                    json,
+                    Encoding.UTF8,
+                    "application/json");
+
+                using HttpResponseMessage response =
+                    await _httpClient.PostAsync(
+                        _rpcUrl,
+                        content,
+                        cancellationToken);
+
+                string responseText =
+                    await response.Content.ReadAsStringAsync(
+                        cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException(
+                        $"Router RPC returned HTTP {(int)response.StatusCode} " +
+                        $"{response.StatusCode}.");
+                }
+
+                if (string.IsNullOrWhiteSpace(responseText))
+                {
+                    throw new InvalidOperationException(
+                        "The router returned an empty RPC response.");
+                }
+
+                try
+                {
+                    JsonDocument result = JsonDocument.Parse(responseText);
+                    _devLog?.Write(RouterPilotDevLogCategory.RPC, operation,
+                        $"Success service={service} method={method}",
+                        RouterPilotDevLogLevel.Trace,
+                        timing.ElapsedMilliseconds,
+                        "Success");
+                    return result;
+                }
+                catch (JsonException exception)
+                {
+                    throw new InvalidOperationException(
+                        "The router returned invalid JSON.",
+                        exception);
+                }
             }
-            catch (JsonException exception)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                throw new InvalidOperationException(
-                    "The router returned invalid JSON.",
-                    exception);
+                _devLog?.Write(RouterPilotDevLogCategory.RPC, operation,
+                    $"Cancelled service={service} method={method}",
+                    RouterPilotDevLogLevel.Debug,
+                    timing.ElapsedMilliseconds,
+                    "Cancelled");
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _devLog?.Write(RouterPilotDevLogCategory.RPC, operation,
+                    $"Failed service={service} method={method} reason={ClassifyFailure(exception)}",
+                    RouterPilotDevLogLevel.Warn,
+                    timing.ElapsedMilliseconds,
+                    "Failed");
+                throw;
             }
         }
+
+        private static string ClassifyFailure(Exception exception) => exception switch
+        {
+            HttpRequestException => "Transport",
+            TimeoutException => "Timeout",
+            JsonException => "InvalidJson",
+            _ => "Error"
+        };
 
         private static string GenerateCryptPassword(
     string password,

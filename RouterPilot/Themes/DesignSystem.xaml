@@ -485,9 +485,11 @@
                 <ControlTemplate TargetType="ComboBoxItem">
                     <Border x:Name="ItemBorder"
                             Background="{TemplateBinding Background}"
+                            TextElement.Foreground="{DynamicResource Brush.TextPrimary}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter VerticalAlignment="Center"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
                                           Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           ContentStringFormat="{TemplateBinding ContentStringFormat}" />
@@ -536,6 +538,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
+                                TextElement.Foreground="{TemplateBinding Foreground}"
                                 CornerRadius="{StaticResource Radius.Small}">
                             <Grid>
                                 <ContentPresenter x:Name="SelectionPresenter"
@@ -587,12 +590,14 @@
                                     Background="{DynamicResource Brush.Surface}"
                                     BorderBrush="{DynamicResource Brush.BorderStrong}"
                                     BorderThickness="1"
+                                    TextElement.Foreground="{DynamicResource Brush.TextPrimary}"
                                     CornerRadius="{StaticResource Radius.Small}">
                                 <ScrollViewer MaxHeight="280"
-                                              CanContentScroll="True"
-                                              Padding="2"
-                                              SnapsToDevicePixels="True">
-                                    <StackPanel IsItemsHost="True" />
+                                          CanContentScroll="True"
+                                          Background="{DynamicResource Brush.Surface}"
+                                          Padding="2"
+                                          SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True" TextElement.Foreground="{DynamicResource Brush.TextPrimary}" />
                                 </ScrollViewer>
                             </Border>
                         </Popup>

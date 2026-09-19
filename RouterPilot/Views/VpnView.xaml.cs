@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,6 +30,7 @@ public partial class VpnView : UserControl
     private readonly ITailscaleConfigurationService _tailscaleConfiguration;
     private readonly VpnOperationIntentService _operationIntent;
     private readonly IActiveRouterContext _activeRouter;
+    private readonly IRouterPilotDevLog _devLog;
     private readonly SemaphoreSlim _tailscaleRefreshGate = new(1, 1);
     private readonly object _refreshSync = new();
     private readonly object _operationSync = new();
@@ -42,8 +44,7 @@ public partial class VpnView : UserControl
     private TailscaleStatus? _lastTailscaleReadStatus;
     private const string VpnFreshnessSource = "VPN";
 #if DEBUG
-    private int _vpnStateCaptureNumber;
-    private VpnStateCaptureSnapshot? _previousVpnStateCapture;
+    private static long _piaManualSnapshotSequence;
 #endif
     public VpnView(bool embedded = false)
     {
@@ -58,6 +59,7 @@ public partial class VpnView : UserControl
         _tailscaleConfiguration = ((App)Application.Current).Services.GetRequiredService<ITailscaleConfigurationService>();
         _operationIntent = ((App)Application.Current).Services.GetRequiredService<VpnOperationIntentService>();
         _activeRouter = ((App)Application.Current).Services.GetRequiredService<IActiveRouterContext>();
+        _devLog = ((App)Application.Current).Services.GetRequiredService<IRouterPilotDevLog>();
         DataContext = _viewModel;
         VpnLiveStatusDiagnostics.Record("VpnView DataContext assigned to shared VpnViewModel: YES");
         VpnLiveStatusDiagnostics.Record($"VPN_VM_INSTANCE={RuntimeHelpers.GetHashCode(_viewModel)}");
@@ -66,7 +68,7 @@ public partial class VpnView : UserControl
         UpdateVpnScheduleEmptyState();
         DiagnosticsExpander.IsExpanded = _settingsService.Load().VpnDiagnosticsExpanded;
 #if DEBUG
-        CaptureVpnStateButton.Visibility = Visibility.Visible;
+        CapturePiaStateButton.Visibility = Visibility.Visible;
 #endif
         if (embedded) PageHeader.Visibility = Visibility.Collapsed;
         Loaded += VpnView_Loaded;
@@ -132,6 +134,11 @@ public partial class VpnView : UserControl
                 return new VpnTunnelInfo { Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch, Protocol=tunnel.Protocol, InterfaceName=tunnel.InterfaceName, ProfileGroupIds=tunnel.ProfileGroupIds, ActiveProfileName=linkedProfiles.FirstOrDefault()?.Name ?? string.Empty, LinkedProfilesDisplay=linkedProfiles.Count == 0 ? "No linked profile" : "Profile: " + string.Join(", ", linkedProfiles.Select(profile => profile.Name)), FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=serverConfigCount, RoutingPolicyState=tunnel.RoutingPolicyState, InternetRoutingScope=tunnel.InternetRoutingScope, RoutingDeviceIdentities=tunnel.RoutingDeviceIdentities, RoutingDevices=tunnel.RoutingDevices };
             }).ToList();
             _viewModel.Replace(linkedTunnels, VpnService.Correlate(linkedTunnels, profiles), inventory.ProfileInventoryState);
+            _viewModel.SetPiaProviderManagement(inventory.PiaProviderGroup, linkedTunnels);
+#if DEBUG
+            Debug.WriteLine($"PIA_LINK.ViewLinkedProfilePresent={(linkedTunnels.Any(tunnel => !string.Equals(tunnel.LinkedProfilesDisplay, "No linked profile", StringComparison.Ordinal)) ? "YES" : "NO")}");
+            Debug.WriteLine($"PIA_LINK.CanManagePiaProviderServers={(_viewModel.CanManagePiaProviderServers ? "YES" : "NO")}");
+#endif
             try { await _liveStatus.EnsureSubscribedAsync(token); }
             catch (Exception exception)
             {
@@ -449,25 +456,43 @@ public partial class VpnView : UserControl
         }
     }
 
-    private async void CaptureVpnState_Click(object sender, RoutedEventArgs e)
+    private async void CapturePiaState_Click(object sender, RoutedEventArgs e)
     {
 #if DEBUG
-        CaptureVpnStateButton.IsEnabled = false;
+        CapturePiaStateButton.IsEnabled = false;
+        PiaManualStateSnapshot snapshot;
         try
         {
-            VpnStateCaptureSnapshot capture = await _service.GetDebugStateCaptureAsync(CancellationToken.None);
-            int number = ++_vpnStateCaptureNumber;
-            DiagnosticsTextBox.Text = DiagnosticRedactor.RedactForExport(BuildVpnStateCaptureReport(number, capture, _liveStatus.Current, _previousVpnStateCapture));
-            _previousVpnStateCapture = capture;
-            DiagnosticsNotice.Text = $"Capture {number} recorded";
+            snapshot = await _service.CapturePiaManualStateAsync(_viewModel.PiaProviderGroupId, _viewModel.PiaProviderTunnelId, CancellationToken.None);
         }
         catch
         {
-            DiagnosticsNotice.Text = "VPN state capture could not be completed.";
+            // Presentation must still provide one safe, complete block when a
+            // read cannot be started; do not retry or run a refresh pipeline.
+            snapshot = new PiaManualStateSnapshot();
+        }
+
+        try
+        {
+            string report = BuildPiaManualStateSnapshot(Interlocked.Increment(ref _piaManualSnapshotSequence), snapshot);
+            Debug.WriteLine(report);
+            try
+            {
+                // This click handler resumes on the WPF UI thread, which is
+                // required for System.Windows.Clipboard access.
+                Clipboard.SetText(report);
+                DiagnosticsNotice.Text = "PIA state snapshot copied to clipboard.";
+                MessageBox.Show("PIA state snapshot copied to clipboard.", "RouterPilot", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch
+            {
+                DiagnosticsNotice.Text = "Clipboard unavailable; the PIA state snapshot is ready to copy manually.";
+                ShowPiaSnapshotFallback(report);
+            }
         }
         finally
         {
-            CaptureVpnStateButton.IsEnabled = true;
+            CapturePiaStateButton.IsEnabled = true;
         }
 #endif
     }
@@ -554,6 +579,62 @@ public partial class VpnView : UserControl
     }
 
  #if DEBUG
+    private static string BuildPiaManualStateSnapshot(long sequence, PiaManualStateSnapshot snapshot)
+    {
+        RouterManager.VpnTunnelStructuralSnapshot? tunnel = snapshot.Tunnel;
+        var report = new StringBuilder();
+        report.AppendLine("PIA_MANUAL_STATE_SNAPSHOT");
+        report.AppendLine($"SnapshotSequence={sequence}");
+        report.AppendLine($"Timestamp={DateTimeOffset.UtcNow:O}");
+        report.AppendLine();
+        report.AppendLine($"Provider.ConfigReadSucceeded={snapshot.ConfigReadSucceeded}");
+        report.AppendLine($"Provider.ConfigCount={snapshot.Configs.Count}");
+        // Always include Config[0] so an unavailable/empty provider read has
+        // the same paste-friendly shape as a populated one.
+        for (int index = 0; index < Math.Max(1, snapshot.Configs.Count); index++)
+        {
+            PiaManualConfigSnapshot? config = index < snapshot.Configs.Count ? snapshot.Configs[index] : null;
+            report.AppendLine();
+            report.AppendLine($"Provider.Config[{index}].ConfigId={SafePiaValue(config?.ConfigId)}");
+            report.AppendLine($"Provider.Config[{index}].Name={SafePiaValue(config?.Name)}");
+            report.AppendLine($"Provider.Config[{index}].Location={SafePiaValue(config?.Location)}");
+        }
+        report.AppendLine();
+        report.AppendLine($"Primary.TunnelReadSucceeded={snapshot.TunnelReadSucceeded}");
+        report.AppendLine($"Primary.TunnelId={SafePiaValue(tunnel?.TunnelId)}");
+        report.AppendLine($"Primary.Enabled={SafePiaValue(tunnel?.Enabled)}");
+        report.AppendLine($"Primary.ViaPresent={SafePiaValue(tunnel?.ViaPresent)}");
+        report.AppendLine($"Primary.ViaType={SafePiaValue(tunnel?.ViaType)}");
+        report.AppendLine($"Primary.ViaConfigCount={SafePiaValue(tunnel?.ViaConfigCount)}");
+        report.AppendLine($"Primary.ViaGroupId={SafePiaValue(tunnel?.ViaGroupId)}");
+        report.AppendLine($"Primary.ViaConfigId={SafePiaValue(tunnel?.ViaConfigId)}");
+        report.AppendLine($"Primary.FromType={SafePiaValue(tunnel?.FromType)}");
+        report.AppendLine($"Primary.MacListCount={SafePiaValue(tunnel?.MacListCount)}");
+        report.AppendLine($"Primary.ToType={SafePiaValue(tunnel?.ToType)}");
+        report.AppendLine("PIA_MANUAL_STATE_SNAPSHOT_END");
+        return report.ToString();
+    }
+
+    private static string SafePiaValue(object? value)
+    {
+        if (value is null) return "<unavailable>";
+        string text = value.ToString() ?? string.Empty;
+        string lower = text.ToLowerInvariant();
+        if (text.IndexOfAny(['\r', '\n', '{', '}', '[', ']']) >= 0 ||
+            new[] { "password", "username", "token", "session", "private", "public", "preshared", "key", "peer", "endpoint", "dns", "address", "://" }.Any(lower.Contains))
+            return "<unavailable>";
+        text = DiagnosticRedactor.RedactForExport(text);
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return string.IsNullOrWhiteSpace(text) ? "<unavailable>" : text;
+    }
+
+    private void ShowPiaSnapshotFallback(string report)
+    {
+        var textBox = new TextBox { Text = report, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var window = new Window { Title = "PIA state snapshot — copy manually", Owner = Window.GetWindow(this), Width = 780, Height = 560, MinWidth = 520, MinHeight = 360, Content = textBox, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        window.ShowDialog();
+    }
+
     private static string BuildVpnStateCaptureReport(int number, VpnStateCaptureSnapshot capture, IReadOnlyList<VpnLiveStatusInfo> liveStatuses, VpnStateCaptureSnapshot? previous)
     {
         var report = new StringBuilder();
@@ -650,20 +731,29 @@ public partial class VpnView : UserControl
     {
         if (sender is not FrameworkElement { Tag: VpnTunnelInfo tunnel } || _viewModel.VpnIsLoading) return;
         bool target = !tunnel.Enabled;
+        _devLog.Write(RouterPilotDevLogCategory.VPN, target ? $"Connect requested; tunnel={tunnel.TunnelId}" : $"Disconnect requested; tunnel={tunnel.TunnelId}");
         if (target && !tunnel.CanConnect)
         {
             _viewModel.VpnStatus = tunnel.ServerSelectionLimitationText;
             return;
         }
         if (!target && MessageBox.Show($"Disconnect {tunnel.Name}? Network traffic using this tunnel may be interrupted.", "Disconnect VPN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await RunTunnelOperationAsync(tunnel, target, sender as Button);
+    }
+
+    // Shared by the regular tunnel button and Apply & Connect.  Keeping the
+    // mutation and handshake path here ensures both use the same proven
+    // Connect/Disconnect contracts.
+    private async Task<bool> RunTunnelOperationAsync(VpnTunnelInfo tunnel, bool target, Button? button)
+    {
         if (!target) _viewModel.MarkExplicitDisconnect(tunnel.TunnelId);
         long operationGeneration = _operationIntent.Begin(tunnel.TunnelId, target);
         _viewModel.ApplyTransitionIntent();
         if (target) _viewModel.BeginConnectionAttempt(tunnel);
-        Button? button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _viewModel.VpnIsLoading = true; _viewModel.VpnOperationTunnelId = tunnel.TunnelId;
         using CancellationTokenSource operationCts = new(TimeSpan.FromSeconds(30));
+        using VpnConnectTrace? connectTrace = target && string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) ? new VpnConnectTrace() : null;
         lock (_operationSync) _operationCts = operationCts;
         string operationProfileId = _activeRouter.CurrentProfileId;
         long operationContextVersion = _activeRouter.Version;
@@ -677,21 +767,26 @@ public partial class VpnView : UserControl
             VpnWireGuardHandshakeSnapshot baseline = new();
             if (target && string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase))
             {
+                connectTrace?.Applicability(true);
+                connectTrace?.InterfaceAvailable(!string.IsNullOrWhiteSpace(tunnel.InterfaceName));
                 baseline = await _service.GetWireGuardHandshakeSnapshotAsync(tunnel, operationCts.Token);
+                connectTrace?.Baseline(baseline);
                 operationCts.Token.ThrowIfCancellationRequested();
                 if (!IsCurrentConnectOperation())
                 {
                     _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
-                    return;
+                    return false;
                 }
             }
-            VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, operationCts.Token);
+            VpnOperationResult result = await _service.SetTunnelEnabledAsync(tunnel.TunnelId, target, operationCts.Token, connectTrace);
+            connectTrace?.PostRpc(_liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnel.TunnelId));
+            _devLog.Write(RouterPilotDevLogCategory.VPN, target ? "Connect RPC completed" : "Disconnect RPC completed", result.Success ? RouterPilotDevLogLevel.Info : RouterPilotDevLogLevel.Warn);
             if (!result.Success)
             {
                 if (target) _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
                 MessageBox.Show(result.Message, "VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
                 await RefreshAsync(force: true, refreshTailscale: false);
-                return;
+                return false;
             }
             bool runtimeReachedTarget = await WaitForTunnelRuntimeAsync(tunnel.TunnelId, target, operationCts.Token);
             VpnLiveStatusDiagnostics.Record($"VPN tunnel runtime reconciliation: {(runtimeReachedTarget ? "PASS" : "TIMEOUT")}; target={(target ? "Connected" : "Disconnected")}");
@@ -701,20 +796,28 @@ public partial class VpnView : UserControl
                 if (current is { Enabled: true, Status: 2 } && string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase))
                 {
                     VpnWireGuardHandshakeSnapshot postAttempt = await _service.GetWireGuardHandshakeSnapshotAsync(tunnel, operationCts.Token);
+                    connectTrace?.After(postAttempt);
+                    VpnWireGuardHandshakeState comparison = RouterManager.CompareWireGuardHandshakeSnapshots(baseline, postAttempt);
+                    connectTrace?.Comparison(comparison);
                     operationCts.Token.ThrowIfCancellationRequested();
                     current = _liveStatus.Current.SingleOrDefault(status => status.TunnelId == tunnel.TunnelId);
                     if (IsCurrentConnectOperation() && current is { Enabled: true, Status: 2 } &&
-                        RouterManager.CompareWireGuardHandshakeSnapshots(baseline, postAttempt) == VpnWireGuardHandshakeState.NoHandshake)
+                        comparison == VpnWireGuardHandshakeState.NoHandshake)
                         _viewModel.MarkWireGuardHandshakeFailure(tunnel.TunnelId);
                 }
             }
+            if (runtimeReachedTarget) connectTrace?.Outcome(target ? "CONNECTED" : "DISCONNECTED");
+            else if (target && baseline.IsAvailable) connectTrace?.Outcome("TRANSITION_TIMEOUT_HANDSHAKE_UNKNOWN");
+            else if (target) connectTrace?.Outcome("TRANSITION_TIMEOUT_HANDSHAKE_UNKNOWN");
             _viewModel.VpnIsLoading = false;
             await RefreshAsync(force: true, refreshTailscale: false);
+            return runtimeReachedTarget;
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
             if (target) _viewModel.CancelConnectionAttempt(tunnel.TunnelId);
             _viewModel.VpnStatus = "VPN operation cancelled.";
+            return false;
         }
         finally
         {
@@ -728,6 +831,133 @@ public partial class VpnView : UserControl
             }
             if (button is not null) button.IsEnabled = true;
         }
+    }
+
+    private async void RefreshPiaProviderServers_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.CanManagePiaProviderServers) { _viewModel.PiaProviderStatus = "Disconnect the PIA WireGuard tunnel before refreshing provider servers."; return; }
+        long generation = Interlocked.Read(ref _refreshGeneration);
+        string profileId = _activeRouter.CurrentProfileId; long version = _activeRouter.Version;
+        bool IsCurrent() => generation == Interlocked.Read(ref _refreshGeneration) && profileId == _activeRouter.CurrentProfileId && version == _activeRouter.Version;
+        _viewModel.BeginPiaProviderServerCatalogueRefresh();
+        _viewModel.PiaProviderOperationRunning = true;
+        _devLog.Write(RouterPilotDevLogCategory.PIA, $"CatalogueRefresh.Start group={_viewModel.PiaProviderGroupId}");
+        using CancellationTokenSource operationCts = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            VpnProviderServerCatalogueResult result = await _service.RefreshPiaProviderServersAsync(_viewModel.PiaProviderTunnelId, _viewModel.PiaProviderGroupId, operationCts.Token);
+            if (!IsCurrent()) return;
+            if (result.Success && result.Servers.Count > 0)
+            {
+                _viewModel.ReplacePiaProviderServers(result.Servers);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, $"CatalogueRefresh.Completed locations={result.Servers.Count}", RouterPilotDevLogLevel.Info);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.Enabled reason=CatalogueReady", RouterPilotDevLogLevel.Debug);
+            }
+            else
+            {
+                _viewModel.FailPiaProviderServerCatalogueRefresh(result.Success ? "No usable PIA servers were returned by the router." : result.Message);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, "CatalogueRefresh.Failed reason=UnavailableOrEmpty", RouterPilotDevLogLevel.Warn);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.Disabled reason=RefreshFailed", RouterPilotDevLogLevel.Debug);
+            }
+        }
+        catch
+        {
+            if (IsCurrent())
+            {
+                _viewModel.FailPiaProviderServerCatalogueRefresh("Provider server refresh is unavailable.");
+                _devLog.Write(RouterPilotDevLogCategory.PIA, "CatalogueRefresh.Failed reason=Unavailable", RouterPilotDevLogLevel.Warn);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.Disabled reason=RefreshFailed", RouterPilotDevLogLevel.Debug);
+            }
+        }
+        finally { _viewModel.PiaProviderOperationRunning = false; }
+    }
+
+    private async void GeneratePiaProviderConfig_Click(object sender, RoutedEventArgs e) => await RunPiaProviderConfigAsync(false);
+
+    private async void ApplyAndConnectPiaProviderConfig_Click(object sender, RoutedEventArgs e) => await RunPiaProviderConfigAsync(false, applyAndConnect: true);
+
+    private async void RegeneratePiaProviderConfig_Click(object sender, RoutedEventArgs e) => await RunPiaProviderConfigAsync(true);
+
+    private async Task RunPiaProviderConfigAsync(bool explicitRecovery, bool applyAndConnect = false)
+    {
+#if DEBUG
+        Debug.WriteLine("PIA_APPLY_UI_ENTRY=YES");
+#endif
+        VpnProviderServerInfo? selection = _viewModel.SelectedPiaProviderServer;
+        if (!_viewModel.CanApplyPiaProviderServer || selection is null) { _viewModel.PiaProviderStatus = "Refresh Servers and choose a server before applying the PIA catalogue selection."; return; }
+        long generation = Interlocked.Read(ref _refreshGeneration);
+        string profileId = _activeRouter.CurrentProfileId; long version = _activeRouter.Version;
+        bool IsCurrent() => generation == Interlocked.Read(ref _refreshGeneration) && profileId == _activeRouter.CurrentProfileId && version == _activeRouter.Version;
+        _viewModel.PiaProviderOperationRunning = true;
+        string? combinedOperation = applyAndConnect ? _devLog.CreateOperationId("PIA") : null;
+        Stopwatch? combinedTiming = applyAndConnect ? Stopwatch.StartNew() : null;
+        if (applyAndConnect)
+        {
+            _devLog.Write(RouterPilotDevLogCategory.UI, "Action.ApplyAndConnect page=VPN", RouterPilotDevLogLevel.Info);
+            _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.Start", RouterPilotDevLogLevel.Info);
+        }
+        _devLog.Write(RouterPilotDevLogCategory.PIA, $"Server selected: {selection.CountryName}/{selection.CityName} / {selection.Hostname}");
+        using CancellationTokenSource operationCts = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            VpnProviderConfigGenerationResult result = await _service.GeneratePiaProviderConfigAsync(_viewModel.PiaProviderTunnelId, _viewModel.PiaProviderGroupId, selection, IsCurrent, operationCts.Token);
+            if (!IsCurrent()) return;
+            _viewModel.PiaProviderStatus = result.Success && explicitRecovery
+                ? "VPN server configuration was regenerated and is ready to connect."
+                : result.Message;
+            if (result.Success && result.AuthoritativeServer is not null)
+                _viewModel.ApplyAuthoritativePiaProviderServer(result.AuthoritativeServer);
+            // RefreshAsync advances the page generation. Clear our local busy
+            // state first so that a completed generation cannot leave the new
+            // inventory snapshot with its controls permanently disabled.
+            _viewModel.PiaProviderOperationRunning = false;
+            await RefreshAsync(force: true, refreshTailscale: false);
+            if (!applyAndConnect || !result.Success)
+            {
+                if (applyAndConnect)
+                    _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.Failed stage=Apply", RouterPilotDevLogLevel.Warn, combinedTiming!.ElapsedMilliseconds, "Failed");
+                return;
+            }
+
+            // RefreshAsync deliberately advances the page generation.  The
+            // freshly-read tunnel is therefore the only valid input to the
+            // existing Connect path; never retain a pre-generation config ID.
+            if (profileId != _activeRouter.CurrentProfileId || version != _activeRouter.Version ||
+                _viewModel.SelectedPiaProviderServer is not { } currentSelection ||
+                !string.Equals(currentSelection.CountryName, selection.CountryName, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(currentSelection.CityName, selection.CityName, StringComparison.OrdinalIgnoreCase))
+            {
+                _viewModel.PiaProviderStatus = "VPN server was applied, but the router profile or selected location changed before connecting.";
+                _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.Failed stage=Connect reason=OperationInvalidated", RouterPilotDevLogLevel.Warn, combinedTiming!.ElapsedMilliseconds, "Cancelled");
+                return;
+            }
+
+            VpnTunnelInfo? freshTunnel = _viewModel.VpnTunnels.SingleOrDefault(tunnel =>
+                tunnel.TunnelId == _viewModel.PiaProviderTunnelId &&
+                !tunnel.Enabled &&
+                string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase));
+            if (freshTunnel is null)
+            {
+                _viewModel.PiaProviderStatus = "VPN server was applied, but the Primary Tunnel is no longer ready to connect.";
+                _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.Failed stage=Connect reason=TunnelStateChanged", RouterPilotDevLogLevel.Warn, combinedTiming!.ElapsedMilliseconds, "Failed");
+                return;
+            }
+
+            _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.ApplyCompleted", RouterPilotDevLogLevel.Info);
+            _viewModel.PiaProviderOperationRunning = true;
+            bool connected = await RunTunnelOperationAsync(freshTunnel, target: true, button: null);
+            _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!,
+                connected ? "ApplyAndConnect.Completed" : "ApplyAndConnect.Failed stage=Connect",
+                connected ? RouterPilotDevLogLevel.Info : RouterPilotDevLogLevel.Warn,
+                combinedTiming!.ElapsedMilliseconds, connected ? "Completed" : "Failed");
+        }
+        catch
+        {
+            if (IsCurrent()) _viewModel.PiaProviderStatus = "Provider configuration generation is unavailable.";
+            if (applyAndConnect)
+                _devLog.Write(RouterPilotDevLogCategory.PIA, combinedOperation!, "ApplyAndConnect.Failed stage=Apply reason=Unavailable", RouterPilotDevLogLevel.Warn, combinedTiming!.ElapsedMilliseconds, "Failed");
+        }
+        finally { if (IsCurrent()) _viewModel.PiaProviderOperationRunning = false; }
     }
 
     private async Task<bool> WaitForTunnelRuntimeAsync(int tunnelId, bool enabled, CancellationToken token)

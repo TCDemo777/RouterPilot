@@ -57,7 +57,8 @@ namespace RouterPilot.Services
             int adGuardPort,
             bool useAdGuardHttps,
             AdGuardTransportSecurityService adGuardTransportSecurity,
-            AdGuardAuthenticationConfiguration? adGuardAuthentication = null)
+            AdGuardAuthenticationConfiguration? adGuardAuthentication = null,
+            IRouterPilotDevLog? devLog = null)
         {
             if (string.IsNullOrWhiteSpace(routerIp))
             {
@@ -104,7 +105,8 @@ namespace RouterPilot.Services
                     _routerIp,
                     username,
                     password,
-                    certificateTrustService);
+                    certificateTrustService,
+                    devLog);
 
             _routerInfo =
                 new RouterInfoService(
