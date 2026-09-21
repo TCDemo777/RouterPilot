@@ -17,6 +17,136 @@ internal interface ITailscaleConfigTransport
     Task WriteSettingsAsync(JsonObject settings, CancellationToken cancellationToken);
 }
 
+internal sealed class FakeVpnDeviceAssignmentGateway : IVpnDeviceAssignmentGateway
+{
+    private readonly Queue<RouterManager.VpnWireGuardAssignmentState?> _reads;
+    public List<string> Calls { get; } = [];
+    public int SetCalls { get; private set; }
+    public IReadOnlyList<string> LastMacs { get; private set; } = [];
+    public FakeVpnDeviceAssignmentGateway(params RouterManager.VpnWireGuardAssignmentState?[] reads) => _reads = new(reads);
+    public Task<RouterManager.VpnWireGuardAssignmentState?> GetTunnelAsync(int tunnelId, CancellationToken token)
+    {
+        Calls.Add("GetTunnel");
+        return Task.FromResult(_reads.Count > 0 ? _reads.Dequeue() : null);
+    }
+    public Task<bool> SetTunnelAsync(RouterManager.VpnWireGuardAssignmentState state, IReadOnlyList<string> macs, CancellationToken token)
+    {
+        Calls.Add("SetTunnel"); SetCalls++; LastMacs = macs.ToList(); return Task.FromResult(true);
+    }
+}
+
+internal sealed class FakeExistingConfigAssignmentGateway : IVpnExistingConfigAssignmentGateway
+{
+    private RouterManager.VpnWireGuardAssignmentState _authoritative;
+    private readonly IReadOnlyList<VpnProviderGeneratedConfigInfo> _configs;
+    private readonly int _acceptedConfigId;
+    private readonly bool _transitionOnCorrectPayload;
+    public List<string> Calls { get; } = [];
+    public int SetCalls { get; private set; }
+    public RouterManager.WireGuardProviderAssignmentRequest? LastRequest { get; private set; }
+
+    public FakeExistingConfigAssignmentGateway(RouterManager.VpnWireGuardAssignmentState initial,
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> configs, int acceptedConfigId, bool transitionOnCorrectPayload = true)
+    {
+        _authoritative = initial; _configs = configs; _acceptedConfigId = acceptedConfigId; _transitionOnCorrectPayload = transitionOnCorrectPayload;
+    }
+    public Task<RouterManager.VpnWireGuardAssignmentState?> GetTunnelAsync(int tunnelId, CancellationToken token)
+    {
+        Calls.Add("GetTunnel");
+        return Task.FromResult<RouterManager.VpnWireGuardAssignmentState?>(_authoritative.TunnelId == tunnelId ? _authoritative : null);
+    }
+    public Task<IReadOnlyList<VpnProviderGeneratedConfigInfo>> GetConfigsAsync(int groupId, CancellationToken token)
+    {
+        Calls.Add("GetConfigs");
+        return Task.FromResult(_configs);
+    }
+    public Task<bool> AssignAsync(RouterManager.VpnWireGuardAssignmentState state, int groupId, int configId, CancellationToken token)
+    {
+        Calls.Add("SetTunnel"); SetCalls++;
+        LastRequest = RouterManager.BuildWireGuardProviderAssignmentRequest(state, groupId, configId);
+        bool exact = state.TunnelId == _authoritative.TunnelId && !state.Enabled && state.IsSupportedRouting &&
+            groupId > 0 && configId == _acceptedConfigId && _configs.Count(config => config.PeerId == configId) == 1;
+        if (exact && _transitionOnCorrectPayload)
+            _authoritative = new RouterManager.VpnWireGuardAssignmentState(state.TunnelId, false,
+                [new RouterManager.VpnWireGuardConnectAssociation(groupId, configId)], state.MacList, state.FromType, state.ToType, true);
+        return Task.FromResult(exact);
+    }
+}
+
+internal sealed class FakeProviderGenerationGateway : IVpnProviderConfigGenerationGateway
+{
+    private readonly int _tunnelId;
+    private readonly int _groupId;
+    private readonly int _generatedConfigId;
+    private readonly bool _verifyAssignment;
+    private RouterManager.VpnWireGuardAssignmentState _authoritative;
+    private readonly List<VpnProviderGeneratedConfigInfo> _configs;
+    public List<string> Calls { get; } = [];
+    public int GenerateCalls { get; private set; }
+    public int AssignCalls { get; private set; }
+    public bool ClearedViaObserved { get; private set; }
+
+    public FakeProviderGenerationGateway(int tunnelId, int groupId, int initialConfigId, int generatedConfigId, bool verifyAssignment = true)
+    {
+        _tunnelId = tunnelId; _groupId = groupId; _generatedConfigId = generatedConfigId; _verifyAssignment = verifyAssignment;
+        _authoritative = State(initialConfigId);
+        _configs = [new VpnProviderGeneratedConfigInfo { PeerId = initialConfigId, Name = "a", Location = "Synthetic A" }];
+    }
+
+    private RouterManager.VpnWireGuardAssignmentState State(params int[] references) => new(_tunnelId, false,
+        references.Select(configId => new RouterManager.VpnWireGuardConnectAssociation(_groupId, configId)).ToList(), ["020000000088"], "mac", "default", true);
+
+    public Task<VpnProviderGroupInfo?> GetPiaProviderGroupAsync(CancellationToken token)
+    {
+        Calls.Add("GetGroup"); return Task.FromResult<VpnProviderGroupInfo?>(new VpnProviderGroupInfo { GroupId = _groupId, ProviderName = "PIA" });
+    }
+    public Task<VpnProviderServerCatalogueResult> GetPiaProviderServerCatalogueAsync(int groupId, CancellationToken token)
+    {
+        Calls.Add("GetCatalogue");
+        return Task.FromResult(new VpnProviderServerCatalogueResult { Success = groupId == _groupId, GroupId = groupId,
+            Servers = [new VpnProviderServerInfo { GroupId = groupId, CountryName = "Synthetic", CityName = "B", Hostname = "b" }] });
+    }
+    public Task<RouterManager.VpnWireGuardAssignmentState?> GetTunnelAsync(int tunnelId, CancellationToken token)
+    {
+        Calls.Add("GetTunnel");
+        if (_authoritative.References.Count == 0) ClearedViaObserved = true;
+        return Task.FromResult<RouterManager.VpnWireGuardAssignmentState?>(tunnelId == _tunnelId ? _authoritative : null);
+    }
+    public Task<bool> GenerateAsync(int groupId, VpnProviderServerInfo server, CancellationToken token, PiaApplyIdentityTrace? trace = null)
+    {
+        Calls.Add("Generate"); GenerateCalls++;
+        bool accepted = groupId == _groupId && server.CountryName == "Synthetic" && server.CityName == "B" && server.Hostname == "b";
+        if (accepted)
+        {
+            _configs.Add(new VpnProviderGeneratedConfigInfo { PeerId = _generatedConfigId, Name = "b", Location = "Synthetic B" });
+            _authoritative = State(); // The real provider generation transition clears the Primary via.
+        }
+        return Task.FromResult(accepted);
+    }
+    public Task<IReadOnlyList<VpnProviderGeneratedConfigInfo>> GetConfigsAsync(int groupId, CancellationToken token)
+    {
+        Calls.Add("GetConfigs"); return Task.FromResult<IReadOnlyList<VpnProviderGeneratedConfigInfo>>(groupId == _groupId ? _configs.ToList() : []);
+    }
+    public Task<bool> AssignAsync(RouterManager.VpnWireGuardAssignmentState state, int groupId, int configId, CancellationToken token, PiaApplyIdentityTrace? trace = null)
+    {
+        Calls.Add("Assign"); AssignCalls++;
+        bool accepted = _verifyAssignment && state.TunnelId == _tunnelId && !state.Enabled && state.IsSupportedRouting &&
+            groupId == _groupId && configId == _generatedConfigId && state.FromType == "mac" && state.ToType == "default" && state.MacList.SequenceEqual(["020000000088"]);
+        if (accepted) _authoritative = State(configId);
+        return Task.FromResult(accepted);
+    }
+    public Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken token)
+    {
+        Calls.Add("GetTunnels");
+        bool cleared = _authoritative.References.Count == 0;
+        return Task.FromResult<IReadOnlyList<VpnTunnelInfo>>([new VpnTunnelInfo
+        {
+            TunnelId = _tunnelId, Enabled = false, Protocol = cleared ? "Unknown" : "WireGuard",
+            ProfileGroupIds = cleared ? [] : [_groupId], FromType = "mac", ToType = "default", RoutingDeviceIdentities = ["020000000088"]
+        }]);
+    }
+}
+
 internal sealed record ValidationResult(
     bool WriteSucceeded,
     bool ReadBackSucceeded,
@@ -303,6 +433,11 @@ internal static class Program
             await RunVpnConfigResolutionAsync();
             return;
         }
+        if (args.Any(argument => string.Equals(argument, "--vpn-config-candidate-shape", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunVpnConfigCandidateShapeAsync();
+            return;
+        }
         Console.WriteLine("RouterPilot VPN mutation harness");
         RunUnitTests();
         Console.WriteLine("Local coordinator tests: PASS");
@@ -490,6 +625,26 @@ internal static class Program
         }
         catch (OperationCanceledException) { Console.WriteLine("CONFIG_RESOLUTION_READ_ONLY\nMATCH_COUNT=0\nMUTATIONS=NONE"); }
         catch (Exception) { Console.WriteLine("CONFIG_RESOLUTION_READ_ONLY\nMATCH_COUNT=0\nMUTATIONS=NONE"); }
+    }
+
+    private static async Task RunVpnConfigCandidateShapeAsync()
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        try
+        {
+            var settings = new SettingsService();
+            var profiles = new RouterProfileService(settings);
+            var active = new ActiveRouterContext(profiles);
+            await using var provider = new RouterManagerProvider(settings, active, new SshHostKeyTrustService(settings),
+                new RouterCertificateTrustService(settings), new AdGuardTransportSecurityService(), new SshConnectionFactory());
+            RouterManager manager = await provider.GetRouterManagerAsync(timeout.Token);
+            Console.WriteLine("VPN_CONFIG_CANDIDATE_SHAPE_READ_ONLY");
+            foreach (string line in await manager.GetVpnConfigCandidateShapeLinesAsync(timeout.Token)) Console.WriteLine(line);
+            Console.WriteLine("READ_METHODS=wg-client.get_group_list,vpn-client.get_tunnel,wg-client.get_config_list");
+            Console.WriteLine("MUTATIONS=NONE");
+        }
+        catch (OperationCanceledException) { Console.WriteLine("VPN_CONFIG_CANDIDATE_SHAPE=TIMED_OUT;MUTATIONS=NONE"); }
+        catch { Console.WriteLine("VPN_CONFIG_CANDIDATE_SHAPE=UNAVAILABLE;MUTATIONS=NONE"); }
     }
 
     private static async Task<IReadOnlyList<VpnLiveStatusInfo>> CaptureVpnLiveStatusesAsync(RouterManager manager, CancellationToken cancellationToken)
@@ -922,11 +1077,16 @@ internal static class Program
     private static void RunUnitTests()
     {
         RunVpnControlPresentationTests();
+        RunVpnDisconnectReconciliationTests();
         RunWireGuardHandshakeDetectionTests();
         RunVpnProfileInventoryTests();
         RunPiaProviderServerManagementTests();
+        RunVpnServerSelectionRequiredTests();
+        RunMakePrimaryCommandEndToEndTests();
+        RunPiaApplyClearedPrimaryLifecycleTests();
         RunPiaManualSnapshotPresentationTests();
         RunVpnRoutingPolicyTests();
+        RunVpnDeviceAssignmentContractTests();
         RunVpnDiagnosticExportTests();
         RunDevLogTests();
         RunRouterCertificateTrustPolicyTests();
@@ -1067,9 +1227,9 @@ internal static class Program
             "Apply & Connect does not introduce a combined mutation shortcut");
         Require(!routerVpnSource.Contains("SetVpnTunnelGeneratedWireGuardConfigAsync", StringComparison.Ordinal) &&
                 !routerVpnSource.Contains("BuildTunnelGeneratedConfigRequest", StringComparison.Ordinal) &&
-                vpnServiceSource.Contains("AssignWireGuardProviderConfigAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal) &&
-                vpnServiceSource.IndexOf("GeneratePiaProviderConfigAsync(groupId, selection, token, trace", StringComparison.Ordinal) <
-                vpnServiceSource.IndexOf("AssignWireGuardProviderConfigAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal),
+                vpnServiceSource.Contains("gateway.AssignAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal) &&
+                vpnServiceSource.IndexOf("gateway.GenerateAsync(groupId, targetSelection, token, trace", StringComparison.Ordinal) <
+                vpnServiceSource.IndexOf("gateway.AssignAsync(beforeAssignment!, groupId, currentConfigId", StringComparison.Ordinal),
             "provider Apply generates the selected configuration before issuing the explicit Primary Tunnel assignment");
         Require(vpnRpcSource.Contains("payload = new { tunnel_id = tunnelId.Value, enabled = enabled.Value };", StringComparison.Ordinal),
             "normal DISCONNECT remains the minimal tunnel_id/enabled payload with no via configuration");
@@ -1108,8 +1268,8 @@ internal static class Program
             "GB", "UK London").Result == "AMBIGUOUS",
             "logical resolution fails closed when a location has multiple current hostnames");
         Require(!vpnServiceSource.Contains("GeneratePiaProviderConfigAsync(groupId, resetServer, token)", StringComparison.Ordinal) &&
-                vpnServiceSource.Contains("GetPiaProviderServerCatalogueAsync(groupId, token)", StringComparison.Ordinal) &&
-                vpnServiceSource.Contains("GeneratePiaProviderConfigAsync(groupId, targetSelection, token, trace)", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("gateway.GetPiaProviderServerCatalogueAsync(groupId, token)", StringComparison.Ordinal) &&
+                vpnServiceSource.Contains("gateway.GenerateAsync(groupId, targetSelection, token, trace)", StringComparison.Ordinal) &&
                 vpnServiceSource.Contains("ProviderCatalogueUnavailable", StringComparison.Ordinal) &&
                 vpnServiceSource.Contains("ProviderCatalogueEmpty", StringComparison.Ordinal) &&
                 vpnServiceSource.Contains("TargetLocationNotInCatalogue", StringComparison.Ordinal),
@@ -1237,6 +1397,13 @@ internal static class Program
             """);
         Require(RouterManager.ParseWireGuardAssignmentState(missingViaType.RootElement) is null,
             "missing post-assignment via.type is rejected rather than treated as a verified tunnel");
+        using JsonDocument clearedPrimaryVia = JsonDocument.Parse("""
+            {"tunnel_id":73,"enabled":false,"via":{},"from":{"type":"mac","mac_list":["02:00:00:00:00:01"]},"to":{"type":"default"}}
+            """);
+        RouterManager.VpnWireGuardAssignmentState? clearedPrimaryState = RouterManager.ParseWireGuardAssignmentState(clearedPrimaryVia.RootElement);
+        Require(clearedPrimaryState is { Enabled: false, IsSupportedRouting: true, References.Count: 0 } &&
+                RouterManager.BuildWireGuardProviderAssignmentRequest(clearedPrimaryState, 6123, 88).Via.Configs[0].IdList.SequenceEqual([88]),
+            "cleared disconnected Primary via remains a fail-closed supported base only for an explicit selected-config assignment");
         using JsonDocument changedRouting = JsonDocument.Parse("""
             {"tunnel_id":73,"enabled":false,"via":{"type":"wireguard","configs":[{"group_id":9999,"id_list":[88]}]},"from":{"type":"mac","mac_list":["02:00:00:00:00:09"]},"to":{"type":"default"}}
             """);
@@ -1418,6 +1585,90 @@ internal static class Program
         RunVpnConnectionFailureLifecycleTests();
     }
 
+    private static void RunVpnDisconnectReconciliationTests()
+    {
+        const int tunnelId = 10;
+        const int piaGroupId = 913;
+        VpnClientProfileInfo piaProfile = new() { GroupId = piaGroupId, Name = "PIA", Protocol = "WireGuard", CurrentLocation = "GB / London" };
+        VpnLiveStatusInfo staleTransition = new() { TunnelId = tunnelId, GroupId = piaGroupId, Enabled = true, Status = 2, Protocol = "WireGuard" };
+
+        // The router's current get_tunnel state is authoritative over a
+        // delayed status=2 socket event after a successful disconnect.
+        var intent = new VpnOperationIntentService();
+        var page = new VpnViewModel(intent);
+        VpnTunnelInfo transitioning = new() { TunnelId = tunnelId, Name = "Primary", Enabled = true, Protocol = "WireGuard", ProfileGroupIds = [piaGroupId] };
+        page.Replace([transitioning], [piaProfile], VpnProfileInventoryState.Available);
+        long connectGeneration = intent.Begin(tunnelId, connecting: true);
+        page.ApplyTransitionIntent();
+        page.BeginConnectionAttempt(page.VpnTunnels.Single());
+        page.ApplyLiveStatuses([staleTransition], vpnInventoryAuthoritative: true, fromLiveStatusEvent: true);
+        Require(page.VpnTunnels.Single().ConnectionState == "Connecting", "transitioning Connect is visible before Disconnect takes ownership");
+
+        // Disconnect B supersedes Connect A before the delayed detector can
+        // publish anything. The stale continuation must perform zero view
+        // mutation because its operation generation is no longer current.
+        page.MarkExplicitDisconnect(tunnelId);
+        long disconnectGeneration = intent.Begin(tunnelId, connecting: false);
+        page.ApplyTransitionIntent();
+        VpnTunnelInfo disabled = new() { TunnelId = tunnelId, Name = "Primary", Enabled = false, Protocol = "WireGuard", ProfileGroupIds = [piaGroupId] };
+        page.Replace([disabled], [piaProfile], VpnProfileInventoryState.Available);
+        page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = piaGroupId }, [disabled]);
+        page.ApplyLiveStatuses([staleTransition], vpnInventoryAuthoritative: true);
+
+        int staleDetectorStateMutations = 0;
+        if (intent.IsCurrent(tunnelId, connectGeneration, VpnTransitionIntent.Connecting))
+        {
+            page.MarkWireGuardHandshakeFailure(tunnelId);
+            staleDetectorStateMutations++;
+        }
+
+        VpnTunnelInfo reconciled = page.VpnTunnels.Single();
+        Require(staleDetectorStateMutations == 0 && reconciled.ConnectionState == "Disconnecting" &&
+                !reconciled.HasConnectionAttemptFailure && reconciled.LiveStatus is null,
+            "stale Connect detector cannot overwrite authoritative post-Disconnect state while Disconnect owns it");
+        Require(!page.CanManagePiaProviderServers,
+            "Refresh Servers remains disabled while the winning Disconnect operation still owns the tunnel");
+        Require(intent.GetIntent(tunnelId) == VpnTransitionIntent.Disconnecting,
+            "Disconnect retains ownership until its own operation completes");
+        intent.Clear(tunnelId, disconnectGeneration);
+        page.ApplyTransitionIntent();
+        Require(page.VpnTunnels.Single().ConnectionState == "Disconnected" && page.CanManagePiaProviderServers,
+            "completed authoritative Disconnect clears the transition intent and leaves Refresh Servers eligible despite stale status=2");
+
+        int refreshEligibilityNotifications = 0;
+        page.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(VpnViewModel.CanManagePiaProviderServers)) refreshEligibilityNotifications++;
+        };
+        page.VpnOperationTunnelId = tunnelId;
+        Require(!page.CanManagePiaProviderServers, "a genuinely active VPN operation keeps Refresh Servers disabled");
+        page.VpnOperationTunnelId = 0;
+        Require(page.CanManagePiaProviderServers && refreshEligibilityNotifications >= 2,
+            "VPN operation completion requeries Refresh Servers eligibility without polling");
+
+        // A failed authoritative read cannot fabricate a disconnected state:
+        // without the current disabled tunnel snapshot, stale runtime state is
+        // intentionally not rewritten by this reconciliation rule.
+        var unavailableRead = new VpnViewModel();
+        unavailableRead.Replace([transitioning], [piaProfile], VpnProfileInventoryState.Available);
+        unavailableRead.ApplyLiveStatuses([staleTransition], vpnInventoryAuthoritative: false);
+        Require(unavailableRead.VpnTunnels.Single().ConnectionState == "Transitioning",
+            "unavailable authoritative read does not fabricate a disconnected state");
+
+        var openVpn = new VpnViewModel();
+        VpnTunnelInfo openVpnDisabled = new() { TunnelId = 11, Enabled = false, Protocol = "OpenVPN", ProfileGroupIds = [77] };
+        openVpn.Replace([openVpnDisabled], [new VpnClientProfileInfo { GroupId = 77, Protocol = "OpenVPN" }], VpnProfileInventoryState.Available);
+        openVpn.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 11, GroupId = 77, Enabled = true, Status = 2, Protocol = "OpenVPN" }], vpnInventoryAuthoritative: true);
+        Require(openVpn.VpnTunnels.Single().ConnectionState == "Disconnected",
+            "generic OpenVPN reconciliation also honours authoritative enabled=false");
+
+        var missingPiaPrerequisite = new VpnViewModel();
+        missingPiaPrerequisite.Replace([disabled], [piaProfile], VpnProfileInventoryState.Available);
+        missingPiaPrerequisite.SetPiaProviderManagement(null, [disabled]);
+        Require(!missingPiaPrerequisite.CanManagePiaProviderServers,
+            "a disconnected tunnel without current PIA capability remains correctly ineligible for Refresh Servers");
+    }
+
     private static void RunWireGuardHandshakeDetectionTests()
     {
         static VpnWireGuardHandshakeSnapshot Snapshot(string value) => RouterManager.ParseWireGuardHandshakeSnapshot(value);
@@ -1526,6 +1777,7 @@ internal static class Program
         var connected = new VpnViewModel();
         connected.Replace([tunnelA], [profileA], VpnProfileInventoryState.Available);
         CreateTransientFailure(connected);
+        connected.Replace([new VpnTunnelInfo { TunnelId = 10, Name = "Primary", Enabled = true, ProfileGroupIds = [101] }], [profileA], VpnProfileInventoryState.Available);
         connected.ApplyLiveStatuses([Status(101, enabled: true, state: 1)], vpnInventoryAuthoritative: true);
         Require(!Current(connected).HasConnectionAttemptFailure && Current(connected).ConnectionState == "Connected",
             "authoritative connected refresh clears a previous transient failure");
@@ -1575,7 +1827,8 @@ internal static class Program
             "missing profile inventory schema is unavailable rather than falsely empty or unsupported");
 
         VpnViewModel page = new() { VpnInventoryLoadCompleted = true };
-        page.Replace([tunnel], profiles, VpnProfileInventoryState.Available);
+        VpnTunnelInfo activeTunnel = new() { TunnelId = tunnel.TunnelId, Name = tunnel.Name, Enabled = true, ProfileGroupIds = tunnel.ProfileGroupIds };
+        page.Replace([activeTunnel], profiles, VpnProfileInventoryState.Available);
         page.ApplyLiveStatuses([new VpnLiveStatusInfo { TunnelId = 10, Enabled = true, Status = 1 }], vpnInventoryAuthoritative: true);
         Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Active,
             "configured and active profile is visible and Active");
@@ -1589,8 +1842,8 @@ internal static class Program
 
         page.Replace([tunnel], profiles, VpnProfileInventoryState.Available);
         page.ApplyLiveStatuses([], vpnInventoryAuthoritative: true);
-        Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Unknown,
-            "configured profile survives unavailable active state with an unknown state");
+        Require(page.VpnProfiles.Single(profile => profile.GroupId == 101).ActivityState == VpnProfileActivityState.Inactive,
+            "authoritatively disabled tunnel remains inactive when runtime status is unavailable");
 
         page.Replace([], [], VpnProfileInventoryState.Available);
         Require(page.ShowNoVpnProfiles && !page.ShowVpnProfilesUnavailable,
@@ -1598,6 +1851,622 @@ internal static class Program
         page.Replace([], [], VpnProfileInventoryState.Unavailable);
         Require(!page.ShowNoVpnProfiles && page.ShowVpnProfilesUnavailable,
             "unavailable configured-profile inventory has distinct UI semantics");
+    }
+
+    private static void RunVpnServerSelectionRequiredTests()
+    {
+        const int tunnelId = 501;
+        const int groupId = 701;
+        VpnTunnelInfo Tunnel(bool enabled = false) => new()
+        {
+            TunnelId = tunnelId, Enabled = enabled, Protocol = "WireGuard", ProfileGroupIds = [groupId],
+            FromType = "mac", ToType = "default", RoutingPolicyState = VpnRoutingPolicyState.Available,
+            InternetRoutingScope = VpnInternetRoutingScope.SelectedDevices, RoutingDeviceIdentities = ["020000000001"]
+        };
+        VpnProviderServerInfo Candidate(int reference, string location, string name) => new()
+        {
+            GroupId = groupId, CountryName = location, CityName = name, ExistingConfigId = reference
+        };
+        VpnProviderServerInfo a = Candidate(41, "United Kingdom — London", "London");
+        VpnProviderServerInfo b = Candidate(42, "Netherlands — Amsterdam", "Amsterdam");
+        VpnProviderServerInfo sameLocationDifferentConfig = Candidate(43, "United Kingdom — London", "London alternate");
+
+        VpnProviderServerInfo c = Candidate(44, "Germany", "Frankfurt");
+
+        VpnPiaTunnelConfigSelection Resolved(VpnProviderServerInfo current, params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.Resolved, Candidates = candidates, CurrentServer = current };
+        VpnPiaTunnelConfigSelection Required(params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.SelectionRequired, Candidates = candidates };
+
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> rawCandidates =
+        [
+            new VpnProviderGeneratedConfigInfo { PeerId = 41, Location = "United Kingdom — London", Name = "London" },
+            new VpnProviderGeneratedConfigInfo { PeerId = 42, Location = "Netherlands — Amsterdam", Name = "Amsterdam" }
+        ];
+        using JsonDocument resolvedTunnelDocument = JsonDocument.Parse("""{"result":{"tunnels":[{"tunnel_id":501,"via":{"type":"wireguard","configs":[{"group_id":701,"id_list":[41]}]}}]}}""");
+        using JsonDocument ambiguousTunnelDocument = JsonDocument.Parse("""{"result":{"tunnels":[{"tunnel_id":501,"via":{"type":"wireguard","configs":[{"group_id":701,"id_list":[41,42]}]}}]}}""");
+        using JsonDocument clearedViaTunnelDocument = JsonDocument.Parse("""{"result":{"tunnels":[{"tunnel_id":501,"enabled":false,"via":{}}]}}""");
+        using JsonDocument staleReferenceTunnelDocument = JsonDocument.Parse("""{"result":{"tunnels":[{"tunnel_id":501,"via":{"type":"wireguard","configs":[{"group_id":701,"id_list":[99]}]}}]}}""");
+        using JsonDocument mixedConfigListDocument = JsonDocument.Parse("""{"result":{"peers":[{"peer_id":41,"name":"London","location":"United Kingdom"},{"peer_id":42,"name":"Amsterdam","location":"Netherlands"},{"peer_id":0,"name":"","location":""}]}}""");
+        Require(RouterManager.ParsePiaTunnelConfigSelections(resolvedTunnelDocument.RootElement, groupId, rawCandidates).Single().State == VpnServerConfigResolutionState.Resolved &&
+                RouterManager.ParsePiaTunnelConfigSelections(ambiguousTunnelDocument.RootElement, groupId, rawCandidates).Single().State == VpnServerConfigResolutionState.SelectionRequired,
+            "router-shaped via.configs resolves one authoritative reference but represents multiple references as SelectionRequired");
+        Require(RouterManager.ParsePiaTunnelConfigSelections(clearedViaTunnelDocument.RootElement, groupId, rawCandidates).Single() is { State: VpnServerConfigResolutionState.SelectionRequired, Candidates.Count: 2 },
+            "Case A cleared Primary via with two authoritative existing candidates is SelectionRequired rather than unavailable");
+        Require(RouterManager.ParsePiaTunnelConfigSelections(clearedViaTunnelDocument.RootElement, groupId, [rawCandidates[0]]).Single() is { State: VpnServerConfigResolutionState.SelectionRequired, Candidates.Count: 1 },
+            "Case C one existing candidate without a current tunnel reference still requires explicit selection");
+        Require(RouterManager.ParsePiaTunnelConfigSelections(staleReferenceTunnelDocument.RootElement, groupId, rawCandidates).Single() is { State: VpnServerConfigResolutionState.SelectionRequired, CurrentServer: null },
+            "Case E stale tunnel reference cannot select an arbitrary existing candidate");
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> mixedParsed = RouterManager.ParseGeneratedProviderConfigs(mixedConfigListDocument.RootElement);
+        Require(mixedParsed.Count == 2 && RouterManager.ParsePiaTunnelConfigSelections(clearedViaTunnelDocument.RootElement, groupId, mixedParsed).Single() is { State: VpnServerConfigResolutionState.SelectionRequired, Candidates.Count: 2 },
+            "Case F malformed config entry is rejected while two valid candidates remain available");
+
+        IReadOnlyList<VpnTunnelInfo> one = VpnService.ApplyPiaConfigResolution([Tunnel()], [Resolved(a, a)]);
+        Require(one.Single().ServerConfigResolutionState == VpnServerConfigResolutionState.Resolved && one.Single().CanConnect,
+            "M1 one authoritative current config resolves and preserves normal Connect eligibility");
+        IReadOnlyList<VpnTunnelInfo> manyWithCurrent = VpnService.ApplyPiaConfigResolution([Tunnel()], [Resolved(a, a, b)]);
+        Require(manyWithCurrent.Single().ServerConfigResolutionState == VpnServerConfigResolutionState.Resolved && manyWithCurrent.Single().ServerCandidateCount == 2,
+            "M2 multiple candidates with one authoritative current config remain resolved");
+        IReadOnlyList<VpnTunnelInfo> required = VpnService.ApplyPiaConfigResolution([Tunnel()], [Required(a, b)]);
+        VpnTunnelInfo requiredTunnel = required.Single();
+        Require(requiredTunnel.ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired && requiredTunnel.ServerCandidateCount == 2 &&
+                requiredTunnel.ConnectionState == "Disconnected" && !requiredTunnel.CanConnect && requiredTunnel.RoutingDeviceIdentities.Count == 1,
+            "M3/M5/M6 selection required preserves disconnected VPN and routing while disabling Connect");
+        Require(VpnService.ApplyPiaConfigResolution([Tunnel()], [Required(a, b, sameLocationDifferentConfig)]).Single().ServerCandidateCount == 3,
+            "M4 three candidates remain distinct");
+
+        var page = new VpnViewModel();
+        int makePrimaryCommandInvocations = 0;
+        page.SetMakePrimaryAction(() =>
+        {
+            makePrimaryCommandInvocations++;
+            return Task.CompletedTask;
+        });
+        int refreshExistingInvocations = 0;
+        page.SetRefreshExistingServersAction(() =>
+        {
+            refreshExistingInvocations++;
+            return Task.CompletedTask;
+        });
+        page.Replace(required, [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard", ServerConfigCount = 2 }], VpnProfileInventoryState.Available);
+        page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId }, required);
+        page.SetPiaConfigResolution(Required(a, b, c));
+        Require(page.SupportsPiaServerManagement && page.CanManagePiaProviderServers && page.PiaServerSelectionRequired &&
+                page.ExistingPiaConfigCandidates.Count == 3 && page.PiaServerCandidateCount == 3 && page.ShowExistingServerCard &&
+                page.ExistingPiaConfigCandidates.All(item => !string.IsNullOrWhiteSpace(item.LocationDisplay)) &&
+                page.SelectedExistingPiaConfigCandidate is null && page.CanSelectExistingPiaConfig,
+            "M7/M8/M9/M10/AA/AB three real existing candidates drive the visible count, card state, and non-blank labels without auto-selection");
+        page.SetPiaConfigResolution(Required(b, a));
+        Require(page.SelectedExistingPiaConfigCandidate is null && page.ExistingPiaConfigCandidates.Count == 2,
+            "M11 candidate order cannot choose a server implicitly");
+        page.SetPiaConfigResolution(Required(a, sameLocationDifferentConfig));
+        Require(page.ExistingPiaConfigCandidates.Count == 2 && page.ExistingPiaConfigCandidates.Select(item => item.CatalogueIdentity).Distinct().Count() == 2,
+            "M12 same-location configurations remain separate safe candidates");
+        Require(!page.CanApplyPiaProviderServer,
+            "selection-required state cannot apply or connect before an explicit user choice");
+        page.SetPiaConfigResolution(Required(a));
+        Require(page.ExistingRouterServers.Count == 1 && page.PiaServerCandidateCount == 1 && page.ShowExistingServerCard &&
+                page.PiaProviderServers.Count == 0 && !page.PiaProviderServerCatalogueReady &&
+                page.SelectedExistingPiaConfigCandidate is null && page.ExistingRouterServers.All(item => !string.IsNullOrWhiteSpace(item.LocationDisplay)),
+            "SingleExistingCandidateVisibleBeforeRefresh: one existing router config is visible, labelled, and unselected before provider refresh");
+        page.SetPiaConfigResolution(Required(a, b));
+        Require(page.ExistingRouterServers.Count == 2 && page.PiaServerCandidateCount == 2 && page.ShowExistingServerCard &&
+                page.PiaProviderServers.Count == 0,
+            "ExistingServerCandidatesPopulateBeforeProviderRefresh: two existing router configs are available before provider refresh");
+        page.SetPiaConfigResolution(Required(a, b, c));
+        Require(page.ExistingRouterServers.Count == 3 && page.PiaServerCandidateCount == 3 && page.ShowExistingServerCard &&
+                page.PiaProviderServers.Count == 0 && !page.PiaProviderServerCatalogueReady,
+            "ExistingServerCandidatesPopulateBeforeProviderRefresh: three existing router configs populate immediately without executing Refresh Servers");
+        page.SetPiaConfigResolution(Required(a, b, c));
+        page.SelectedExistingPiaConfigCandidate = page.ExistingPiaConfigCandidates[1];
+        Require(page.SelectedExistingPiaConfigCandidate == page.ExistingPiaConfigCandidates[1] && page.MakePrimaryCommand.CanExecute(null) && page.CanApplyPiaProviderServer && !page.CanApplyAndConnectPiaProviderServer &&
+                !requiredTunnel.CanConnect,
+            "U1-U4 selecting an existing candidate is pending-only: Make Primary becomes executable while Connect and Apply & Connect remain unavailable");
+        page.MakePrimaryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(makePrimaryCommandInvocations == 1,
+            "MakePrimaryCommand binds the selected existing candidate workflow to its registered UI service action");
+        IReadOnlyList<VpnProviderServerInfo> providerCatalogue =
+        [
+            new VpnProviderServerInfo { GroupId = groupId, CountryName = "P1", CityName = "One", Hostname = "one" },
+            new VpnProviderServerInfo { GroupId = groupId, CountryName = "P2", CityName = "Two", Hostname = "two" },
+            new VpnProviderServerInfo { GroupId = groupId, CountryName = "P3", CityName = "Three", Hostname = "three" },
+            new VpnProviderServerInfo { GroupId = groupId, CountryName = "P4", CityName = "Four", Hostname = "four" }
+        ];
+        page.BeginPiaProviderServerCatalogueRefresh();
+        Require(page.ExistingPiaConfigCandidates.Count == 3 && page.SelectedExistingPiaConfigCandidate is not null,
+            "provider refresh invalidates only its own catalogue and cannot clear a pending existing-router choice");
+        page.FailPiaProviderServerCatalogueRefresh("Synthetic refresh failure");
+        Require(page.ExistingRouterServers.Count == 3 && page.PiaProviderServers.Count == 0 && !page.PiaProviderServerCatalogueReady,
+            "provider refresh failure leaves existing-router candidates intact while its own catalogue remains unavailable");
+        page.ReplacePiaProviderServers(providerCatalogue);
+        Require(page.ExistingPiaConfigCandidates.Count == 3 && page.PiaProviderServers.Count == 4 && page.ShowExistingServerCard &&
+                page.ShowProviderServerCatalogueSelector && page.CanSelectPiaProviderServer && page.PiaProviderServers.All(item => !string.IsNullOrWhiteSpace(item.LocationDisplay)),
+            "T5-T10/AC/AD successful Refresh projects four provider locations while three existing-router candidates remain visible and non-blank");
+        page.SelectedPiaProviderServer = page.PiaProviderServers[2];
+        Require(page.SelectedPiaProviderServer == page.PiaProviderServers[2] && page.CanApplyProviderServer && page.CanApplyAndConnectPiaProviderServer &&
+                page.ExistingPiaConfigCandidates.Count == 3,
+            "T11 provider selection is local, remains separate from existing candidates, and enables only normal provider Apply actions");
+        page.SetPiaConfigResolution(Resolved(b, a, b, c));
+        Require(page.ShowExistingServerCard && page.ExistingRouterServers.Count == 3 && page.PiaCurrentServerConfigId == 42 &&
+                page.PiaCurrentServerDisplay.Length > 0 && !page.CanApplyExistingPiaConfig && page.PiaProviderServers.Count == 4,
+            "resolved Primary retains existing-router management A/B/C while preserving the independent provider catalogue");
+        page.SelectedExistingPiaConfigCandidate = page.ExistingRouterServers.Single(item => item.ExistingConfigId == 41);
+        Require(page.CanApplyExistingPiaConfig && page.MakePrimaryCommand.CanExecute(null),
+            "selecting A while B is current enables a later explicit Primary switch without changing B");
+        page.RefreshExistingServersCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(refreshExistingInvocations == 1 && page.ExistingRouterServers.Count == 3 && page.PiaProviderServers.Count == 4,
+            "Refresh Existing is read-only and leaves the provider catalogue untouched");
+        VpnTunnelInfo connectedForLifecycle = Tunnel(enabled: true);
+        page.Replace([connectedForLifecycle], [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard" }], VpnProfileInventoryState.Available);
+        page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId }, [connectedForLifecycle]);
+        page.SetPiaConfigResolution(Resolved(b, a, b, c));
+        Require(page.ShowExistingServerCard && !page.CanManagePiaProviderServers && !page.MakePrimaryCommand.CanExecute(null),
+            "connected lifecycle keeps existing-server inventory readable but prohibits Primary mutation");
+        page.Replace([Tunnel()], [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard" }], VpnProfileInventoryState.Available);
+        page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId }, [Tunnel()]);
+        page.SetPiaConfigResolution(Resolved(b, a, b, c));
+        page.SelectedExistingPiaConfigCandidate = page.ExistingRouterServers.Single(item => item.ExistingConfigId == 41);
+        Require(page.ShowExistingServerCard && page.CanManagePiaProviderServers && page.RefreshExistingServersCommand.CanExecute(null) &&
+                page.MakePrimaryCommand.CanExecute(null),
+            "authoritative Disconnect restores existing-server Refresh and explicit Primary switching for A while B remains current");
+        page.SetPiaConfigResolution(Required(a));
+        Require(page.ExistingPiaConfigCandidates.Count == 1 && page.SelectedExistingPiaConfigCandidate?.ExistingConfigId == 41,
+            "U6 refresh retains a local A selection only when A remains an existing candidate");
+        page.SetPiaConfigResolution(Required(a, b, sameLocationDifferentConfig));
+        Require(page.ExistingPiaConfigCandidates.Count == 3 && page.SelectedExistingPiaConfigCandidate?.ExistingConfigId == 41,
+            "U7 three refreshed candidates retain the still-valid local A selection without auto-selecting another candidate");
+        page.SetPiaConfigResolution(Required(b, sameLocationDifferentConfig));
+        Require(page.ExistingPiaConfigCandidates.Count == 2 && page.SelectedExistingPiaConfigCandidate is null,
+            "existing refresh clears a local selection only when that selected config disappeared; it never substitutes another");
+        string vpnViewXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml"));
+        Require(vpnViewXaml.Contains("x:Name=\"ChooseExistingServerCard\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("x:Name=\"ManagePiaServerCard\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("x:Name=\"ExistingRouterServerComboBox\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("x:Name=\"PiaServerLocationComboBox\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("ItemsSource=\"{Binding ExistingRouterServers}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("SelectedItem=\"{Binding SelectedExistingPiaConfigCandidate}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("ItemsSource=\"{Binding PiaProviderServers}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("Content=\"Make Primary\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("Command=\"{Binding MakePrimaryCommand}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("Command=\"{Binding RefreshExistingServersCommand}\"", StringComparison.Ordinal) &&
+                vpnViewXaml.Contains("Text=\"EXISTING VPN SERVERS\"", StringComparison.Ordinal) && vpnViewXaml.Contains("Text=\"MANAGE PIA SERVER\"", StringComparison.Ordinal),
+            "UI1/UI2/AE two physically separate cards and ComboBoxes bind to independent existing-router and provider collections");
+
+        RouterManager.VpnWireGuardAssignmentState beforeAssignment = new(tunnelId, false,
+            [new RouterManager.VpnWireGuardConnectAssociation(groupId, 41)], ["020000000001"], "mac", "default", true);
+        RouterManager.WireGuardProviderAssignmentRequest selectBRequest = RouterManager.BuildWireGuardProviderAssignmentRequest(beforeAssignment, groupId, 42);
+        RouterManager.VpnWireGuardAssignmentState afterAssignment = new(tunnelId, false,
+            [new RouterManager.VpnWireGuardConnectAssociation(groupId, 42)], ["020000000001"], "mac", "default", true);
+        Require(selectBRequest.TunnelId == tunnelId && selectBRequest.Via.Type == "wireguard" && selectBRequest.Via.Configs.Length == 1 &&
+                selectBRequest.Via.Configs[0].GroupId == groupId && selectBRequest.Via.Configs[0].IdList.SequenceEqual([42]) &&
+                selectBRequest.From.Type == "mac" && selectBRequest.To.Type == "default" &&
+                RouterManager.VerifyWireGuardProviderAssignment(beforeAssignment, afterAssignment, groupId, 42),
+            "S2 existing candidate Apply uses the proven Primary assignment shape and requires authoritative selected-config readback");
+        Require(!RouterManager.VerifyWireGuardProviderAssignment(beforeAssignment,
+                new RouterManager.VpnWireGuardAssignmentState(tunnelId, false, [new RouterManager.VpnWireGuardConnectAssociation(groupId, 41)], ["020000000001"], "mac", "default", true), groupId, 42),
+            "S3 ambiguous or unchanged readback cannot claim the selected candidate was applied");
+
+        VpnTunnelInfo connected = VpnService.ApplyPiaConfigResolution([Tunnel(enabled: true)], [Required(a, b)]).Single();
+        Require(connected.ConnectionState == "Transitioning" && !connected.CanConnect,
+            "connected/transitioning tunnel presentation remains authoritative even when its server identity is ambiguous");
+    }
+
+    private static void RunMakePrimaryCommandEndToEndTests()
+    {
+        const int tunnelId = 880, groupId = 990;
+        const string mac = "020000000088";
+        VpnProviderServerInfo Candidate(int id, string city) => new()
+        {
+            GroupId = groupId, CountryName = "Synthetic", CityName = city, Hostname = city.ToLowerInvariant(), ExistingConfigId = id
+        };
+        VpnProviderServerInfo a = Candidate(41, "A"), b = Candidate(42, "B"), c = Candidate(43, "C");
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> All() =>
+        [
+            new VpnProviderGeneratedConfigInfo { PeerId = 41, Location = "Synthetic", Name = "A" },
+            new VpnProviderGeneratedConfigInfo { PeerId = 42, Location = "Synthetic", Name = "B" },
+            new VpnProviderGeneratedConfigInfo { PeerId = 43, Location = "Synthetic", Name = "C" }
+        ];
+        RouterManager.VpnWireGuardAssignmentState ClearedPrimary() => new(tunnelId, false, [], [mac], "mac", "default", true);
+        VpnTunnelInfo Tunnel(int serverConfigCount = -1) => new()
+        {
+            TunnelId = tunnelId, Enabled = false, Protocol = "WireGuard", ProfileGroupIds = [groupId], FromType = "mac", ToType = "default",
+            RoutingPolicyState = VpnRoutingPolicyState.Available, InternetRoutingScope = VpnInternetRoutingScope.SelectedDevices, RoutingDeviceIdentities = [mac],
+            ServerConfigCount = serverConfigCount
+        };
+        VpnPiaTunnelConfigSelection Required(params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.SelectionRequired, Candidates = candidates };
+        VpnPiaTunnelConfigSelection Resolved(VpnProviderServerInfo current, params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.Resolved, Candidates = candidates, CurrentServer = current };
+        void Initialise(VpnViewModel page, params VpnProviderServerInfo[] candidates)
+        {
+            VpnPiaTunnelConfigSelection required = Required(candidates);
+            IReadOnlyList<VpnTunnelInfo> projected = VpnService.ApplyPiaConfigResolution([Tunnel(candidates.Length)], [required]);
+            page.Replace(projected, [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard" }], VpnProfileInventoryState.Available);
+            page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId }, projected);
+            page.SetPiaConfigResolution(required);
+        }
+        void ApplyAuthoritativeResolved(VpnViewModel page, VpnProviderServerInfo current, params VpnProviderServerInfo[] candidates)
+        {
+            VpnPiaTunnelConfigSelection resolved = Resolved(current, candidates);
+            IReadOnlyList<VpnTunnelInfo> projected = VpnService.ApplyPiaConfigResolution([Tunnel(candidates.Length)], [resolved]);
+            page.Replace(projected, [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard" }], VpnProfileInventoryState.Available);
+            page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId }, projected);
+            page.SetPiaConfigResolution(resolved);
+        }
+
+        // The pre-mutation document deliberately has a cleared via: this is the live regression shape.
+        using JsonDocument clearedVia = JsonDocument.Parse("""
+            {"tunnel_id":880,"enabled":false,"via":{},"from":{"type":"mac","mac_list":["02:00:00:00:00:88"]},"to":{"type":"default"}}
+            """);
+        Require(RouterManager.ParseWireGuardAssignmentState(clearedVia.RootElement) is { References.Count: 0, IsSupportedRouting: true },
+            "MakePrimary cleared-via precondition is the safe disconnected mac/default Primary shape");
+
+        VpnTunnelInfo alreadyPrimary = VpnService.ApplyPiaConfigResolution([Tunnel(3)], [Resolved(b, a, b, c)]).Single();
+        Require(alreadyPrimary is { Enabled: false, ServerConfigResolutionState: VpnServerConfigResolutionState.Resolved, CanConnect: true, CanToggle: true },
+            "an authoritative B Primary is immediately Connect-eligible without provider refresh or a pending dropdown selection");
+
+        var successPage = new VpnViewModel();
+        Initialise(successPage, a, b, c);
+        var successGateway = new FakeExistingConfigAssignmentGateway(ClearedPrimary(), All(), 42);
+        var successService = new VpnService(successGateway, new RouterPilotDevLog());
+        VpnProviderConfigGenerationResult? successResult = null;
+        successPage.SetMakePrimaryAction(async () =>
+        {
+            successResult = await successService.ApplyExistingPiaProviderConfigAsync(tunnelId, groupId,
+                successPage.SelectedExistingPiaConfigCandidate!, () => true, CancellationToken.None);
+            if (successResult.Success)
+                ApplyAuthoritativeResolved(successPage, successResult.AuthoritativeServer!, a, b, c);
+        });
+        Require(successPage.ExistingRouterServers.Count == 3 && successPage.PiaProviderServers.Count == 0 &&
+                successPage.SelectedExistingPiaConfigCandidate is null && !successPage.MakePrimaryCommand.CanExecute(null) && !successPage.VpnTunnels.Single().CanToggle,
+            "ExistingServerCandidatesPopulateBeforeProviderRefresh: A/B/C populate the existing selector before provider refresh");
+        successPage.SelectedExistingPiaConfigCandidate = successPage.ExistingRouterServers.Single(item => item.ExistingConfigId == 42);
+        Require(successPage.MakePrimaryCommand.CanExecute(null) && successGateway.SetCalls == 0 && !successPage.VpnTunnels.Single().CanToggle,
+            "MakePrimaryCommand selection of B is local, becomes executable without mutation, and does not enable Connect");
+        successPage.MakePrimaryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(successResult is { Success: true } && successGateway.Calls.SequenceEqual(["GetTunnel", "GetConfigs", "SetTunnel", "GetTunnel"]) &&
+                successGateway.SetCalls == 1 && successGateway.LastRequest is { } request && request.TunnelId == tunnelId &&
+                request.From.Type == "mac" && request.From.MacList.SequenceEqual([mac]) && request.To.Type == "default" &&
+                request.Via.Type == "wireguard" && request.Via.Configs.Length == 1 && request.Via.Configs[0].GroupId == groupId && request.Via.Configs[0].IdList.SequenceEqual([42]) &&
+                successPage.PiaConfigResolutionState == VpnServerConfigResolutionState.Resolved && successPage.PiaCurrentServerDisplay.Contains("B", StringComparison.Ordinal) &&
+                successPage.VpnTunnels.Single() is { Enabled: false, CanConnect: true, CanToggle: true },
+            "MakePrimaryCommand end-to-end: cleared via -> selected B -> exact one assignment payload -> authoritative B readback -> Resolved(B) -> Connect enabled");
+
+        var mismatchPage = new VpnViewModel();
+        Initialise(mismatchPage, a, b, c);
+        var mismatchGateway = new FakeExistingConfigAssignmentGateway(ClearedPrimary(), All(), 42, transitionOnCorrectPayload: false);
+        var mismatchService = new VpnService(mismatchGateway, new RouterPilotDevLog());
+        VpnProviderConfigGenerationResult? mismatchResult = null;
+        mismatchPage.SetMakePrimaryAction(async () => mismatchResult = await mismatchService.ApplyExistingPiaProviderConfigAsync(tunnelId, groupId,
+            mismatchPage.SelectedExistingPiaConfigCandidate!, () => true, CancellationToken.None));
+        mismatchPage.SelectedExistingPiaConfigCandidate = mismatchPage.ExistingRouterServers.Single(item => item.ExistingConfigId == 42);
+        mismatchPage.MakePrimaryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(mismatchResult is { Success: false } && mismatchGateway.SetCalls == 1 && mismatchGateway.Calls.SequenceEqual(["GetTunnel", "GetConfigs", "SetTunnel", "GetTunnel"]) &&
+                mismatchPage.PiaConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired && !mismatchPage.VpnTunnels.Single().CanToggle,
+            "MakePrimaryReadbackMismatchFailsClosed: successful RPC without authoritative B readback remains SelectionRequired and never retries");
+
+        var stalePage = new VpnViewModel();
+        Initialise(stalePage, a, b, c);
+        var staleGateway = new FakeExistingConfigAssignmentGateway(ClearedPrimary(), [All()[0], All()[2]], 42);
+        var staleService = new VpnService(staleGateway, new RouterPilotDevLog());
+        VpnProviderConfigGenerationResult? staleResult = null;
+        stalePage.SetMakePrimaryAction(async () => staleResult = await staleService.ApplyExistingPiaProviderConfigAsync(tunnelId, groupId,
+            stalePage.SelectedExistingPiaConfigCandidate!, () => true, CancellationToken.None));
+        stalePage.SelectedExistingPiaConfigCandidate = stalePage.ExistingRouterServers.Single(item => item.ExistingConfigId == 42);
+        stalePage.MakePrimaryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(staleResult is { Success: false } && staleGateway.SetCalls == 0 && stalePage.PiaConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired,
+            "MakePrimaryStaleCandidateFailsClosed: stale B is never replaced by A or C");
+
+        var singlePage = new VpnViewModel();
+        Initialise(singlePage, a);
+        var singleGateway = new FakeExistingConfigAssignmentGateway(ClearedPrimary(), [All()[0]], 41);
+        var singleService = new VpnService(singleGateway, new RouterPilotDevLog());
+        VpnProviderConfigGenerationResult? singleResult = null;
+        singlePage.SetMakePrimaryAction(async () =>
+        {
+            singleResult = await singleService.ApplyExistingPiaProviderConfigAsync(tunnelId, groupId,
+                singlePage.SelectedExistingPiaConfigCandidate!, () => true, CancellationToken.None);
+            if (singleResult.Success) singlePage.SetPiaConfigResolution(Resolved(singleResult.AuthoritativeServer!, a));
+        });
+        Require(singlePage.ExistingRouterServers.Count == 1 && singlePage.SelectedExistingPiaConfigCandidate is null,
+            "SingleExistingCandidateVisibleBeforeRefresh: explicit one-config selection remains available without auto-selection");
+        singlePage.SelectedExistingPiaConfigCandidate = singlePage.ExistingRouterServers.Single();
+        singlePage.MakePrimaryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(singleResult is { Success: true } && singleGateway.SetCalls == 1 && singlePage.PiaConfigResolutionState == VpnServerConfigResolutionState.Resolved,
+            "MakePrimaryOneExistingConfig: cleared Primary assigns explicit A once and resolves after readback");
+    }
+
+    private static void RunPiaApplyClearedPrimaryLifecycleTests()
+    {
+        const int tunnelId = 881, groupId = 991;
+        VpnProviderServerInfo A() => new() { GroupId = groupId, CountryName = "Synthetic", CityName = "A", Hostname = "a", ExistingConfigId = 41 };
+        VpnProviderServerInfo B() => new() { GroupId = groupId, CountryName = "Synthetic", CityName = "B", Hostname = "b" };
+        VpnTunnelInfo ClearedTunnel() => new()
+        {
+            TunnelId = tunnelId, Enabled = false, Protocol = "Unknown", FromType = "mac", ToType = "default",
+            RoutingPolicyState = VpnRoutingPolicyState.Available, InternetRoutingScope = VpnInternetRoutingScope.SelectedDevices,
+            RoutingDeviceIdentities = ["020000000088"], ServerConfigCount = 2
+        };
+        VpnPiaTunnelConfigSelection Required(params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.SelectionRequired, Candidates = candidates };
+        VpnPiaTunnelConfigSelection Resolved(VpnProviderServerInfo current, params VpnProviderServerInfo[] candidates) => new()
+        { TunnelId = tunnelId, GroupId = groupId, State = VpnServerConfigResolutionState.Resolved, Candidates = candidates, CurrentServer = current };
+        void Project(VpnViewModel page, VpnPiaTunnelConfigSelection selection)
+        {
+            VpnTunnelInfo source = selection.State == VpnServerConfigResolutionState.Resolved
+                ? new VpnTunnelInfo
+                {
+                    TunnelId = tunnelId, Enabled = false, Protocol = "WireGuard", ProfileGroupIds = [groupId], FromType = "mac", ToType = "default",
+                    RoutingPolicyState = VpnRoutingPolicyState.Available, InternetRoutingScope = VpnInternetRoutingScope.SelectedDevices,
+                    RoutingDeviceIdentities = ["020000000088"], ServerConfigCount = selection.Candidates.Count
+                }
+                : ClearedTunnel();
+            IReadOnlyList<VpnTunnelInfo> tunnels = VpnService.ApplyPiaConfigResolution([source], [selection]);
+            page.Replace(tunnels, [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard", ServerConfigCount = selection.Candidates.Count }], VpnProfileInventoryState.Available);
+            page.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId, ProviderName = "PIA" }, tunnels);
+            page.SetPiaConfigResolution(selection);
+        }
+
+        // PIA identity is group metadata, while Primary resolution is a separate state.
+        VpnPiaTunnelConfigSelection clearedSelection = Required(A(), B());
+        var rawClearedPage = new VpnViewModel();
+        rawClearedPage.Replace([ClearedTunnel()], [new VpnClientProfileInfo { GroupId = groupId, Name = "PIA", Protocol = "WireGuard", ServerConfigCount = 2 }], VpnProfileInventoryState.Available);
+        rawClearedPage.SetPiaProviderManagement(new VpnProviderGroupInfo { GroupId = groupId, ProviderName = "PIA" }, rawClearedPage.VpnTunnels, clearedSelection);
+        rawClearedPage.SetPiaConfigResolution(clearedSelection);
+        Require(rawClearedPage.SupportsPiaServerManagement && rawClearedPage.PiaProviderTunnelId == tunnelId && rawClearedPage.PiaProviderGroupId == groupId,
+            "a validated same-snapshot cleared-via selection retains positive PIA capability instead of clearing the operation context");
+        var noPrimaryPage = new VpnViewModel();
+        Project(noPrimaryPage, Required(A(), B()));
+        Require(noPrimaryPage.SupportsPiaServerManagement && noPrimaryPage.ShowExistingServerCard && noPrimaryPage.CanManagePiaProviderServers,
+            "PIA capability survives an authoritative disconnected cleared-via/no-Primary state when the PIA group remains positively identified");
+
+        var gateway = new FakeProviderGenerationGateway(tunnelId, groupId, 41, 42);
+        VpnProviderConfigGenerationResult result = new VpnService(gateway, new RouterPilotDevLog())
+            .GeneratePiaProviderConfigAsync(tunnelId, groupId, B(), () => true, CancellationToken.None).GetAwaiter().GetResult();
+        VpnProviderServerInfo resolvedB = new() { GroupId = groupId, CountryName = "Synthetic", CityName = "B", Hostname = "b", ExistingConfigId = 42 };
+        var finalPage = new VpnViewModel();
+        Project(finalPage, Resolved(resolvedB, A(), resolvedB));
+        Require(result is { Success: true, AuthoritativeServer: not null } && gateway.GenerateCalls == 1 && gateway.AssignCalls == 1 && gateway.ClearedViaObserved &&
+                gateway.Calls.Count(call => call == "GetTunnel") >= 3 && finalPage.SupportsPiaServerManagement &&
+                finalPage.PiaConfigResolutionState == VpnServerConfigResolutionState.Resolved && finalPage.PiaCurrentServerConfigId == 42 &&
+                finalPage.VpnTunnels.Single() is { Enabled: false, CanToggle: true },
+            "PiaApplyClearedPrimaryLifecycle: generate B clears A via, preserves known PIA context, assigns B exactly once, verifies B, and restores Connect eligibility");
+
+        var failedGateway = new FakeProviderGenerationGateway(tunnelId, groupId, 41, 42, verifyAssignment: false);
+        VpnProviderConfigGenerationResult failed = new VpnService(failedGateway, new RouterPilotDevLog())
+            .GeneratePiaProviderConfigAsync(tunnelId, groupId, B(), () => true, CancellationToken.None).GetAwaiter().GetResult();
+        var recoveryPage = new VpnViewModel();
+        Project(recoveryPage, Required(A(), resolvedB));
+        Require(!failed.Success && failedGateway.GenerateCalls == 1 && failedGateway.AssignCalls == 1 && failedGateway.ClearedViaObserved &&
+                recoveryPage.SupportsPiaServerManagement && recoveryPage.ShowExistingServerCard && recoveryPage.CanManagePiaProviderServers &&
+                recoveryPage.PiaConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired && !recoveryPage.VpnTunnels.Single().CanToggle,
+            "PiaApplyClearedPrimaryFailure: failed B assignment remains recoverable PIA/SelectionRequired rather than falsely becoming non-PIA");
+    }
+
+    private static void RunVpnDeviceAssignmentContractTests()
+    {
+        RouterManager.VpnWireGuardAssignmentState State(params string[] macs) => new(991, false, [new RouterManager.VpnWireGuardConnectAssociation(700, 41)], macs, "mac", "default", true);
+        var gateway = new FakeVpnDeviceAssignmentGateway(State("020000000001"), State("020000000001", "020000000002"));
+        var devLog = new RouterPilotDevLog();
+        var realService = new VpnService(gateway, devLog);
+        VpnDeviceAssignmentResult applied = realService.UpdateSelectedVpnDevicesAsync(991, ["02:00:00:00:00:01", "02:00:00:00:00:02"], ["02:00:00:00:00:01", "02:00:00:00:00:02"], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(applied.Success && gateway.Calls.SequenceEqual(["GetTunnel", "SetTunnel", "GetTunnel"]) && gateway.SetCalls == 1,
+            "real device-assignment service performs GetTunnel, one SetTunnel, then authoritative readback");
+        Require(gateway.LastMacs.SequenceEqual(["020000000001", "020000000002"], StringComparer.OrdinalIgnoreCase) && !devLog.Entries.Any(entry => entry.DisplayText.Contains("020000000001", StringComparison.Ordinal)),
+            "real service sends normalized synthetic assignments without logging identities");
+        var openOnly = new FakeVpnDeviceAssignmentGateway(State("020000000001"));
+        Require(openOnly.SetCalls == 0 && openOnly.Calls.Count == 0, "opening/working-copy construction has no gateway mutation before explicit Apply");
+        static VpnTunnelInfo Tunnel(bool enabled = false, string protocol = "WireGuard", string from = "mac", string to = "default", VpnInternetRoutingScope scope = VpnInternetRoutingScope.SelectedDevices, VpnLiveStatusInfo? live = null) => new()
+        {
+            TunnelId = 991, Enabled = enabled, Protocol = protocol, FromType = from, ToType = to,
+            RoutingPolicyState = VpnRoutingPolicyState.Available, InternetRoutingScope = scope, LiveStatus = live
+        };
+        Require(Tunnel().CanManageRoutingDevices, "disconnected WireGuard selected-device routing is eligible for device management");
+        Require(!Tunnel(enabled: true).CanManageRoutingDevices && !Tunnel(live: new VpnLiveStatusInfo { TunnelId = 991, Enabled = true, Status = 2 }).CanManageRoutingDevices,
+            "connected or transitioning VPN routing remains read-only");
+        Require(!Tunnel(protocol: "OpenVPN").CanManageRoutingDevices && !Tunnel(from: "all").CanManageRoutingDevices &&
+                !Tunnel(to: "vpn").CanManageRoutingDevices && !Tunnel(scope: VpnInternetRoutingScope.Unknown).CanManageRoutingDevices,
+            "unsupported protocol or routing shape cannot enter the device mutation path");
+        string knownA = ClientIdentity.NormalizeHexMac("02:00:00:00:00:01");
+        string knownADuplicate = ClientIdentity.NormalizeHexMac("02-00-00-00-00-01");
+        string unknown = ClientIdentity.NormalizeHexMac("02:00:00:00:00:FE");
+        Require(knownA.Length == 12 && knownA == knownADuplicate && unknown.Length == 12 && ClientIdentity.NormalizeHexMac("not-a-mac").Length != 12,
+            "synthetic known, unknown, duplicate, and malformed identities normalize deterministically");
+        string service = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "VpnService.cs"));
+        string manager = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "RouterManager.Vpn.cs"));
+        string view = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml.cs"));
+        string xaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "VpnView.xaml"));
+        string editorProjection = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "VpnDeviceEditorProjection.cs"));
+        Require(xaml.Contains("Manage Devices", StringComparison.Ordinal) && xaml.Contains("MANAGE VPN DEVICES", StringComparison.Ordinal) &&
+                editorProjection.Contains("IsUnknownExistingAssignment", StringComparison.Ordinal),
+            "generic VPN device editor preserves an explicit non-editable unknown-assignment path");
+        Require(service.Contains("gateway.GetTunnelAsync", StringComparison.Ordinal) &&
+                service.Contains("gateway.SetTunnelAsync", StringComparison.Ordinal) &&
+                service.Contains("before.Enabled", StringComparison.Ordinal) && service.Contains("before.IsSupportedRouting", StringComparison.Ordinal),
+            "device assignment obtains a fresh disconnected supported tunnel state before its one routing mutation");
+        Require(service.Contains("freshUnknown", StringComparison.Ordinal) && service.Contains("knownEditableIdentities", StringComparison.Ordinal),
+            "fresh authoritative unknown assignments are preserved at the service mutation boundary without resurrecting editor state");
+        Require(view.Contains("item.CanEdit && item.IsSelected", StringComparison.Ordinal) && view.Contains("knownEditable", StringComparison.Ordinal),
+            "working copy changes only known selections while the service preserves fresh unknown assigned identities");
+        Require(service.Contains("effective.Count == 0", StringComparison.Ordinal) && manager.Contains("macs.Count == 0", StringComparison.Ordinal),
+            "empty selected-device mutation is rejected before dispatch");
+        Require(view.Contains("EmptyVpnDeviceAssignmentTitle", StringComparison.Ordinal) && view.Contains("MessageBox.Show(result.Message, EmptyVpnDeviceAssignmentTitle", StringComparison.Ordinal) &&
+                service.Contains("IsEmptyEffectiveAssignment = true", StringComparison.Ordinal) && service.Contains("AssignedDevices.ApplyRejected reason=empty-effective-assignment", StringComparison.Ordinal) &&
+                service.Contains("Select at least one device to continue", StringComparison.Ordinal) && service.Contains("router's web interface", StringComparison.Ordinal),
+            "empty effective assignment uses explicit Apply-time guidance without exposing router identities");
+        Require(view.Contains("private void CancelVpnDevices_Click", StringComparison.Ordinal) && view.Contains("_viewModel.VpnDeviceEditorOpen = false", StringComparison.Ordinal) &&
+                view.Contains("if (result.IsEmptyEffectiveAssignment)", StringComparison.Ordinal) && view.Contains("return;", StringComparison.Ordinal),
+            "zero-device warning keeps the editor open for reselection while Cancel remains an explicit zero-mutation escape");
+        int deviceMutationStart = manager.IndexOf("SetSelectedDeviceAssignmentAsync", StringComparison.Ordinal);
+        string deviceMutation = deviceMutationStart >= 0 ? manager[deviceMutationStart..] : string.Empty;
+        Require(deviceMutation.Contains("new WireGuardAssignmentFrom(\"mac\", macs.ToArray())", StringComparison.Ordinal) &&
+                manager.Contains("new WireGuardAssignmentTo(state.ToType)", StringComparison.Ordinal) &&
+                manager.Contains("state.References.Select", StringComparison.Ordinal) &&
+                !deviceMutation.Contains("enabled = true", StringComparison.Ordinal),
+            "device payload preserves authoritative tunnel, via, and destination without enabling the tunnel");
+        Require(service.Contains("after.MacList.Select(ClientIdentity.NormalizeHexMac)", StringComparison.Ordinal) &&
+                service.Contains("before.References.SequenceEqual(after.References)", StringComparison.Ordinal) &&
+                service.Contains("!after.Enabled", StringComparison.Ordinal),
+            "device mutation requires authoritative readback of disabled state, preserved via, and normalized membership");
+        Require(service.Contains("operationStillCurrent()", StringComparison.Ordinal) && service.Contains("finally { _gate.Release(); }", StringComparison.Ordinal),
+            "stale/cancelled operation checks occur before dispatch and no retry loop is present");
+        Require(!service.Contains("GeneratePiaProviderConfigAsync(tunnelId", StringComparison.Ordinal) &&
+                !service.Contains("SetTunnelEnabledAsync(tunnelId, true", StringComparison.Ordinal),
+            "device assignment does not generate provider configuration or invoke Connect");
+
+        string identityA = "020000000001", identityB = "020000000002", unknownU = "0200000000FE";
+        RouterManager.VpnWireGuardAssignmentState StateWithUnknown(params string[] macs) => State(macs);
+        var removeLastGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown(identityA));
+        VpnDeviceAssignmentResult removeLast = new VpnService(removeLastGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [], [identityA], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(removeLast.IsEmptyEffectiveAssignment && !removeLast.Success && removeLastGateway.SetCalls == 0 &&
+                removeLastGateway.Calls.SequenceEqual(["GetTunnel"]) && removeLast.Message.Contains("Select at least one device", StringComparison.Ordinal) &&
+                removeLast.Message.Contains("router's web interface", StringComparison.Ordinal),
+            "RemoveLastDevice: fresh effective-empty assignment is rejected with actionable zero-device guidance and no mutation");
+
+        var startEmptyGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown());
+        VpnDeviceAssignmentResult startEmpty = new VpnService(startEmptyGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [], [identityA], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(startEmpty.IsEmptyEffectiveAssignment && startEmptyGateway.SetCalls == 0 && startEmptyGateway.Calls.SequenceEqual(["GetTunnel"]),
+            "StartEmptyDeviceAssignment: an already empty effective assignment receives the same safe guidance without mutation");
+
+        var unknownOnlyGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown(identityA, unknownU), StateWithUnknown(unknownU));
+        VpnDeviceAssignmentResult unknownOnly = new VpnService(unknownOnlyGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [], [identityA], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(unknownOnly.Success && !unknownOnly.IsEmptyEffectiveAssignment && unknownOnlyGateway.SetCalls == 1 &&
+                unknownOnlyGateway.LastMacs.SequenceEqual([unknownU], StringComparer.OrdinalIgnoreCase),
+            "UnknownPreservedNotZero: no checked known device is valid when fresh authoritative unknown assignment remains effective");
+
+        var disappearedUnknownGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown(identityA));
+        VpnDeviceAssignmentResult disappearedUnknown = new VpnService(disappearedUnknownGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [], [identityA], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(disappearedUnknown.IsEmptyEffectiveAssignment && disappearedUnknownGateway.SetCalls == 0 &&
+                disappearedUnknownGateway.Calls.SequenceEqual(["GetTunnel"]),
+            "UnknownDisappears: final fresh effective assignment becomes empty and is rejected before set_tunnel");
+
+        var twoToOneGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown(identityA, identityB), StateWithUnknown(identityA));
+        VpnDeviceAssignmentResult twoToOne = new VpnService(twoToOneGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [identityA], [identityA, identityB], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(twoToOne.Success && twoToOneGateway.SetCalls == 1 && !twoToOne.IsEmptyEffectiveAssignment,
+            "TwoToOne: retaining A remains a valid normal assignment");
+
+        var oneToDifferentGateway = new FakeVpnDeviceAssignmentGateway(StateWithUnknown(identityA), StateWithUnknown(identityB));
+        VpnDeviceAssignmentResult oneToDifferent = new VpnService(oneToDifferentGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [identityB], [identityA, identityB], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(oneToDifferent.Success && oneToDifferentGateway.SetCalls == 1 && oneToDifferentGateway.LastMacs.SequenceEqual([identityB], StringComparer.OrdinalIgnoreCase),
+            "RecoveryAfterWarning: selecting B after removing A follows the normal verified assignment path");
+
+        var preserveUnknownGateway = new FakeVpnDeviceAssignmentGateway(
+            StateWithUnknown(identityA, unknownU), StateWithUnknown(identityA, identityB, unknownU));
+        VpnDeviceAssignmentResult preserveUnknown = new VpnService(preserveUnknownGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [identityA, identityB], [identityA, identityB], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(preserveUnknown.Success && preserveUnknownGateway.Calls.SequenceEqual(["GetTunnel", "SetTunnel", "GetTunnel"]) &&
+                preserveUnknownGateway.SetCalls == 1 && preserveUnknownGateway.LastMacs.OrderBy(value => value).SequenceEqual(new[] { identityA, identityB, unknownU }.OrderBy(value => value)),
+            "fresh authoritative unresolved identity is preserved in the single stock-compatible device mutation");
+
+        var staleUnknownGateway = new FakeVpnDeviceAssignmentGateway(
+            StateWithUnknown(identityA), StateWithUnknown(identityA, identityB));
+        VpnDeviceAssignmentResult staleUnknown = new VpnService(staleUnknownGateway, new RouterPilotDevLog())
+            .UpdateSelectedVpnDevicesAsync(991, [identityA, identityB], [identityA, identityB], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(staleUnknown.Success && staleUnknownGateway.SetCalls == 1 && !staleUnknownGateway.LastMacs.Contains(unknownU, StringComparer.OrdinalIgnoreCase),
+            "an unresolved identity absent from fresh authoritative state is not resurrected from the editor snapshot");
+
+        var unknownProjectionTunnel = new VpnTunnelInfo
+        {
+            TunnelId = 991, Enabled = false, Protocol = "WireGuard", FromType = "mac", ToType = "default",
+            RoutingDeviceIdentities = [identityA, unknownU]
+        };
+        var knownInventory = new Dictionary<string, ClientInfo>(StringComparer.OrdinalIgnoreCase)
+        {
+            [identityA] = new ClientInfo { Name = "Known A", AutomaticName = "Known A", MacAddress = "02:00:00:00:00:01" }
+        };
+        VpnTunnelInfo unknownProjection = VpnService.ApplyRoutingPolicy([unknownProjectionTunnel],
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable }, knownInventory, new PassthroughClientDisplayNameService()).Single();
+        Require(unknownProjection.RoutingDevices.Count == 2 && unknownProjection.RoutingDevices[0].DisplayName == "Known A" &&
+                unknownProjection.RoutingDevices[1].DisplayName == "Unknown device 1" && !unknownProjection.RoutingDevices.Any(device => device.DisplayName.Contains(unknownU, StringComparison.Ordinal)),
+            "authoritative known plus unresolved selected-device assignments project as a friendly row plus safe Unknown device 1");
+        VpnTunnelInfo unknownOnlyProjection = VpnService.ApplyRoutingPolicy([
+            new VpnTunnelInfo { TunnelId = 992, Enabled = false, Protocol = "WireGuard", FromType = "mac", ToType = "default", RoutingDeviceIdentities = [unknownU] }],
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable }, new Dictionary<string, ClientInfo>(), new PassthroughClientDisplayNameService()).Single();
+        Require(unknownOnlyProjection.RoutingDevices.Count == 1 && unknownOnlyProjection.RoutingDevices.Single().DisplayName == "Unknown device 1" &&
+                unknownOnlyProjection.InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices,
+            "a disconnected unknown-only authoritative selected-device assignment remains visible rather than appearing empty");
+
+        string unknownU2 = "0200000000FD";
+        VpnTunnelInfo multipleUnknownProjection = VpnService.ApplyRoutingPolicy([
+            new VpnTunnelInfo { TunnelId = 993, Enabled = false, Protocol = "WireGuard", FromType = "mac", ToType = "default", RoutingDeviceIdentities = [identityA, unknownU, "02:00:00:00:00:FE", unknownU2] }],
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable }, knownInventory, new PassthroughClientDisplayNameService()).Single();
+        Require(multipleUnknownProjection.RoutingDevices.Count == 3 &&
+                multipleUnknownProjection.RoutingDevices.Select(device => device.DisplayName).SequenceEqual(["Known A", "Unknown device 1", "Unknown device 2"]),
+            "multiple valid unresolved assignments remain visible with deterministic safe ordinals and normalized duplicates do not create rows");
+
+        var nowKnownInventory = new Dictionary<string, ClientInfo>(knownInventory, StringComparer.OrdinalIgnoreCase)
+        {
+            [unknownU] = new ClientInfo { Name = "Known U", AutomaticName = "Known U", MacAddress = "02:00:00:00:00:FE" }
+        };
+        VpnTunnelInfo unknownBecomesKnown = VpnService.ApplyRoutingPolicy([unknownProjectionTunnel],
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable }, nowKnownInventory, new PassthroughClientDisplayNameService()).Single();
+        Require(unknownBecomesKnown.RoutingDevices.Select(device => device.DisplayName).SequenceEqual(["Known A", "Known U"]),
+            "an inventory refresh upgrades an authoritative unknown assignment to its existing friendly name without a router mutation");
+        var bothKnownInventory = new Dictionary<string, ClientInfo>(knownInventory, StringComparer.OrdinalIgnoreCase)
+        {
+            [identityB] = new ClientInfo { Name = "Known B", AutomaticName = "Known B", MacAddress = "02:00:00:00:00:02" }
+        };
+        VpnTunnelInfo knownBecomesUnknown = VpnService.ApplyRoutingPolicy([
+            new VpnTunnelInfo { TunnelId = 994, Enabled = false, Protocol = "WireGuard", FromType = "mac", ToType = "default", RoutingDeviceIdentities = [identityA, identityB] }],
+            new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable }, knownInventory, new PassthroughClientDisplayNameService()).Single();
+        Require(bothKnownInventory.Count == 2 && knownBecomesUnknown.RoutingDevices.Count == 2 &&
+                knownBecomesUnknown.RoutingDevices[1].DisplayName == "Unknown device 1",
+            "a formerly known but currently unresolved authoritative assignment remains visible as a safe unknown row");
+
+        var newUnknownGateway = new FakeVpnDeviceAssignmentGateway(
+            StateWithUnknown(identityA, unknownU), StateWithUnknown(identityA, identityB, unknownU));
+        RouterPilotDevLog unknownDevLog = new();
+        VpnDeviceAssignmentResult newUnknown = new VpnService(newUnknownGateway, unknownDevLog)
+            .UpdateSelectedVpnDevicesAsync(991, [identityA, identityB], [identityA, identityB], () => true, CancellationToken.None).GetAwaiter().GetResult();
+        Require(newUnknown.Success && newUnknownGateway.LastMacs.Contains(unknownU, StringComparer.OrdinalIgnoreCase) &&
+                !unknownDevLog.Entries.Any(entry => entry.DisplayText.Contains(unknownU, StringComparison.OrdinalIgnoreCase) || entry.DisplayText.Contains("mac_list", StringComparison.OrdinalIgnoreCase)),
+            "an unknown added by the router after editor creation is preserved from fresh state without leaking its identity to Devlog");
+        Require(manager.Contains("ReadNestedStringArray(tunnel, \"from\", \"mac_list\")", StringComparison.Ordinal) &&
+                !xaml.Contains("ClientIdentity", StringComparison.Ordinal) && !xaml.Contains("Identity}", StringComparison.Ordinal),
+            "authoritative tunnel MAC identities are parsed for internal correlation only and are not bound into the assigned-device UI");
+
+        string identityC = "020000000003", identityD = "020000000004", identityE = "020000000005";
+        var pickerInventory = new ClientInventoryState();
+        var inventoryCoordinator = new ClientInventoryCoordinator(pickerInventory, _ => Task.FromResult<IReadOnlyList<ClientInfo>>([
+            new ClientInfo { Name = "Phone", AutomaticName = "Phone", MacAddress = "02:00:00:00:00:01", ConnectionType = "Wi-Fi" },
+            new ClientInfo { Name = "Laptop", AutomaticName = "Laptop", MacAddress = "02:00:00:00:00:02", ConnectionType = "Ethernet" },
+            new ClientInfo { Name = string.Empty, AutomaticName = string.Empty, MacAddress = "02:00:00:00:00:03", ConnectionType = "Wi-Fi" },
+            new ClientInfo { Name = "Tablet", AutomaticName = "Tablet", MacAddress = "02:00:00:00:00:04", ConnectionType = "Wi-Fi" },
+            new ClientInfo { Name = "NAS", AutomaticName = "NAS", MacAddress = "02:00:00:00:00:05", ConnectionType = "Ethernet" },
+            new ClientInfo { Name = "Laptop duplicate", AutomaticName = "Laptop duplicate", MacAddress = "020000000002", ConnectionType = "Ethernet" }
+        ]));
+        Require(inventoryCoordinator.RefreshAuthoritativeInventoryAsync().GetAwaiter().GetResult(),
+            "Manage Devices uses the existing authoritative shared client-inventory reconciler before creating its local editor snapshot");
+        pickerInventory.UpdateAuthoritativePresence(new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+        {
+            [identityA] = true, [identityB] = true, [identityC] = true, [identityD] = false, [identityE] = true
+        });
+        IReadOnlyList<VpnDeviceEditorItem> picker = VpnDeviceEditorProjection.Build(pickerInventory.Snapshot, pickerInventory.PresenceSnapshot,
+            new PassthroughClientDisplayNameService(), [identityA, unknownU]);
+        IReadOnlyList<VpnDeviceEditorItem> editable = picker.Where(item => item.CanEdit).ToList();
+        Require(editable.Count == 5 && editable.Single(item => item.Identity == identityA).IsSelected &&
+                !editable.Single(item => item.Identity == identityB).IsSelected && !editable.Single(item => item.Identity == identityC).IsSelected &&
+                !editable.Single(item => item.Identity == identityE).IsSelected,
+            "full shared inventory supplies every online candidate while authoritative VPN assignment is only the checked-state overlay");
+        Require(editable.Single(item => item.Identity == identityB).StatusDisplay == "Online" && editable.Single(item => item.Identity == identityE).StatusDisplay == "Online" &&
+                editable.Single(item => item.Identity == identityD).StatusDisplay == "Offline" && editable.Single(item => item.Identity == identityC).DisplayName == "Unknown device",
+            "wired, wireless, reliably-known offline, and unnamed shared-inventory clients remain safe picker candidates");
+        Require(picker.Single(item => item.IsUnknownExistingAssignment).DisplayName == "Unknown device 1" &&
+                !picker.Any(item => item.DisplayName.Contains(unknownU, StringComparison.OrdinalIgnoreCase)),
+            "unresolved authoritative assignment is preserved separately from all available inventory candidates without exposing its identity");
+        editable.Single(item => item.Identity == identityC).IsSelected = true;
+        Require(editable.Where(item => item.IsSelected).Select(item => item.Identity).OrderBy(value => value).SequenceEqual(new[] { identityA, identityC }.OrderBy(value => value)) &&
+                openOnly.SetCalls == 0 && openOnly.Calls.Count == 0,
+            "a never-assigned inventory device changes only the local working selection before Apply and no gateway operation occurs");
+        pickerInventory.Update(pickerInventory.Snapshot.Values.ToList());
+        Require(editable.Single(item => item.Identity == identityC).IsSelected && openOnly.SetCalls == 0 && openOnly.Calls.Count == 0,
+            "shared inventory refresh leaves the open editor working copy intact and performs zero VPN mutations");
     }
 
     private static void RunPiaManualSnapshotPresentationTests()

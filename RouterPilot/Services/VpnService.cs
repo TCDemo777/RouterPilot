@@ -15,15 +15,36 @@ public sealed class VpnService : IVpnService
     private readonly ClientInventoryState _clientInventory;
     private readonly IClientDisplayNameService _clientNames;
     private readonly IRouterPilotDevLog _devLog;
+    private readonly IVpnDeviceAssignmentGateway? _deviceAssignmentGateway;
+    private readonly IVpnExistingConfigAssignmentGateway? _existingConfigAssignmentGateway;
+    private readonly IVpnProviderConfigGenerationGateway? _providerConfigGenerationGateway;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public VpnService(IRouterManagerProvider provider, TimelineService timeline, ClientInventoryState clientInventory, IClientDisplayNameService clientNames, IRouterPilotDevLog devLog)
+        : this(provider, timeline, clientInventory, clientNames, devLog, null) { }
+
+    internal VpnService(IRouterManagerProvider provider, TimelineService timeline, ClientInventoryState clientInventory, IClientDisplayNameService clientNames, IRouterPilotDevLog devLog, IVpnDeviceAssignmentGateway? deviceAssignmentGateway)
     {
-        _provider = provider;
+        _provider = provider; _deviceAssignmentGateway = deviceAssignmentGateway;
         _timeline = timeline;
         _clientInventory = clientInventory;
         _clientNames = clientNames;
         _devLog = devLog;
+    }
+    internal VpnService(IVpnDeviceAssignmentGateway deviceAssignmentGateway, IRouterPilotDevLog devLog)
+    {
+        _provider = null!; _timeline = null!; _clientInventory = null!; _clientNames = null!;
+        _devLog = devLog; _deviceAssignmentGateway = deviceAssignmentGateway;
+    }
+    internal VpnService(IVpnExistingConfigAssignmentGateway existingConfigAssignmentGateway, IRouterPilotDevLog devLog)
+    {
+        _provider = null!; _timeline = null!; _clientInventory = null!; _clientNames = null!;
+        _devLog = devLog; _existingConfigAssignmentGateway = existingConfigAssignmentGateway;
+    }
+    internal VpnService(IVpnProviderConfigGenerationGateway providerConfigGenerationGateway, IRouterPilotDevLog devLog)
+    {
+        _provider = null!; _timeline = null!; _clientInventory = null!; _clientNames = null!;
+        _devLog = devLog; _providerConfigGenerationGateway = providerConfigGenerationGateway;
     }
     public async Task<VpnInventorySnapshot> GetInventoryAsync(CancellationToken token)
     {
@@ -59,6 +80,7 @@ public sealed class VpnService : IVpnService
             inventoryState = VpnProfileInventoryState.Unavailable;
         }
         VpnProviderGroupInfo? piaGroup = null;
+        IReadOnlyList<VpnPiaTunnelConfigSelection> piaConfigSelections = [];
         _devLog.Write(RouterPilotDevLogCategory.VPN, operation, "ProviderDiscovery.Start", RouterPilotDevLogLevel.Debug);
         try { piaGroup = await manager.GetPiaProviderGroupAsync(token).ConfigureAwait(false); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -77,7 +99,16 @@ public sealed class VpnService : IVpnService
 #endif
             try
             {
-                IReadOnlyList<RouterManager.VpnPiaTunnelConfigResolution> resolutions = await manager.GetCurrentPiaTunnelConfigResolutionsAsync(piaGroup.GroupId, token).ConfigureAwait(false);
+                piaConfigSelections = await manager.GetPiaTunnelConfigSelectionsAsync(piaGroup.GroupId, token).ConfigureAwait(false);
+                IReadOnlyList<RouterManager.VpnPiaTunnelConfigResolution> resolutions = piaConfigSelections
+                    .Where(selection => selection.State == VpnServerConfigResolutionState.Resolved && selection.CurrentServer?.ExistingConfigId is int configId)
+                    .Select(selection => new RouterManager.VpnPiaTunnelConfigResolution(selection.TunnelId, selection.GroupId,
+                        selection.CurrentServer!.ExistingConfigId!.Value, selection.CurrentServer.CityName, selection.CurrentServer.CountryName))
+                    .ToList();
+                int selectionRequired = piaConfigSelections.Count(selection => selection.State == VpnServerConfigResolutionState.SelectionRequired);
+                _devLog.Write(RouterPilotDevLogCategory.PIA, operation,
+                    $"ConfigResolution state={(selectionRequired > 0 ? "SelectionRequired" : resolutions.Count > 0 ? "Resolved" : "Unavailable")} candidates={piaConfigSelections.Sum(selection => selection.Candidates.Count)}",
+                    RouterPilotDevLogLevel.Info);
 #if DEBUG
                 Debug.WriteLine($"PIA_LINK.ResolutionSucceeded={(resolutions.Count > 0 ? "YES" : "NO")}");
                 RouterManager.VpnPiaTunnelConfigResolution? firstResolution = resolutions.Count == 1 ? resolutions[0] : null;
@@ -193,7 +224,8 @@ public sealed class VpnService : IVpnService
         _devLog.Write(RouterPilotDevLogCategory.VPN, operation, $"TunnelInventory.Parsed tunnels={tunnels.Count}", RouterPilotDevLogLevel.Debug);
         _devLog.Write(RouterPilotDevLogCategory.PIA, operation, $"Link.Result linked={(piaGroup is not null ? "true" : "false")}{(piaGroup is null ? string.Empty : $" group={piaGroup.GroupId}")}", RouterPilotDevLogLevel.Debug);
         _devLog.Write(RouterPilotDevLogCategory.VPN, operation, "Refresh.Completed", RouterPilotDevLogLevel.Info, timing.ElapsedMilliseconds, "Success");
-        return new VpnInventorySnapshot { Tunnels = tunnels, Profiles = Correlate(tunnels, profiles), ProfileInventoryState = inventoryState, PiaProviderGroup = piaGroup };
+        tunnels = ApplyPiaConfigResolution(tunnels, piaConfigSelections);
+        return new VpnInventorySnapshot { Tunnels = tunnels, Profiles = Correlate(tunnels, profiles), ProfileInventoryState = inventoryState, PiaProviderGroup = piaGroup, PiaConfigSelections = piaConfigSelections };
     }
 
     /// <summary>
@@ -203,6 +235,9 @@ public sealed class VpnService : IVpnService
     /// </summary>
     public async Task<IReadOnlyList<VpnTunnelInfo>> EnrichRoutingPolicyAsync(IReadOnlyList<VpnTunnelInfo> tunnels, CancellationToken token)
     {
+        string operation = _devLog.CreateOperationId("VPN-ROUTING");
+        _devLog.Write(RouterPilotDevLogCategory.VPN, operation,
+            "AssignedDeviceResolution.Start", RouterPilotDevLogLevel.Debug);
         VpnRoutingPolicySnapshot routingPolicy;
         IReadOnlyDictionary<string, string> persistentNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         GlClientPresenceSnapshot presence = GlClientPresenceSnapshot.Unavailable;
@@ -251,9 +286,24 @@ public sealed class VpnService : IVpnService
             System.Diagnostics.Debug.WriteLine($"VPN routing policy unavailable; preserving primary tunnel state ({DiagnosticRedactor.FailureCategory(exception)}).");
             routingPolicy = new VpnRoutingPolicySnapshot { State = VpnRoutingPolicyState.Unavailable };
         }
-        return ApplyRoutingPolicy(tunnels, routingPolicy,
+        IReadOnlyList<VpnTunnelInfo> enriched = ApplyRoutingPolicy(tunnels, routingPolicy,
             new Dictionary<string, ClientInfo>(_clientInventory.Snapshot, StringComparer.OrdinalIgnoreCase), _clientNames,
             persistentNames, presence.IsAvailable ? _clientInventory.PresenceSnapshot : null);
+        int assigned = enriched.Sum(tunnel => tunnel.RoutingDevices.Count);
+        int resolved = enriched.Sum(tunnel => tunnel.RoutingDevices.Count(device => device.IsResolved));
+        _devLog.Write(RouterPilotDevLogCategory.VPN, operation,
+            $"AssignedDeviceResolution.Completed mode={DescribeRoutingScope(enriched)} assigned={assigned} resolved={resolved} unknown={assigned - resolved}",
+            RouterPilotDevLogLevel.Debug, outcome: routingPolicy.State.ToString());
+        return enriched;
+    }
+
+    private static string DescribeRoutingScope(IReadOnlyList<VpnTunnelInfo> tunnels)
+    {
+        IReadOnlyList<VpnInternetRoutingScope> scopes = tunnels
+            .Select(tunnel => tunnel.InternetRoutingScope)
+            .Distinct()
+            .ToList();
+        return scopes.Count == 1 ? scopes[0].ToString() : "Mixed";
     }
     public async Task<IReadOnlyList<VpnTunnelInfo>> GetTunnelsAsync(CancellationToken token) => await (await _provider.GetRouterManagerAsync(token)).GetVpnTunnelsAsync(token);
     public async Task<IReadOnlyList<VpnClientProfileInfo>> GetClientProfilesAsync(CancellationToken token)
@@ -333,8 +383,9 @@ public sealed class VpnService : IVpnService
                 trace?.PreGenerationFailure("OperationInvalidated");
                 return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The router profile changed before provider configuration generation." };
             }
-            RouterManager manager = await _provider.GetRouterManagerAsync(token).ConfigureAwait(false);
-            VpnProviderGroupInfo? authoritativePiaGroup = await manager.GetPiaProviderGroupAsync(token).ConfigureAwait(false);
+            RouterManager? manager = _providerConfigGenerationGateway is null ? await _provider.GetRouterManagerAsync(token).ConfigureAwait(false) : null;
+            IVpnProviderConfigGenerationGateway gateway = _providerConfigGenerationGateway ?? new RouterManagerVpnProviderConfigGenerationGateway(manager!);
+            VpnProviderGroupInfo? authoritativePiaGroup = await gateway.GetPiaProviderGroupAsync(token).ConfigureAwait(false);
             if (authoritativePiaGroup is null || authoritativePiaGroup.GroupId != groupId)
                 return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "PIA provider management is unavailable for the current router." };
             trace?.ProviderResolved();
@@ -354,7 +405,7 @@ public sealed class VpnService : IVpnService
             VpnProviderServerCatalogueResult catalogue;
             try
             {
-                catalogue = await manager.GetPiaProviderServerCatalogueAsync(groupId, token).ConfigureAwait(false);
+                catalogue = await gateway.GetPiaProviderServerCatalogueAsync(groupId, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch
@@ -395,7 +446,7 @@ public sealed class VpnService : IVpnService
             trace?.PreGenerationNextStep("PreGenerationAssignmentSnapshot");
             trace?.PreAssignmentTunnelReadAttempted();
             _devLog.Write(RouterPilotDevLogCategory.VPN, "Primary assignment pre-generation read started", RouterPilotDevLogLevel.Trace);
-            RouterManager.VpnWireGuardAssignmentState? beforeAssignment = await manager.GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+            RouterManager.VpnWireGuardAssignmentState? beforeAssignment = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
             trace?.PreAssignmentTunnelReadResult(beforeAssignment is not null);
             trace?.PrimaryPreRead(beforeAssignment);
             List<RouterManager.VpnWireGuardConnectAssociation> preAssignmentReferences = beforeAssignment?.References.Where(reference => reference.GroupId == groupId).ToList() ?? [];
@@ -411,9 +462,12 @@ public sealed class VpnService : IVpnService
             }
 
 #if DEBUG
-            await RecordProviderConfigStageAsync(manager, groupId, "BeforeReset", selection.CountryName, selection.CityName, targetSelection: targetSelection,
-                alternate: null, currentPrimaryConfigId: preAssignmentReference?.ConfigId, oldPrimaryConfigId: preAssignmentReference?.ConfigId, token: token, trace: trace!).ConfigureAwait(false);
-            await RecordProviderTunnelStageAsync(manager, "BeforeReset", tunnelId, preAssignmentReference?.ConfigId, null, null, token, trace!).ConfigureAwait(false);
+            if (manager is not null)
+            {
+                await RecordProviderConfigStageAsync(manager, groupId, "BeforeReset", selection.CountryName, selection.CityName, targetSelection: targetSelection,
+                    alternate: null, currentPrimaryConfigId: preAssignmentReference?.ConfigId, oldPrimaryConfigId: preAssignmentReference?.ConfigId, token: token, trace: trace!).ConfigureAwait(false);
+                await RecordProviderTunnelStageAsync(manager, "BeforeReset", tunnelId, preAssignmentReference?.ConfigId, null, null, token, trace!).ConfigureAwait(false);
+            }
 #endif
 
             // Stock same-location reselection proves one target generation is
@@ -435,7 +489,7 @@ public sealed class VpnService : IVpnService
                 trace?.PreGenerationFailure("OperationInvalidated");
                 return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The router profile changed before provider configuration generation." };
             }
-            if (!await manager.GeneratePiaProviderConfigAsync(groupId, targetSelection, token, trace).ConfigureAwait(false))
+            if (!await gateway.GenerateAsync(groupId, targetSelection, token, trace).ConfigureAwait(false))
             {
                 trace?.GenerationCallResult(false);
                 trace?.PreGenerationFailure("GenerationCallFailed");
@@ -443,22 +497,25 @@ public sealed class VpnService : IVpnService
             }
             trace?.GenerationCallResult(true);
             _devLog.Write(RouterPilotDevLogCategory.PIA, "Provider config generation completed");
-            IReadOnlyList<VpnProviderGeneratedConfigInfo> generated = await manager.GetPiaGeneratedConfigsAsync(groupId, token).ConfigureAwait(false);
+            IReadOnlyList<VpnProviderGeneratedConfigInfo> generated = await gateway.GetConfigsAsync(groupId, token).ConfigureAwait(false);
             List<VpnProviderGeneratedConfigInfo> matches = generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, targetSelection)).ToList();
             VpnProviderGeneratedConfigInfo? selectedMatch = matches.Count == 1 ? matches[0] : null;
             trace?.PostGenerationMatch(matches.Count, groupId, selectedMatch?.PeerId, selectedMatch?.Name, selectedMatch?.Location);
             trace?.ProviderLifecycleAfter(generated.Count, matches.Count, selectedMatch?.PeerId, preAssignmentReference?.ConfigId,
                 preAssignmentReference is { ConfigId: > 0 } && generated.Any(config => config.PeerId == preAssignmentReference.ConfigId));
 #if DEBUG
-            trace?.ProviderConfigStage("AfterTargetGenerate", true, generated.Count,
-                generated.Count(config => GeneratedConfigMatchesLogicalLocation(config, selection.CountryName, selection.CityName)),
-                resetServer is null ? null : generated.Count(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)),
-                matches.Count, preAssignmentReference?.ConfigId,
-                resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
-                selectedMatch?.PeerId, preAssignmentReference?.ConfigId);
-            await RecordProviderTunnelStageAsync(manager, "AfterTargetGenerate", tunnelId, preAssignmentReference?.ConfigId,
-                resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
-                selectedMatch?.PeerId, token, trace!).ConfigureAwait(false);
+            if (manager is not null)
+            {
+                trace?.ProviderConfigStage("AfterTargetGenerate", true, generated.Count,
+                    generated.Count(config => GeneratedConfigMatchesLogicalLocation(config, selection.CountryName, selection.CityName)),
+                    resetServer is null ? null : generated.Count(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)),
+                    matches.Count, preAssignmentReference?.ConfigId,
+                    resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
+                    selectedMatch?.PeerId, preAssignmentReference?.ConfigId);
+                await RecordProviderTunnelStageAsync(manager, "AfterTargetGenerate", tunnelId, preAssignmentReference?.ConfigId,
+                    resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
+                    selectedMatch?.PeerId, token, trace!).ConfigureAwait(false);
+            }
 #endif
             if (matches.Count != 1)
             {
@@ -480,7 +537,7 @@ public sealed class VpnService : IVpnService
             // during generation. The pre-generation state remains authoritative
             // for the assignment policy and old config identity is never reused.
             trace?.NextStep("PostGenerationTunnelRead");
-            RouterManager.VpnWireGuardAssignmentState? postGenerationState = await manager.GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+            RouterManager.VpnWireGuardAssignmentState? postGenerationState = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
             if (!operationStillCurrent())
             {
                 trace?.PostGenerationTransition(false, "OperationInvalidated");
@@ -489,7 +546,7 @@ public sealed class VpnService : IVpnService
             }
             if (postGenerationState is null)
             {
-                IReadOnlyList<VpnTunnelInfo> transitionalTunnels = await manager.GetVpnTunnelsAsync(token).ConfigureAwait(false);
+                IReadOnlyList<VpnTunnelInfo> transitionalTunnels = await gateway.GetTunnelsAsync(token).ConfigureAwait(false);
                 if (!operationStillCurrent())
                 {
                     trace?.PostGenerationTransition(false, "OperationInvalidated");
@@ -524,18 +581,19 @@ public sealed class VpnService : IVpnService
             }
             trace?.NextStep("Assignment");
 #if DEBUG
-            await RecordProviderTunnelStageAsync(manager, "BeforeFinalAssignment", tunnelId, preAssignmentReference?.ConfigId,
-                resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
-                currentConfigId, token, trace!).ConfigureAwait(false);
+            if (manager is not null)
+                await RecordProviderTunnelStageAsync(manager, "BeforeFinalAssignment", tunnelId, preAssignmentReference?.ConfigId,
+                    resetServer is null ? null : generated.Where(config => RouterManager.GeneratedConfigMatchesSelection(config, resetServer)).Select(config => (int?)config.PeerId).SingleOrDefault(),
+                    currentConfigId, token, trace!).ConfigureAwait(false);
 #endif
             _devLog.Write(RouterPilotDevLogCategory.VPN, "Primary assignment dispatch started");
-            if (!await manager.AssignWireGuardProviderConfigAsync(beforeAssignment!, groupId, currentConfigId, token, trace).ConfigureAwait(false))
+            if (!await gateway.AssignAsync(beforeAssignment!, groupId, currentConfigId, token, trace).ConfigureAwait(false))
             {
                 trace?.AssignmentEligibility(false, "AssignmentCallFailed");
                 trace?.PrimaryVerification(false, "RpcFailed");
                 return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "RouterPilot could not assign the generated server configuration to the Primary Tunnel." };
             }
-            RouterManager.VpnWireGuardAssignmentState? afterAssignment = await manager.GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+            RouterManager.VpnWireGuardAssignmentState? afterAssignment = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
             trace?.PrimaryPostRead(afterAssignment);
             _devLog.Write(RouterPilotDevLogCategory.VPN, "Primary assignment post-read completed", RouterPilotDevLogLevel.Trace);
             List<RouterManager.VpnWireGuardConnectAssociation> postAssignmentReferences = afterAssignment?.References.Where(reference => reference.GroupId == groupId).ToList() ?? [];
@@ -545,7 +603,7 @@ public sealed class VpnService : IVpnService
             {
                 try
                 {
-                    IReadOnlyList<VpnProviderGeneratedConfigInfo> postAssignmentConfigs = await manager.GetPiaGeneratedConfigsAsync(groupId, token).ConfigureAwait(false);
+                    IReadOnlyList<VpnProviderGeneratedConfigInfo> postAssignmentConfigs = await gateway.GetConfigsAsync(groupId, token).ConfigureAwait(false);
                     List<VpnProviderGeneratedConfigInfo> postAssignmentMatches = postAssignmentReference is null
                         ? [] : postAssignmentConfigs.Where(config => config.PeerId == postAssignmentReference.ConfigId).ToList();
                     VpnProviderGeneratedConfigInfo? postAssignmentMatch = postAssignmentMatches.Count == 1 ? postAssignmentMatches[0] : null;
@@ -576,11 +634,79 @@ public sealed class VpnService : IVpnService
         finally { _gate.Release(); }
     }
 
+    // Resolves an explicitly chosen, already existing router configuration.
+    // This intentionally does not call provider generation: it only performs
+    // the proven Primary assignment followed by authoritative readback.
+    public async Task<VpnProviderConfigGenerationResult> ApplyExistingPiaProviderConfigAsync(int tunnelId, int groupId, VpnProviderServerInfo selection, Func<bool> operationStillCurrent, CancellationToken token)
+    {
+        if (selection.ExistingConfigId is not int selectedId || selectedId <= 0 || selection.GroupId != groupId)
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "Choose a current server configuration before applying." };
+        await _gate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (!operationStillCurrent()) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The router profile changed before server selection could be applied." };
+            if (_existingConfigAssignmentGateway is not null)
+                return await ApplyExistingPiaProviderConfigViaGatewayAsync(_existingConfigAssignmentGateway, tunnelId, groupId, selection, operationStillCurrent, token).ConfigureAwait(false);
+            RouterManager manager = await _provider.GetRouterManagerAsync(token).ConfigureAwait(false);
+            RouterManager.VpnWireGuardAssignmentState? before = await manager.GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+            VpnTunnelInfo? currentTunnel = await ReadDisconnectedPiaTunnelAsync(manager, tunnelId, groupId, token).ConfigureAwait(false);
+            bool eligible = before is not null && !before.Enabled && before.IsSupportedRouting && currentTunnel is not null;
+            if (!eligible) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "Disconnect this WireGuard tunnel before applying a server selection." };
+            IReadOnlyList<VpnProviderGeneratedConfigInfo> fresh = await manager.GetPiaGeneratedConfigsAsync(groupId, token).ConfigureAwait(false);
+            // The authoritative config identity, not the ComboBox position or
+            // friendly location text, is the only valid revalidation key.
+            VpnProviderGeneratedConfigInfo? selected = fresh.SingleOrDefault(config => config.PeerId == selectedId);
+            if (selected is null) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The selected server changed on the router. Review the available servers and choose one again." };
+            if (!operationStillCurrent()) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The router profile changed before server selection could be applied." };
+            _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.ApplyDispatch", RouterPilotDevLogLevel.Info);
+            if (!await manager.AssignWireGuardProviderConfigAsync(before!, groupId, selectedId, token).ConfigureAwait(false))
+                return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "RouterPilot could not apply the selected server to the Primary Tunnel." };
+            RouterManager.VpnWireGuardAssignmentState? after = await manager.GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+            bool verified = RouterManager.VerifyWireGuardProviderAssignment(before, after, groupId, selectedId);
+            if (!verified) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "RouterPilot could not verify the selected server assignment. Review the router VPN configuration before connecting." };
+            _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.Applied", RouterPilotDevLogLevel.Info);
+            return new VpnProviderConfigGenerationResult { Success = true, TunnelId = tunnelId, GeneratedConfigVerified = true, AuthoritativeServer = selection, Message = "Selected server was applied to the Primary Tunnel. Connect when ready." };
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = $"Server selection is unavailable ({DiagnosticRedactor.FailureCategory(exception)})." };
+        }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<VpnProviderConfigGenerationResult> ApplyExistingPiaProviderConfigViaGatewayAsync(
+        IVpnExistingConfigAssignmentGateway gateway, int tunnelId, int groupId, VpnProviderServerInfo selection,
+        Func<bool> operationStillCurrent, CancellationToken token)
+    {
+        int selectedId = selection.ExistingConfigId!.Value;
+        RouterManager.VpnWireGuardAssignmentState? before = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
+        if (!operationStillCurrent() || before is null || before.Enabled || !before.IsSupportedRouting)
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "Disconnect this WireGuard tunnel before applying a server selection." };
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> fresh = await gateway.GetConfigsAsync(groupId, token).ConfigureAwait(false);
+        if (fresh.Count(config => config.PeerId == selectedId) != 1)
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The selected server changed on the router. Review the available servers and choose one again." };
+        if (!operationStillCurrent()) return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "The router profile changed before server selection could be applied." };
+        _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.ApplyDispatch", RouterPilotDevLogLevel.Info);
+        if (!await gateway.AssignAsync(before, groupId, selectedId, token).ConfigureAwait(false))
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "RouterPilot could not apply the selected server to the Primary Tunnel." };
+        RouterManager.VpnWireGuardAssignmentState? after = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
+        if (!RouterManager.VerifyWireGuardProviderAssignment(before, after, groupId, selectedId))
+            return new VpnProviderConfigGenerationResult { TunnelId = tunnelId, Message = "RouterPilot could not verify the selected server assignment. Review the router VPN configuration before connecting." };
+        _devLog.Write(RouterPilotDevLogCategory.PIA, "ServerSelection.Applied", RouterPilotDevLogLevel.Info);
+        return new VpnProviderConfigGenerationResult { Success = true, TunnelId = tunnelId, GeneratedConfigVerified = true, AuthoritativeServer = selection, Message = "Selected server was applied to the Primary Tunnel. Connect when ready." };
+    }
+
     private static async Task<VpnTunnelInfo?> ReadDisconnectedPiaTunnelAsync(RouterManager manager, int tunnelId, int groupId, CancellationToken token)
     {
         List<VpnTunnelInfo> tunnels = (await manager.GetVpnTunnelsAsync(token).ConfigureAwait(false)).Where(tunnel => tunnel.TunnelId == tunnelId).ToList();
-        return tunnels.Count == 1 && !tunnels[0].Enabled && string.Equals(tunnels[0].Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) && tunnels[0].ProfileGroupIds.Contains(groupId)
-            ? tunnels[0] : null;
+        if (tunnels.Count != 1 || tunnels[0].Enabled) return null;
+        VpnTunnelInfo tunnel = tunnels[0];
+        bool assignedWireGuard = string.Equals(tunnel.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) && tunnel.ProfileGroupIds.Contains(groupId);
+        bool clearedPrimary = string.Equals(tunnel.Protocol, "Unknown", StringComparison.OrdinalIgnoreCase) &&
+            tunnel.ProfileGroupIds.Count == 0 && string.Equals(tunnel.FromType, "mac", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(tunnel.ToType, "default", StringComparison.OrdinalIgnoreCase);
+        return assignedWireGuard || clearedPrimary ? tunnel : null;
     }
 
     internal static VpnProviderServerResolution ResolveLogicalProviderServer(
@@ -783,6 +909,28 @@ public sealed class VpnService : IVpnService
         return result;
     }
 
+    internal static IReadOnlyList<VpnTunnelInfo> ApplyPiaConfigResolution(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnPiaTunnelConfigSelection> selections) => tunnels.Select(tunnel =>
+    {
+        VpnPiaTunnelConfigSelection? selection = selections.SingleOrDefault(item => item.TunnelId == tunnel.TunnelId);
+        bool clearedPrimaryVia = selection?.State == VpnServerConfigResolutionState.SelectionRequired &&
+            string.Equals(tunnel.Protocol, "Unknown", StringComparison.OrdinalIgnoreCase) && tunnel.ProfileGroupIds.Count == 0;
+        return selection is null ? tunnel : new VpnTunnelInfo
+        {
+            Id = tunnel.Id, TunnelId = tunnel.TunnelId, Name = tunnel.Name, Enabled = tunnel.Enabled, KillSwitch = tunnel.KillSwitch,
+            Protocol = clearedPrimaryVia ? "WireGuard" : tunnel.Protocol, InterfaceName = tunnel.InterfaceName,
+            ProfileGroupIds = clearedPrimaryVia ? [selection.GroupId] : tunnel.ProfileGroupIds,
+            SelectedProfileGroupId = tunnel.SelectedProfileGroupId, SelectedProfileGroupExists = tunnel.SelectedProfileGroupExists,
+            ActiveProfileName = tunnel.ActiveProfileName, LinkedProfilesDisplay = tunnel.LinkedProfilesDisplay,
+            ConfiguredProfileName = tunnel.ConfiguredProfileName, ConfiguredLocation = selection.CurrentServer?.LocationDisplay ?? tunnel.ConfiguredLocation,
+            FromType = tunnel.FromType, ToType = tunnel.ToType, Masquerade = tunnel.Masquerade, LocalAccess = tunnel.LocalAccess,
+            ServicePolicy = tunnel.ServicePolicy, RoutingPolicyState = tunnel.RoutingPolicyState, InternetRoutingScope = tunnel.InternetRoutingScope,
+            RoutingDeviceIdentities = tunnel.RoutingDeviceIdentities, RoutingDevices = tunnel.RoutingDevices, ServerConfigCount = tunnel.ServerConfigCount,
+            ServerConfigResolutionState = selection.State, ServerCandidateCount = selection.Candidates.Count, LiveStatus = tunnel.LiveStatus,
+            ConfigurationHealth = tunnel.ConfigurationHealth, HasConnectionAttemptFailure = tunnel.HasConnectionAttemptFailure,
+            HasWireGuardHandshakeFailure = tunnel.HasWireGuardHandshakeFailure, TransitionIntent = tunnel.TransitionIntent
+        };
+    }).ToList();
+
     internal static IReadOnlyList<VpnClientProfileInfo> Correlate(IReadOnlyList<VpnTunnelInfo> tunnels, IReadOnlyList<VpnClientProfileInfo> profiles) => profiles.Select(profile =>
     {
         List<VpnTunnelInfo> usedBy = tunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
@@ -801,8 +949,15 @@ public sealed class VpnService : IVpnService
         return tunnels.Select(tunnel =>
         {
             policies.TryGetValue(tunnel.TunnelId, out VpnTunnelRoutingPolicy? policy);
-            IReadOnlyList<string> identities = policy?.DeviceIdentities ?? [];
-            IReadOnlyList<VpnRoutingDeviceAssignment> devices = identities.Select((identity, index) =>
+            bool authoritativeSelectedDevices = string.Equals(tunnel.FromType, "mac", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(tunnel.ToType, "default", StringComparison.OrdinalIgnoreCase);
+            IReadOnlyList<string> identities = (authoritativeSelectedDevices ? tunnel.RoutingDeviceIdentities : policy?.DeviceIdentities ?? [])
+                .Select(ClientIdentity.NormalizeHexMac)
+                .Where(identity => identity.Length == 12)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            int unknownOrdinal = 0;
+            IReadOnlyList<VpnRoutingDeviceAssignment> devices = identities.Select(identity =>
             {
                 string normalizedIdentity = ClientIdentity.NormalizeHexMac(identity);
                 bool resolved = clients.TryGetValue(normalizedIdentity, out ClientInfo? client);
@@ -818,14 +973,63 @@ public sealed class VpnService : IVpnService
                     // Do not expose a raw MAC when a device has not appeared
                     // in the existing bulk inventory. The stable identifier is
                     // retained for correlation but stays out of the UI.
-                    DisplayName = hasDisplayName ? displayName : $"Unknown device {index + 1}",
+                    DisplayName = hasDisplayName ? displayName : $"Unknown device {++unknownOrdinal}",
                     IsResolved = resolved || hasDisplayName,
                     Presence = devicePresence
                 };
                 return VpnRoutingDeviceAssignment.WithTunnelConnection(assignment, tunnel.LiveStatus?.IsConnected == true);
             }).ToList();
-            return CopyWithRouting(tunnel, snapshot.State, policy?.Scope ?? VpnInternetRoutingScope.Unknown, identities, devices);
+            return CopyWithRouting(tunnel,
+                authoritativeSelectedDevices ? VpnRoutingPolicyState.Available : snapshot.State,
+                authoritativeSelectedDevices ? VpnInternetRoutingScope.SelectedDevices : policy?.Scope ?? VpnInternetRoutingScope.Unknown,
+                identities, devices);
         }).ToList();
+    }
+
+    public async Task<VpnDeviceAssignmentResult> UpdateSelectedVpnDevicesAsync(int tunnelId, IReadOnlyList<string> selectedKnownIdentities, IReadOnlyList<string> knownEditableIdentities, Func<bool> operationStillCurrent, CancellationToken token)
+    {
+        string operation = _devLog.CreateOperationId("VPN-DEVICES");
+        IReadOnlyList<string> selected = selectedKnownIdentities.Select(ClientIdentity.NormalizeHexMac).Where(identity => identity.Length == 12).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        IReadOnlyList<string> known = knownEditableIdentities.Select(ClientIdentity.NormalizeHexMac).Where(identity => identity.Length == 12).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        _devLog.Write(RouterPilotDevLogCategory.VPN, operation, $"AssignedDevices.ApplyStarted selected={selected.Count}", RouterPilotDevLogLevel.Info);
+        if (selectedKnownIdentities.Any(identity => ClientIdentity.NormalizeHexMac(identity).Length != 12) || !operationStillCurrent())
+            return new VpnDeviceAssignmentResult { TunnelId = tunnelId, Message = "VPN device assignments changed or are not supported. Refresh and review the current configuration." };
+        await _gate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            IVpnDeviceAssignmentGateway gateway = _deviceAssignmentGateway ?? new RouterManagerVpnDeviceAssignmentGateway(_provider);
+            RouterManager.VpnWireGuardAssignmentState? before = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
+            if (!operationStillCurrent() || before is null || before.TunnelId <= 0 || before.Enabled || !before.IsSupportedRouting || before.References.Count == 0)
+                return new VpnDeviceAssignmentResult { TunnelId = tunnelId, Message = "The VPN configuration changed. Refresh and review device assignments again." };
+            IReadOnlySet<string> knownSet = known.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<string> freshUnknown = before.MacList.Select(ClientIdentity.NormalizeHexMac)
+                .Where(identity => identity.Length == 12 && !knownSet.Contains(identity))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            IReadOnlyList<string> effective = selected.Concat(freshUnknown).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (effective.Count == 0)
+            {
+                _devLog.Write(RouterPilotDevLogCategory.VPN, operation, "AssignedDevices.ApplyRejected reason=empty-effective-assignment", RouterPilotDevLogLevel.Warn);
+                return new VpnDeviceAssignmentResult
+                {
+                    TunnelId = tunnelId,
+                    IsEmptyEffectiveAssignment = true,
+                    Message = "RouterPilot cannot apply VPN device routing with no devices selected. Select at least one device to continue. If you want to remove all devices from VPN routing or change the routing mode, use the router's web interface."
+                };
+            }
+            _devLog.Write(RouterPilotDevLogCategory.VPN, operation, $"AssignedDevices.ApplyDispatch selected={effective.Count}", RouterPilotDevLogLevel.Debug);
+            if (!await gateway.SetTunnelAsync(before, effective, token).ConfigureAwait(false))
+                return new VpnDeviceAssignmentResult { TunnelId = tunnelId, Message = "RouterPilot could not update VPN device assignments." };
+            RouterManager.VpnWireGuardAssignmentState? after = await gateway.GetTunnelAsync(tunnelId, token).ConfigureAwait(false);
+            bool verified = operationStillCurrent() && after is not null && !after.Enabled && after.TunnelId == before.TunnelId && after.IsSupportedRouting &&
+                before.ToType == after.ToType && before.References.SequenceEqual(after.References) &&
+                after.MacList.Select(ClientIdentity.NormalizeHexMac).OrderBy(value => value).SequenceEqual(effective.OrderBy(value => value));
+            _devLog.Write(RouterPilotDevLogCategory.VPN, operation, verified ? $"AssignedDevices.ApplyVerified assigned={effective.Count}" : "AssignedDevices.ApplyFailed reason=VerificationFailed", verified ? RouterPilotDevLogLevel.Info : RouterPilotDevLogLevel.Warn);
+            return new VpnDeviceAssignmentResult { Success = verified, TunnelId = tunnelId, Message = verified ? "Assigned devices updated." : "Device assignments could not be verified. RouterPilot refreshed the current VPN configuration." };
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch { return new VpnDeviceAssignmentResult { TunnelId = tunnelId, Message = "VPN device assignment is unavailable." }; }
+        finally { _gate.Release(); }
     }
 
     internal static VpnTunnelInfo CopyWithRouting(VpnTunnelInfo tunnel, VpnRoutingPolicyState state, VpnInternetRoutingScope scope,
@@ -837,7 +1041,7 @@ public sealed class VpnService : IVpnService
         ActiveProfileName = tunnel.ActiveProfileName, LinkedProfilesDisplay = tunnel.LinkedProfilesDisplay,
         ConfiguredProfileName = tunnel.ConfiguredProfileName, ConfiguredLocation = tunnel.ConfiguredLocation,
         FromType = tunnel.FromType, ToType = tunnel.ToType, Masquerade = tunnel.Masquerade, LocalAccess = tunnel.LocalAccess,
-        ServicePolicy = tunnel.ServicePolicy, ServerConfigCount = tunnel.ServerConfigCount, LiveStatus = tunnel.LiveStatus,
+        ServicePolicy = tunnel.ServicePolicy, ServerConfigCount = tunnel.ServerConfigCount, ServerConfigResolutionState = tunnel.ServerConfigResolutionState, ServerCandidateCount = tunnel.ServerCandidateCount, LiveStatus = tunnel.LiveStatus,
         ConfigurationHealth = tunnel.ConfigurationHealth, HasConnectionAttemptFailure = tunnel.HasConnectionAttemptFailure,
         HasWireGuardHandshakeFailure = tunnel.HasWireGuardHandshakeFailure,
         TransitionIntent = tunnel.TransitionIntent, RoutingPolicyState = state, InternetRoutingScope = scope,

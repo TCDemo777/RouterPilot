@@ -36,11 +36,22 @@ public sealed class ClientInventoryCoordinator
 
     public async Task<bool> EnsureAuthoritativeInventoryAsync(CancellationToken token = default)
     {
-        if (_loaded) return true;
+        return await LoadAuthoritativeInventoryAsync(forceRefresh: false, token).ConfigureAwait(false);
+    }
+
+    /// <summary>Refreshes the existing shared LAN client inventory for a read-only consumer.</summary>
+    public async Task<bool> RefreshAuthoritativeInventoryAsync(CancellationToken token = default)
+    {
+        return await LoadAuthoritativeInventoryAsync(forceRefresh: true, token).ConfigureAwait(false);
+    }
+
+    private async Task<bool> LoadAuthoritativeInventoryAsync(bool forceRefresh, CancellationToken token)
+    {
+        if (!forceRefresh && _loaded) return true;
         await _gate.WaitAsync(token);
         try
         {
-            if (_loaded) return true;
+            if (!forceRefresh && _loaded) return true;
 
             if (_testReconciliation is not null)
             {

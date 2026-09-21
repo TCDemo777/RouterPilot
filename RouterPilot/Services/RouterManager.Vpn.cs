@@ -453,14 +453,22 @@ public partial class RouterManager
         JsonElement via = tunnel.TryGetProperty("via", out JsonElement viaValue) && viaValue.ValueKind == JsonValueKind.Object ? viaValue : default;
         JsonElement from = tunnel.TryGetProperty("from", out JsonElement fromValue) && fromValue.ValueKind == JsonValueKind.Object ? fromValue : default;
         JsonElement to = tunnel.TryGetProperty("to", out JsonElement toValue) && toValue.ValueKind == JsonValueKind.Object ? toValue : default;
-        if (tunnelId <= 0 || !string.Equals(ReadString(via, "type"), "wireguard", StringComparison.OrdinalIgnoreCase)) return null;
+        string viaType = ReadString(via, "type");
+        bool hasViaConfigs = via.TryGetProperty("configs", out JsonElement existingConfigs) && existingConfigs.ValueKind == JsonValueKind.Array && existingConfigs.GetArrayLength() > 0;
+        bool clearedPrimaryVia = string.IsNullOrWhiteSpace(viaType) && !hasViaConfigs;
+        if (tunnelId <= 0 || (!string.Equals(viaType, "wireguard", StringComparison.OrdinalIgnoreCase) && !clearedPrimaryVia)) return null;
         IReadOnlyList<VpnWireGuardConnectAssociation> references = via.TryGetProperty("configs", out JsonElement configs) && configs.ValueKind == JsonValueKind.Array
             ? configs.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).Select(item =>
                 item.TryGetProperty("id_list", out JsonElement ids) && ids.ValueKind == JsonValueKind.Array && ids.GetArrayLength() == 1 && ids[0].TryGetInt32(out int id) && id > 0
                     ? new VpnWireGuardConnectAssociation(ReadInt(item, "group_id"), id) : null).Where(item => item is not null).Cast<VpnWireGuardConnectAssociation>().Where(item => item.GroupId > 0).ToList() : [];
         IReadOnlyList<string> macs = string.Equals(ReadString(from, "type"), "mac", StringComparison.OrdinalIgnoreCase) && from.TryGetProperty("mac_list", out JsonElement values) && values.ValueKind == JsonValueKind.Array
             ? values.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString()!.Trim()).Where(value => value.Length > 0).ToList() : [];
-        bool supported = macs.Count > 0 && string.Equals(ReadString(to, "type"), "default", StringComparison.OrdinalIgnoreCase);
+        // Stock GL.iNet leaves via empty when the disconnected Primary has no
+        // current provider config.  Its mac/default routing is still an
+        // authoritative, safe base for an explicit Primary assignment.
+        bool supported = !ReadBool(tunnel, "enabled") && macs.Count > 0 &&
+            string.Equals(ReadString(to, "type"), "default", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(viaType, "wireguard", StringComparison.OrdinalIgnoreCase) || clearedPrimaryVia);
         return new VpnWireGuardAssignmentState(tunnelId, ReadBool(tunnel, "enabled"), references, macs, "mac", "default", supported);
     }
 
@@ -480,6 +488,25 @@ public partial class RouterManager
     internal sealed record WireGuardAssignmentTo([property: JsonPropertyName("type")] string Type);
     internal sealed record WireGuardAssignmentVia([property: JsonPropertyName("type")] string Type, [property: JsonPropertyName("configs")] WireGuardAssignmentConfig[] Configs);
     internal sealed record WireGuardAssignmentConfig([property: JsonPropertyName("group_id")] int GroupId, [property: JsonPropertyName("id_list")] int[] IdList);
+
+    // Generic selected-device routing mutation. It intentionally supports
+    // only the already-proven WireGuard/mac/default structural contract and
+    // preserves the current via/config association read from get_tunnel.
+    internal async Task<VpnWireGuardAssignmentState?> GetSelectedDeviceAssignmentStateAsync(int tunnelId, CancellationToken token) =>
+        await GetWireGuardAssignmentStateAsync(tunnelId, token).ConfigureAwait(false);
+
+    internal async Task<bool> SetSelectedDeviceAssignmentAsync(VpnWireGuardAssignmentState state, IReadOnlyList<string> macs, CancellationToken token)
+    {
+        if (state.Enabled || !state.IsSupportedRouting || state.References.Count == 0 || macs.Count == 0) return false;
+        WireGuardProviderAssignmentRequest request = new(
+            new WireGuardAssignmentFrom("mac", macs.ToArray()),
+            new WireGuardAssignmentTo(state.ToType),
+            state.TunnelId,
+            new WireGuardAssignmentVia("wireguard", state.References.Select(reference => new WireGuardAssignmentConfig(reference.GroupId, [reference.ConfigId])).ToArray()));
+        string sid = await _sessionService.GetAdminTokenAsync(token).ConfigureAwait(false);
+        using JsonDocument document = await _sessionService.CallAsync(sid, "vpn-client", "set_tunnel", request, token).ConfigureAwait(false);
+        return !document.RootElement.TryGetProperty("error", out _) && document.RootElement.TryGetProperty("result", out _);
+    }
 
     // Temporary harness-only incident projection. It exposes structural kinds,
     // counts, and safe numeric config references only; raw tunnel JSON and all
@@ -687,6 +714,125 @@ public partial class RouterManager
         return resolutions;
     }
 
+    // The configured candidates and the currently referenced candidate are
+    // deliberately separate. A tunnel with several candidates but no single
+    // authoritative reference is an actionable SelectionRequired state.
+    internal async Task<IReadOnlyList<VpnPiaTunnelConfigSelection>> GetPiaTunnelConfigSelectionsAsync(int groupId, CancellationToken token)
+    {
+        string sid = await _sessionService.GetAdminTokenAsync(token).ConfigureAwait(false);
+        using JsonDocument document = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.GetTunnels, cancellationToken: token).ConfigureAwait(false);
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> configs = await GetPiaGeneratedConfigsAsync(groupId, token).ConfigureAwait(false);
+        return ParsePiaTunnelConfigSelections(document.RootElement, groupId, configs);
+    }
+
+    // Temporary read-only incident projection. Values and identifiers are
+    // intentionally omitted: this exists only to establish response shape
+    // and count boundaries for the multiple-selection state.
+    internal async Task<IReadOnlyList<string>> GetVpnConfigCandidateShapeLinesAsync(CancellationToken token)
+    {
+        VpnProviderGroupInfo? pia = await GetPiaProviderGroupAsync(token).ConfigureAwait(false);
+        var lines = new List<string> { $"piaGroupResolved={(pia is not null ? "true" : "false")}" };
+        if (pia is null) return lines;
+        string sid = await _sessionService.GetAdminTokenAsync(token).ConfigureAwait(false);
+        using JsonDocument tunnelDocument = await _sessionService.CallVpnAsync(sid, VpnRpcOperation.GetTunnels, cancellationToken: token).ConfigureAwait(false);
+        if (!TryResultArray(tunnelDocument.RootElement, "tunnels", out JsonElement tunnels)) return [.. lines, "tunnelAvailable=false", "configListEntryCount=0", "candidateCount=0", "resolution=Unavailable", "currentResolved=false"];
+        List<JsonElement> wireGuard = tunnels.EnumerateArray().Where(tunnel => tunnel.ValueKind == JsonValueKind.Object && string.Equals(ReadNestedString(tunnel, "via", "type"), "wireguard", StringComparison.OrdinalIgnoreCase)).ToList();
+        lines.Add($"tunnelCount={tunnels.GetArrayLength()}");
+        lines.Add($"wireGuardTunnelCount={wireGuard.Count}");
+        int tunnelIndex = 0;
+        foreach (JsonElement item in tunnels.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object))
+        {
+            string viaType = (ReadNestedString(item, "via", "type") ?? string.Empty).ToLowerInvariant();
+            lines.Add($"tunnel[{tunnelIndex}].viaType={(viaType == "wireguard" ? "wireguard" : string.IsNullOrEmpty(viaType) ? "missing" : "other")}");
+            lines.Add($"tunnel[{tunnelIndex}].enabled={ReadBool(item, "enabled").ToString().ToLowerInvariant()}");
+            tunnelIndex++;
+        }
+        JsonElement? relevant = wireGuard.FirstOrDefault(tunnel => tunnel.TryGetProperty("via", out JsonElement via) && via.ValueKind == JsonValueKind.Object &&
+            via.TryGetProperty("configs", out JsonElement refs) && refs.ValueKind == JsonValueKind.Array && refs.EnumerateArray().Any(reference => reference.ValueKind == JsonValueKind.Object && ReadInt(reference, "group_id") == pia.GroupId));
+        JsonElement? tunnel = relevant ?? wireGuard.FirstOrDefault();
+        bool available = tunnel is { ValueKind: JsonValueKind.Object };
+        JsonElement primaryTunnel = available ? tunnel!.Value : tunnels.EnumerateArray().FirstOrDefault(item => item.ValueKind == JsonValueKind.Object);
+        bool primaryAvailable = primaryTunnel.ValueKind == JsonValueKind.Object;
+        int referenceCount = primaryAvailable && primaryTunnel.TryGetProperty("via", out JsonElement tunnelVia) && tunnelVia.ValueKind == JsonValueKind.Object && tunnelVia.TryGetProperty("configs", out JsonElement refs) && refs.ValueKind == JsonValueKind.Array ? refs.GetArrayLength() : 0;
+        bool enabled = primaryAvailable && ReadBool(primaryTunnel, "enabled");
+        string primaryVia = primaryAvailable ? (ReadNestedString(primaryTunnel, "via", "type") ?? string.Empty).ToLowerInvariant() : string.Empty;
+        using JsonDocument configDocument = await _sessionService.CallAsync(sid, "wg-client", "get_config_list", new { group_id = pia.GroupId }, token).ConfigureAwait(false);
+        int rawCount = TryGet(configDocument.RootElement, out JsonElement result, "result") && result.TryGetProperty("peers", out JsonElement peers) && peers.ValueKind == JsonValueKind.Array ? peers.GetArrayLength() : 0;
+        IReadOnlyList<VpnProviderGeneratedConfigInfo> parsed = ParseGeneratedProviderConfigs(configDocument.RootElement);
+        IReadOnlyList<VpnPiaTunnelConfigSelection> selections = ParsePiaTunnelConfigSelections(tunnelDocument.RootElement, pia.GroupId, parsed);
+        VpnPiaTunnelConfigSelection? selection = selections.FirstOrDefault();
+        lines.Add($"tunnelAvailable={primaryAvailable.ToString().ToLowerInvariant()}");
+        lines.Add($"tunnelEnabled={enabled.ToString().ToLowerInvariant()}");
+        lines.Add("tunnelViaType=" + (primaryVia == "wireguard" ? "wireguard" : string.IsNullOrEmpty(primaryVia) ? "missing" : "other"));
+        lines.Add($"tunnelConfigReferenceCount={referenceCount}");
+        lines.Add($"configListEntryCount={rawCount}");
+        lines.Add($"parsedEntryCount={parsed.Count}");
+        lines.Add($"validCandidateCount={parsed.Count}");
+        lines.Add($"candidateCount={selection?.Candidates.Count ?? 0}");
+        lines.Add($"resolution={selection?.State.ToString() ?? "Unavailable"}");
+        lines.Add($"currentResolved={(selection?.State == VpnServerConfigResolutionState.Resolved ? "true" : "false")}");
+        return lines;
+    }
+
+    internal static IReadOnlyList<VpnPiaTunnelConfigSelection> ParsePiaTunnelConfigSelections(JsonElement root, int groupId, IReadOnlyList<VpnProviderGeneratedConfigInfo> configs)
+    {
+        if (groupId <= 0 || !TryResultArray(root, "tunnels", out JsonElement tunnels)) return [];
+        IReadOnlyList<VpnProviderServerInfo> candidates = configs
+            .Select(config => new VpnProviderServerInfo
+            {
+                GroupId = groupId,
+                CountryName = config.Location,
+                CityName = config.Name,
+                ExistingConfigId = config.PeerId
+            })
+            .ToList();
+        var selections = new List<VpnPiaTunnelConfigSelection>();
+        foreach (JsonElement tunnel in tunnels.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object))
+        {
+            if (!string.Equals(ReadNestedString(tunnel, "via", "type"), "wireguard", StringComparison.OrdinalIgnoreCase) ||
+                !TryGet(tunnel, out JsonElement references, "via", "configs") || references.ValueKind != JsonValueKind.Array)
+                continue;
+            List<JsonElement> groupReferences = references.EnumerateArray()
+                .Where(reference => reference.ValueKind == JsonValueKind.Object && ReadInt(reference, "group_id") == groupId).ToList();
+            if (groupReferences.Count == 0) continue;
+            List<int> referenceIds = groupReferences
+                .SelectMany(reference => reference.TryGetProperty("id_list", out JsonElement ids) && ids.ValueKind == JsonValueKind.Array
+                    ? ids.EnumerateArray().Where(id => id.TryGetInt32(out int value) && value > 0).Select(id => id.GetInt32()) : [])
+                .Distinct().ToList();
+            List<VpnProviderGeneratedConfigInfo> currentMatches = configs.Where(config => referenceIds.Contains(config.PeerId)).ToList();
+            VpnProviderGeneratedConfigInfo? current = referenceIds.Count == 1 && currentMatches.Count == 1 ? currentMatches[0] : null;
+            VpnServerConfigResolutionState state = current is not null
+                ? VpnServerConfigResolutionState.Resolved
+                : candidates.Count > 0 ? VpnServerConfigResolutionState.SelectionRequired : VpnServerConfigResolutionState.Unavailable;
+            selections.Add(new VpnPiaTunnelConfigSelection
+            {
+                TunnelId = ReadInt(tunnel, "tunnel_id"), GroupId = groupId, State = state, Candidates = candidates,
+                CurrentServer = current is null ? null : new VpnProviderServerInfo
+                {
+                    GroupId = groupId, CountryName = current.Location, CityName = current.Name, ExistingConfigId = current.PeerId
+                }
+            });
+        }
+        // Stock GL.iNet can clear the Primary tunnel's via object while it
+        // retains multiple unapplied provider configs. With one authoritative
+        // disconnected tunnel and one uniquely identified PIA group, that is
+        // sufficient evidence for an actionable selection requirement, but
+        // not for a current-config inference.
+        if (selections.Count == 0 && candidates.Count > 0)
+        {
+            List<JsonElement> allTunnels = tunnels.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToList();
+            if (allTunnels.Count == 1 && !ReadBool(allTunnels[0], "enabled") && string.IsNullOrWhiteSpace(ReadNestedString(allTunnels[0], "via", "type")))
+            {
+                selections.Add(new VpnPiaTunnelConfigSelection
+                {
+                    TunnelId = ReadInt(allTunnels[0], "tunnel_id"), GroupId = groupId,
+                    State = VpnServerConfigResolutionState.SelectionRequired, Candidates = candidates
+                });
+            }
+        }
+        return selections;
+    }
+
     internal sealed record VpnPiaTunnelConfigResolution(int TunnelId, int GroupId, int ConfigId, string Name, string Location);
 
     private async Task<PiaProviderCredentials?> ReadPiaProviderCredentialsAsync(CancellationToken token)
@@ -817,7 +963,12 @@ public partial class RouterManager
         List<int> groups = via.ValueKind == JsonValueKind.Object && via.TryGetProperty("configs", out JsonElement configs) && configs.ValueKind == JsonValueKind.Array
             ? configs.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).Select(item => ReadInt(item, "group_id")).Where(id => id > 0).Distinct().ToList() : [];
         string protocolRaw = ReadString(via, "type");
-        return new VpnTunnelInfo { Id = ReadString(tunnel, "id"), TunnelId = ReadInt(tunnel, "tunnel_id"), Name = ReadString(tunnel, "name", "Unnamed tunnel"), Enabled = ReadBool(tunnel, "enabled"), KillSwitch = ReadBool(tunnel, "killswitch"), Protocol = protocolRaw.Equals("wireguard", StringComparison.OrdinalIgnoreCase) ? "WireGuard" : protocolRaw.Equals("openvpn", StringComparison.OrdinalIgnoreCase) ? "OpenVPN" : "Unknown", InterfaceName = ReadString(via, "via"), ProfileGroupIds = groups, FromType = ReadNestedString(tunnel, "from", "type"), ToType = ReadNestedString(tunnel, "to", "type"), Masquerade = ReadNullableBool(options, "masq"), LocalAccess = ReadNullableBool(options, "local_access"), ServicePolicy = ReadString(options, "service_policy") };
+        IReadOnlyList<string> routingIdentities = ReadNestedStringArray(tunnel, "from", "mac_list")
+            .Select(ClientIdentity.NormalizeHexMac)
+            .Where(identity => identity.Length == 12)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new VpnTunnelInfo { Id = ReadString(tunnel, "id"), TunnelId = ReadInt(tunnel, "tunnel_id"), Name = ReadString(tunnel, "name", "Unnamed tunnel"), Enabled = ReadBool(tunnel, "enabled"), KillSwitch = ReadBool(tunnel, "killswitch"), Protocol = protocolRaw.Equals("wireguard", StringComparison.OrdinalIgnoreCase) ? "WireGuard" : protocolRaw.Equals("openvpn", StringComparison.OrdinalIgnoreCase) ? "OpenVPN" : "Unknown", InterfaceName = ReadString(via, "via"), ProfileGroupIds = groups, FromType = ReadNestedString(tunnel, "from", "type"), ToType = ReadNestedString(tunnel, "to", "type"), RoutingDeviceIdentities = routingIdentities, Masquerade = ReadNullableBool(options, "masq"), LocalAccess = ReadNullableBool(options, "local_access"), ServicePolicy = ReadString(options, "service_policy") };
     }
 
     private static bool TryResultArray(JsonElement root, string property, out JsonElement array)
@@ -831,4 +982,9 @@ public partial class RouterManager
     private static bool? ReadNullableBool(JsonElement value, string property) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(property, out JsonElement result) ? result.ValueKind == JsonValueKind.True ? true : result.ValueKind == JsonValueKind.False ? false : null : null;
     private static string ReadString(JsonElement value, string property, string fallback = "") => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(property, out JsonElement result) && result.ValueKind == JsonValueKind.String ? result.GetString() ?? fallback : fallback;
     private static string? ReadNestedString(JsonElement value, string parent, string property) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(parent, out JsonElement nested) ? ReadString(nested, property) : null;
+    private static IReadOnlyList<string> ReadNestedStringArray(JsonElement value, string parent, string property) =>
+        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(parent, out JsonElement nested) && nested.ValueKind == JsonValueKind.Object &&
+        nested.TryGetProperty(property, out JsonElement array) && array.ValueKind == JsonValueKind.Array
+            ? array.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString() ?? string.Empty).ToList()
+            : [];
 }

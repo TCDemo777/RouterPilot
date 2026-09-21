@@ -30,6 +30,18 @@ public enum VpnRoutingPolicyState
     Unavailable
 }
 
+/// <summary>
+/// Resolves the current provider configuration independently from the
+/// connection state.  A selection requirement is actionable, not a tunnel
+/// failure.
+/// </summary>
+public enum VpnServerConfigResolutionState
+{
+    Unavailable,
+    Resolved,
+    SelectionRequired
+}
+
 /// <summary>Sanitized comparison result for read-only WireGuard handshake timestamps.</summary>
 public enum VpnWireGuardHandshakeState
 {
@@ -102,6 +114,17 @@ public sealed class VpnInventorySnapshot
     public VpnProfileInventoryState ProfileInventoryState { get; init; } = VpnProfileInventoryState.Unknown;
     // Safe provider identity only; provider credentials never leave the router service.
     public VpnProviderGroupInfo? PiaProviderGroup { get; init; }
+    public IReadOnlyList<VpnPiaTunnelConfigSelection> PiaConfigSelections { get; init; } = [];
+}
+
+/// <summary>Safe, current-read-only PIA configuration selection state.</summary>
+public sealed class VpnPiaTunnelConfigSelection
+{
+    public int TunnelId { get; init; }
+    public int GroupId { get; init; }
+    public VpnServerConfigResolutionState State { get; init; }
+    public IReadOnlyList<VpnProviderServerInfo> Candidates { get; init; } = [];
+    public VpnProviderServerInfo? CurrentServer { get; init; }
 }
 
 /// <summary>Safe, display-only identity of a discovered PIA WireGuard provider group.</summary>
@@ -118,8 +141,30 @@ public sealed class VpnProviderServerInfo
     public string CountryName { get; init; } = string.Empty;
     public string CityName { get; init; } = string.Empty;
     public string Hostname { get; init; } = string.Empty;
+    // Current router reference only. It is never displayed, logged, or used
+    // as a durable provider identity.
+    internal int? ExistingConfigId { get; init; }
+    // Display-only ordinal assigned while projecting router-resident configs.
+    // It distinguishes same-location candidates without revealing config IDs.
+    public int ExistingCandidateOrdinal { get; init; }
+    public bool IsExistingConfigCandidate => ExistingConfigId is > 0;
     public string DisplayName => string.IsNullOrWhiteSpace(CityName) ? Hostname : $"{CountryName} — {CityName} — {Hostname}";
-    public string CatalogueIdentity => $"{GroupId}\u001f{CountryName}\u001f{CityName}\u001f{Hostname}";
+    // This display value is intentionally location-first; selection remains
+    // keyed by CatalogueIdentity and the full safe label remains available.
+    public string LocationDisplay
+    {
+        get
+        {
+            string location = string.IsNullOrWhiteSpace(CityName)
+                ? (string.IsNullOrWhiteSpace(CountryName) ? Hostname : CountryName)
+                : $"{CountryName} \u2014 {CityName}";
+            if (string.IsNullOrWhiteSpace(location)) location = "VPN server";
+            return ExistingCandidateOrdinal > 0 ? $"{location} · {ExistingCandidateOrdinal}" : location;
+        }
+    }
+    public string CatalogueIdentity => IsExistingConfigCandidate
+        ? $"existing\u001f{GroupId}\u001f{ExistingConfigId}"
+        : $"{GroupId}\u001f{CountryName}\u001f{CityName}\u001f{Hostname}";
 }
 
 public sealed class VpnProviderServerCatalogueResult
@@ -140,6 +185,26 @@ public sealed class VpnProviderConfigGenerationResult
     // contract for switching the active tunnel reference to it.
     public bool GeneratedConfigVerified { get; init; }
     public VpnProviderServerInfo? AuthoritativeServer { get; init; }
+}
+
+/// <summary>Safe result for the generic selected-device routing mutation.</summary>
+public sealed class VpnDeviceAssignmentResult
+{
+    public bool Success { get; init; }
+    public bool IsEmptyEffectiveAssignment { get; init; }
+    public int TunnelId { get; init; }
+    public string Message { get; init; } = string.Empty;
+}
+
+public sealed class VpnDeviceEditorItem
+{
+    // Internal normalized identity; never displayed or logged.
+    internal string Identity { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public string StatusDisplay { get; init; } = string.Empty;
+    public bool IsUnknownExistingAssignment { get; init; }
+    public bool CanEdit => !IsUnknownExistingAssignment;
+    public bool IsSelected { get; set; }
 }
 
 /// <summary>Sanitized generated-config metadata used only for authoritative read-back.</summary>
@@ -197,8 +262,18 @@ public sealed class VpnTunnelInfo
     public string RoutingEmptyDisplay => InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices && RoutingDevices.Count == 0 ? "No devices currently assigned" : string.Empty;
     public bool HasRoutingDevices => RoutingDevices.Count > 0;
     public bool HasRoutingEmptyDisplay => !string.IsNullOrEmpty(RoutingEmptyDisplay);
+    public bool CanManageRoutingDevices => !Enabled && LiveStatus?.Enabled is not true && TransitionIntent == VpnTransitionIntent.None &&
+        string.Equals(Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) &&
+        RoutingPolicyState == VpnRoutingPolicyState.Available && InternetRoutingScope == VpnInternetRoutingScope.SelectedDevices &&
+        string.Equals(FromType, "mac", StringComparison.OrdinalIgnoreCase) && string.Equals(ToType, "default", StringComparison.OrdinalIgnoreCase);
     // -1 means the router did not associate a profile group with this tunnel.
     public int ServerConfigCount { get; init; } = -1;
+    public VpnServerConfigResolutionState ServerConfigResolutionState { get; init; } = VpnServerConfigResolutionState.Resolved;
+    public int ServerCandidateCount { get; init; }
+    public string ServerSelectionDisplay => ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired
+        ? $"{ServerCandidateCount} server configuration{(ServerCandidateCount == 1 ? string.Empty : "s")} available"
+        : string.Empty;
+    public bool ServerSelectionRequired => ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired;
     public VpnLiveStatusInfo? LiveStatus { get; init; }
     public VpnConfigurationHealth ConfigurationHealth { get; init; } = VpnConfigurationHealth.Unknown;
     public bool HasConfigurationAttention => ConfigurationHealth == VpnConfigurationHealth.Unlinked;
@@ -234,13 +309,21 @@ public sealed class VpnTunnelInfo
     public string LiveEndpoint => LiveStatus?.EndpointDisplay ?? string.Empty;
     public string LiveDownload => LiveStatus?.DownloadDisplay ?? string.Empty;
     public string LiveUpload => LiveStatus?.UploadDisplay ?? string.Empty;
-    public bool HasServerSelectionLimitation => !Enabled && (ServerConfigCount == 0 || ServerConfigCount > 1);
-    public bool CanConnect => !HasConfigurationAttention && (Enabled || !HasServerSelectionLimitation);
-    public string ServerSelectionLimitationText => ServerConfigCount == 0
+    // ServerConfigCount is the inventory count for the provider group.  It
+    // deliberately remains greater than one after the user makes one of
+    // those configs Primary.  Only the explicit resolution state can say
+    // that the inventory still needs a choice.
+    public bool HasServerSelectionLimitation => !Enabled && (ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired || ServerConfigCount == 0);
+    public bool CanConnect => !HasConfigurationAttention && ServerConfigResolutionState != VpnServerConfigResolutionState.SelectionRequired && (Enabled || !HasServerSelectionLimitation);
+    public string ServerSelectionLimitationText => ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired
+        ? "Server selection required"
+        : ServerConfigCount == 0
         ? "No VPN server is configured for this profile."
         : "Multiple VPN servers configured";
-    public string ServerSelectionLimitationDetail => ServerConfigCount > 1
-        ? "RouterPilot currently supports connecting VPN profiles with a single allocated server. Select or configure a single server in the GL.iNet interface, then refresh RouterPilot."
+    public string ServerSelectionLimitationDetail => ServerConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired
+        ? "Choose and apply one server before connecting."
+        : ServerConfigCount > 1
+        ? "Choose and apply one server before connecting."
         : string.Empty;
 }
 

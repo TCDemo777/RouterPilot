@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using RouterPilot.Models;
 using RouterPilot.Services;
 
@@ -11,6 +12,8 @@ namespace RouterPilot.ViewModels;
 public sealed partial class VpnViewModel : ObservableObject
 {
     private readonly VpnOperationIntentService? _operationIntent;
+    private Func<Task>? _makePrimaryAction;
+    private Func<Task>? _refreshExistingServersAction;
     private readonly Dictionary<string, bool?> _peerStates = new(StringComparer.OrdinalIgnoreCase);
     public ObservableCollection<string> TailscaleHistory { get; } = new();
     public string TailscaleHistoryText => TailscaleHistory.Count == 0 ? "No Tailscale state changes observed this session." : string.Join("\n", TailscaleHistory);
@@ -18,6 +21,11 @@ public sealed partial class VpnViewModel : ObservableObject
     public ObservableCollection<VpnTunnelInfo> VpnTunnels { get; } = new();
     public ObservableCollection<VpnClientProfileInfo> VpnProfiles { get; } = new();
     public ObservableCollection<VpnProviderServerInfo> PiaProviderServers { get; } = new();
+    // Router-resident candidates used solely to resolve SelectionRequired.
+    // This collection is never sourced from, or invalidated by, provider refresh.
+    public ObservableCollection<VpnProviderServerInfo> ExistingRouterServers { get; } = new();
+    public ObservableCollection<VpnProviderServerInfo> ExistingPiaConfigCandidates => ExistingRouterServers;
+    public ObservableCollection<VpnDeviceEditorItem> VpnDeviceEditorItems { get; } = new();
     [ObservableProperty] private bool vpnIsLoading;
     [ObservableProperty] private bool vpnInventoryLoadCompleted;
     [ObservableProperty] private string vpnStatus = string.Empty;
@@ -26,9 +34,16 @@ public sealed partial class VpnViewModel : ObservableObject
     [ObservableProperty] private int piaProviderTunnelId;
     [ObservableProperty] private int piaProviderGroupId;
     [ObservableProperty] private VpnProviderServerInfo? selectedPiaProviderServer;
+    [ObservableProperty] private VpnProviderServerInfo? selectedExistingPiaConfigCandidate;
     [ObservableProperty] private bool piaProviderOperationRunning;
     [ObservableProperty] private bool piaProviderServerCatalogueReady;
     [ObservableProperty] private string piaProviderStatus = string.Empty;
+    [ObservableProperty] private VpnServerConfigResolutionState piaConfigResolutionState = VpnServerConfigResolutionState.Unavailable;
+    [ObservableProperty] private string piaCurrentServerDisplay = string.Empty;
+    [ObservableProperty] private int piaCurrentServerConfigId;
+    [ObservableProperty] private bool vpnDeviceEditorOpen;
+    [ObservableProperty] private int vpnDeviceEditorTunnelId;
+    [ObservableProperty] private string vpnDeviceEditorStatus = string.Empty;
     [ObservableProperty] private TailscaleStatus? tailscaleStatus;
     [ObservableProperty] private bool tailscaleIsLoading;
     [ObservableProperty] private TailscaleConfigurationSnapshot tailscaleConfiguration = TailscaleConfigurationSnapshot.Unknown;
@@ -45,7 +60,23 @@ public sealed partial class VpnViewModel : ObservableObject
     public VpnViewModel(VpnOperationIntentService? operationIntent = null)
     {
         _operationIntent = operationIntent;
+        MakePrimaryCommand = new AsyncRelayCommand(ExecuteMakePrimaryAsync, () => CanApplyExistingPiaConfig && _makePrimaryAction is not null);
+        RefreshExistingServersCommand = new AsyncRelayCommand(ExecuteRefreshExistingServersAsync, () => CanRefreshExistingRouterServers && _refreshExistingServersAction is not null);
     }
+    public IAsyncRelayCommand MakePrimaryCommand { get; }
+    public IAsyncRelayCommand RefreshExistingServersCommand { get; }
+    public void SetMakePrimaryAction(Func<Task> action)
+    {
+        _makePrimaryAction = action;
+        MakePrimaryCommand.NotifyCanExecuteChanged();
+    }
+    private Task ExecuteMakePrimaryAsync() => _makePrimaryAction?.Invoke() ?? Task.CompletedTask;
+    public void SetRefreshExistingServersAction(Func<Task> action)
+    {
+        _refreshExistingServersAction = action;
+        RefreshExistingServersCommand.NotifyCanExecuteChanged();
+    }
+    private Task ExecuteRefreshExistingServersAsync() => _refreshExistingServersAction?.Invoke() ?? Task.CompletedTask;
     public string TailscaleStateDisplay => TailscaleStatus?.State switch { TailscaleState.Connected => "Connected", TailscaleState.NeedsLogin => "Needs login", TailscaleState.Stopped => "Stopped", TailscaleState.NotInstalled => "Not installed", TailscaleState.Incompatible => "Incompatible", _ => "Unavailable" };
     public string TailscaleAddressDisplay => TailscaleStatus is { Addresses.Count: > 0 } status ? string.Join("\n", status.Addresses) : "—";
     public string TailscaleIPv4Display => string.IsNullOrWhiteSpace(TailscaleStatus?.IPv4) ? "—" : TailscaleStatus.IPv4;
@@ -96,9 +127,30 @@ public sealed partial class VpnViewModel : ObservableObject
     public bool HasPiaProviderManagement => PiaProviderTunnelId > 0 && PiaProviderGroupId > 0;
     public bool SupportsPiaServerManagement => HasPiaProviderManagement;
     public bool ShowPiaServerManagementNote => !SupportsPiaServerManagement;
-    public bool CanManagePiaProviderServers => HasPiaProviderManagement && !PiaProviderOperationRunning && !VpnIsLoading && VpnTunnels.SingleOrDefault(tunnel => tunnel.TunnelId == PiaProviderTunnelId) is { Enabled: false, Protocol: var protocol } && string.Equals(protocol, "WireGuard", StringComparison.OrdinalIgnoreCase);
+    public bool CanManagePiaProviderServers => HasPiaProviderManagement && !PiaProviderOperationRunning && !VpnIsLoading &&
+        VpnTunnels.SingleOrDefault(tunnel => tunnel.TunnelId == PiaProviderTunnelId) is { Enabled: false, TransitionIntent: VpnTransitionIntent.None, Protocol: var protocol } &&
+        VpnOperationTunnelId != PiaProviderTunnelId && string.Equals(protocol, "WireGuard", StringComparison.OrdinalIgnoreCase);
     public bool CanSelectPiaProviderServer => CanManagePiaProviderServers && PiaProviderServerCatalogueReady;
-    public bool CanApplyPiaProviderServer => CanSelectPiaProviderServer && SelectedPiaProviderServer is not null && PiaProviderServers.Contains(SelectedPiaProviderServer);
+    public bool CanRefreshExistingRouterServers => SupportsPiaServerManagement && !VpnIsLoading && !PiaProviderOperationRunning && VpnOperationTunnelId == 0;
+    public bool CanSelectExistingPiaConfig => CanManagePiaProviderServers && ExistingPiaConfigCandidates.Count > 0;
+    public bool CanApplyExistingPiaConfig => CanManagePiaProviderServers &&
+        SelectedExistingPiaConfigCandidate is not null && ExistingPiaConfigCandidates.Contains(SelectedExistingPiaConfigCandidate) &&
+        SelectedExistingPiaConfigCandidate.ExistingConfigId != PiaCurrentServerConfigId;
+    public bool CanApplyProviderServer => CanManagePiaProviderServers && PiaProviderServerCatalogueReady &&
+        SelectedPiaProviderServer is not null && PiaProviderServers.Contains(SelectedPiaProviderServer);
+    public bool CanApplyPiaProviderServer => CanApplyExistingPiaConfig || CanApplyProviderServer;
+    public bool CanApplyAndConnectPiaProviderServer => CanApplyProviderServer;
+    public bool PiaServerSelectionRequired => PiaConfigResolutionState == VpnServerConfigResolutionState.SelectionRequired;
+    // This count deliberately derives from the same collection as the existing-router
+    // selector. A summary must never report choices that the selector cannot show.
+    public int PiaServerCandidateCount => ExistingPiaConfigCandidates.Count;
+    public string PiaServerSelectionSummary => PiaServerSelectionRequired
+        ? $"{PiaServerCandidateCount} server configuration{(PiaServerCandidateCount == 1 ? string.Empty : "s")} available"
+        : string.Empty;
+    public bool HasPiaCurrentServerDisplay => !string.IsNullOrWhiteSpace(PiaCurrentServerDisplay);
+    public bool HasExistingPiaConfigCandidates => ExistingPiaConfigCandidates.Count > 0;
+    public bool ShowExistingServerCard => SupportsPiaServerManagement && HasExistingPiaConfigCandidates;
+    public bool ShowProviderServerCatalogueSelector => PiaProviderServerCatalogueReady;
     public bool HasVpnProfiles => VpnProfiles.Count > 0;
     public bool ShowNoVpnProfiles => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Available && !HasVpnProfiles;
     public bool ShowVpnProfilesUnavailable => VpnInventoryLoadCompleted && VpnProfileInventoryState == VpnProfileInventoryState.Unavailable;
@@ -115,9 +167,16 @@ public sealed partial class VpnViewModel : ObservableObject
         OnPropertyChanged(nameof(CanManagePiaProviderServers));
     }
 
-    public void SetPiaProviderManagement(VpnProviderGroupInfo? group, IReadOnlyList<VpnTunnelInfo> tunnels)
+    public void SetPiaProviderManagement(VpnProviderGroupInfo? group, IReadOnlyList<VpnTunnelInfo> tunnels, VpnPiaTunnelConfigSelection? selection = null)
     {
         VpnTunnelInfo? tunnel = group is null ? null : tunnels.SingleOrDefault(item => string.Equals(item.Protocol, "WireGuard", StringComparison.OrdinalIgnoreCase) && item.ProfileGroupIds.Contains(group.GroupId));
+        // Provider identity comes from the independently authoritative PIA
+        // group read. During provider generation GL.iNet may clear `via`
+        // before the transaction assigns the newly generated config. The
+        // same inventory snapshot's validated selection supplies the tunnel
+        // association in that narrow state; an empty via alone never does.
+        if (tunnel is null && group is not null && selection is { TunnelId: > 0 } && selection.GroupId == group.GroupId && selection.Candidates.Count > 0)
+            tunnel = tunnels.SingleOrDefault(item => item.TunnelId == selection.TunnelId && !item.Enabled);
         int newTunnelId = tunnel?.TunnelId ?? 0;
         int newGroupId = tunnel is null || group is null ? 0 : group.GroupId;
         if (PiaProviderTunnelId != newTunnelId || PiaProviderGroupId != newGroupId || tunnel is null || tunnel.Enabled)
@@ -131,9 +190,59 @@ public sealed partial class VpnViewModel : ObservableObject
         OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability();
     }
 
+    public void SetPiaConfigResolution(VpnPiaTunnelConfigSelection? selection)
+    {
+        PiaConfigResolutionState = selection?.State ?? VpnServerConfigResolutionState.Unavailable;
+        PiaCurrentServerDisplay = selection?.CurrentServer?.LocationDisplay ?? string.Empty;
+        PiaCurrentServerConfigId = selection?.CurrentServer?.ExistingConfigId ?? 0;
+        if (selection is not null)
+        {
+            int? previousSelectionId = SelectedExistingPiaConfigCandidate?.ExistingConfigId;
+            ExistingPiaConfigCandidates.Clear();
+            IReadOnlyList<VpnProviderServerInfo> candidates = selection.Candidates;
+            Dictionary<string, int> locationTotals = candidates
+                .GroupBy(candidate => candidate.LocationDisplay, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            Dictionary<string, int> locationOrdinals = new(StringComparer.Ordinal);
+            foreach (VpnProviderServerInfo candidate in candidates)
+            {
+                string location = candidate.LocationDisplay;
+                int ordinal = 0;
+                if (locationTotals[location] > 1)
+                {
+                    locationOrdinals.TryGetValue(location, out ordinal);
+                    ordinal++;
+                    locationOrdinals[location] = ordinal;
+                }
+                ExistingPiaConfigCandidates.Add(new VpnProviderServerInfo
+                {
+                    GroupId = candidate.GroupId,
+                    CountryName = candidate.CountryName,
+                    CityName = candidate.CityName,
+                    Hostname = candidate.Hostname,
+                    ExistingConfigId = candidate.ExistingConfigId,
+                    ExistingCandidateOrdinal = ordinal
+                });
+            }
+            SelectedExistingPiaConfigCandidate = previousSelectionId is int selectedId
+                ? ExistingPiaConfigCandidates.SingleOrDefault(candidate => candidate.ExistingConfigId == selectedId)
+                : null; // Never select by position or order.
+            PiaProviderStatus = selection.State == VpnServerConfigResolutionState.SelectionRequired
+                ? ExistingPiaConfigCandidates.Count > 0 ? $"{ExistingPiaConfigCandidates.Count} server configurations are available. Choose one before connecting." : "Choose a server before connecting."
+                : string.IsNullOrWhiteSpace(PiaCurrentServerDisplay) ? PiaProviderStatus : $"Current server: {PiaCurrentServerDisplay}";
+        }
+        else
+        {
+            ExistingPiaConfigCandidates.Clear();
+            SelectedExistingPiaConfigCandidate = null;
+        }
+        OnPropertyChanged(nameof(PiaServerCandidateCount)); OnPropertyChanged(nameof(PiaServerSelectionRequired)); OnPropertyChanged(nameof(PiaServerSelectionSummary)); OnPropertyChanged(nameof(HasPiaCurrentServerDisplay)); OnPropertyChanged(nameof(HasExistingPiaConfigCandidates)); OnPropertyChanged(nameof(ShowExistingServerCard)); OnPropertyChanged(nameof(ShowProviderServerCatalogueSelector));
+        NotifyPiaProviderServerAvailability();
+    }
+
     public void BeginPiaProviderServerCatalogueRefresh()
     {
-        InvalidatePiaProviderServerCatalogue();
+        ClearPiaProviderServerCatalogue();
     }
 
     public void ReplacePiaProviderServers(IReadOnlyList<VpnProviderServerInfo> servers)
@@ -147,7 +256,7 @@ public sealed partial class VpnViewModel : ObservableObject
 
     public void FailPiaProviderServerCatalogueRefresh(string status)
     {
-        InvalidatePiaProviderServerCatalogue();
+        ClearPiaProviderServerCatalogue();
         PiaProviderStatus = status;
     }
 
@@ -178,8 +287,22 @@ public sealed partial class VpnViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsVpnInventoryLoading));
         OnPropertyChanged(nameof(CanManagePiaProviderServers));
+        OnPropertyChanged(nameof(CanRefreshExistingRouterServers));
+        RefreshExistingServersCommand.NotifyCanExecuteChanged();
     }
+    partial void OnVpnOperationTunnelIdChanged(int value) => NotifyPiaProviderServerAvailability();
     private void InvalidatePiaProviderServerCatalogue()
+    {
+        ClearPiaProviderServerCatalogue();
+        ExistingPiaConfigCandidates.Clear();
+        SelectedExistingPiaConfigCandidate = null;
+        OnPropertyChanged(nameof(PiaServerCandidateCount));
+        OnPropertyChanged(nameof(PiaServerSelectionSummary));
+        OnPropertyChanged(nameof(HasExistingPiaConfigCandidates));
+        OnPropertyChanged(nameof(ShowExistingServerCard));
+        NotifyPiaProviderServerAvailability();
+    }
+    private void ClearPiaProviderServerCatalogue()
     {
         PiaProviderServerCatalogueReady = false;
         PiaProviderServers.Clear();
@@ -190,11 +313,20 @@ public sealed partial class VpnViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanManagePiaProviderServers));
         OnPropertyChanged(nameof(CanSelectPiaProviderServer));
+        OnPropertyChanged(nameof(CanSelectExistingPiaConfig));
+        OnPropertyChanged(nameof(CanRefreshExistingRouterServers));
+        OnPropertyChanged(nameof(CanApplyExistingPiaConfig));
+        OnPropertyChanged(nameof(CanApplyProviderServer));
         OnPropertyChanged(nameof(CanApplyPiaProviderServer));
+        OnPropertyChanged(nameof(CanApplyAndConnectPiaProviderServer));
+        OnPropertyChanged(nameof(ShowProviderServerCatalogueSelector));
+        MakePrimaryCommand.NotifyCanExecuteChanged();
+        RefreshExistingServersCommand.NotifyCanExecuteChanged();
     }
     partial void OnPiaProviderOperationRunningChanged(bool value) => NotifyPiaProviderServerAvailability();
     partial void OnPiaProviderServerCatalogueReadyChanged(bool value) => NotifyPiaProviderServerAvailability();
     partial void OnSelectedPiaProviderServerChanged(VpnProviderServerInfo? value) => NotifyPiaProviderServerAvailability();
+    partial void OnSelectedExistingPiaConfigCandidateChanged(VpnProviderServerInfo? value) => NotifyPiaProviderServerAvailability();
     partial void OnPiaProviderTunnelIdChanged(int value) { OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability(); }
     partial void OnPiaProviderGroupIdChanged(int value) { OnPropertyChanged(nameof(HasPiaProviderManagement)); OnPropertyChanged(nameof(SupportsPiaServerManagement)); OnPropertyChanged(nameof(ShowPiaServerManagementNote)); NotifyPiaProviderServerAvailability(); }
     partial void OnVpnInventoryLoadCompletedChanged(bool value)
@@ -256,14 +388,15 @@ public sealed partial class VpnViewModel : ObservableObject
     public void ApplyLiveStatuses(IReadOnlyList<VpnLiveStatusInfo> statuses, bool vpnInventoryAuthoritative, bool fromLiveStatusEvent = false)
     {
         var statusMap = statuses.ToDictionary(status => status.TunnelId);
+        bool inventoryRefreshSupersedesRuntime = vpnInventoryAuthoritative && !fromLiveStatusEvent;
         var profilesWithActivity = VpnProfiles.Select(profile =>
         {
             List<VpnTunnelInfo> profileTunnels = VpnTunnels.Where(tunnel => tunnel.ProfileGroupIds.Contains(profile.GroupId)).ToList();
             VpnProfileActivityState activity = profileTunnels.Count == 0
                 ? VpnProfileActivityState.Inactive
-                : profileTunnels.Any(tunnel => statusMap.TryGetValue(tunnel.TunnelId, out VpnLiveStatusInfo? status) && status.IsConnected)
+                : profileTunnels.Any(tunnel => (!inventoryRefreshSupersedesRuntime || tunnel.Enabled) && statusMap.TryGetValue(tunnel.TunnelId, out VpnLiveStatusInfo? status) && status.IsConnected)
                     ? VpnProfileActivityState.Active
-                    : profileTunnels.All(tunnel => statusMap.ContainsKey(tunnel.TunnelId))
+                    : profileTunnels.All(tunnel => (inventoryRefreshSupersedesRuntime && !tunnel.Enabled) || statusMap.ContainsKey(tunnel.TunnelId))
                         ? VpnProfileActivityState.Inactive
                         : VpnProfileActivityState.Unknown;
             return new VpnClientProfileInfo { GroupId=profile.GroupId, Name=profile.Name, Protocol=profile.Protocol, IsUsedByTunnel=profile.IsUsedByTunnel, TunnelIds=profile.TunnelIds, UsedByDisplay=profile.UsedByDisplay, ServerConfigCount=profile.ServerConfigCount, CurrentPeerId=profile.CurrentPeerId, CurrentLocation=profile.CurrentLocation, ActivityState=activity };
@@ -277,6 +410,17 @@ public sealed partial class VpnViewModel : ObservableObject
         var updated = VpnTunnels.Select(tunnel =>
         {
             VpnLiveStatusInfo? selectedStatus = statusMap.TryGetValue(tunnel.TunnelId, out VpnLiveStatusInfo? status) ? status : null;
+            // get_tunnel is authoritative for configuration. In particular,
+            // the router may leave the socket's previous enabled=true/status=2
+            // transition visible briefly after a successful disconnect.
+            // Preserve that status only for safe association resolution; do
+            // not let it drive presentation, device state, or failure state.
+            // A live-status event can arrive between a Connect mutation and
+            // the next inventory read, while the locally held tunnel snapshot
+            // is still disabled. Only a completed authoritative inventory
+            // refresh is allowed to supersede that live transition.
+            bool authoritativelyDisconnected = inventoryRefreshSupersedesRuntime && !tunnel.Enabled;
+            VpnLiveStatusInfo? presentationStatus = authoritativelyDisconnected ? null : selectedStatus;
             // Current tunnel configuration is authoritative when it identifies
             // one profile group. Live status is only a fallback for a proven
             // unlinked tunnel, where it is the remaining safe correlation.
@@ -290,7 +434,7 @@ public sealed partial class VpnViewModel : ObservableObject
                 : tunnel.ProfileGroupIds.Contains(selectedGroupId!.Value)
                     ? VpnConfigurationHealth.Healthy
                     : VpnConfigurationHealth.Unlinked;
-            bool hasConnectionFailure = UpdateConnectionAttemptState(tunnel.TunnelId, selectedGroupId, configuredProfile?.CurrentLocation ?? string.Empty, configurationHealth, selectedStatus, fromLiveStatusEvent);
+            bool hasConnectionFailure = UpdateConnectionAttemptState(tunnel.TunnelId, selectedGroupId, configuredProfile?.CurrentLocation ?? string.Empty, configurationHealth, presentationStatus, fromLiveStatusEvent, authoritativelyDisconnected);
             return new VpnTunnelInfo
             {
                 Id=tunnel.Id, TunnelId=tunnel.TunnelId, Name=tunnel.Name, Enabled=tunnel.Enabled, KillSwitch=tunnel.KillSwitch,
@@ -299,21 +443,19 @@ public sealed partial class VpnViewModel : ObservableObject
                 ActiveProfileName=tunnel.ActiveProfileName, LinkedProfilesDisplay=tunnel.LinkedProfilesDisplay, FromType=tunnel.FromType,
                 ConfiguredProfileName=configuredProfile?.Name ?? string.Empty, ConfiguredLocation=configuredProfile?.CurrentLocation ?? string.Empty,
                 ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess, ServicePolicy=tunnel.ServicePolicy,
-                ServerConfigCount=tunnel.ServerConfigCount,
+                ServerConfigCount=tunnel.ServerConfigCount, ServerConfigResolutionState=tunnel.ServerConfigResolutionState, ServerCandidateCount=tunnel.ServerCandidateCount,
                 RoutingPolicyState=tunnel.RoutingPolicyState, InternetRoutingScope=tunnel.InternetRoutingScope,
                 RoutingDeviceIdentities=tunnel.RoutingDeviceIdentities,
-                RoutingDevices=RefreshRoutingDeviceStatuses(tunnel.RoutingDevices, selectedStatus?.IsConnected == true),
+                RoutingDevices=RefreshRoutingDeviceStatuses(tunnel.RoutingDevices, presentationStatus?.IsConnected == true),
                 HasConnectionAttemptFailure=hasConnectionFailure,
                 HasWireGuardHandshakeFailure=hasConnectionFailure && _failedWireGuardHandshake,
                 TransitionIntent=_operationIntent?.GetIntent(tunnel.TunnelId) ?? VpnTransitionIntent.None,
-                // A disconnected status can still carry the authoritative group
-                // association needed to recognise an unlinked profile. It is not
-                // presented as a live connection unless Status == Connected.
-                LiveStatus=selectedStatus
+                LiveStatus=presentationStatus
             };
         }).ToList();
         VpnTunnels.Clear(); foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
         VpnLiveStatusDiagnostics.Record("VpnTunnel live properties updated: YES");
+        NotifyPiaProviderServerAvailability();
     }
 
     public void ApplyTransitionIntent()
@@ -322,6 +464,7 @@ public sealed partial class VpnViewModel : ObservableObject
         var updated = VpnTunnels.Select(tunnel => CopyTunnel(tunnel, _operationIntent.GetIntent(tunnel.TunnelId))).ToList();
         VpnTunnels.Clear();
         foreach (VpnTunnelInfo tunnel in updated) VpnTunnels.Add(tunnel);
+        NotifyPiaProviderServerAvailability();
     }
 
     private static VpnTunnelInfo CopyTunnel(VpnTunnelInfo tunnel, VpnTransitionIntent intent, bool? hasConnectionAttemptFailure = null, bool? hasWireGuardHandshakeFailure = null, VpnTunnelInfo? routing = null) => new()
@@ -332,7 +475,7 @@ public sealed partial class VpnViewModel : ObservableObject
         ActiveProfileName=tunnel.ActiveProfileName, LinkedProfilesDisplay=tunnel.LinkedProfilesDisplay,
         ConfiguredProfileName=tunnel.ConfiguredProfileName, ConfiguredLocation=tunnel.ConfiguredLocation,
         FromType=tunnel.FromType, ToType=tunnel.ToType, Masquerade=tunnel.Masquerade, LocalAccess=tunnel.LocalAccess,
-        ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=tunnel.ServerConfigCount, LiveStatus=tunnel.LiveStatus,
+        ServicePolicy=tunnel.ServicePolicy, ServerConfigCount=tunnel.ServerConfigCount, ServerConfigResolutionState=tunnel.ServerConfigResolutionState, ServerCandidateCount=tunnel.ServerCandidateCount, LiveStatus=tunnel.LiveStatus,
         RoutingPolicyState=routing?.RoutingPolicyState ?? tunnel.RoutingPolicyState, InternetRoutingScope=routing?.InternetRoutingScope ?? tunnel.InternetRoutingScope,
         RoutingDeviceIdentities=routing?.RoutingDeviceIdentities ?? tunnel.RoutingDeviceIdentities,
         RoutingDevices=RefreshRoutingDeviceStatuses(routing?.RoutingDevices ?? tunnel.RoutingDevices, tunnel.LiveStatus?.IsConnected == true),
@@ -345,8 +488,17 @@ public sealed partial class VpnViewModel : ObservableObject
         IReadOnlyList<VpnRoutingDeviceAssignment> devices, bool tunnelConnected) =>
         devices.Select(device => VpnRoutingDeviceAssignment.WithTunnelConnection(device, tunnelConnected)).ToList();
 
-    private bool UpdateConnectionAttemptState(int tunnelId, int? groupId, string location, VpnConfigurationHealth configurationHealth, VpnLiveStatusInfo? status, bool fromLiveStatusEvent)
+    private bool UpdateConnectionAttemptState(int tunnelId, int? groupId, string location, VpnConfigurationHealth configurationHealth, VpnLiveStatusInfo? status, bool fromLiveStatusEvent, bool authoritativelyDisconnected)
     {
+        // A current get_tunnel disabled state supersedes both a pending
+        // connection intent and historical stuck-handshake presentation.
+        if (authoritativelyDisconnected)
+        {
+            if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
+            ClearFailedAttempt(tunnelId);
+            return false;
+        }
+
         if (configurationHealth == VpnConfigurationHealth.Unlinked)
         {
             if (_connectionAttemptTunnelId == tunnelId) ClearConnectionAttempt();
