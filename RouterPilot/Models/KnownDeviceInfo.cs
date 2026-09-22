@@ -8,46 +8,50 @@ namespace RouterPilot.Models;
 public sealed class KnownDeviceInfo : INotifyPropertyChanged
 {
     public required ClientProfile Profile { get; init; }
+    /// <summary>Current typed inventory observation when this projection is built from DeviceSnapshot.</summary>
+    public DeviceObservation? CurrentObservation { get; init; }
+    /// <summary>Compatibility input retained for existing non-migrated callers and fixtures.</summary>
     public ClientInfo? CurrentClient { get; init; }
     public IDeviceIdentityResolver? IdentityResolver { get; init; }
     public string MacKey => ClientIdentity.NormalizeHexMac(Profile.Key);
-    public bool IsOnline => CurrentClient is not null;
-    public string Name => Useful(CurrentClient?.Name) ? CurrentClient!.Name : IdentityResolver?.ResolveFriendlyName(new DeviceIdentitySignals(
+    private ClientInfo? ObservedClient => CurrentObservation?.Client ?? CurrentClient;
+    public bool IsOnline => ObservedClient is not null;
+    public string Name => Useful(ObservedClient?.Name) ? ObservedClient!.Name : IdentityResolver?.ResolveFriendlyName(new DeviceIdentitySignals(
         Profile.Nickname,
-        CurrentClient?.RouterName,
+        ObservedClient?.RouterName,
         null,
         null,
-        CurrentClient?.AdGuardName,
+        ObservedClient?.AdGuardName,
         Profile.LastKnownName,
-        CurrentClient?.IpAddress ?? Profile.LastKnownIpAddress)) ?? FirstFriendlyName();
-    public string Secondary => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
+        ObservedClient?.IpAddress ?? Profile.LastKnownIpAddress)) ?? FirstFriendlyName();
+    public string Secondary => IsOnline && Useful(ObservedClient!.IpAddress) ? ObservedClient.IpAddress :
         Useful(Profile.LastKnownIpAddress) ? $"Last known IP: {Profile.LastKnownIpAddress}" : string.Empty;
-    public string IpAddress => IsOnline && Useful(CurrentClient!.IpAddress) ? CurrentClient.IpAddress :
+    public string IpAddress => IsOnline && Useful(ObservedClient!.IpAddress) ? ObservedClient.IpAddress :
         Useful(Profile.LastKnownIpAddress) ? Profile.LastKnownIpAddress : RouterPilotStatusPresentation.NotAvailable;
-    public string MacAddress => IsOnline && Useful(CurrentClient!.MacAddress) ? CurrentClient.MacAddress : FormatMac(MacKey);
+    public string MacAddress => IsOnline && Useful(ObservedClient!.MacAddress) ? ObservedClient.MacAddress : FormatMac(MacKey);
     public string Status => IsOnline ? "Online" : "Not currently observed";
     public string Category => !string.IsNullOrWhiteSpace(Profile.Category) ? Profile.Category :
-        !string.IsNullOrWhiteSpace(CurrentClient?.DeviceType) ? CurrentClient.DeviceType : "Unknown";
-    public string DeviceType => CurrentClient?.DeviceType ?? (Useful(Profile.Category) ? Profile.Category : "Unknown device");
-    public string Manufacturer => CurrentClient?.Manufacturer ??
+        !string.IsNullOrWhiteSpace(ObservedClient?.DeviceType) ? ObservedClient.DeviceType : "Unknown";
+    public string DeviceType => ObservedClient?.DeviceType ?? (Useful(Profile.Category) ? Profile.Category : "Unknown device");
+    public string Manufacturer => ObservedClient?.Manufacturer ??
         IdentityResolver?.ResolveManufacturer(Profile.Key, Profile.LastKnownName) ?? "Unknown manufacturer";
-    public string ConnectionSummary => CurrentClient?.ConnectionSummary ?? Profile.LastKnownConnectionSummary;
+    public string ConnectionSummary => ObservedClient?.ConnectionSummary ?? Profile.LastKnownConnectionSummary;
     public bool HasConnectionSummary => !string.IsNullOrWhiteSpace(ConnectionSummary);
-    public string SignalSummary => CurrentClient?.SignalSummary ?? string.Empty;
+    public string SignalSummary => ObservedClient?.SignalSummary ?? string.Empty;
     public bool HasSignalSummary => !string.IsNullOrWhiteSpace(SignalSummary);
-    public string TotalQueriesDisplay => CurrentClient?.TotalQueriesDisplay ?? RouterPilotStatusPresentation.NotAvailable;
-    public string BlockedQueriesDisplay => CurrentClient?.BlockedQueriesDisplay ?? RouterPilotStatusPresentation.NotAvailable;
-    public string BlockRateDisplay => CurrentClient?.BlockRateDisplay ?? RouterPilotStatusPresentation.NotAvailable;
-    public AdGuardAvailabilityState AdGuardDataAvailability => CurrentClient?.AdGuardDataAvailability ?? AdGuardAvailabilityState.Unavailable;
+    public string TotalQueriesDisplay => ObservedClient?.TotalQueriesDisplay ?? RouterPilotStatusPresentation.NotAvailable;
+    public string BlockedQueriesDisplay => ObservedClient?.BlockedQueriesDisplay ?? RouterPilotStatusPresentation.NotAvailable;
+    public string BlockRateDisplay => ObservedClient?.BlockRateDisplay ?? RouterPilotStatusPresentation.NotAvailable;
+    public AdGuardAvailabilityState AdGuardDataAvailability => ObservedClient?.AdGuardDataAvailability ?? AdGuardAvailabilityState.Unavailable;
     public string LastObserved => FormatObserved(Profile.LastSeenUtc);
     public bool IsFavourite => Profile.IsFavorite;
     public bool IsMonitored => Profile.MonitorAvailability;
     public bool NeedsReview => Profile.NeedsReview;
-    public string DeviceIcon => CurrentClient?.DeviceIcon ?? "\u25CF";
+    public string DeviceIcon => ObservedClient?.DeviceIcon ?? "\u25CF";
     public string FavoriteGlyph => IsFavourite ? "\u2605" : "\u2606";
     public string HealthText => NeedsReview ? "Needs Review" : IsOnline ? "Online" : "Offline";
     public string HealthColour => NeedsReview ? "#D97706" : IsOnline ? "#16A34A" : "#687386";
-    public ClientInfo ToClientInfo() => CurrentClient ?? new ClientInfo
+    public ClientInfo ToClientInfo() => ObservedClient ?? new ClientInfo
     {
         Name = Name, RouterName = SafePersistedName(), MacAddress = FormatMac(MacKey),
         IpAddress = Useful(Profile.LastKnownIpAddress) ? Profile.LastKnownIpAddress : "-",
@@ -68,7 +72,7 @@ public sealed class KnownDeviceInfo : INotifyPropertyChanged
     private string FirstFriendlyName()
     {
         if (Useful(Profile.Nickname)) return Profile.Nickname;
-        ClientInfo? current = CurrentClient;
+        ClientInfo? current = ObservedClient;
         if (current is not null && Useful(current.Name) && !IsGeneratedIpLabel(current.Name, current.IpAddress)) return current.Name;
         if (current is not null && Useful(current.RouterName) && !IsGeneratedIpLabel(current.RouterName, current.IpAddress)) return current.RouterName;
         if (Useful(Profile.LastKnownName) && !IsGeneratedIpLabel(Profile.LastKnownName, Profile.LastKnownIpAddress)) return Profile.LastKnownName;

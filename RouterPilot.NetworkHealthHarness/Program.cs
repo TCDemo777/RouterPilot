@@ -296,6 +296,27 @@ Require(knownProjection.IsOnline && knownProjection.Secondary == discoveredClien
 Require(knownDetails.Manufacturer == discoveredClient.Manufacturer && knownDetails.ConnectionType == discoveredClient.ConnectionType &&
     knownDetails.LiveInterface == discoveredClient.LiveInterface, "Known Device details retain router-derived enrichment independently of AdGuard");
 Require(knownDetails.TotalQueriesDisplay == RouterPilotStatusPresentation.NotAvailable, "Known Device DNS fields remain unavailable when AdGuard enrichment is absent");
+var typedKnownInventory = new ClientInventoryState();
+typedKnownInventory.Update([discoveredClient], "router-a", 1);
+Require(DeviceIdentity.TryCreate("aa-bb-cc-dd-ee-40", out DeviceIdentity discoveredIdentity),
+    "Known Devices profile identity uses the existing strict canonical MAC form");
+Require(typedKnownInventory.DeviceSnapshot.Observations.TryGetValue(discoveredIdentity, out DeviceObservation? discoveredObservation),
+    "typed inventory retains the current accepted Known Devices observation");
+var typedKnownProjection = new KnownDeviceInfo
+{
+    Profile = new ClientProfile { Key = "aa-bb-cc-dd-ee-40", LastKnownName = discoveredClient.Name },
+    CurrentObservation = discoveredObservation
+};
+Require(typedKnownProjection.IsOnline == knownProjection.IsOnline &&
+    typedKnownProjection.Name == knownProjection.Name &&
+    typedKnownProjection.Secondary == knownProjection.Secondary &&
+    typedKnownProjection.IpAddress == knownProjection.IpAddress &&
+    typedKnownProjection.Status == knownProjection.Status &&
+    typedKnownProjection.ToClientInfo().LiveInterface == knownDetails.LiveInterface,
+    "typed current observation projects identically to the legacy Known Devices current-client path");
+typedKnownInventory.Update([new ClientInfo { MacAddress = "not-a-mac", Name = "Invalid" }], "router-a", 1);
+Require(typedKnownInventory.DeviceSnapshot.IsEmpty && typedKnownInventory.Snapshot.Count == 0,
+    "invalid current inventory cannot create a typed Known Devices observation");
 var generatedIpName = new KnownDeviceInfo
 {
     Profile = new ClientProfile { Key = "AA:BB:CC:DD:EE:42", LastKnownName = "1921681103", LastKnownIpAddress = "192.168.1.103" }
@@ -335,6 +356,17 @@ ClientInfo movedClient = new()
 var movedKnown = new KnownDeviceInfo { Profile = rememberedProfile, CurrentClient = movedClient };
 Require(movedKnown.IsOnline && movedKnown.IpAddress == "192.168.1.99" && movedKnown.TotalQueriesDisplay == "0" &&
     movedKnown.BlockRateDisplay == "0.0%", "Known Device follows current MAC identity when IP changes and preserves genuine DNS zero");
+var typedMovedInventory = new ClientInventoryState();
+typedMovedInventory.Update([movedClient], "router-a", 1);
+Require(DeviceIdentity.TryCreate(rememberedProfile.Key, out DeviceIdentity movedIdentity),
+    "same MAC with a new IP creates the existing strict typed identity");
+Require(typedMovedInventory.DeviceSnapshot.Observations.TryGetValue(movedIdentity, out DeviceObservation? movedObservation),
+    "same MAC with a new IP remains one typed current identity");
+var typedMovedKnown = new KnownDeviceInfo { Profile = rememberedProfile, CurrentObservation = movedObservation };
+Require(typedMovedKnown.IsOnline && typedMovedKnown.IpAddress == movedKnown.IpAddress &&
+    typedMovedKnown.TotalQueriesDisplay == movedKnown.TotalQueriesDisplay &&
+    typedMovedKnown.BlockRateDisplay == movedKnown.BlockRateDisplay,
+    "typed Known Devices projection preserves same-MAC IP-change behavior");
 Require(RouterTemperatureHealth.IsFlint2("GL-MT6000"), "Flint 2 model identification");
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "50 °C") == TemperatureHealthState.Normal, "50 C is normal");
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "60 °C") == TemperatureHealthState.Normal, "60 C is normal");

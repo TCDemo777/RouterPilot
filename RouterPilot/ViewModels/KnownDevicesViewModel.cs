@@ -28,7 +28,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty] private KnownDeviceInfo? selectedDevice;
 
     public int TotalCount => _profileMap.Count;
-    public int OnlineCount => _profileMap.Keys.Count(key => _inventory.Snapshot.ContainsKey(key));
+    public int OnlineCount => _profileMap.Keys.Count(key => TryGetCurrentObservation(key) is not null);
     public int OfflineCount => TotalCount - OnlineCount;
     public int NeedsReviewCount => _profileMap.Values.Count(profile => profile.NeedsReview);
     public int MonitoredCount => _profileMap.Values.Count(profile => profile.MonitorAvailability);
@@ -141,7 +141,7 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         IEnumerable<KnownDeviceInfo> query = _profileMap.Select(pair => new KnownDeviceInfo
         {
             Profile = pair.Value,
-            CurrentClient = _inventory.Snapshot.TryGetValue(pair.Key, out ClientInfo? client) ? client : null,
+            CurrentObservation = TryGetCurrentObservation(pair.Key),
             IdentityResolver = _deviceIdentityResolver
         });
         string text = SearchText.Trim();
@@ -171,6 +171,12 @@ public partial class KnownDevicesViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(TotalCount)); OnPropertyChanged(nameof(OnlineCount)); OnPropertyChanged(nameof(OfflineCount));
         OnPropertyChanged(nameof(NeedsReviewCount)); OnPropertyChanged(nameof(MonitoredCount)); OnPropertyChanged(nameof(HasDevices));
     }
+
+    private DeviceObservation? TryGetCurrentObservation(string profileKey) =>
+        DeviceIdentity.TryCreate(profileKey, out DeviceIdentity identity) &&
+        _inventory.DeviceSnapshot.Observations.TryGetValue(identity, out DeviceObservation? observation)
+            ? observation
+            : null;
 
     private static bool Matches(KnownDeviceInfo device, string text)
     {
