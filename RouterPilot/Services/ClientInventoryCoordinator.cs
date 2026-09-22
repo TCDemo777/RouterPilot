@@ -73,7 +73,7 @@ public sealed class ClientInventoryCoordinator
             {
                 IReadOnlyList<ClientInfo> reconciled = await _testReconciliation(token);
                 if (!CanPublish(capturedProfileId, capturedContextVersion)) return false;
-                _inventory.Update(reconciled);
+                _inventory.Update(reconciled, capturedProfileId, capturedContextVersion);
                 _loaded = true;
                 return true;
             }
@@ -106,7 +106,7 @@ public sealed class ClientInventoryCoordinator
                 .Select(group => ToClient(group.First(), adGuardTask.Result, profiles))
                 .ToList();
             if (!CanPublish(capturedProfileId, capturedContextVersion)) return false;
-            _inventory.Update(clients);
+            _inventory.Update(clients, capturedProfileId, capturedContextVersion);
             _presence.Observe(clients);
             _loaded = true;
             return true;

@@ -11,28 +11,38 @@ public sealed class ClientInventoryState
     public event EventHandler? Changed;
 
     public IReadOnlyDictionary<string, ClientInfo> Snapshot => _clients;
+    /// <summary>Typed view derived from the same accepted clients as <see cref="Snapshot"/>.</summary>
+    public DeviceInventorySnapshot DeviceSnapshot { get; private set; } = DeviceInventorySnapshot.Empty;
     /// <summary>
     /// Explicit current presence from a successfully-read aggregate client inventory.
     /// Absence from this map is deliberately Unknown rather than Offline.
     /// </summary>
     public IReadOnlyDictionary<string, bool> PresenceSnapshot => _presence;
 
-    public void Update(IEnumerable<ClientInfo> clients)
+    public void Update(IEnumerable<ClientInfo> clients) => Publish(clients, null, 0);
+
+    /// <summary>Publishes one accepted client reconciliation for a verified router context.</summary>
+    public void Update(IEnumerable<ClientInfo> clients, string? routerProfileId, long contextVersion) =>
+        Publish(clients, routerProfileId, contextVersion);
+
+    private void Publish(IEnumerable<ClientInfo> clients, string? routerProfileId, long contextVersion)
     {
         _clients.Clear();
         foreach (ClientInfo client in clients)
         {
-            string mac = ClientIdentity.NormalizeHexMac(client.MacAddress);
-            if (mac.Length == 12) _clients[mac] = client;
+            if (DeviceIdentity.TryCreate(client.MacAddress, out DeviceIdentity identity))
+                _clients[identity.CanonicalMac] = client;
         }
+        RebuildDeviceSnapshot(routerProfileId, contextVersion);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void Clear()
     {
-        if (_clients.Count == 0 && _presence.Count == 0) return;
+        if (_clients.Count == 0 && _presence.Count == 0 && DeviceSnapshot.IsEmpty) return;
         _clients.Clear();
         _presence.Clear();
+        DeviceSnapshot = DeviceInventorySnapshot.Empty;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -45,6 +55,7 @@ public sealed class ClientInventoryState
             string mac = ClientIdentity.NormalizeHexMac(identity);
             if (mac.Length == 12) _presence[mac] = online;
         }
+        RebuildDeviceSnapshot(DeviceSnapshot.RouterProfileId, DeviceSnapshot.ContextVersion);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -57,12 +68,24 @@ public sealed class ClientInventoryState
         bool changed = false;
         foreach (ClientInfo client in clients)
         {
-            string mac = ClientIdentity.NormalizeHexMac(client.MacAddress);
-            if (mac.Length != 12 || _clients.ContainsKey(mac)) continue;
-            _clients[mac] = client;
+            if (!DeviceIdentity.TryCreate(client.MacAddress, out DeviceIdentity identity) || _clients.ContainsKey(identity.CanonicalMac)) continue;
+            _clients[identity.CanonicalMac] = client;
             changed = true;
         }
 
-        if (changed) Changed?.Invoke(this, EventArgs.Empty);
+        if (!changed) return;
+        RebuildDeviceSnapshot(DeviceSnapshot.RouterProfileId, DeviceSnapshot.ContextVersion);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RebuildDeviceSnapshot(string? routerProfileId, long contextVersion)
+    {
+        DeviceSnapshot = DeviceInventorySnapshot.Create(
+            _clients.Select(pair => new DeviceObservation(
+                DeviceIdentity.TryCreate(pair.Key, out DeviceIdentity identity) ? identity : default,
+                pair.Value,
+                _presence.TryGetValue(pair.Key, out bool online) ? online : null)),
+            routerProfileId,
+            contextVersion);
     }
 }

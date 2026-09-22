@@ -485,6 +485,27 @@ Require(ClientIdentity.NormalizeHexMac("AA:BB:CC:DD:EE") == "AABBCCDDEE" &&
     ClientIdentity.NormalizeHexMac("not-a-mac") != "AABBCCDDEEFF",
     "wrong length, null, and invalid values do not produce a strict shared MAC key");
 
+var typedIdentities = new HashSet<DeviceIdentity>();
+foreach (string form in new[] { "aa:bb:cc:dd:ee:ff", "AA-BB-CC-DD-EE-FF", "aa.bb.cc.dd.ee.ff", "AABBCCDDEEFF" })
+{
+    Require(DeviceIdentity.TryCreate(form, out DeviceIdentity identity) && identity.CanonicalMac == "AABBCCDDEEFF",
+        $"typed identity accepts the existing strict form {form}");
+    typedIdentities.Add(identity);
+}
+Require(DeviceIdentity.TryCreate("AABBCCDDEEFF", out DeviceIdentity canonicalIdentity),
+    "canonical strict MAC creates a typed identity");
+Require(typedIdentities.Count == 1 && typedIdentities.Single().GetHashCode() == canonicalIdentity.GetHashCode(),
+    "typed identity equality and hashing use the canonical strict MAC key");
+var typedIdentityMap = new Dictionary<DeviceIdentity, string>
+{
+    [canonicalIdentity] = "canonical"
+};
+Require(typedIdentityMap.TryGetValue(typedIdentities.Single(), out string? typedIdentityValue) &&
+    typedIdentityMap.Count == 1 && typedIdentityValue == "canonical",
+    "typed identity supports deterministic dictionary and set lookup");
+foreach (string? invalid in new[] { null, "", "AA:BB:CC:DD:EE", "GG:HH:II:JJ:KK:LL", "not-a-mac" })
+    Require(!DeviceIdentity.TryCreate(invalid, out _), "invalid input cannot create a typed MAC identity");
+
 var inventoryCharacterization = new ClientInventoryState();
 ClientInfo duplicateFirst = Client("aa:bb:cc:dd:ee:10", "First observed", "192.168.8.10");
 ClientInfo duplicateLast = Client("AA-BB-CC-DD-EE-10", "Last observed", "192.168.8.11");
@@ -493,6 +514,13 @@ Require(inventoryCharacterization.Snapshot.Count == 1 &&
     inventoryCharacterization.Snapshot.TryGetValue("AABBCCDDEE10", out ClientInfo? publishedDuplicate) &&
     ReferenceEquals(publishedDuplicate, duplicateLast),
     "legacy ClientInventoryState normalizes equivalent observations and retains its current last-record winner");
+Require(DeviceIdentity.TryCreate("AA:BB:CC:DD:EE:10", out DeviceIdentity duplicateIdentity),
+    "accepted shared inventory key creates a typed identity");
+Require(inventoryCharacterization.DeviceSnapshot.Observations.Keys.Select(identity => identity.CanonicalMac)
+    .OrderBy(key => key).SequenceEqual(inventoryCharacterization.Snapshot.Keys.OrderBy(key => key)) &&
+    inventoryCharacterization.DeviceSnapshot.Observations.TryGetValue(duplicateIdentity, out DeviceObservation? typedDuplicate) &&
+    ReferenceEquals(typedDuplicate.Client, duplicateLast) && typedDuplicate.IsOnline is null,
+    "typed and legacy inventory views derive from the same accepted duplicate winner with unknown presence");
 inventoryCharacterization.UpdateAuthoritativePresence(new Dictionary<string, bool>
 {
     ["aa-bb-cc-dd-ee-10"] = false,
@@ -502,6 +530,18 @@ Require(inventoryCharacterization.PresenceSnapshot.Count == 1 &&
     inventoryCharacterization.PresenceSnapshot.TryGetValue("AABBCCDDEE10", out bool explicitOffline) && !explicitOffline &&
     !inventoryCharacterization.PresenceSnapshot.ContainsKey("AABBCCDDEE11"),
     "presence retains only strict identities; an absent identity remains Unknown rather than Offline");
+Require(inventoryCharacterization.DeviceSnapshot.Observations[duplicateIdentity].IsOnline == false,
+    "typed observation preserves explicit offline presence without treating absence as offline");
+inventoryCharacterization.UpdateAuthoritativePresence(new Dictionary<string, bool>
+{
+    ["AA:BB:CC:DD:EE:10"] = true
+});
+Require(inventoryCharacterization.DeviceSnapshot.Observations[duplicateIdentity].IsOnline == true,
+    "typed observation preserves explicit online presence");
+inventoryCharacterization.Clear();
+Require(inventoryCharacterization.Snapshot.Count == 0 && inventoryCharacterization.PresenceSnapshot.Count == 0 &&
+    inventoryCharacterization.DeviceSnapshot.IsEmpty,
+    "clearing shared inventory leaves typed and legacy views coherently empty");
 
 // Current profile lookup remains a normalized-map contract at its consumers.
 // ClientProfileService owns raw persisted keys and must not be changed by this phase.
@@ -539,8 +579,19 @@ staleInventory.Clear();
 staleCoordinator.ResetForRouterSession();
 releaseStale.SetResult([Client("AA:BB:CC:DD:EE:30", "Router A client", "192.168.8.30")]);
 bool stalePublished = await staleRefresh;
-Require(!stalePublished && staleInventory.Snapshot.Count == 0,
-    "prior-router inventory refresh cannot publish after the active router context changes");
+Require(!stalePublished && staleInventory.Snapshot.Count == 0 && staleInventory.DeviceSnapshot.IsEmpty,
+    "prior-router inventory refresh cannot publish typed or legacy state after the active router context changes");
+
+var contextBInventory = new ClientInventoryState();
+var contextB = new HarnessActiveRouterContext("router-b", version: 2);
+var contextBCoordinator = new ClientInventoryCoordinator(contextBInventory, contextB, _ =>
+    Task.FromResult<IReadOnlyList<ClientInfo>>([Client("AA:BB:CC:DD:EE:31", "Router B client", "192.168.9.31")]));
+Require(await contextBCoordinator.RefreshAuthoritativeInventoryAsync() &&
+    contextBInventory.DeviceSnapshot.RouterProfileId == "router-b" &&
+    contextBInventory.DeviceSnapshot.ContextVersion == 2 &&
+    contextBInventory.DeviceSnapshot.Observations.Keys.Select(identity => identity.CanonicalMac).OrderBy(key => key)
+        .SequenceEqual(contextBInventory.Snapshot.Keys.OrderBy(key => key)),
+    "current-context refresh publishes one context-stamped typed snapshot equivalent to the legacy map");
 
 static ClientProfile Profile(string mac, string name) => new()
 {
