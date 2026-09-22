@@ -593,6 +593,99 @@ Require(await contextBCoordinator.RefreshAuthoritativeInventoryAsync() &&
         .SequenceEqual(contextBInventory.Snapshot.Keys.OrderBy(key => key)),
     "current-context refresh publishes one context-stamped typed snapshot equivalent to the legacy map");
 
+// Slice 01 / Phase 5A: exercise the migrated Known Devices ViewModel itself,
+// with an in-memory profile map so the fixture never writes user profiles.
+var knownInventory = new ClientInventoryState();
+ClientInfo knownCurrent = Client("AA:BB:CC:DD:EE:50", "Router tablet", "192.168.10.50");
+knownInventory.Update([knownCurrent], "router-a", 1);
+using (KnownDevicesViewModel knownDevices = CreateKnownDevicesViewModel(
+    knownInventory,
+    new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["aa-bb-cc-dd-ee-50"] = new ClientProfile
+        {
+            Key = "aa-bb-cc-dd-ee-50", Nickname = "Kitchen tablet", IsFavorite = true,
+            LastKnownName = "Saved tablet", LastKnownIpAddress = "192.168.10.50"
+        }
+    },
+    out ClientsViewModel knownClients))
+{
+    Require(knownDevices.Devices.Count == 1 && knownDevices.Devices[0].IsOnline &&
+        knownDevices.Devices[0].Profile.IsFavorite && knownDevices.Devices[0].Name == "Router tablet",
+        "Known Devices ViewModel joins one typed current observation with one matching profile without duplication");
+
+    knownDevices.SelectedDevice = knownDevices.Devices[0];
+    Require(knownClients.SelectedClient is not null &&
+        ClientIdentity.NormalizeHexMac(knownClients.SelectedClient.MacAddress) == "AABBCCDDEE50" &&
+        knownDevices.SelectedDevice.MacKey == "AABBCCDDEE50",
+        "Known Devices ViewModel selection retains the existing canonical string-MAC Client Details compatibility path");
+}
+
+var filterSortInventory = new ClientInventoryState();
+filterSortInventory.Update(
+[
+    Client("AA:BB:CC:DD:EE:51", "Bravo", "192.168.10.51"),
+    Client("AA:BB:CC:DD:EE:52", "Alpha", "192.168.10.52")
+], "router-a", 1);
+using (KnownDevicesViewModel filterSortDevices = CreateKnownDevicesViewModel(
+    filterSortInventory,
+    new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AA:BB:CC:DD:EE:51"] = new ClientProfile { Key = "AA:BB:CC:DD:EE:51", LastKnownName = "Saved Bravo" },
+        ["aa-bb-cc-dd-ee-52"] = new ClientProfile { Key = "aa-bb-cc-dd-ee-52", LastKnownName = "Saved Alpha" },
+        ["AA:BB:CC:DD:EE:53"] = new ClientProfile { Key = "AA:BB:CC:DD:EE:53", LastKnownName = "Charlie" }
+    },
+    out _))
+{
+    Require(filterSortDevices.Devices.Count == 3 && filterSortDevices.OnlineCount == 2,
+        "Known Devices ViewModel includes typed current and profile-only entries exactly once");
+    filterSortDevices.SelectedFilter = "Online";
+    Require(filterSortDevices.Devices.Count == 2 && filterSortDevices.Devices.All(device => device.IsOnline),
+        "Known Devices ViewModel Online filter retains only current typed observations");
+    filterSortDevices.SelectedFilter = "Offline";
+    Require(filterSortDevices.Devices.Count == 1 && !filterSortDevices.Devices[0].IsOnline &&
+        filterSortDevices.Devices[0].Name == "Charlie",
+        "Known Devices ViewModel Offline filter retains the profile-only projection");
+    filterSortDevices.SelectedFilter = "All";
+    filterSortDevices.SearchText = "Bravo";
+    Require(filterSortDevices.Devices.Count == 1 && filterSortDevices.Devices[0].Name == "Bravo",
+        "Known Devices ViewModel search filtering remains based on the existing projection");
+    filterSortDevices.SearchText = string.Empty;
+    filterSortDevices.SelectedSort = "Name";
+    Require(filterSortDevices.Devices.Select(device => device.Name).SequenceEqual(["Alpha", "Bravo", "Charlie"]),
+        "Known Devices ViewModel Name sorting remains the established ordinal-ignore-case projection order");
+}
+
+var staleKnownInventory = new ClientInventoryState();
+var staleKnownContext = new HarnessActiveRouterContext("router-a", version: 1);
+var staleKnownStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var releaseStaleKnown = new TaskCompletionSource<IReadOnlyList<ClientInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
+var staleKnownCoordinator = new ClientInventoryCoordinator(staleKnownInventory, staleKnownContext, async _ =>
+{
+    staleKnownStarted.SetResult();
+    return await releaseStaleKnown.Task;
+});
+using (KnownDevicesViewModel staleKnownDevices = CreateKnownDevicesViewModel(
+    staleKnownInventory,
+    new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AA:BB:CC:DD:EE:54"] = new ClientProfile { Key = "AA:BB:CC:DD:EE:54", LastKnownName = "Router A remembered" },
+        ["AA:BB:CC:DD:EE:55"] = new ClientProfile { Key = "AA:BB:CC:DD:EE:55", LastKnownName = "Router B remembered" }
+    },
+    out _))
+{
+    Task<bool> staleKnownRefresh = staleKnownCoordinator.RefreshAuthoritativeInventoryAsync();
+    await staleKnownStarted.Task;
+    staleKnownContext.SwitchTo("router-b", version: 2);
+    staleKnownInventory.Clear();
+    staleKnownCoordinator.ResetForRouterSession();
+    releaseStaleKnown.SetResult([Client("AA:BB:CC:DD:EE:54", "Router A current", "192.168.10.54")]);
+    Require(!await staleKnownRefresh && staleKnownDevices.Devices.Count == 2 &&
+        staleKnownDevices.Devices.All(device => !device.IsOnline) &&
+        staleKnownDevices.Devices.All(device => device.Name != "Router A current"),
+        "Known Devices ViewModel never displays a delayed router-A observation as current after switching to router B");
+}
+
 static ClientProfile Profile(string mac, string name) => new()
 {
     Key = ClientIdentity.NormalizeMac(mac),
@@ -612,6 +705,24 @@ async Task<ClientDetailsNavigationTarget?> ResolveColdAsync(
         inventory,
         coordinator,
         profiles ?? new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase));
+
+static KnownDevicesViewModel CreateKnownDevicesViewModel(
+    ClientInventoryState inventory,
+    IReadOnlyDictionary<string, ClientProfile> profiles,
+    out ClientsViewModel clients)
+{
+    var settings = new SettingsService(System.IO.Path.GetTempPath());
+    var displayNames = new ClientDisplayNameService(settings);
+    clients = new ClientsViewModel(
+        null!, new AdGuardAvailabilityService(), settings, displayNames, null!, null!, null!,
+        new DataFreshnessService(), inventory, null!, new DeviceIdentityResolver(), new HarnessMdnsIdentityService());
+    var viewModel = new KnownDevicesViewModel(inventory, clients, new DeviceIdentityResolver(), displayNames);
+    FieldInfo profilesField = typeof(KnownDevicesViewModel).GetField("_profileMap", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    MethodInfo rebuild = typeof(KnownDevicesViewModel).GetMethod("Rebuild", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    profilesField.SetValue(viewModel, new Dictionary<string, ClientProfile>(profiles, StringComparer.OrdinalIgnoreCase));
+    rebuild.Invoke(viewModel, null);
+    return viewModel;
+}
 
 foreach (string source in new[] { "ColdAnalyticsDeepLink", "ColdNetworkDeepLink" })
 {
@@ -747,4 +858,10 @@ sealed class HarnessActiveRouterContext : IActiveRouterContext
         _profile = new RouterProfile { Id = profileId };
         Version = version;
     }
+}
+
+sealed class HarnessMdnsIdentityService : IMdnsIdentityService
+{
+    public Task<string?> ResolveHostnameAsync(string ipAddress, CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }
