@@ -9,17 +9,19 @@ public sealed class ClientInventoryCoordinator
     private readonly ClientInventoryState _inventory;
     private readonly ClientProfileService _profiles;
     private readonly IClientPresenceHistoryService _presence;
+    private readonly IActiveRouterContext? _activeRouter;
     private readonly Func<CancellationToken, Task<IReadOnlyList<ClientInfo>>>? _testReconciliation;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _loaded;
 
     public ClientInventoryCoordinator(IRouterManagerProvider provider, ClientInventoryState inventory,
-        ClientProfileService profiles, IClientPresenceHistoryService presence)
+        ClientProfileService profiles, IClientPresenceHistoryService presence, IActiveRouterContext activeRouter)
     {
         _provider = provider;
         _inventory = inventory;
         _profiles = profiles;
         _presence = presence;
+        _activeRouter = activeRouter;
     }
 
     internal ClientInventoryCoordinator(ClientInventoryState inventory,
@@ -30,6 +32,17 @@ public sealed class ClientInventoryCoordinator
         _profiles = null!;
         _presence = null!;
         _testReconciliation = testReconciliation;
+    }
+
+    /// <summary>
+    /// Deterministic-harness seam for exercising router-context publication
+    /// without changing the production reconciliation or transport path.
+    /// </summary>
+    internal ClientInventoryCoordinator(ClientInventoryState inventory, IActiveRouterContext activeRouter,
+        Func<CancellationToken, Task<IReadOnlyList<ClientInfo>>> testReconciliation)
+        : this(inventory, testReconciliation)
+    {
+        _activeRouter = activeRouter;
     }
 
     public bool IsAuthoritativelyLoaded => _loaded;
@@ -53,9 +66,14 @@ public sealed class ClientInventoryCoordinator
         {
             if (!forceRefresh && _loaded) return true;
 
+            string? capturedProfileId = _activeRouter?.CurrentProfileId;
+            long capturedContextVersion = _activeRouter?.Version ?? 0;
+
             if (_testReconciliation is not null)
             {
-                _inventory.Update(await _testReconciliation(token));
+                IReadOnlyList<ClientInfo> reconciled = await _testReconciliation(token);
+                if (!CanPublish(capturedProfileId, capturedContextVersion)) return false;
+                _inventory.Update(reconciled);
                 _loaded = true;
                 return true;
             }
@@ -87,6 +105,7 @@ public sealed class ClientInventoryCoordinator
                 .GroupBy(client => ClientIdentity.NormalizeMac(client.MacAddress), StringComparer.OrdinalIgnoreCase)
                 .Select(group => ToClient(group.First(), adGuardTask.Result, profiles))
                 .ToList();
+            if (!CanPublish(capturedProfileId, capturedContextVersion)) return false;
             _inventory.Update(clients);
             _presence.Observe(clients);
             _loaded = true;
@@ -104,6 +123,11 @@ public sealed class ClientInventoryCoordinator
 
     public void MarkAuthoritativelyLoaded() => _loaded = true;
     public void ResetForRouterSession() => _loaded = false;
+
+    private bool CanPublish(string? capturedProfileId, long capturedContextVersion) =>
+        _activeRouter is null ||
+        (_activeRouter.Version == capturedContextVersion &&
+         string.Equals(_activeRouter.CurrentProfileId, capturedProfileId, StringComparison.Ordinal));
 
     private static async Task<List<ClientInfo>> CaptureAdGuardAsync(RouterManager router, CancellationToken token)
     {

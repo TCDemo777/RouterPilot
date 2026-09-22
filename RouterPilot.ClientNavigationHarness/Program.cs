@@ -467,6 +467,81 @@ static ClientInfo Client(string mac, string name, string ip) => new()
     IpAddress = ip
 };
 
+// Slice 01 / Phase 1 characterization: the historic alphanumeric profile
+// normalizer and the strict hardware-MAC inventory normalizer are deliberately
+// distinct. A future typed MAC identity must adopt only the strict path.
+Require(ClientIdentity.NormalizeMac("aa:bb:cc:dd:ee:ff") == "AABBCCDDEEFF" &&
+    ClientIdentity.NormalizeHexMac("aa:bb:cc:dd:ee:ff") == "AABBCCDDEEFF",
+    "case and colon separators canonicalize consistently for valid MACs");
+Require(ClientIdentity.NormalizeHexMac("aa-bb-cc-dd-ee-ff") == "AABBCCDDEEFF" &&
+    ClientIdentity.NormalizeHexMac("aa.bb.cc.dd.ee.ff") == "AABBCCDDEEFF" &&
+    ClientIdentity.NormalizeHexMac("aabbccddeeff") == "AABBCCDDEEFF",
+    "hyphen, dot, and separator-free valid MAC forms use the shared strict key");
+Require(ClientIdentity.NormalizeMac("gg:hh:ii:jj:kk:ll") == "GGHHIIJJKKLL" &&
+    ClientIdentity.NormalizeHexMac("gg:hh:ii:jj:kk:ll") == string.Empty,
+    "historic alphanumeric normalization remains distinct from strict hexadecimal eligibility");
+Require(ClientIdentity.NormalizeHexMac("AA:BB:CC:DD:EE") == "AABBCCDDEE" &&
+    ClientIdentity.NormalizeHexMac(null) == string.Empty &&
+    ClientIdentity.NormalizeHexMac("not-a-mac") != "AABBCCDDEEFF",
+    "wrong length, null, and invalid values do not produce a strict shared MAC key");
+
+var inventoryCharacterization = new ClientInventoryState();
+ClientInfo duplicateFirst = Client("aa:bb:cc:dd:ee:10", "First observed", "192.168.8.10");
+ClientInfo duplicateLast = Client("AA-BB-CC-DD-EE-10", "Last observed", "192.168.8.11");
+inventoryCharacterization.Update([duplicateFirst, duplicateLast, Client("GG:HH:II:JJ:KK:LL", "Invalid", "192.168.8.12")]);
+Require(inventoryCharacterization.Snapshot.Count == 1 &&
+    inventoryCharacterization.Snapshot.TryGetValue("AABBCCDDEE10", out ClientInfo? publishedDuplicate) &&
+    ReferenceEquals(publishedDuplicate, duplicateLast),
+    "legacy ClientInventoryState normalizes equivalent observations and retains its current last-record winner");
+inventoryCharacterization.UpdateAuthoritativePresence(new Dictionary<string, bool>
+{
+    ["aa-bb-cc-dd-ee-10"] = false,
+    ["GG:HH:II:JJ:KK:LL"] = true
+});
+Require(inventoryCharacterization.PresenceSnapshot.Count == 1 &&
+    inventoryCharacterization.PresenceSnapshot.TryGetValue("AABBCCDDEE10", out bool explicitOffline) && !explicitOffline &&
+    !inventoryCharacterization.PresenceSnapshot.ContainsKey("AABBCCDDEE11"),
+    "presence retains only strict identities; an absent identity remains Unknown rather than Offline");
+
+// Current profile lookup remains a normalized-map contract at its consumers.
+// ClientProfileService owns raw persisted keys and must not be changed by this phase.
+var normalizedProfileLookup = new Dictionary<string, ClientProfile>(StringComparer.OrdinalIgnoreCase)
+{
+    [ClientIdentity.NormalizeHexMac("aa-bb-cc-dd-ee-20")] = new ClientProfile
+    {
+        Key = "aa-bb-cc-dd-ee-20",
+        Nickname = "Profile-owned name"
+    }
+};
+Require(normalizedProfileLookup.TryGetValue(ClientIdentity.NormalizeHexMac("AA:BB:CC:DD:EE:20"), out ClientProfile? matchedProfile) &&
+    matchedProfile.Nickname == "Profile-owned name" && matchedProfile.Key == "aa-bb-cc-dd-ee-20",
+    "normalized consumer lookup preserves the existing profile key and user-owned nickname");
+ClientDetailsNavigationTarget? separatorVariantProfile = ClientDetailsNavigationPreparation.Resolve(
+    "AA:BB:CC:DD:EE:20", new Dictionary<string, ClientInfo>(), normalizedProfileLookup);
+Require(ReferenceEquals(separatorVariantProfile?.Profile, matchedProfile!) && separatorVariantProfile.LiveClient is null,
+    "existing deep-link profile lookup accepts equivalent MAC separator forms through its normalized consumer map");
+
+// The context seam deliberately exposes the present defect: reset/serialization
+// alone does not stop a prior router refresh from publishing after a switch.
+var staleInventory = new ClientInventoryState();
+var staleContext = new HarnessActiveRouterContext("router-a", version: 1);
+var staleStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var releaseStale = new TaskCompletionSource<IReadOnlyList<ClientInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
+var staleCoordinator = new ClientInventoryCoordinator(staleInventory, staleContext, async _ =>
+{
+    staleStarted.SetResult();
+    return await releaseStale.Task;
+});
+Task<bool> staleRefresh = staleCoordinator.RefreshAuthoritativeInventoryAsync();
+await staleStarted.Task;
+staleContext.SwitchTo("router-b", version: 2);
+staleInventory.Clear();
+staleCoordinator.ResetForRouterSession();
+releaseStale.SetResult([Client("AA:BB:CC:DD:EE:30", "Router A client", "192.168.8.30")]);
+bool stalePublished = await staleRefresh;
+Require(!stalePublished && staleInventory.Snapshot.Count == 0,
+    "prior-router inventory refresh cannot publish after the active router context changes");
+
 static ClientProfile Profile(string mac, string name) => new()
 {
     Key = ClientIdentity.NormalizeMac(mac),
@@ -598,5 +673,27 @@ sealed class StubMacLookupHandler : HttpMessageHandler
         {
             Content = new StringContent(Body, System.Text.Encoding.UTF8, "application/json")
         });
+    }
+}
+
+sealed class HarnessActiveRouterContext : IActiveRouterContext
+{
+    private RouterProfile _profile;
+
+    public HarnessActiveRouterContext(string profileId, long version)
+    {
+        _profile = new RouterProfile { Id = profileId };
+        Version = version;
+    }
+
+    public RouterProfile CurrentProfile => _profile;
+    public string CurrentProfileId => _profile.Id;
+    public long Version { get; private set; }
+    public void InvalidateSession() => Version++;
+
+    public void SwitchTo(string profileId, long version)
+    {
+        _profile = new RouterProfile { Id = profileId };
+        Version = version;
     }
 }
