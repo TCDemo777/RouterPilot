@@ -115,6 +115,7 @@ namespace RouterPilot
             serviceCollection.AddSingleton<TailscaleMaintenanceService>();
             serviceCollection.AddSingleton<GlInetFirmwareCatalogService>();
             serviceCollection.AddSingleton<IInternetSpeedTestService, InternetSpeedTestService>();
+            serviceCollection.AddSingleton<IDataStatisticsReader, RouterManagerDataStatisticsReader>();
             serviceCollection.AddSingleton<DataStatisticsService>();
             serviceCollection.AddTransient<ApplicationTrafficDetailsViewModel>();
             serviceCollection.AddSingleton<DhcpReservationValidator>();

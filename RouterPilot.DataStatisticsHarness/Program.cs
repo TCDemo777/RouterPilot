@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using RouterPilot.Models;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
@@ -161,3 +165,371 @@ traffic.Reset();
 Require(traffic.SampleCount == 0 && traffic.History.Count == 0 && traffic.Add(new NetworkTrafficObservation(1, 1, t0, "wan")) is null,
     "Traffic reset must be local and restore the baseline.");
 Console.WriteLine("Traffic session fixtures passed.");
+
+await RunReadSeamFixturesAsync();
+RunViewModelPresentationFixtures();
+
+static async Task RunReadSeamFixturesAsync()
+{
+    var activeReader = new FakeDataStatisticsReader
+    {
+        Traffic = _ => Task.FromResult(new NetworkTrafficSnapshot
+        {
+            InterfaceName = "wan",
+            ReceivedBytes = 100,
+            TransmittedBytes = 50,
+            IsValid = true
+        }),
+        Status = _ => Task.FromResult(new DataStatisticsStatus
+        {
+            FlowStatisticsEnabled = true,
+            DpiStatus = "1"
+        }),
+        TopApps = _ => Task.FromResult(new DataStatisticsSnapshot
+        {
+            PeriodSeconds = 3600,
+            TopApps = [new ApplicationTrafficStat { ApplicationName = "http" }]
+        })
+    };
+    DataStatisticsReadResult active = await CreateService(activeReader).ReadAsync();
+    Require(active.Availability == DataStatisticsAvailability.Available &&
+        active.Status?.IsDpiActive == true && active.Snapshot?.TopApps.Count == 1 &&
+        active.TrafficSnapshot?.IsValid == true,
+        "fake reader drives the real service's available classification without altering compatibility data");
+    Require(activeReader.Calls.SequenceEqual(["Open", "Traffic", "Status", "TopApps"]),
+        "active normal refresh acquires one read session and performs the existing three reads in order");
+
+    var disabledReader = new FakeDataStatisticsReader
+    {
+        Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = false })
+    };
+    DataStatisticsReadResult disabled = await CreateService(disabledReader).ReadAsync();
+    Require(disabled.Availability == DataStatisticsAvailability.Disabled && !disabledReader.Calls.Contains("TopApps"),
+        "disabled status remains distinct and skips the top-app read through the read seam");
+
+    var dpiInactiveReader = new FakeDataStatisticsReader
+    {
+        Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = true, DpiStatus = "0" })
+    };
+    DataStatisticsReadResult dpiInactive = await CreateService(dpiInactiveReader).ReadAsync();
+    Require(dpiInactive.Availability == DataStatisticsAvailability.DpiInactive && !dpiInactiveReader.Calls.Contains("TopApps"),
+        "inactive DPI remains distinct and skips the top-app read through the read seam");
+
+    var unsupportedStatusReader = new FakeDataStatisticsReader
+    {
+        Status = _ => Task.FromResult(new DataStatisticsStatus())
+    };
+    DataStatisticsReadResult unsupportedStatus = await CreateService(unsupportedStatusReader).ReadAsync();
+    Require(unsupportedStatus.Availability == DataStatisticsAvailability.Unsupported &&
+        unsupportedStatus.Status is { HasFlowStatisticsState: false } &&
+        !unsupportedStatusReader.Calls.Contains("TopApps"),
+        "missing flow-statistics status remains the existing unsupported status-path classification");
+
+    var optionalTrafficFailureReader = new FakeDataStatisticsReader
+    {
+        Traffic = _ => Task.FromException<NetworkTrafficSnapshot>(new InvalidOperationException("optional traffic unavailable")),
+        Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = true, DpiStatus = "1" }),
+        TopApps = _ => Task.FromResult(new DataStatisticsSnapshot())
+    };
+    DataStatisticsReadResult optionalTrafficFailure = await CreateService(optionalTrafficFailureReader).ReadAsync();
+    Require(optionalTrafficFailure.Availability == DataStatisticsAvailability.Available &&
+        optionalTrafficFailure.TrafficSnapshot is null &&
+        optionalTrafficFailureReader.Calls.SequenceEqual(["Open", "Traffic", "Status", "TopApps"]),
+        "optional traffic failure does not prevent the existing status and top-app read path");
+
+    var unsupportedReader = new FakeDataStatisticsReader
+    {
+        Status = _ => Task.FromException<DataStatisticsStatus>(new DataStatisticsRpcException(-32601))
+    };
+    Require((await CreateService(unsupportedReader).ReadAsync()).Availability == DataStatisticsAvailability.Unsupported,
+        "the fake reader can drive the existing method-or-service-unavailable classification");
+
+    var temporaryFailureReader = new FakeDataStatisticsReader
+    {
+        Status = _ => Task.FromException<DataStatisticsStatus>(new DataStatisticsRpcException(-1))
+    };
+    Require((await CreateService(temporaryFailureReader).ReadAsync()).Availability == DataStatisticsAvailability.TemporarilyUnavailable,
+        "the fake reader can drive the existing transient Data Statistics RPC classification");
+
+    var delayedStatus = new TaskCompletionSource<DataStatisticsStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var delayedReader = new FakeDataStatisticsReader
+    {
+        Status = _ => delayedStatus.Task,
+        TopApps = _ => Task.FromResult(new DataStatisticsSnapshot())
+    };
+    Task<DataStatisticsReadResult> delayedRead = CreateService(delayedReader).ReadAsync();
+    await Task.Yield();
+    Require(delayedReader.Calls.SequenceEqual(["Open", "Traffic", "Status"]),
+        "fake reader can hold a normal service read at the status operation");
+    delayedStatus.SetResult(new DataStatisticsStatus { FlowStatisticsEnabled = true, DpiStatus = "1" });
+    Require((await delayedRead).Availability == DataStatisticsAvailability.Available,
+        "a held fake read can complete through the real service classification path");
+
+    string[] seamMethods = typeof(IDataStatisticsReadSession).GetMethods()
+        .Select(method => method.Name)
+        .OrderBy(name => name, StringComparer.Ordinal)
+        .ToArray();
+    Require(seamMethods.SequenceEqual([
+            nameof(IDataStatisticsReadSession.GetDataStatisticsStatusAsync),
+            nameof(IDataStatisticsReadSession.GetNetworkTrafficSnapshotAsync),
+            nameof(IDataStatisticsReadSession.GetTopAppFlowStatisticsAsync)]),
+        "the Data Statistics read seam exposes exactly the normal refresh reads and no mutation operation");
+
+    string adapterSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "RouterManagerDataStatisticsReader.cs"));
+    Require(adapterSource.Contains("GetRouterManagerAsync", StringComparison.Ordinal) &&
+        adapterSource.Contains("routerManager.GetNetworkTrafficSnapshotAsync", StringComparison.Ordinal) &&
+        adapterSource.Contains("routerManager.GetDataStatisticsStatusAsync", StringComparison.Ordinal) &&
+        adapterSource.Contains("routerManager.GetTopAppFlowStatisticsAsync", StringComparison.Ordinal) &&
+        !adapterSource.Contains("SetApplicationContentProtectionAsync", StringComparison.Ordinal),
+        "production adapter delegates only the established RouterManager normal-refresh reads without mutation translation");
+
+    Console.WriteLine("Data Statistics read seam fixtures passed.");
+}
+
+static void RunViewModelPresentationFixtures()
+{
+    RunOnSta(() =>
+    {
+        AssertViewModelPresentation(
+            "available",
+            new FakeDataStatisticsReader
+            {
+                Traffic = _ => Task.FromResult(ValidTraffic()),
+                Status = _ => Task.FromResult(ActiveStatus()),
+                TopApps = _ => Task.FromResult(new DataStatisticsSnapshot
+                {
+                    PeriodSeconds = 3600,
+                    TopApps = [new ApplicationTrafficStat { ApplicationName = "http", Label = "HTTP/S", TotalBytes = 10 }]
+                })
+            },
+            RouterPilotStatus.Active,
+            "Data Statistics active",
+            "Application traffic classified by the router's DPI engine.",
+            "Past Hour",
+            expectedTopApps: 1);
+
+        AssertViewModelPresentation(
+            "disabled",
+            new FakeDataStatisticsReader { Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = false }) },
+            RouterPilotStatus.Disabled,
+            "Data Statistics is disabled",
+            "Data Statistics is disabled on the router.",
+            "Current period unavailable",
+            expectedTopApps: 0);
+
+        AssertViewModelPresentation(
+            "DPI inactive",
+            new FakeDataStatisticsReader { Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = true, DpiStatus = "0" }) },
+            RouterPilotStatus.Pending,
+            "Data Statistics is unavailable",
+            "The router's DPI engine is not currently active.",
+            "Current period unavailable",
+            expectedTopApps: 0);
+
+        AssertViewModelPresentation(
+            "unsupported",
+            new FakeDataStatisticsReader { Status = _ => Task.FromResult(new DataStatisticsStatus()) },
+            RouterPilotStatus.Disabled,
+            "Data Statistics is not available",
+            "This router does not expose the required Data Statistics read interface.",
+            "Current period unavailable",
+            expectedTopApps: 0);
+
+        AssertViewModelPresentation(
+            "temporarily unavailable",
+            new FakeDataStatisticsReader
+            {
+                Status = _ => Task.FromException<DataStatisticsStatus>(new DataStatisticsRpcException(-1))
+            },
+            RouterPilotStatus.Error,
+            "Data Statistics temporarily unavailable",
+            "RouterPilot could not read Data Statistics. Try Refresh again.",
+            "Current period unavailable",
+            expectedTopApps: 0);
+
+        var context = new HarnessActiveRouterContext("router-a", version: 1);
+        var delayedStatus = new TaskCompletionSource<DataStatisticsStatus>();
+        var delayedReader = new FakeDataStatisticsReader
+        {
+            Traffic = _ => Task.FromResult(ValidTraffic()),
+            Status = _ => delayedStatus.Task,
+            TopApps = _ => Task.FromResult(new DataStatisticsSnapshot
+            {
+                PeriodSeconds = 3600,
+                TopApps = [new ApplicationTrafficStat { ApplicationName = "router-a-app" }]
+            })
+        };
+        var staleFollowUpProvider = new ThrowingRouterManagerProvider();
+        using var viewModel = CreateViewModelWithProvider(delayedReader, context, staleFollowUpProvider);
+        Task staleRefresh = viewModel.RefreshCommand.ExecuteAsync(null);
+        Require(delayedReader.Calls.SequenceEqual(["Open", "Traffic", "Status"]),
+            "router-A refresh is held before any accepted-result follow-up work");
+
+        context.Switch("router-b");
+        viewModel.ResetForRouterSession();
+        Require(!viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
+            viewModel.TopApps.Count == 0 && viewModel.AllApplications.Count == 0 &&
+            viewModel.TrafficHistory.Count == 0,
+            "router-session reset clears the existing Data Statistics presentation before a stale completion");
+
+        delayedStatus.SetResult(ActiveStatus());
+        staleRefresh.GetAwaiter().GetResult();
+        Require(!viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
+            viewModel.StatusTitle == "Data Statistics" &&
+            viewModel.StatusDetail == "Loading statistics for the selected router." &&
+            viewModel.TopApps.Count == 0 && viewModel.AllApplications.Count == 0 &&
+            viewModel.TrafficHistory.Count == 0 && staleFollowUpProvider.GetManagerCalls == 0,
+            "delayed router-A completion may finish its in-flight read but cannot overwrite reset router-B presentation, loaded state, traffic, collections, or trigger ViewModel follow-up reads");
+
+        delayedReader.Calls.Clear();
+        delayedReader.Status = _ => Task.FromResult(ActiveStatus());
+        delayedReader.TopApps = _ => Task.FromResult(new DataStatisticsSnapshot
+        {
+            PeriodSeconds = 3600,
+            TopApps = [new ApplicationTrafficStat { ApplicationName = "router-b-app", Label = "Router B", TotalBytes = 20 }]
+        });
+        viewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Require(viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Active &&
+            viewModel.TopApps.Count == 1 && viewModel.TopApps[0].ApplicationName == "router-b-app" &&
+            delayedReader.Calls.SequenceEqual(["Open", "Traffic", "Status", "TopApps"]),
+            "successful current router-B refresh is accepted and published normally after stale router-A rejection");
+    });
+
+    Console.WriteLine("Data Statistics ViewModel presentation and router-context fixtures passed.");
+}
+
+static void AssertViewModelPresentation(
+    string scenario,
+    FakeDataStatisticsReader reader,
+    RouterPilotStatus expectedStatus,
+    string expectedTitle,
+    string expectedDetail,
+    string expectedPeriod,
+    int expectedTopApps)
+{
+    using var viewModel = CreateViewModel(reader, new HarnessActiveRouterContext("router-a", version: 1));
+    viewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+    Require(viewModel.HasLoaded && !viewModel.IsLoading &&
+        viewModel.Status == expectedStatus &&
+        viewModel.StatusTitle == expectedTitle &&
+        viewModel.StatusDetail == expectedDetail &&
+        viewModel.CurrentPeriod == expectedPeriod &&
+        viewModel.TopApps.Count == expectedTopApps &&
+        viewModel.AllApplications.Count == 0 &&
+        viewModel.TrafficHistory.Count == 0,
+        $"{scenario} ViewModel presentation retains the current observable status, text, period, collection, and initial traffic state");
+}
+
+static DataStatisticsViewModel CreateViewModel(FakeDataStatisticsReader reader, IActiveRouterContext context) =>
+    CreateViewModelWithProvider(reader, context, new ThrowingRouterManagerProvider());
+
+static DataStatisticsViewModel CreateViewModelWithProvider(FakeDataStatisticsReader reader, IActiveRouterContext context,
+    ThrowingRouterManagerProvider provider) =>
+    new(CreateService(reader, provider), new ClientInventoryState(), new ClientProfileService(), context);
+
+static DataStatisticsStatus ActiveStatus() => new() { FlowStatisticsEnabled = true, DpiStatus = "1" };
+
+static NetworkTrafficSnapshot ValidTraffic() => new()
+{
+    InterfaceName = "wan",
+    ReceivedBytes = 100,
+    TransmittedBytes = 50,
+    IsValid = true,
+    CapturedAtUtc = DateTime.UnixEpoch
+};
+
+static void RunOnSta(Action action)
+{
+    Exception? failure = null;
+    using var completed = new ManualResetEventSlim();
+    var thread = new Thread(() =>
+    {
+        try { action(); }
+        catch (Exception exception) { failure = exception; }
+        finally { completed.Set(); }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    completed.Wait();
+    if (failure is not null)
+        throw new InvalidOperationException("Data Statistics ViewModel fixture failed.", failure);
+}
+
+static DataStatisticsService CreateService(FakeDataStatisticsReader reader,
+    ThrowingRouterManagerProvider? provider = null) =>
+    new(provider ?? new ThrowingRouterManagerProvider(), reader);
+
+sealed class FakeDataStatisticsReader : IDataStatisticsReader, IDataStatisticsReadSession
+{
+    public List<string> Calls { get; } = [];
+    public Func<CancellationToken, Task<NetworkTrafficSnapshot>> Traffic { get; set; } =
+        _ => Task.FromResult(new NetworkTrafficSnapshot());
+    public Func<CancellationToken, Task<DataStatisticsStatus>> Status { get; set; } =
+        _ => Task.FromResult(new DataStatisticsStatus());
+    public Func<CancellationToken, Task<DataStatisticsSnapshot>> TopApps { get; set; } =
+        _ => Task.FromResult(new DataStatisticsSnapshot());
+
+    public Task<IDataStatisticsReadSession> OpenReadSessionAsync(CancellationToken cancellationToken = default)
+    {
+        Calls.Add("Open");
+        return Task.FromResult<IDataStatisticsReadSession>(this);
+    }
+
+    public Task<NetworkTrafficSnapshot> GetNetworkTrafficSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        Calls.Add("Traffic");
+        return Traffic(cancellationToken);
+    }
+
+    public Task<DataStatisticsStatus> GetDataStatisticsStatusAsync(CancellationToken cancellationToken = default)
+    {
+        Calls.Add("Status");
+        return Status(cancellationToken);
+    }
+
+    public Task<DataStatisticsSnapshot> GetTopAppFlowStatisticsAsync(CancellationToken cancellationToken = default)
+    {
+        Calls.Add("TopApps");
+        return TopApps(cancellationToken);
+    }
+}
+
+sealed class ThrowingRouterManagerProvider : IRouterManagerProvider
+{
+    public int GetManagerCalls { get; private set; }
+
+    public Task<RouterManager> GetRouterManagerAsync(CancellationToken cancellationToken = default) =>
+        Task.FromException<RouterManager>(CreateReadFailure());
+
+    public void Invalidate() { }
+    public Task ResetAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private Exception CreateReadFailure()
+    {
+        GetManagerCalls++;
+        return new InvalidOperationException("Normal Data Statistics reads must use IDataStatisticsReader.");
+    }
+}
+
+sealed class HarnessActiveRouterContext : IActiveRouterContext
+{
+    private RouterProfile _profile;
+
+    public HarnessActiveRouterContext(string profileId, long version)
+    {
+        _profile = new RouterProfile { Id = profileId };
+        Version = version;
+    }
+
+    public RouterProfile CurrentProfile => _profile;
+    public string CurrentProfileId => _profile.Id;
+    public long Version { get; private set; }
+    public void InvalidateSession() => Version++;
+
+    public void Switch(string profileId)
+    {
+        _profile = new RouterProfile { Id = profileId };
+        Version++;
+    }
+}

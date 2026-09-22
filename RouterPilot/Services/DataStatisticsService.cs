@@ -8,11 +8,13 @@ namespace RouterPilot.Services;
 public sealed class DataStatisticsService
 {
     private readonly IRouterManagerProvider _routerManagerProvider;
+    private readonly IDataStatisticsReader _reader;
     private readonly SemaphoreSlim _applicationProtectionGate = new(1, 1);
 
-    public DataStatisticsService(IRouterManagerProvider routerManagerProvider)
+    public DataStatisticsService(IRouterManagerProvider routerManagerProvider, IDataStatisticsReader reader)
     {
         _routerManagerProvider = routerManagerProvider;
+        _reader = reader;
     }
 
     public async Task<DataStatisticsReadResult> ReadAsync(
@@ -20,13 +22,13 @@ public sealed class DataStatisticsService
     {
         try
         {
-            RouterManager routerManager = await _routerManagerProvider
-                .GetRouterManagerAsync(cancellationToken)
+            IDataStatisticsReadSession reader = await _reader
+                .OpenReadSessionAsync(cancellationToken)
                 .ConfigureAwait(false);
             NetworkTrafficSnapshot? traffic = null;
             try
             {
-                traffic = await routerManager.GetNetworkTrafficSnapshotAsync(cancellationToken)
+                traffic = await reader.GetNetworkTrafficSnapshotAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -37,7 +39,7 @@ public sealed class DataStatisticsService
             {
                 // DPI statistics remain useful when the optional traffic counter is unavailable.
             }
-            DataStatisticsStatus status = await routerManager
+            DataStatisticsStatus status = await reader
                 .GetDataStatisticsStatusAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -71,7 +73,7 @@ public sealed class DataStatisticsService
                 };
             }
 
-            DataStatisticsSnapshot snapshot = await routerManager
+            DataStatisticsSnapshot snapshot = await reader
                 .GetTopAppFlowStatisticsAsync(cancellationToken)
                 .ConfigureAwait(false);
             return new DataStatisticsReadResult
