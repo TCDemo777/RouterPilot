@@ -47,7 +47,7 @@ public partial class PluginPackagesViewModel : ObservableObject
     private bool isOperating;
 
     [ObservableProperty]
-    private string statusMessage = "Plug-ins have not been loaded.";
+    private string statusMessage = "Packages have not been loaded.";
 
     [ObservableProperty]
     private string indexStatus = "Unknown";
@@ -66,7 +66,7 @@ public partial class PluginPackagesViewModel : ObservableObject
 
     public string EmptyMessage =>
         IsLoading
-            ? "Loading plug-ins…"
+            ? "Loading packages…"
             : Packages.Count == 0
                 ? "Package information is unavailable."
                 : "No packages match your search.";

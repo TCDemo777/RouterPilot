@@ -181,10 +181,10 @@ namespace RouterPilot.ViewModels
             ("Network Health", "Maintenance · Health", "network health health network status", "maintenance-health"),
             ("Configuration Snapshot", "Maintenance · Snapshots", "configuration snapshot router snapshot configuration changes router changes change detection compare router before update after update change journal observable changes known good", "maintenance-snapshots"),
             ("Router Firmware", "Router · Firmware", "firmware upgrade pre upgrade post upgrade upgrade check lifecycle OpenWrt system version", "router-firmware"),
-            ("Router Logs & Events", "Maintenance · Logs & Events", "router logs logs system log syslog logread events event timeline maintenance history maintenance log", "maintenance-logs"),
+            ("Maintenance Events", "Maintenance · Events", "router logs logs system log syslog logread events event timeline maintenance history maintenance log", "maintenance-logs"),
             ("Support Toolkit", "Maintenance · Support", "support support toolkit privacy-safe support diagnostics", "maintenance-support"),
             ("About", "Page", "about version information", "about"),
-            ("Timeline", "Page", "timeline recent activity router events session history", "timeline")
+            ("Activity Log", "Page", "timeline recent activity router events session history activity log", "timeline")
         ];
 
         private void ApplySearch()

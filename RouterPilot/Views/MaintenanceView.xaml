@@ -20,7 +20,7 @@
                 <TabItem Header="Overview" Tag="Overview" />
                 <TabItem Header="Health" Tag="Health" />
                 <TabItem Header="Snapshots" Tag="Snapshots" />
-                <TabItem Header="Logs &amp; Events" Tag="LogsEvents" />
+                <TabItem Header="Maintenance Events" Tag="LogsEvents" />
                 <TabItem Header="Reports" Tag="Reports" />
                 <TabItem Header="Support" Tag="Support" />
                 <TabItem Header="AdGuard Home" Tag="AdGuardHome" />

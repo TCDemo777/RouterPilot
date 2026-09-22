@@ -134,7 +134,7 @@
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="#35404D"
-                            Foreground="White"
+                            Foreground="{DynamicResource Brush.TextOnAccent}"
                             Content="Overview"
                             Click="Overview_Click"/>
 
@@ -171,7 +171,7 @@
                     <Button x:Name="ApplicationsButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
-                            Content="Applications"
+                            Content="Packages"
                             Click="Applications_Click"/>
 
                     <TextBlock Margin="18,8,0,3" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
@@ -225,7 +225,7 @@
                                 <TextBlock HorizontalAlignment="Center"
                                            FontSize="10"
                                            FontWeight="Bold"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource Brush.TextOnAccent}"
                                            Text="{Binding UnreadCount}"/>
                             </Border>
                         </Grid>
@@ -250,10 +250,10 @@
                             Background="Transparent"
                             Click="Timeline_Click">
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="Logs"/>
+                            <TextBlock Text="Activity Log"/>
                             <Border Grid.Column="1" MinWidth="22" Padding="5,1" Background="{DynamicResource Brush.Primary}" CornerRadius="9">
                                 <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding UnreadCount}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
-                                <TextBlock HorizontalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="White" Text="{Binding UnreadCount}"/>
+                                <TextBlock HorizontalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Brush.TextOnAccent}" Text="{Binding UnreadCount}"/>
                             </Border>
                         </Grid>
                     </Button>

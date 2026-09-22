@@ -6,7 +6,7 @@
         Width="450"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="#F3F5F7">
+        Background="{DynamicResource Brush.WindowBackground}">
 
     <Grid Margin="25">
 

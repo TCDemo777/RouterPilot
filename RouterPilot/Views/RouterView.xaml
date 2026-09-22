@@ -102,7 +102,7 @@
                 <Grid Margin="0,18,0,0">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <StackPanel>
-                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="PortsStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only interface telemetry…"/><TextBlock x:Name="PortsSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="PortsAttention" Margin="0,3,0,0" Foreground="DarkOrange" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="1" Content="Copy Ports Summary" Style="{DynamicResource Button.Secondary}" Click="CopyPortsSummary_Click"/></Grid>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="PortsStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only interface telemetry…"/><TextBlock x:Name="PortsSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="PortsAttention" Margin="0,3,0,0" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="1" Content="Copy Ports Summary" Style="{DynamicResource Button.Secondary}" Click="CopyPortsSummary_Click"/></Grid>
                         <TextBlock x:Name="PortsSessionText" Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Session history (RouterPilot observations)"/>
                         <ListBox x:Name="PortsHistoryList" MaxHeight="110" BorderThickness="0" Background="Transparent"/>
                     </StackPanel>
@@ -146,7 +146,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <StackPanel><TextBlock x:Name="WifiStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only Wi-Fi telemetry…"/><TextBlock x:Name="WifiSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="WifiAttention" Margin="0,3,0,0" Foreground="DarkOrange"/></StackPanel>
+                            <StackPanel><TextBlock x:Name="WifiStatus" Style="{DynamicResource Text.Muted}" Text="Loading read-only Wi-Fi telemetry…"/><TextBlock x:Name="WifiSummary" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}"/><TextBlock x:Name="WifiAttention" Margin="0,3,0,0" Foreground="{DynamicResource Brush.Warning}"/></StackPanel>
                             <Button Grid.Column="1" Content="Copy Wi-Fi summary" Style="{DynamicResource Button.Secondary}" Click="CopyWifiSummary_Click"/>
                         </Grid>
                         <TextBlock Margin="0,10,0,0" Style="{DynamicResource Text.Muted}" Text="Session history (RouterPilot observations)"/>
@@ -344,7 +344,7 @@
                             <StackPanel Margin="14">
                                 <TextBlock x:Name="PerformanceSessionText" Text="Session: 0 successful observations"/>
                                 <TextBlock x:Name="PerformancePeakText" Margin="0,6,0,0" Text="Peaks — CPU: —  Memory: —  Temperature: —" TextWrapping="Wrap"/>
-                                <TextBlock x:Name="PerformanceAttentionText" Margin="0,8,0,0" Foreground="#C97A00" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="PerformanceAttentionText" Margin="0,8,0,0" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap"/>
                                 <ItemsControl x:Name="PerformanceHistoryList" Margin="0,8,0,0" Visibility="Collapsed"/>
                             </StackPanel>
                         </GroupBox>
@@ -400,7 +400,7 @@
             <TabItem Header="Firmware">
                 <ContentControl x:Name="RouterFirmwareTabContent"/>
             </TabItem>
-            <TabItem Header="Logs">
+            <TabItem Header="Router Logs">
                 <ContentControl x:Name="RouterLogsTabContent" />
             </TabItem>
         </TabControl>
