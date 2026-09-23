@@ -125,15 +125,28 @@ public static class NetworkHealthViewProjection
         FirmwareUpdateCheckStatus.Error => Check("Firmware", "Error", Known(x.RouterFirmwareVersion), RouterPilotStatus.Error, "router-firmware", false),
         _ => Check("Firmware", "Unavailable", Known(x.RouterFirmwareVersion), RouterPilotStatus.NotAvailable, "router-firmware", false)
     };
-    private static NetworkHealthViewCheck DataStatistics(NetworkHealthViewInput x) => !x.DataStatisticsLoaded
-        ? Check("Data Statistics", "Not loaded", "Open Analytics to load its existing Data Statistics state.", RouterPilotStatus.NotAvailable, "analytics", false)
-        : x.DataStatisticsStatus switch
-        {
-            RouterPilotStatus.Active => Check("Data Statistics", "Available", x.DataStatisticsDetail, RouterPilotStatus.Active, "analytics", false),
-            RouterPilotStatus.Disabled => Check("Data Statistics", "Disabled", x.DataStatisticsDetail, RouterPilotStatus.Disabled, "analytics", false),
-            RouterPilotStatus.Pending => Check("Data Statistics", "Unavailable", x.DataStatisticsDetail, RouterPilotStatus.NotAvailable, "analytics", false),
-            _ => Check("Data Statistics", "Unavailable", x.DataStatisticsDetail, RouterPilotStatus.NotAvailable, "analytics", false)
-        };
+    private static NetworkHealthViewCheck DataStatistics(NetworkHealthViewInput x)
+    {
+        if (!x.DataStatisticsLoaded)
+            return Check("Data Statistics", "Not loaded", "Open Analytics to load its existing Data Statistics state.", RouterPilotStatus.NotAvailable, "analytics", false);
+
+        DataStatisticsCapabilityReadFact? fact = x.DataStatisticsCapabilityFact;
+        if (fact?.Support == DataStatisticsCapabilitySupport.Unsupported)
+            return Check("Data Statistics", "Unsupported", "This router does not expose the required Data Statistics read interface.", RouterPilotStatus.NotAvailable, "analytics", false);
+        if (fact?.ReadAvailability == DataStatisticsReadAvailability.TemporarilyUnavailable)
+            return Check("Data Statistics", "Temporarily unavailable", "RouterPilot could not read Data Statistics. Try Refresh again.", RouterPilotStatus.NotAvailable, "analytics", false);
+
+        return fact is { Support: DataStatisticsCapabilitySupport.Supported, OperatingState: DataStatisticsOperatingState.EnabledAndDpiActive,
+            ReadAvailability: DataStatisticsReadAvailability.Available }
+            ? Check("Data Statistics", "Available", "Application traffic classified by the router's DPI engine.", RouterPilotStatus.Active, "analytics", false)
+            : fact is { Support: DataStatisticsCapabilitySupport.Supported, OperatingState: DataStatisticsOperatingState.Disabled,
+                ReadAvailability: DataStatisticsReadAvailability.NotReadBecauseDisabled }
+                ? Check("Data Statistics", "Disabled", "Data Statistics is disabled on the router.", RouterPilotStatus.Disabled, "analytics", false)
+                : fact is { Support: DataStatisticsCapabilitySupport.Supported, OperatingState: DataStatisticsOperatingState.DpiInactive,
+                    ReadAvailability: DataStatisticsReadAvailability.NotReadBecauseDpiInactive }
+                    ? Check("Data Statistics", "DPI inactive", "The router's DPI engine is not currently active.", RouterPilotStatus.Pending, "analytics", false)
+                    : Check("Data Statistics", "Unknown", "Data Statistics capability or current read state has not been established.", RouterPilotStatus.NotAvailable, "analytics", false);
+    }
 
     private static NetworkHealthViewCheck Check(string title, string status, string detail, RouterPilotStatus severity, string target, bool affectsOverall = true) => new(title, status, detail, severity, target, affectsOverall);
     private static string Known(string value) => string.IsNullOrWhiteSpace(value) || value == "-" ? "Current firmware version is unavailable." : "Current version: " + value;
@@ -146,4 +159,4 @@ public sealed record NetworkHealthViewCheck(string Title, string Status, string 
     public bool HasNavigationTarget => RouterPilot.Services.NetworkHealthNavigationTarget.IsSupported(NavigationTarget);
 }
 public sealed record NetworkHealthViewSnapshot(string OverallStatus, RouterPilotStatus OverallSeverity, string OverallDetail, IReadOnlyList<NetworkHealthViewCheck> Checks);
-public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool IncludeAdGuardHomeInRouterHealth, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, RouterPilotStatus DataStatisticsStatus, string DataStatisticsDetail);
+public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool IncludeAdGuardHomeInRouterHealth, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, DataStatisticsCapabilityReadFact? DataStatisticsCapabilityFact);

@@ -378,53 +378,67 @@ Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "80 °C") == TemperatureHe
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "90 °C") == TemperatureHealthState.High, "90 C is high");
 Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "-") == TemperatureHealthState.Unavailable, "unavailable temperature is neutral");
 Require(RouterTemperatureHealth.Evaluate("GL-AX1800", "52 °C") == TemperatureHealthState.Unavailable, "unknown model remains neutral");
-NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, RouterPilotStatus stats = RouterPilotStatus.Active, string statsDetail = "Existing status.", string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, stats, statsDetail);
+DataStatisticsCapabilityReadFact Fact(DataStatisticsCapabilitySupport support, DataStatisticsOperatingState operating, DataStatisticsReadAvailability read, string routerProfileId = "router-a", long version = 1) =>
+    new(support, operating, read, new DataStatisticsContextStamp(routerProfileId, version), null, null, null);
+NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, DataStatisticsCapabilityReadFact? statsFact = null, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, statsFact ?? Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available));
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");
-NetworkHealthViewSnapshot currentDataStatisticsBaseline = NetworkHealthViewProjection.Create(Input(statsDetail: "Active detail."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsBaseline, "Available", RouterPilotStatus.Active, "Active detail.", "active presentation state");
+NetworkHealthViewSnapshot dataStatisticsAvailable = NetworkHealthViewProjection.Create(Input());
+AssertDataStatisticsHealthRow(dataStatisticsAvailable, "Available", RouterPilotStatus.Active,
+    "Application traffic classified by the router's DPI engine.", "supported active available state");
 
-NetworkHealthViewSnapshot currentDataStatisticsNotLoaded = NetworkHealthViewProjection.Create(Input(statsLoaded: false, statsDetail: "Ignored before load."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsNotLoaded, "Not loaded", RouterPilotStatus.NotAvailable,
+NetworkHealthViewSnapshot dataStatisticsNotLoaded = NetworkHealthViewProjection.Create(Input(statsLoaded: false) with { DataStatisticsCapabilityFact = null });
+AssertDataStatisticsHealthRow(dataStatisticsNotLoaded, "Not loaded", RouterPilotStatus.NotAvailable,
     "Open Analytics to load its existing Data Statistics state.", "not-loaded lazy Analytics state");
 
-NetworkHealthViewSnapshot currentDataStatisticsDisabled = NetworkHealthViewProjection.Create(Input(
-    stats: RouterPilotStatus.Disabled, statsDetail: "Data Statistics is disabled on the router."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsDisabled, "Disabled", RouterPilotStatus.Disabled,
-    "Data Statistics is disabled on the router.", "disabled presentation state");
+NetworkHealthViewSnapshot dataStatisticsDisabled = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.Disabled, DataStatisticsReadAvailability.NotReadBecauseDisabled)));
+AssertDataStatisticsHealthRow(dataStatisticsDisabled, "Disabled", RouterPilotStatus.Disabled,
+    "Data Statistics is disabled on the router.", "supported disabled state");
 
-NetworkHealthViewSnapshot currentDataStatisticsDpiInactive = NetworkHealthViewProjection.Create(Input(
-    stats: RouterPilotStatus.Pending, statsDetail: "The router's DPI engine is not currently active."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsDpiInactive, "Unavailable", RouterPilotStatus.NotAvailable,
-    "The router's DPI engine is not currently active.", "DPI-inactive presentation state");
+NetworkHealthViewSnapshot dataStatisticsDpiInactive = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.DpiInactive, DataStatisticsReadAvailability.NotReadBecauseDpiInactive)));
+AssertDataStatisticsHealthRow(dataStatisticsDpiInactive, "DPI inactive", RouterPilotStatus.Pending,
+    "The router's DPI engine is not currently active.", "supported DPI-inactive state");
 
-NetworkHealthViewSnapshot currentDataStatisticsTemporaryFailure = NetworkHealthViewProjection.Create(Input(
-    stats: RouterPilotStatus.Error, statsDetail: "RouterPilot could not read Data Statistics. Try Refresh again."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsTemporaryFailure, "Unavailable", RouterPilotStatus.NotAvailable,
-    "RouterPilot could not read Data Statistics. Try Refresh again.", "temporary-failure presentation state");
+NetworkHealthViewSnapshot dataStatisticsUnsupported = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Unsupported, DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown)));
+AssertDataStatisticsHealthRow(dataStatisticsUnsupported, "Unsupported", RouterPilotStatus.NotAvailable,
+    "This router does not expose the required Data Statistics read interface.", "unsupported state");
 
-NetworkHealthViewSnapshot currentDataStatisticsUnsupported = NetworkHealthViewProjection.Create(Input(
-    stats: RouterPilotStatus.Disabled, statsDetail: "This router does not expose the required Data Statistics read interface."));
-AssertCurrentDataStatisticsHealthRow(currentDataStatisticsUnsupported, "Disabled", RouterPilotStatus.Disabled,
-    "This router does not expose the required Data Statistics read interface.", "unsupported presentation state");
-Require(currentDataStatisticsDisabled.Checks.Single(check => check.Title == "Data Statistics").Status ==
-        currentDataStatisticsUnsupported.Checks.Single(check => check.Title == "Data Statistics").Status,
-    "current Network Health status cannot distinguish disabled configuration from unsupported capability");
-Require(currentDataStatisticsDpiInactive.Checks.Single(check => check.Title == "Data Statistics").Status ==
-        currentDataStatisticsTemporaryFailure.Checks.Single(check => check.Title == "Data Statistics").Status,
-    "current Network Health status collapses DPI inactive and temporary read failure into generic unavailable");
-Require(new[] { currentDataStatisticsNotLoaded, currentDataStatisticsDisabled, currentDataStatisticsDpiInactive,
-        currentDataStatisticsTemporaryFailure, currentDataStatisticsUnsupported }
-        .All(snapshot => snapshot.OverallStatus == currentDataStatisticsBaseline.OverallStatus &&
-            snapshot.OverallSeverity == currentDataStatisticsBaseline.OverallSeverity &&
-            snapshot.OverallDetail == currentDataStatisticsBaseline.OverallDetail),
-    "Data Statistics presentation state does not alter current aggregate Network Health output");
+NetworkHealthViewSnapshot dataStatisticsTemporary = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Unknown, DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.TemporarilyUnavailable)));
+AssertDataStatisticsHealthRow(dataStatisticsTemporary, "Temporarily unavailable", RouterPilotStatus.NotAvailable,
+    "RouterPilot could not read Data Statistics. Try Refresh again.", "temporary-unavailable state");
+
+NetworkHealthViewSnapshot dataStatisticsUnknown = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Unknown, DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown)));
+AssertDataStatisticsHealthRow(dataStatisticsUnknown, "Unknown", RouterPilotStatus.NotAvailable,
+    "Data Statistics capability or current read state has not been established.", "unknown support state");
+
+NetworkHealthViewSnapshot dataStatisticsLoadedWithoutFact = NetworkHealthViewProjection.Create(Input() with { DataStatisticsCapabilityFact = null });
+AssertDataStatisticsHealthRow(dataStatisticsLoadedWithoutFact, "Unknown", RouterPilotStatus.NotAvailable,
+    "Data Statistics capability or current read state has not been established.", "loaded state without a fact");
+
+NetworkHealthViewSnapshot dataStatisticsImpossible = NetworkHealthViewProjection.Create(Input(statsFact:
+    Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.Disabled, DataStatisticsReadAvailability.Available)));
+AssertDataStatisticsHealthRow(dataStatisticsImpossible, "Unknown", RouterPilotStatus.NotAvailable,
+    "Data Statistics capability or current read state has not been established.", "impossible typed tuple");
+
+Require(new[] { dataStatisticsNotLoaded, dataStatisticsDisabled, dataStatisticsDpiInactive, dataStatisticsUnsupported,
+        dataStatisticsTemporary, dataStatisticsUnknown, dataStatisticsLoadedWithoutFact, dataStatisticsImpossible }
+        .All(snapshot => snapshot.OverallStatus == dataStatisticsAvailable.OverallStatus &&
+            snapshot.OverallSeverity == dataStatisticsAvailable.OverallSeverity &&
+            snapshot.OverallDetail == dataStatisticsAvailable.OverallDetail),
+    "every typed Data Statistics state remains excluded from aggregate Network Health output");
 
 string networkHealthViewModelSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "ViewModels", "NetworkHealthViewModel.cs"));
 Require(!networkHealthViewModelSource.Contains("EnsureLoadedAsync", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("RefreshAsync", StringComparison.Ordinal) &&
-        !networkHealthViewModelSource.Contains("DataStatisticsService", StringComparison.Ordinal),
-    "current Network Health observes existing Data Statistics presentation and cannot initiate Analytics loading, refresh, or service reads");
+        !networkHealthViewModelSource.Contains("DataStatisticsService", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("_dataStatistics.CurrentCapabilityFact", StringComparison.Ordinal) &&
+        !networkHealthViewModelSource.Contains("_dataStatistics.Status", StringComparison.Ordinal),
+    "Network Health observes the accepted typed fact without initiating Analytics loading, refresh, or service reads");
 string dashboardHealthProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "DashboardHealthProjection.cs"));
 string networkHealthServiceSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "NetworkHealthService.cs"));
 Require(!dashboardHealthProjectionSource.Contains("DataStatistics", StringComparison.Ordinal) &&
@@ -444,9 +458,9 @@ Require(disconnectedVpn.Checks.Single(x => x.Title == "VPN").Status == "Disconne
 Require(NetworkHealthViewProjection.Create(Input(vpnConfigured: false)).OverallStatus == "Healthy", "VPN not configured is informational");
 Require(NetworkHealthViewProjection.Create(Input(vpn: "Authentication failed")).OverallStatus == "Attention needed", "VPN explicit failure affects health");
 Require(NetworkHealthViewProjection.Create(Input(vpn: "Connection did not complete")).OverallStatus == "Attention needed", "VPN failed tunnel affects health");
-Require(NetworkHealthViewProjection.Create(Input(stats: RouterPilotStatus.Disabled)).Checks.Single(x => x.Title == "Data Statistics").Status == "Disabled", "statistics disabled");
+Require(NetworkHealthViewProjection.Create(Input(statsFact: Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.Disabled, DataStatisticsReadAvailability.NotReadBecauseDisabled))).Checks.Single(x => x.Title == "Data Statistics").Status == "Disabled", "statistics disabled");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Stale)).Checks.Single(x => x.Title == "Router").Status == "Stale", "stale state");
-Require(NetworkHealthViewProjection.Create(Input(statsLoaded: false)).Checks.Single(x => x.Title == "Data Statistics").Status == "Not loaded", "partial state");
+Require(NetworkHealthViewProjection.Create(Input(statsLoaded: false) with { DataStatisticsCapabilityFact = null }).Checks.Single(x => x.Title == "Data Statistics").Status == "Not loaded", "reset state remains not loaded");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Loading)).OverallStatus == "Initializing", "loading state");
 Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Loading)).OverallStatus != "Healthy", "Wi-Fi loading state");
 Require(NetworkHealthViewProjection.Create(Input(wifi: DataFreshnessState.Stale)).OverallStatus != "Healthy", "Wi-Fi stale state");
@@ -914,7 +928,7 @@ static void RequireThrows(Action action, string message)
     throw new InvalidOperationException(message);
 }
 
-static void AssertCurrentDataStatisticsHealthRow(
+static void AssertDataStatisticsHealthRow(
     NetworkHealthViewSnapshot snapshot,
     string expectedStatus,
     RouterPilotStatus expectedSeverity,
@@ -925,7 +939,7 @@ static void AssertCurrentDataStatisticsHealthRow(
     Require(check.Status == expectedStatus && check.Severity == expectedSeverity &&
         check.Detail == expectedDetail && check.NavigationTarget == "analytics" &&
         check.HasNavigationTarget && !check.AffectsOverall,
-        $"current {scenario} retains exact Data Statistics health row text, severity, navigation, and non-scoring behavior");
+        $"typed {scenario} retains exact Data Statistics health row text, severity, navigation, and non-scoring behavior");
 }
 
 static Task RunOnDispatcherAsync(Func<Dispatcher, Task> action)
