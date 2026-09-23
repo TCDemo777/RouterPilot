@@ -380,7 +380,7 @@ Require(RouterTemperatureHealth.Evaluate("GL-MT6000", "-") == TemperatureHealthS
 Require(RouterTemperatureHealth.Evaluate("GL-AX1800", "52 °C") == TemperatureHealthState.Unavailable, "unknown model remains neutral");
 DataStatisticsCapabilityReadFact Fact(DataStatisticsCapabilitySupport support, DataStatisticsOperatingState operating, DataStatisticsReadAvailability read, string routerProfileId = "router-a", long version = 1) =>
     new(support, operating, read, new DataStatisticsContextStamp(routerProfileId, version), null, null, null);
-NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, DataStatisticsCapabilityReadFact? statsFact = null, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, true, true, false, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, statsFact ?? Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available));
+NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, bool adGuardProtectionKnown = true, bool adGuardProtected = true, bool adGuardPaused = false, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, DataStatisticsCapabilityReadFact? statsFact = null, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, adGuardProtectionKnown, adGuardProtected, adGuardPaused, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, statsFact ?? Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available));
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");
 NetworkHealthViewSnapshot dataStatisticsAvailable = NetworkHealthViewProjection.Create(Input());
@@ -445,12 +445,73 @@ Require(!dashboardHealthProjectionSource.Contains("DataStatistics", StringCompar
         !networkHealthServiceSource.Contains("DataStatistics", StringComparison.Ordinal),
     "Dashboard score and NetworkHealthService timeline/notification evaluation are structurally independent of Data Statistics presentation");
 Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Unavailable)).OverallStatus == "Unavailable", "router unavailable");
-NetworkHealthViewSnapshot adGuardUnavailable = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable));
-Require(adGuardUnavailable.Checks.Single(x => x.Title == "DNS / AdGuard").Status == "Unavailable" && adGuardUnavailable.OverallStatus == "Attention needed", "AdGuard unavailable");
-NetworkHealthViewSnapshot adGuardUnused = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
-Require(adGuardUnused.Checks.Single(x => x.Title == "DNS / AdGuard").Status == "Not in use" && adGuardUnused.OverallStatus == "Healthy", "optional AdGuard is informational");
-Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading)).OverallStatus == "Initializing", "expected AdGuard loading state");
-Require(NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, includeAdGuard: false)).OverallStatus == "Initializing", "optional AdGuard checking state");
+NetworkHealthViewSnapshot currentAdGuardOptional = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
+AssertCurrentAdGuardHealthRow(currentAdGuardOptional, "Not in use", RouterPilotStatus.NotAvailable,
+    "AdGuard Home is optional and is not included in the overall health score.", false, "Healthy", RouterPilotStatus.Active, "optional excluded state");
+NetworkHealthViewSnapshot currentAdGuardOptionalLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
+AssertCurrentAdGuardHealthRow(currentAdGuardOptionalLoading, "Checking", RouterPilotStatus.Pending,
+    "AdGuard Home is optional and is excluded from the overall health score.", false, "Initializing", RouterPilotStatus.Pending, "optional excluded loading state");
+
+NetworkHealthViewSnapshot currentAdGuardLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable));
+AssertCurrentAdGuardHealthRow(currentAdGuardLoading, "Loading", RouterPilotStatus.Pending,
+    "Waiting for AdGuard status.", true, "Initializing", RouterPilotStatus.Pending, "included loading state");
+NetworkHealthViewSnapshot currentAdGuardStale = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Stale, adGuard: AdGuardAvailabilityState.Unavailable));
+AssertCurrentAdGuardHealthRow(currentAdGuardStale, "Stale", RouterPilotStatus.Pending,
+    "AdGuard status has not refreshed.", true, "Attention needed", RouterPilotStatus.Pending, "included stale state");
+
+NetworkHealthViewSnapshot currentAdGuardProtected = NetworkHealthViewProjection.Create(Input());
+AssertCurrentAdGuardHealthRow(currentAdGuardProtected, "Protected", RouterPilotStatus.Active,
+    "AdGuard: Running · Filtering: Protected", true, "Healthy", RouterPilotStatus.Active, "available protected state");
+NetworkHealthViewSnapshot currentAdGuardPaused = NetworkHealthViewProjection.Create(Input(adGuardPaused: true));
+AssertCurrentAdGuardHealthRow(currentAdGuardPaused, "Paused", RouterPilotStatus.Pending,
+    "AdGuard: Running · Filtering: Paused", true, "Attention needed", RouterPilotStatus.Pending, "available paused state");
+NetworkHealthViewSnapshot currentAdGuardDisabled = NetworkHealthViewProjection.Create(Input(adGuardProtected: false));
+AssertCurrentAdGuardHealthRow(currentAdGuardDisabled, "Disabled", RouterPilotStatus.Disabled,
+    "AdGuard: Running · Filtering: Disabled", true, "Attention needed", RouterPilotStatus.Pending, "available disabled state");
+NetworkHealthViewSnapshot currentAdGuardProtectionUnknown = NetworkHealthViewProjection.Create(Input(adGuardProtectionKnown: false));
+AssertCurrentAdGuardHealthRow(currentAdGuardProtectionUnknown, "Protection state unavailable", RouterPilotStatus.Pending,
+    "AdGuard Home is running; protection state is not yet available.", true, "Attention needed", RouterPilotStatus.Pending, "available protection-not-established state");
+
+NetworkHealthViewSnapshot currentAdGuardNotConfigured = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.NotConfigured));
+NetworkHealthViewSnapshot currentAdGuardAuthenticationFailed = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.AuthenticationFailed));
+NetworkHealthViewSnapshot currentAdGuardUnavailable = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable));
+foreach ((NetworkHealthViewSnapshot snapshot, string scenario) in new[]
+         {
+             (currentAdGuardNotConfigured, "not-configured state"),
+             (currentAdGuardAuthenticationFailed, "authentication-failed state"),
+             (currentAdGuardUnavailable, "unavailable state")
+         })
+{
+    AssertCurrentAdGuardHealthRow(snapshot, "Unavailable", RouterPilotStatus.Error,
+        "AdGuard Home is configured for Router Health but is currently unavailable.", true,
+        "Attention needed", RouterPilotStatus.Pending, scenario);
+}
+Require(new[] { currentAdGuardNotConfigured, currentAdGuardAuthenticationFailed, currentAdGuardUnavailable }
+        .Select(snapshot => snapshot.Checks.Single(check => check.Title == "DNS / AdGuard"))
+        .All(check => check.Status == "Unavailable" && check.Severity == RouterPilotStatus.Error &&
+            check.Detail == "AdGuard Home is configured for Router Health but is currently unavailable."),
+    "current Network Health collapses NotConfigured, AuthenticationFailed, and Unavailable into one generic visible state");
+
+NetworkHealthViewSnapshot currentAdGuardUnavailableWhileLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable));
+NetworkHealthViewSnapshot currentAdGuardUnavailableWhileStale = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Stale, adGuard: AdGuardAvailabilityState.Unavailable));
+AssertCurrentAdGuardHealthRow(currentAdGuardUnavailableWhileLoading, "Loading", RouterPilotStatus.Pending,
+    "Waiting for AdGuard status.", true, "Initializing", RouterPilotStatus.Pending, "Loading precedence over unavailable availability");
+AssertCurrentAdGuardHealthRow(currentAdGuardUnavailableWhileStale, "Stale", RouterPilotStatus.Pending,
+    "AdGuard status has not refreshed.", true, "Attention needed", RouterPilotStatus.Pending, "Stale precedence over unavailable availability");
+NetworkHealthViewSnapshot currentAdGuardFreshnessUnavailable = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Unavailable));
+AssertCurrentAdGuardHealthRow(currentAdGuardFreshnessUnavailable, "Protected", RouterPilotStatus.Active,
+    "AdGuard: Running · Filtering: Protected", true, "Healthy", RouterPilotStatus.Active, "freshness-unavailable input falls through to available protection state");
+
+string currentProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "NetworkHealthViewProjection.cs"));
+string routerSwitchSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "RouterSwitchCoordinator.cs"));
+string dashboardRefreshSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "DashboardWindow.xaml.cs"));
+Require(!currentProjectionSource.Contains("AdGuardService", StringComparison.Ordinal) &&
+        !currentProjectionSource.Contains("RefreshAsync", StringComparison.Ordinal) &&
+        !currentProjectionSource.Contains("SetApplicationContentProtectionAsync", StringComparison.Ordinal) &&
+        routerSwitchSource.Contains("_adGuard.SetState(AdGuardAvailabilityState.Unavailable)", StringComparison.Ordinal) &&
+        dashboardRefreshSource.Contains("ThrowIfRouterSessionChanged(routerSession)", StringComparison.Ordinal) &&
+        dashboardRefreshSource.Contains("ThrowIfResumeGenerationChanged(resumeGeneration)", StringComparison.Ordinal),
+    "current AdGuard Network Health projection is read-only and existing reset/session guards own availability publication");
 Require(DashboardHealthProjection.Create(new(true, true, false, false, 0, false, 0, 0, false, FirmwareUpdateCheckStatus.UpToDate, string.Empty, string.Empty)).Score == 100, "unused AdGuard is excluded from Dashboard health score");
 Require(DashboardHealthProjection.Create(new(true, true, false, true, 0, false, 0, 0, false, FirmwareUpdateCheckStatus.UpToDate, string.Empty, string.Empty)).Score == 85, "expected AdGuard affects Dashboard health score");
 NetworkHealthViewSnapshot disconnectedVpn = NetworkHealthViewProjection.Create(Input(vpn: "Disconnected"));
@@ -940,6 +1001,24 @@ static void AssertDataStatisticsHealthRow(
         check.Detail == expectedDetail && check.NavigationTarget == "analytics" &&
         check.HasNavigationTarget && !check.AffectsOverall,
         $"typed {scenario} retains exact Data Statistics health row text, severity, navigation, and non-scoring behavior");
+}
+
+static void AssertCurrentAdGuardHealthRow(
+    NetworkHealthViewSnapshot snapshot,
+    string expectedStatus,
+    RouterPilotStatus expectedSeverity,
+    string expectedDetail,
+    bool expectedAffectsOverall,
+    string expectedOverallStatus,
+    RouterPilotStatus expectedOverallSeverity,
+    string scenario)
+{
+    NetworkHealthViewCheck check = snapshot.Checks.Single(item => item.Title == "DNS / AdGuard");
+    Require(check.Status == expectedStatus && check.Severity == expectedSeverity &&
+        check.Detail == expectedDetail && check.NavigationTarget == "protection" &&
+        check.HasNavigationTarget && check.AffectsOverall == expectedAffectsOverall &&
+        snapshot.OverallStatus == expectedOverallStatus && snapshot.OverallSeverity == expectedOverallSeverity,
+        $"current {scenario} retains exact AdGuard Network Health row and aggregate presentation");
 }
 
 static Task RunOnDispatcherAsync(Func<Dispatcher, Task> action)
