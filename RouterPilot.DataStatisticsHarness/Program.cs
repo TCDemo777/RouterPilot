@@ -277,13 +277,19 @@ static async Task RunReadSeamFixturesAsync()
         Status = _ => delayedStatus.Task,
         TopApps = _ => Task.FromResult(new DataStatisticsSnapshot())
     };
-    Task<DataStatisticsReadResult> delayedRead = CreateService(delayedReader).ReadAsync();
+    var delayedContext = new HarnessActiveRouterContext("router-a", version: 1);
+    Task<DataStatisticsReadResult> delayedRead = CreateService(delayedReader, context: delayedContext).ReadAsync();
     await Task.Yield();
     Require(delayedReader.Calls.SequenceEqual(["Open", "Traffic", "Status"]),
         "fake reader can hold a normal service read at the status operation");
+    delayedContext.Switch("router-b");
     delayedStatus.SetResult(new DataStatisticsStatus { FlowStatisticsEnabled = true, DpiStatus = "1" });
-    Require((await delayedRead).Availability == DataStatisticsAvailability.Available,
+    DataStatisticsReadResult delayedResult = await delayedRead;
+    Require(delayedResult.Availability == DataStatisticsAvailability.Available,
         "a held fake read can complete through the real service classification path");
+    RequireFact(delayedResult, DataStatisticsCapabilitySupport.Supported,
+        DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available,
+        "router-a", 1, "a delayed read remains stamped with its router-A context after that context switches");
 
     string[] seamMethods = typeof(IDataStatisticsReadSession).GetMethods()
         .Select(method => method.Name)
@@ -302,6 +308,12 @@ static async Task RunReadSeamFixturesAsync()
         adapterSource.Contains("routerManager.GetTopAppFlowStatisticsAsync", StringComparison.Ordinal) &&
         !adapterSource.Contains("SetApplicationContentProtectionAsync", StringComparison.Ordinal),
         "production adapter delegates only the established RouterManager normal-refresh reads without mutation translation");
+
+    string viewModelSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "ViewModels", "DataStatisticsViewModel.cs"));
+    Require(viewModelSource.Contains("CapabilityFact", StringComparison.Ordinal) &&
+        viewModelSource.Contains("DataStatisticsReadAvailability", StringComparison.Ordinal) &&
+        !viewModelSource.Contains("DataStatisticsAvailability", StringComparison.Ordinal),
+        "Data Statistics ViewModel consumes the service-produced typed fact without retaining legacy availability interpretation");
 
     Console.WriteLine("Data Statistics read seam fixtures passed.");
 }
@@ -367,6 +379,25 @@ static void RunViewModelPresentationFixtures()
             "Current period unavailable",
             expectedTopApps: 0);
 
+        var fullAndDetailReader = new FakeDataStatisticsReader
+        {
+            Status = _ => Task.FromResult(ActiveStatus()),
+            TopApps = _ => Task.FromResult(new DataStatisticsSnapshot { PeriodSeconds = 3600 })
+        };
+        var fullAndDetailProvider = new ThrowingRouterManagerProvider();
+        using (var fullAndDetailViewModel = CreateViewModelWithProvider(fullAndDetailReader,
+                   new HarnessActiveRouterContext("router-a", version: 1), fullAndDetailProvider))
+        {
+            fullAndDetailViewModel.SelectedDetail = new ApplicationTrafficDetail
+            {
+                ApplicationId = "app-id",
+                ApplicationName = "app-name"
+            };
+            fullAndDetailViewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Require(fullAndDetailProvider.GetManagerCalls == 2,
+                "an available typed fact retains the existing full-table and selected-detail follow-up reads");
+        }
+
         var context = new HarnessActiveRouterContext("router-a", version: 1);
         var delayedStatus = new TaskCompletionSource<DataStatisticsStatus>();
         var delayedReader = new FakeDataStatisticsReader
@@ -427,7 +458,8 @@ static void AssertViewModelPresentation(
     string expectedPeriod,
     int expectedTopApps)
 {
-    using var viewModel = CreateViewModel(reader, new HarnessActiveRouterContext("router-a", version: 1));
+    var provider = new ThrowingRouterManagerProvider();
+    using var viewModel = CreateViewModelWithProvider(reader, new HarnessActiveRouterContext("router-a", version: 1), provider);
     viewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
     Require(viewModel.HasLoaded && !viewModel.IsLoading &&
         viewModel.Status == expectedStatus &&
@@ -438,10 +470,9 @@ static void AssertViewModelPresentation(
         viewModel.AllApplications.Count == 0 &&
         viewModel.TrafficHistory.Count == 0,
         $"{scenario} ViewModel presentation retains the current observable status, text, period, collection, and initial traffic state");
+    Require(provider.GetManagerCalls == (expectedStatus == RouterPilotStatus.Active ? 1 : 0),
+        $"{scenario} typed presentation retains the existing full-table follow-up condition");
 }
-
-static DataStatisticsViewModel CreateViewModel(FakeDataStatisticsReader reader, IActiveRouterContext context) =>
-    CreateViewModelWithProvider(reader, context, new ThrowingRouterManagerProvider());
 
 static DataStatisticsViewModel CreateViewModelWithProvider(FakeDataStatisticsReader reader, IActiveRouterContext context,
     ThrowingRouterManagerProvider provider) =>

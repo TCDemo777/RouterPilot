@@ -202,17 +202,22 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
         try
         {
+            string routerProfileId = _activeRouter.CurrentProfileId;
             long routerSession = _activeRouter.Version;
             IsLoading = true;
             RefreshCommand.NotifyCanExecuteChanged();
             DataStatisticsReadResult readResult = await _dataStatisticsService
                 .ReadAsync(_disposeCancellation.Token);
-            if (_activeRouter.Version != routerSession)
+            DataStatisticsCapabilityReadFact? capabilityFact = readResult.CapabilityFact;
+            if (_activeRouter.Version != routerSession ||
+                !string.Equals(_activeRouter.CurrentProfileId, routerProfileId, StringComparison.Ordinal) ||
+                capabilityFact is { Context: var context } &&
+                (context.Version != routerSession || !string.Equals(context.RouterProfileId, routerProfileId, StringComparison.Ordinal)))
                 return;
             _loaded = true;
             OnPropertyChanged(nameof(HasLoaded));
-            Apply(readResult);
-            if (readResult.TrafficSnapshot is { IsValid: true } traffic)
+            Apply(capabilityFact);
+            if (capabilityFact?.TrafficSnapshot is { IsValid: true } traffic)
             {
                 System.Diagnostics.Debug.WriteLine($"Traffic sample: source={traffic.InterfaceName}; rx={traffic.ReceivedBytes}; tx={traffic.TransmittedBytes}; at={traffic.CapturedAtUtc:O}; priorSamples={_trafficSession.SampleCount}.");
                 bool retainHistory = _lastHistorySampleUtc is null ||
@@ -234,9 +239,14 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
                 System.Diagnostics.Debug.WriteLine("Traffic session sample unavailable; accumulator unchanged.");
                 UpdateTrafficPresentation(null);
             }
-            if (readResult.Availability == DataStatisticsAvailability.Available)
+            if (capabilityFact is
+                {
+                    Support: DataStatisticsCapabilitySupport.Supported,
+                    OperatingState: DataStatisticsOperatingState.EnabledAndDpiActive,
+                    ReadAvailability: DataStatisticsReadAvailability.Available
+                })
             {
-                await RefreshFullTableAsync(readResult.Snapshot?.PeriodSeconds);
+                await RefreshFullTableAsync(capabilityFact.Snapshot?.PeriodSeconds);
                 if (SelectedDetail is not null)
                     await OpenApplicationDetailAsync(SelectedDetail.ApplicationId, SelectedDetail.ApplicationName);
             }
@@ -297,22 +307,27 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
     private static string FormatRate(long bytesPerSecond) => TrafficRateFormatter.Format(bytesPerSecond);
 
-    private void Apply(DataStatisticsReadResult result)
+    private void Apply(DataStatisticsCapabilityReadFact? capabilityFact)
     {
         TopApps.Clear();
         TrafficSeries = [];
         _topAppsPeriodSeconds = null;
         ClearFullTable();
-        DataStatisticsStatus? routerStatus = result.Status;
+        DataStatisticsStatus? routerStatus = capabilityFact?.Status;
         DpiLibrary = FormatDpiLibrary(routerStatus);
 
-        switch (result.Availability)
+        switch (capabilityFact)
         {
-            case DataStatisticsAvailability.Available:
+            case
+            {
+                Support: DataStatisticsCapabilitySupport.Supported,
+                OperatingState: DataStatisticsOperatingState.EnabledAndDpiActive,
+                ReadAvailability: DataStatisticsReadAvailability.Available
+            }:
                 Status = RouterPilotStatus.Active;
                 StatusTitle = "Data Statistics active";
                 StatusDetail = "Application traffic classified by the router's DPI engine.";
-                DataStatisticsSnapshot snapshot = result.Snapshot ?? new DataStatisticsSnapshot();
+                DataStatisticsSnapshot snapshot = capabilityFact.Snapshot ?? new DataStatisticsSnapshot();
                 _topAppsPeriodSeconds = snapshot.PeriodSeconds;
                 CurrentPeriod = FormatPeriod(snapshot.PeriodSeconds);
                 foreach (ApplicationTrafficStat app in snapshot.TopApps)
@@ -320,21 +335,29 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
                 TrafficSeries = BuildTrafficSeries(snapshot.TopApps);
                 break;
 
-            case DataStatisticsAvailability.Disabled:
+            case
+            {
+                Support: DataStatisticsCapabilitySupport.Supported,
+                OperatingState: DataStatisticsOperatingState.Disabled
+            }:
                 Status = RouterPilotStatus.Disabled;
                 StatusTitle = "Data Statistics is disabled";
                 StatusDetail = "Data Statistics is disabled on the router.";
                 CurrentPeriod = "Current period unavailable";
                 break;
 
-            case DataStatisticsAvailability.DpiInactive:
+            case
+            {
+                Support: DataStatisticsCapabilitySupport.Supported,
+                OperatingState: DataStatisticsOperatingState.DpiInactive
+            }:
                 Status = RouterPilotStatus.Pending;
                 StatusTitle = "Data Statistics is unavailable";
                 StatusDetail = "The router's DPI engine is not currently active.";
                 CurrentPeriod = "Current period unavailable";
                 break;
 
-            case DataStatisticsAvailability.Unsupported:
+            case { Support: DataStatisticsCapabilitySupport.Unsupported }:
                 Status = RouterPilotStatus.Disabled;
                 StatusTitle = "Data Statistics is not available";
                 StatusDetail = "This router does not expose the required Data Statistics read interface.";
