@@ -340,6 +340,39 @@ static void RunViewModelPresentationFixtures()
             "Past Hour",
             expectedTopApps: 1);
 
+        DataStatisticsStatus acceptedStatus = ActiveStatus();
+        var acceptedSnapshot = new DataStatisticsSnapshot
+        {
+            PeriodSeconds = 3600,
+            TopApps = [new ApplicationTrafficStat { ApplicationName = "accepted-a" }]
+        };
+        var acceptedReader = new FakeDataStatisticsReader
+        {
+            Status = _ => Task.FromResult(acceptedStatus),
+            TopApps = _ => Task.FromResult(acceptedSnapshot)
+        };
+        var acceptedContext = new HarnessActiveRouterContext("router-a", version: 1);
+        var acceptedProvider = new ThrowingRouterManagerProvider();
+        using (var acceptedViewModel = CreateViewModelWithProvider(acceptedReader, acceptedContext, acceptedProvider))
+        {
+            Require(acceptedViewModel.CurrentCapabilityFact is null,
+                "Data Statistics exposes no capability fact before the first accepted load");
+            acceptedViewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            DataStatisticsCapabilityReadFact? acceptedFact = acceptedViewModel.CurrentCapabilityFact;
+            Require(acceptedFact is not null &&
+                ReferenceEquals(acceptedFact.Status, acceptedStatus) &&
+                ReferenceEquals(acceptedFact.Snapshot, acceptedSnapshot) &&
+                acceptedFact.Context.RouterProfileId == "router-a" && acceptedFact.Context.Version == 1 &&
+                acceptedViewModel.HasLoaded && acceptedProvider.GetManagerCalls == 1,
+                "accepted router-A refresh exposes the exact service-produced fact payload and router-A stamp without changing Analytics follow-up behavior");
+            acceptedViewModel.ResetForRouterSession();
+            Require(acceptedViewModel.CurrentCapabilityFact is null && !acceptedViewModel.HasLoaded &&
+                acceptedViewModel.Status == RouterPilotStatus.Pending &&
+                acceptedViewModel.StatusTitle == "Data Statistics" &&
+                acceptedViewModel.StatusDetail == "Loading statistics for the selected router.",
+                "router-session reset clears the accepted capability fact with the existing reset presentation");
+        }
+
         AssertViewModelPresentation(
             "disabled",
             new FakeDataStatisticsReader { Status = _ => Task.FromResult(new DataStatisticsStatus { FlowStatisticsEnabled = false }) },
@@ -418,14 +451,14 @@ static void RunViewModelPresentationFixtures()
 
         context.Switch("router-b");
         viewModel.ResetForRouterSession();
-        Require(!viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
+        Require(viewModel.CurrentCapabilityFact is null && !viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
             viewModel.TopApps.Count == 0 && viewModel.AllApplications.Count == 0 &&
             viewModel.TrafficHistory.Count == 0,
             "router-session reset clears the existing Data Statistics presentation before a stale completion");
 
         delayedStatus.SetResult(ActiveStatus());
         staleRefresh.GetAwaiter().GetResult();
-        Require(!viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
+        Require(viewModel.CurrentCapabilityFact is null && !viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Pending &&
             viewModel.StatusTitle == "Data Statistics" &&
             viewModel.StatusDetail == "Loading statistics for the selected router." &&
             viewModel.TopApps.Count == 0 && viewModel.AllApplications.Count == 0 &&
@@ -440,7 +473,8 @@ static void RunViewModelPresentationFixtures()
             TopApps = [new ApplicationTrafficStat { ApplicationName = "router-b-app", Label = "Router B", TotalBytes = 20 }]
         });
         viewModel.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-        Require(viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Active &&
+        Require(viewModel.CurrentCapabilityFact is { Context: { RouterProfileId: "router-b", Version: 2 } } &&
+            viewModel.HasLoaded && viewModel.Status == RouterPilotStatus.Active &&
             viewModel.TopApps.Count == 1 && viewModel.TopApps[0].ApplicationName == "router-b-app" &&
             delayedReader.Calls.SequenceEqual(["Open", "Traffic", "Status", "TopApps"]),
             "successful current router-B refresh is accepted and published normally after stale router-A rejection");

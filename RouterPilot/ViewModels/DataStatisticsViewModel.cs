@@ -31,6 +31,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     private readonly SemaphoreSlim _detailGate = new(1, 1);
     private readonly CancellationTokenSource _disposeCancellation = new();
     private bool _loaded;
+    private DataStatisticsCapabilityReadFact? _currentCapabilityFact;
     private bool _fullTableLoaded;
     private long? _topAppsPeriodSeconds;
     private bool _disposed;
@@ -80,6 +81,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
 
     public bool HasTopApps => TopApps.Count > 0;
     public bool HasLoaded => _loaded;
+    public DataStatisticsCapabilityReadFact? CurrentCapabilityFact => _currentCapabilityFact;
     public bool HasNoTopApps => !IsLoading && Status == RouterPilotStatus.Active && TopApps.Count == 0;
     public string TopAppsEmptyText => "No application traffic is available for the current period.";
     public bool HasAllApplications => !AllApplicationsView.IsEmpty;
@@ -181,6 +183,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
         _lastHistorySampleUtc = null;
         UpdateTrafficPresentation(null);
         _loaded = false;
+        SetCurrentCapabilityFact(null);
         TopApps.Clear();
         TrafficSeries = [];
         ClearFullTable();
@@ -214,6 +217,7 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
                 capabilityFact is { Context: var context } &&
                 (context.Version != routerSession || !string.Equals(context.RouterProfileId, routerProfileId, StringComparison.Ordinal)))
                 return;
+            SetCurrentCapabilityFact(capabilityFact);
             _loaded = true;
             OnPropertyChanged(nameof(HasLoaded));
             Apply(capabilityFact);
@@ -306,6 +310,13 @@ public sealed partial class DataStatisticsViewModel : ObservableObject, IDisposa
     }
 
     private static string FormatRate(long bytesPerSecond) => TrafficRateFormatter.Format(bytesPerSecond);
+
+    private void SetCurrentCapabilityFact(DataStatisticsCapabilityReadFact? capabilityFact)
+    {
+        if (ReferenceEquals(_currentCapabilityFact, capabilityFact)) return;
+        _currentCapabilityFact = capabilityFact;
+        OnPropertyChanged(nameof(CurrentCapabilityFact));
+    }
 
     private void Apply(DataStatisticsCapabilityReadFact? capabilityFact)
     {
