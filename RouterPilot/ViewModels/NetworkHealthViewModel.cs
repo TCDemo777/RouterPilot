@@ -24,6 +24,7 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
     private bool _disposed;
 
     [ObservableProperty] private NetworkHealthViewSnapshot snapshot = new("Initializing", RouterPilotStatus.Pending, "Waiting for the existing router refresh.", []);
+    [ObservableProperty] private IReadOnlyList<NetworkHealthCoreCondition> coreConditions = [];
     public IReadOnlyList<NetworkHealthViewCheck> Checks => Snapshot.Checks;
     public string OverallStatus => Snapshot.OverallStatus;
     public string OverallDetail => Snapshot.OverallDetail;
@@ -96,6 +97,7 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
             _dashboard.DhcpLoaded, _dashboard.DhcpLeases.Count, _dashboard.DhcpReservations.Count, _dashboard.CpuUsageDisplay,
             _dashboard.Temperature, _dashboard.MemoryUsage, _dashboard.StorageUsage, _dashboard.Uptime, _dashboard.LoadAverage,
             firmware.CurrentVersion, firmwareStatus, _dataStatistics.HasLoaded, _dataStatistics.CurrentCapabilityFact));
+        CoreConditions = NetworkHealthViewProjection.CreateCoreConditions(Snapshot);
         OnPropertyChanged(nameof(Checks)); OnPropertyChanged(nameof(OverallStatus)); OnPropertyChanged(nameof(OverallDetail)); OnPropertyChanged(nameof(OverallColour));
     }
 

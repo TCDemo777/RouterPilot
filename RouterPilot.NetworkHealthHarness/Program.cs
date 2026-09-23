@@ -383,6 +383,35 @@ DataStatisticsCapabilityReadFact Fact(DataStatisticsCapabilitySupport support, D
 NetworkHealthViewInput Input(DataFreshnessState router = DataFreshnessState.Fresh, DataFreshnessState wan = DataFreshnessState.Fresh, DataFreshnessState adGuardFreshness = DataFreshnessState.Fresh, DataFreshnessState wifi = DataFreshnessState.Fresh, DataFreshnessState dhcp = DataFreshnessState.Fresh, AdGuardAvailabilityState adGuard = AdGuardAvailabilityState.Available, bool includeAdGuard = true, bool adGuardProtectionKnown = true, bool adGuardProtected = true, bool adGuardPaused = false, string vpn = "Connected", bool vpnAvailable = true, bool vpnConfigured = true, bool statsLoaded = true, DataStatisticsCapabilityReadFact? statsFact = null, string cpu = "10%", string temperature = "45 C", string memory = "40%", string storage = "20%", string uptime = "1d", string load = "0.1", string routerFirmwareVersion = "4.6.0", FirmwareUpdateCheckStatus firmwareStatus = FirmwareUpdateCheckStatus.UpToDate) => new(router, wan, adGuardFreshness, DataFreshnessState.Fresh, wifi, dhcp, true, true, "now", "1.2.3.4", "192.168.1.1", "1.1.1.1", adGuard, includeAdGuard, adGuardProtectionKnown, adGuardProtected, adGuardPaused, vpnAvailable, vpnConfigured, vpn, "WireGuard", 2, 2, 0, 0, 3, true, 3, 1, cpu, temperature, memory, storage, uptime, load, routerFirmwareVersion, firmwareStatus, statsLoaded, statsFact ?? Fact(DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available));
 NetworkHealthViewSnapshot healthy = NetworkHealthViewProjection.Create(Input());
 Require(healthy.OverallStatus == "Healthy", "healthy state");
+AssertCoreConditions(healthy,
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Connected", RouterPilotStatus.Connected),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input() with { InternetConnected = false }),
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Disconnected", RouterPilotStatus.Error),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Loading)));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Stale)),
+    ("Router", "Stale", RouterPilotStatus.Pending),
+    ("Internet", "Connected", RouterPilotStatus.Connected),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Unavailable)),
+    ("Router", "Unavailable", RouterPilotStatus.Error),
+    ("Internet", "Connected", RouterPilotStatus.Connected),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(wan: DataFreshnessState.Loading)),
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Loading", RouterPilotStatus.Pending),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(wan: DataFreshnessState.Stale)),
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Stale", RouterPilotStatus.Pending),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(NetworkHealthViewProjection.Create(Input(wan: DataFreshnessState.Unavailable)),
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Unavailable", RouterPilotStatus.Error),
+    ("AdGuard", "Protected", RouterPilotStatus.Active));
 NetworkHealthViewSnapshot dataStatisticsAvailable = NetworkHealthViewProjection.Create(Input());
 AssertDataStatisticsHealthRow(dataStatisticsAvailable, "Available", RouterPilotStatus.Active,
     "Application traffic classified by the router's DPI engine.", "supported active available state");
@@ -437,6 +466,7 @@ Require(!networkHealthViewModelSource.Contains("EnsureLoadedAsync", StringCompar
         !networkHealthViewModelSource.Contains("RefreshAsync", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("DataStatisticsService", StringComparison.Ordinal) &&
         networkHealthViewModelSource.Contains("_dataStatistics.CurrentCapabilityFact", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("CreateCoreConditions(Snapshot)", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("_dataStatistics.Status", StringComparison.Ordinal),
     "Network Health observes the accepted typed fact without initiating Analytics loading, refresh, or service reads");
 string dashboardHealthProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "DashboardHealthProjection.cs"));
@@ -448,9 +478,15 @@ Require(NetworkHealthViewProjection.Create(Input(DataFreshnessState.Unavailable)
 NetworkHealthViewSnapshot currentAdGuardOptional = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
 AssertCurrentAdGuardHealthRow(currentAdGuardOptional, "Not in use", RouterPilotStatus.NotAvailable,
     "AdGuard Home is optional and is not included in the overall health score.", false, "Healthy", RouterPilotStatus.Active, "optional excluded state");
+AssertCoreConditions(currentAdGuardOptional,
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Connected", RouterPilotStatus.Connected));
 NetworkHealthViewSnapshot currentAdGuardOptionalLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable, includeAdGuard: false));
 AssertCurrentAdGuardHealthRow(currentAdGuardOptionalLoading, "Checking", RouterPilotStatus.Pending,
     "AdGuard Home is optional and is excluded from the overall health score.", false, "Initializing", RouterPilotStatus.Pending, "optional excluded loading state");
+AssertCoreConditions(currentAdGuardOptionalLoading,
+    ("Router", "Connected", RouterPilotStatus.Connected),
+    ("Internet", "Connected", RouterPilotStatus.Connected));
 
 NetworkHealthViewSnapshot currentAdGuardLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable));
 AssertCurrentAdGuardHealthRow(currentAdGuardLoading, "Loading", RouterPilotStatus.Pending,
@@ -496,6 +532,19 @@ AssertCurrentAdGuardHealthRow(currentAdGuardUnavailableWhileLoading, "Loading", 
 AssertCurrentAdGuardHealthRow(currentAdGuardUnavailableWhileStale, "Stale", RouterPilotStatus.Pending,
     "AdGuard status has not refreshed.", true, "Attention needed", RouterPilotStatus.Pending, "Stale precedence over unavailable availability");
 NetworkHealthViewSnapshot currentAdGuardFreshnessUnavailable = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Unavailable));
+AssertCoreConditions(currentAdGuardProtected, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(currentAdGuardPaused, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Paused", RouterPilotStatus.Pending));
+AssertCoreConditions(currentAdGuardDisabled, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Disabled", RouterPilotStatus.Disabled));
+AssertCoreConditions(currentAdGuardProtectionUnknown, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Protection state unavailable", RouterPilotStatus.Pending));
+AssertCoreConditions(currentAdGuardNotConfigured, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Not configured", RouterPilotStatus.Error));
+AssertCoreConditions(currentAdGuardAuthenticationFailed, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Authentication failed", RouterPilotStatus.Error));
+AssertCoreConditions(currentAdGuardUnavailable, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Unavailable", RouterPilotStatus.Error));
+AssertCoreConditions(currentAdGuardUnavailableWhileLoading, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Loading", RouterPilotStatus.Pending));
+AssertCoreConditions(currentAdGuardUnavailableWhileStale, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Stale", RouterPilotStatus.Pending));
+AssertCoreConditions(currentAdGuardFreshnessUnavailable, ("Router", "Connected", RouterPilotStatus.Connected), ("Internet", "Connected", RouterPilotStatus.Connected), ("AdGuard", "Protected", RouterPilotStatus.Active));
+AssertCoreConditions(new NetworkHealthViewSnapshot("Healthy", RouterPilotStatus.Active, string.Empty,
+    [new("Router", "Unrecognised", string.Empty, RouterPilotStatus.NotAvailable, "overview", true)]),
+    ("Router", "Unrecognised", RouterPilotStatus.NotAvailable));
 AssertCurrentAdGuardHealthRow(currentAdGuardFreshnessUnavailable, "Protected", RouterPilotStatus.Active,
     "AdGuard: Running · Filtering: Protected", true, "Healthy", RouterPilotStatus.Active, "freshness-unavailable input falls through to available protection state");
 
@@ -998,6 +1047,15 @@ static void AssertDataStatisticsHealthRow(
         check.Detail == expectedDetail && check.NavigationTarget == "analytics" &&
         check.HasNavigationTarget && !check.AffectsOverall,
         $"typed {scenario} retains exact Data Statistics health row text, severity, navigation, and non-scoring behavior");
+}
+
+static void AssertCoreConditions(NetworkHealthViewSnapshot snapshot,
+    params (string Title, string Status, RouterPilotStatus Severity)[] expected)
+{
+    IReadOnlyList<NetworkHealthCoreCondition> conditions = NetworkHealthViewProjection.CreateCoreConditions(snapshot);
+    Require(conditions.Count == expected.Length && conditions.Zip(expected).All(pair =>
+            pair.First.Title == pair.Second.Title && pair.First.Status == pair.Second.Status && pair.First.Severity == pair.Second.Severity),
+        "core-condition summary preserves accepted Router, Internet, and participating AdGuard row semantics in fixed order");
 }
 
 static void AssertCurrentAdGuardHealthRow(

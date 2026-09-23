@@ -5,6 +5,27 @@ namespace RouterPilot.Presentation;
 /// <summary>Pure presentation projection. It deliberately owns no I/O, timers or scheduling.</summary>
 public static class NetworkHealthViewProjection
 {
+    /// <summary>Projects accepted core rows for the compact at-a-glance summary.</summary>
+    public static IReadOnlyList<NetworkHealthCoreCondition> CreateCoreConditions(NetworkHealthViewSnapshot snapshot)
+    {
+        List<NetworkHealthCoreCondition> conditions = [];
+        AddCondition("Router", "Router");
+        AddCondition("Internet", "Internet / WAN");
+
+        NetworkHealthViewCheck? adGuard = snapshot.Checks.FirstOrDefault(check => check.Title == "DNS / AdGuard");
+        if (adGuard is { AffectsOverall: true })
+            conditions.Add(new("AdGuard", adGuard.Status, adGuard.Severity));
+
+        return conditions;
+
+        void AddCondition(string title, string acceptedRowTitle)
+        {
+            NetworkHealthViewCheck? check = snapshot.Checks.FirstOrDefault(candidate => candidate.Title == acceptedRowTitle);
+            if (check is not null)
+                conditions.Add(new(title, check.Status, check.Severity));
+        }
+    }
+
     public static NetworkHealthViewSnapshot Create(NetworkHealthViewInput input)
     {
         if (input.RouterFreshness == DataFreshnessState.Loading)
@@ -162,5 +183,6 @@ public sealed record NetworkHealthViewCheck(string Title, string Status, string 
 {
     public bool HasNavigationTarget => RouterPilot.Services.NetworkHealthNavigationTarget.IsSupported(NavigationTarget);
 }
+public sealed record NetworkHealthCoreCondition(string Title, string Status, RouterPilotStatus Severity);
 public sealed record NetworkHealthViewSnapshot(string OverallStatus, RouterPilotStatus OverallSeverity, string OverallDetail, IReadOnlyList<NetworkHealthViewCheck> Checks);
 public sealed record NetworkHealthViewInput(DataFreshnessState RouterFreshness, DataFreshnessState InternetFreshness, DataFreshnessState AdGuardFreshness, DataFreshnessState VpnFreshness, DataFreshnessState WifiFreshness, DataFreshnessState DhcpFreshness, bool RouterConnected, bool InternetConnected, string RouterLastSuccess, string WanIp, string Gateway, string ExternalDns, AdGuardAvailabilityState AdGuardAvailability, bool IncludeAdGuardHomeInRouterHealth, bool AdGuardProtectionKnown, bool AdGuardProtected, bool AdGuardPaused, bool VpnAvailable, bool VpnConfigured, string VpnState, string VpnDetail, int WifiRadios, int WifiActiveRadios, int WifiDisabledRadios, int WifiUnknownRadios, int WifiClients, bool DhcpLoaded, int DhcpLeases, int DhcpReservations, string Cpu, string Temperature, string Memory, string Storage, string Uptime, string Load, string RouterFirmwareVersion, FirmwareUpdateCheckStatus FirmwareStatus, bool DataStatisticsLoaded, DataStatisticsCapabilityReadFact? DataStatisticsCapabilityFact);
