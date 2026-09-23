@@ -475,22 +475,19 @@ AssertCurrentAdGuardHealthRow(currentAdGuardProtectionUnknown, "Protection state
 NetworkHealthViewSnapshot currentAdGuardNotConfigured = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.NotConfigured));
 NetworkHealthViewSnapshot currentAdGuardAuthenticationFailed = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.AuthenticationFailed));
 NetworkHealthViewSnapshot currentAdGuardUnavailable = NetworkHealthViewProjection.Create(Input(adGuard: AdGuardAvailabilityState.Unavailable));
-foreach ((NetworkHealthViewSnapshot snapshot, string scenario) in new[]
-         {
-             (currentAdGuardNotConfigured, "not-configured state"),
-             (currentAdGuardAuthenticationFailed, "authentication-failed state"),
-             (currentAdGuardUnavailable, "unavailable state")
-         })
-{
-    AssertCurrentAdGuardHealthRow(snapshot, "Unavailable", RouterPilotStatus.Error,
-        "AdGuard Home is configured for Router Health but is currently unavailable.", true,
-        "Attention needed", RouterPilotStatus.Pending, scenario);
-}
-Require(new[] { currentAdGuardNotConfigured, currentAdGuardAuthenticationFailed, currentAdGuardUnavailable }
-        .Select(snapshot => snapshot.Checks.Single(check => check.Title == "DNS / AdGuard"))
-        .All(check => check.Status == "Unavailable" && check.Severity == RouterPilotStatus.Error &&
-            check.Detail == "AdGuard Home is configured for Router Health but is currently unavailable."),
-    "current Network Health collapses NotConfigured, AuthenticationFailed, and Unavailable into one generic visible state");
+AssertCurrentAdGuardHealthRow(currentAdGuardNotConfigured, "Not configured", RouterPilotStatus.Error,
+    "AdGuard Home is not configured for Router Health.", true,
+    "Attention needed", RouterPilotStatus.Pending, "not-configured state");
+AssertCurrentAdGuardHealthRow(currentAdGuardAuthenticationFailed, "Authentication failed", RouterPilotStatus.Error,
+    "RouterPilot could not authenticate with AdGuard Home.", true,
+    "Attention needed", RouterPilotStatus.Pending, "authentication-failed state");
+AssertCurrentAdGuardHealthRow(currentAdGuardUnavailable, "Unavailable", RouterPilotStatus.Error,
+    "AdGuard Home is configured for Router Health but is currently unavailable.", true,
+    "Attention needed", RouterPilotStatus.Pending, "unavailable state");
+Require(currentAdGuardNotConfigured.Checks.Single(check => check.Title == "DNS / AdGuard").Status == "Not configured" &&
+        currentAdGuardAuthenticationFailed.Checks.Single(check => check.Title == "DNS / AdGuard").Status == "Authentication failed" &&
+        currentAdGuardUnavailable.Checks.Single(check => check.Title == "DNS / AdGuard").Status == "Unavailable",
+    "Network Health intentionally distinguishes configured, authentication, and generic availability outcomes without changing severity or aggregate behavior");
 
 NetworkHealthViewSnapshot currentAdGuardUnavailableWhileLoading = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Loading, adGuard: AdGuardAvailabilityState.Unavailable));
 NetworkHealthViewSnapshot currentAdGuardUnavailableWhileStale = NetworkHealthViewProjection.Create(Input(adGuardFreshness: DataFreshnessState.Stale, adGuard: AdGuardAvailabilityState.Unavailable));

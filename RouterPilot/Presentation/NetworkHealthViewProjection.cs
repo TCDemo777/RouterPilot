@@ -56,6 +56,10 @@ public static class NetworkHealthViewProjection
 
         if (x.AdGuardFreshness == DataFreshnessState.Loading) return Check("DNS / AdGuard", "Loading", "Waiting for AdGuard status.", RouterPilotStatus.Pending, "protection");
         if (x.AdGuardFreshness == DataFreshnessState.Stale) return Check("DNS / AdGuard", "Stale", "AdGuard status has not refreshed.", RouterPilotStatus.Pending, "protection");
+        if (x.AdGuardAvailability == AdGuardAvailabilityState.NotConfigured)
+            return Check("DNS / AdGuard", "Not configured", "AdGuard Home is not configured for Router Health.", RouterPilotStatus.Error, "protection");
+        if (x.AdGuardAvailability == AdGuardAvailabilityState.AuthenticationFailed)
+            return Check("DNS / AdGuard", "Authentication failed", "RouterPilot could not authenticate with AdGuard Home.", RouterPilotStatus.Error, "protection");
         if (x.AdGuardAvailability != AdGuardAvailabilityState.Available) return Check("DNS / AdGuard", "Unavailable", "AdGuard Home is configured for Router Health but is currently unavailable.", RouterPilotStatus.Error, "protection");
         if (!x.AdGuardProtectionKnown) return Check("DNS / AdGuard", "Protection state unavailable", "AdGuard Home is running; protection state is not yet available.", RouterPilotStatus.Pending, "protection");
         string state = x.AdGuardPaused ? "Paused" : x.AdGuardProtected ? "Protected" : "Disabled";
