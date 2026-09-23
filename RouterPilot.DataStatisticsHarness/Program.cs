@@ -196,6 +196,9 @@ static async Task RunReadSeamFixturesAsync()
         active.Status?.IsDpiActive == true && active.Snapshot?.TopApps.Count == 1 &&
         active.TrafficSnapshot?.IsValid == true,
         "fake reader drives the real service's available classification without altering compatibility data");
+    RequireFact(active, DataStatisticsCapabilitySupport.Supported,
+        DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available,
+        "router-a", 1, "active read exposes the supported, active, data-available fact with its captured context");
     Require(activeReader.Calls.SequenceEqual(["Open", "Traffic", "Status", "TopApps"]),
         "active normal refresh acquires one read session and performs the existing three reads in order");
 
@@ -206,6 +209,9 @@ static async Task RunReadSeamFixturesAsync()
     DataStatisticsReadResult disabled = await CreateService(disabledReader).ReadAsync();
     Require(disabled.Availability == DataStatisticsAvailability.Disabled && !disabledReader.Calls.Contains("TopApps"),
         "disabled status remains distinct and skips the top-app read through the read seam");
+    RequireFact(disabled, DataStatisticsCapabilitySupport.Supported,
+        DataStatisticsOperatingState.Disabled, DataStatisticsReadAvailability.NotReadBecauseDisabled,
+        "router-a", 1, "disabled remains supported and explains why top-app data was not read");
 
     var dpiInactiveReader = new FakeDataStatisticsReader
     {
@@ -214,6 +220,9 @@ static async Task RunReadSeamFixturesAsync()
     DataStatisticsReadResult dpiInactive = await CreateService(dpiInactiveReader).ReadAsync();
     Require(dpiInactive.Availability == DataStatisticsAvailability.DpiInactive && !dpiInactiveReader.Calls.Contains("TopApps"),
         "inactive DPI remains distinct and skips the top-app read through the read seam");
+    RequireFact(dpiInactive, DataStatisticsCapabilitySupport.Supported,
+        DataStatisticsOperatingState.DpiInactive, DataStatisticsReadAvailability.NotReadBecauseDpiInactive,
+        "router-a", 1, "inactive DPI remains supported and explains why top-app data was not read");
 
     var unsupportedStatusReader = new FakeDataStatisticsReader
     {
@@ -224,6 +233,9 @@ static async Task RunReadSeamFixturesAsync()
         unsupportedStatus.Status is { HasFlowStatisticsState: false } &&
         !unsupportedStatusReader.Calls.Contains("TopApps"),
         "missing flow-statistics status remains the existing unsupported status-path classification");
+    RequireFact(unsupportedStatus, DataStatisticsCapabilitySupport.Unsupported,
+        DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown,
+        "router-a", 1, "missing flow-statistics state establishes unsupported without inventing an operating state");
 
     var optionalTrafficFailureReader = new FakeDataStatisticsReader
     {
@@ -241,15 +253,23 @@ static async Task RunReadSeamFixturesAsync()
     {
         Status = _ => Task.FromException<DataStatisticsStatus>(new DataStatisticsRpcException(-32601))
     };
-    Require((await CreateService(unsupportedReader).ReadAsync()).Availability == DataStatisticsAvailability.Unsupported,
+    DataStatisticsReadResult unsupportedRpc = await CreateService(unsupportedReader).ReadAsync();
+    Require(unsupportedRpc.Availability == DataStatisticsAvailability.Unsupported,
         "the fake reader can drive the existing method-or-service-unavailable classification");
+    RequireFact(unsupportedRpc, DataStatisticsCapabilitySupport.Unsupported,
+        DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown,
+        "router-a", 1, "method-or-service unavailable establishes unsupported");
 
     var temporaryFailureReader = new FakeDataStatisticsReader
     {
         Status = _ => Task.FromException<DataStatisticsStatus>(new DataStatisticsRpcException(-1))
     };
-    Require((await CreateService(temporaryFailureReader).ReadAsync()).Availability == DataStatisticsAvailability.TemporarilyUnavailable,
+    DataStatisticsReadResult temporaryFailure = await CreateService(temporaryFailureReader).ReadAsync();
+    Require(temporaryFailure.Availability == DataStatisticsAvailability.TemporarilyUnavailable,
         "the fake reader can drive the existing transient Data Statistics RPC classification");
+    RequireFact(temporaryFailure, DataStatisticsCapabilitySupport.Unknown,
+        DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.TemporarilyUnavailable,
+        "router-a", 1, "a transient failure remains unknown rather than claiming unsupported");
 
     var delayedStatus = new TaskCompletionSource<DataStatisticsStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
     var delayedReader = new FakeDataStatisticsReader
@@ -425,7 +445,30 @@ static DataStatisticsViewModel CreateViewModel(FakeDataStatisticsReader reader, 
 
 static DataStatisticsViewModel CreateViewModelWithProvider(FakeDataStatisticsReader reader, IActiveRouterContext context,
     ThrowingRouterManagerProvider provider) =>
-    new(CreateService(reader, provider), new ClientInventoryState(), new ClientProfileService(), context);
+    new(CreateService(reader, provider, context), new ClientInventoryState(), new ClientProfileService(), context);
+
+static void RequireFact(
+    DataStatisticsReadResult result,
+    DataStatisticsCapabilitySupport expectedSupport,
+    DataStatisticsOperatingState expectedOperatingState,
+    DataStatisticsReadAvailability expectedReadAvailability,
+    string expectedProfileId,
+    long expectedVersion,
+    string message)
+{
+    DataStatisticsCapabilityReadFact? fact = result.CapabilityFact;
+    Require(fact is not null &&
+        fact.Support == expectedSupport &&
+        fact.OperatingState == expectedOperatingState &&
+        fact.ReadAvailability == expectedReadAvailability &&
+        fact.Context.RouterProfileId == expectedProfileId &&
+        fact.Context.Version == expectedVersion &&
+        fact.Status == result.Status &&
+        fact.Snapshot == result.Snapshot &&
+        fact.TrafficSnapshot == result.TrafficSnapshot &&
+        fact.ToLegacyAvailability() == result.Availability,
+        message);
+}
 
 static DataStatisticsStatus ActiveStatus() => new() { FlowStatisticsEnabled = true, DpiStatus = "1" };
 
@@ -456,8 +499,10 @@ static void RunOnSta(Action action)
 }
 
 static DataStatisticsService CreateService(FakeDataStatisticsReader reader,
-    ThrowingRouterManagerProvider? provider = null) =>
-    new(provider ?? new ThrowingRouterManagerProvider(), reader);
+    ThrowingRouterManagerProvider? provider = null,
+    IActiveRouterContext? context = null) =>
+    new(provider ?? new ThrowingRouterManagerProvider(), reader,
+        context ?? new HarnessActiveRouterContext("router-a", version: 1));
 
 sealed class FakeDataStatisticsReader : IDataStatisticsReader, IDataStatisticsReadSession
 {

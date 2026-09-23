@@ -189,10 +189,69 @@ public enum DataStatisticsAvailability
     TemporarilyUnavailable
 }
 
+/// <summary>What a normal Data Statistics read established about the router interface.</summary>
+public enum DataStatisticsCapabilitySupport
+{
+    Supported,
+    Unsupported,
+    Unknown
+}
+
+/// <summary>The flow-statistics and DPI operating state observed during a read.</summary>
+public enum DataStatisticsOperatingState
+{
+    EnabledAndDpiActive,
+    Disabled,
+    DpiInactive,
+    Unknown
+}
+
+/// <summary>Whether the normal read produced top-application data.</summary>
+public enum DataStatisticsReadAvailability
+{
+    Available,
+    NotReadBecauseDisabled,
+    NotReadBecauseDpiInactive,
+    TemporarilyUnavailable,
+    Unknown
+}
+
+/// <summary>Identifies the active router context at the start of a Data Statistics read.</summary>
+public sealed record DataStatisticsContextStamp(string RouterProfileId, long Version);
+
+/// <summary>
+/// Immutable, Data Statistics-specific facts established by one normal read.
+/// This intentionally remains local to the domain rather than defining a shared capability vocabulary.
+/// </summary>
+public sealed record DataStatisticsCapabilityReadFact(
+    DataStatisticsCapabilitySupport Support,
+    DataStatisticsOperatingState OperatingState,
+    DataStatisticsReadAvailability ReadAvailability,
+    DataStatisticsContextStamp Context,
+    DataStatisticsStatus? Status,
+    DataStatisticsSnapshot? Snapshot,
+    NetworkTrafficSnapshot? TrafficSnapshot)
+{
+    public DataStatisticsAvailability ToLegacyAvailability() => (Support, OperatingState, ReadAvailability) switch
+    {
+        (DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.EnabledAndDpiActive,
+            DataStatisticsReadAvailability.Available) => DataStatisticsAvailability.Available,
+        (DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.Disabled, _) =>
+            DataStatisticsAvailability.Disabled,
+        (DataStatisticsCapabilitySupport.Supported, DataStatisticsOperatingState.DpiInactive, _) =>
+            DataStatisticsAvailability.DpiInactive,
+        (DataStatisticsCapabilitySupport.Unsupported, _, _) => DataStatisticsAvailability.Unsupported,
+        (DataStatisticsCapabilitySupport.Unknown, _, DataStatisticsReadAvailability.TemporarilyUnavailable) =>
+            DataStatisticsAvailability.TemporarilyUnavailable,
+        _ => throw new InvalidOperationException("The Data Statistics semantic fact has no legacy availability mapping.")
+    };
+}
+
 public sealed class DataStatisticsReadResult
 {
     public DataStatisticsAvailability Availability { get; init; }
     public DataStatisticsStatus? Status { get; init; }
     public DataStatisticsSnapshot? Snapshot { get; init; }
     public NetworkTrafficSnapshot? TrafficSnapshot { get; init; }
+    public DataStatisticsCapabilityReadFact? CapabilityFact { get; init; }
 }

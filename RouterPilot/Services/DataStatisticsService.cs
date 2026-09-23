@@ -9,17 +9,21 @@ public sealed class DataStatisticsService
 {
     private readonly IRouterManagerProvider _routerManagerProvider;
     private readonly IDataStatisticsReader _reader;
+    private readonly IActiveRouterContext _activeRouter;
     private readonly SemaphoreSlim _applicationProtectionGate = new(1, 1);
 
-    public DataStatisticsService(IRouterManagerProvider routerManagerProvider, IDataStatisticsReader reader)
+    public DataStatisticsService(IRouterManagerProvider routerManagerProvider, IDataStatisticsReader reader,
+        IActiveRouterContext activeRouter)
     {
         _routerManagerProvider = routerManagerProvider;
         _reader = reader;
+        _activeRouter = activeRouter;
     }
 
     public async Task<DataStatisticsReadResult> ReadAsync(
         CancellationToken cancellationToken = default)
     {
+        DataStatisticsContextStamp context = new(_activeRouter.CurrentProfileId, _activeRouter.Version);
         try
         {
             IDataStatisticsReadSession reader = await _reader
@@ -45,59 +49,65 @@ public sealed class DataStatisticsService
 
             if (!status.HasFlowStatisticsState)
             {
-                return new DataStatisticsReadResult
-                {
-                    Availability = DataStatisticsAvailability.Unsupported,
-                    Status = status,
-                    TrafficSnapshot = traffic
-                };
+                return CreateReadResult(DataStatisticsCapabilitySupport.Unsupported,
+                    DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown,
+                    context, status, null, traffic);
             }
 
             if (status.FlowStatisticsEnabled is false)
             {
-                return new DataStatisticsReadResult
-                {
-                    Availability = DataStatisticsAvailability.Disabled,
-                    Status = status,
-                    TrafficSnapshot = traffic
-                };
+                return CreateReadResult(DataStatisticsCapabilitySupport.Supported,
+                    DataStatisticsOperatingState.Disabled, DataStatisticsReadAvailability.NotReadBecauseDisabled,
+                    context, status, null, traffic);
             }
 
             if (!status.IsDpiActive)
             {
-                return new DataStatisticsReadResult
-                {
-                    Availability = DataStatisticsAvailability.DpiInactive,
-                    Status = status,
-                    TrafficSnapshot = traffic
-                };
+                return CreateReadResult(DataStatisticsCapabilitySupport.Supported,
+                    DataStatisticsOperatingState.DpiInactive, DataStatisticsReadAvailability.NotReadBecauseDpiInactive,
+                    context, status, null, traffic);
             }
 
             DataStatisticsSnapshot snapshot = await reader
                 .GetTopAppFlowStatisticsAsync(cancellationToken)
                 .ConfigureAwait(false);
-            return new DataStatisticsReadResult
-            {
-                Availability = DataStatisticsAvailability.Available,
-                Status = status,
-                Snapshot = snapshot,
-                TrafficSnapshot = traffic
-            };
+            return CreateReadResult(DataStatisticsCapabilitySupport.Supported,
+                DataStatisticsOperatingState.EnabledAndDpiActive, DataStatisticsReadAvailability.Available,
+                context, status, snapshot, traffic);
         }
         catch (DataStatisticsRpcException exception) when (exception.IsMethodOrServiceUnavailable)
         {
-            return new DataStatisticsReadResult
-            {
-                Availability = DataStatisticsAvailability.Unsupported
-            };
+            return CreateReadResult(DataStatisticsCapabilitySupport.Unsupported,
+                DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.Unknown,
+                context, null, null, null);
         }
         catch (DataStatisticsRpcException)
         {
-            return new DataStatisticsReadResult
-            {
-                Availability = DataStatisticsAvailability.TemporarilyUnavailable
-            };
+            return CreateReadResult(DataStatisticsCapabilitySupport.Unknown,
+                DataStatisticsOperatingState.Unknown, DataStatisticsReadAvailability.TemporarilyUnavailable,
+                context, null, null, null);
         }
+    }
+
+    private static DataStatisticsReadResult CreateReadResult(
+        DataStatisticsCapabilitySupport support,
+        DataStatisticsOperatingState operatingState,
+        DataStatisticsReadAvailability readAvailability,
+        DataStatisticsContextStamp context,
+        DataStatisticsStatus? status,
+        DataStatisticsSnapshot? snapshot,
+        NetworkTrafficSnapshot? trafficSnapshot)
+    {
+        var capabilityFact = new DataStatisticsCapabilityReadFact(
+            support, operatingState, readAvailability, context, status, snapshot, trafficSnapshot);
+        return new DataStatisticsReadResult
+        {
+            Availability = capabilityFact.ToLegacyAvailability(),
+            Status = status,
+            Snapshot = snapshot,
+            TrafficSnapshot = trafficSnapshot,
+            CapabilityFact = capabilityFact
+        };
     }
 
     public async Task<FullApplicationStatisticsReadResult> ReadFullApplicationsAsync(
