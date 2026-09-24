@@ -19,7 +19,12 @@ public sealed class ClientInventoryState
     /// </summary>
     public IReadOnlyDictionary<string, bool> PresenceSnapshot => _presence;
 
-    public void Update(IEnumerable<ClientInfo> clients) => Publish(clients, null, 0);
+    /// <summary>
+    /// Replaces accepted client records without discarding an already accepted
+    /// router-context stamp. An un-stamped first publication remains un-stamped.
+    /// </summary>
+    public void Update(IEnumerable<ClientInfo> clients) =>
+        Publish(clients, DeviceSnapshot.RouterProfileId, DeviceSnapshot.ContextVersion);
 
     /// <summary>Publishes one accepted client reconciliation for a verified router context.</summary>
     public void Update(IEnumerable<ClientInfo> clients, string? routerProfileId, long contextVersion) =>
@@ -63,7 +68,13 @@ public sealed class ClientInventoryState
     /// Adds clients observed by an existing application-level router snapshot
     /// without replacing the richer Clients-page reconciliation when it exists.
     /// </summary>
-    public void AddMissing(IEnumerable<ClientInfo> clients)
+    public void AddMissing(IEnumerable<ClientInfo> clients) =>
+        AddMissing(clients, DeviceSnapshot.RouterProfileId, DeviceSnapshot.ContextVersion);
+
+    /// <summary>
+    /// Adds observations from an already context-validated router snapshot.
+    /// </summary>
+    public void AddMissing(IEnumerable<ClientInfo> clients, string? routerProfileId, long contextVersion)
     {
         bool changed = false;
         foreach (ClientInfo client in clients)
@@ -73,8 +84,10 @@ public sealed class ClientInventoryState
             changed = true;
         }
 
-        if (!changed) return;
-        RebuildDeviceSnapshot(DeviceSnapshot.RouterProfileId, DeviceSnapshot.ContextVersion);
+        bool contextChanged = !string.Equals(DeviceSnapshot.RouterProfileId, routerProfileId, StringComparison.Ordinal) ||
+            DeviceSnapshot.ContextVersion != contextVersion;
+        if (!changed && !contextChanged) return;
+        RebuildDeviceSnapshot(routerProfileId, contextVersion);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

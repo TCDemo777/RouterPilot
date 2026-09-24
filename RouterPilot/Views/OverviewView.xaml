@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:RouterPilot.Controls"
     xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-    SizeChanged="OverviewView_SizeChanged">
+    xmlns:local="clr-namespace:RouterPilot.Converters">
 
     <UserControl.Resources>
         <Style x:Key="Overview.DetailLabel" TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
@@ -88,113 +88,74 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Health summary -->
+            <!-- Network at a glance -->
             <Border Margin="0,0,0,20" Style="{StaticResource Card}">
-            <StackPanel>
-            <TextBlock Margin="0,0,0,16" Style="{StaticResource Text.SectionTitle}" Text="System health" />
-            <UniformGrid x:Name="SystemHealthCards" Columns="5" VerticalAlignment="Top">
-
-                <controls:StatisticCard
-                    Margin="0,0,12,12"
-                    Height="146"
-                    UseCompactStatusValue="True"
-                    AccentBrush="{Binding RouterStatusColour}"
-                    ValueForeground="{Binding RouterStatusColour}"
-                    FooterText="{Binding RouterModel}"
-                    IconBackground="{DynamicResource Brush.PrimarySubtle}"
-                    IconGlyph="&#xE968;"
-                    Subtitle="Router connection"
-                    Title="ROUTER"
-                    Value="{Binding RouterStatusText}" />
-
-                <controls:StatisticCard
-                    Margin="0,0,12,12"
-                    Height="146"
-                    UseCompactStatusValue="True"
-                    AccentBrush="{Binding AdGuardStatusColour}"
-                    ValueForeground="{Binding AdGuardStatusColour}"
-                    IconBackground="{DynamicResource Brush.SuccessSubtle}"
-                    IconGlyph="&#xE72E;"
-                    Subtitle="{Binding AdGuardStatusSubtitle}"
-                    Title="ADGUARD"
-                    Value="{Binding AdGuardStatusText}" />
-
-                <controls:StatisticCard
-                    Margin="0,0,12,12"
-                    Height="146"
-                    UseCompactStatusValue="True"
-                    AccentBrush="{Binding InternetStatusColour}"
-                    ValueForeground="{Binding InternetStatusColour}"
-                    FooterText="{Binding Latency}"
-                    IconBackground="{DynamicResource Brush.PrimarySubtle}"
-                    IconGlyph="&#xE774;"
-                    Subtitle="WAN connectivity"
-                    Title="INTERNET"
-                    Value="{Binding InternetRouteStatusText}" />
-
-                <controls:StatisticCard
-                    Style="{StaticResource Overview.SystemHealthMetricCard}"
-                    Margin="0,0,12,12"
-                    AccentBrush="{Binding CpuHealthColour}"
-                    FooterText="{Binding CpuHealthText}"
-                    IconBackground="{DynamicResource Brush.WarningSubtle}"
-                    IconGlyph="&#xE950;"
-                    Subtitle="Processor utilisation"
-                    Title="CPU"
-                    ValueForeground="{Binding CpuHealthColour}"
-                    Value="{Binding CpuUsageDisplay}" />
-
-                <controls:StatisticCard
-                    Style="{StaticResource Overview.SystemHealthMetricCard}"
-                    Margin="0,0,0,12"
-                    AccentBrush="{Binding MemoryHealthColour}"
-                    DetailText="{Binding MemoryDetailsText}"
-                    IconBackground="{DynamicResource Brush.PrimarySubtle}"
-                    IconGlyph="&#xE7F8;"
-                    Title="MEMORY"
-                    ValueForeground="{Binding MemoryHealthColour}"
-                    Value="{Binding MemoryUsage}" />
-
-                <controls:StatisticCard
-                    Style="{StaticResource Overview.SystemHealthMetricCard}"
-                    Margin="0,0,0,12"
-                    AccentBrush="{Binding TemperatureHealthColour}"
-                    FooterText="{Binding TemperatureHealthText}"
-                    IconBackground="{DynamicResource Brush.WarningSubtle}"
-                    IconGlyph="&#xE9CA;"
-                    Subtitle="Router sensor"
-                    Title="ROUTER TEMPERATURE"
-                    ToolTip="{Binding TemperatureHealthToolTip}"
-                    ValueForeground="{Binding TemperatureHealthColour}"
-                    Value="{Binding Temperature}" />
-            </UniformGrid>
-            </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
                     <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <StackPanel><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Router Health"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthSummary}"/></StackPanel>
-                        <TextBlock Grid.Column="1" HorizontalAlignment="Right" FontSize="22" FontWeight="SemiBold" Foreground="{Binding RouterHealthColour}" Text="{Binding RouterHealthState}"/>
-                    </Grid>
-                    <StackPanel Margin="0,14,0,0">
-                        <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealth.Summary}" />
-                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding NetworkHealth.PrimaryIssues}">
-                            <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,3,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}"/><TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap" Text="{Binding Description}"/></StackPanel><Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Button.Secondary}" Tag="{Binding NavigationTarget}" Content="View" Click="HealthIssueNavigate_Click" Visibility="{Binding HasNavigationTarget, Converter={StaticResource BooleanToVisibilityConverter}}"/></Grid></DataTemplate></ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="NEEDS ATTENTION"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthAttentionText}" TextWrapping="Wrap"/>
+                            <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Network at a glance" />
+                            <TextBlock Margin="0,5,0,0" Style="{StaticResource Text.Secondary}" Text="Your accepted router, internet and protection state." />
                         </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="HEALTHY"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding RouterHealthHealthyText}" TextWrapping="Wrap"/>
-                        </StackPanel>
+                        <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="{Binding NetworkHealthViewColour}" Text="{Binding NetworkHealthView.OverallStatus}" />
                     </Grid>
+                    <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding OverviewCoreConditions}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border MinWidth="164" Margin="0,0,12,12" Padding="14,12" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                <StackPanel>
+                                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="{Binding Title}" />
+                                    <TextBlock Margin="0,5,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{Binding Severity, Converter={x:Static local:StatusColourConverter.Instance}}" Text="{Binding Status}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{DynamicResource Text.Muted}" Text="{Binding RouterModel, StringFormat=Router: {0}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Accepted current-device inventory -->
+            <Border Margin="0,0,0,20" Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Devices on your network" />
+                        <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="{Binding CurrentDeviceSnapshot.Summary}" />
+                    </Grid>
+                    <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding CurrentDeviceSnapshot.Preview}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border MinWidth="190" Margin="0,0,12,12" Padding="14,12" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                                    <TextBlock Margin="0,5,0,0" TextTrimming="CharacterEllipsis" Text="{Binding Connection}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Connection}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding Connection}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Router performance -->
+            <Border Margin="0,0,0,20" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Router performance" />
+                    <TextBlock Margin="0,5,0,16" Style="{DynamicResource Text.Secondary}" Text="Current accepted router measurements." />
+                    <WrapPanel>
+                        <controls:StatisticCard Style="{StaticResource Overview.SystemHealthMetricCard}" Width="230" Margin="0,0,12,12" AccentBrush="{Binding CpuHealthColour}" FooterText="{Binding CpuHealthText}" IconBackground="{DynamicResource Brush.WarningSubtle}" IconGlyph="&#xE950;" Subtitle="Processor utilisation" Title="CPU" ValueForeground="{Binding CpuHealthColour}" Value="{Binding CpuUsageDisplay}" />
+                        <controls:StatisticCard Style="{StaticResource Overview.SystemHealthMetricCard}" Width="230" Margin="0,0,12,12" AccentBrush="{Binding MemoryHealthColour}" DetailText="{Binding MemoryDetailsText}" IconBackground="{DynamicResource Brush.PrimarySubtle}" IconGlyph="&#xE7F8;" Title="MEMORY" ValueForeground="{Binding MemoryHealthColour}" Value="{Binding MemoryUsage}" />
+                        <controls:StatisticCard Style="{StaticResource Overview.SystemHealthMetricCard}" Width="230" Margin="0,0,12,12" AccentBrush="{Binding TemperatureHealthColour}" FooterText="{Binding TemperatureHealthText}" IconBackground="{DynamicResource Brush.WarningSubtle}" IconGlyph="&#xE9CA;" Subtitle="Router sensor" Title="ROUTER TEMPERATURE" ToolTip="{Binding TemperatureHealthToolTip}" ValueForeground="{Binding TemperatureHealthColour}" Value="{Binding Temperature}" />
+                    </WrapPanel>
                 </StackPanel>
             </Border>
 
@@ -202,7 +163,7 @@
             <Border x:Name="NetworkHealthDashboardCard" Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Network Health"/><Button Grid.Column="1" Padding="10,4" Style="{DynamicResource Button.Secondary}" Foreground="{Binding NetworkHealthViewColour}" Tag="network-health" Content="{Binding NetworkHealthView.OverallStatus}" ToolTip="Open Network Health" Click="HealthIssueNavigate_Click"/></Grid>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Health and attention"/><Button Grid.Column="1" Padding="10,4" Style="{DynamicResource Button.Secondary}" Foreground="{Binding NetworkHealthViewColour}" Tag="network-health" Content="View Network Health" ToolTip="Open Network Health" Click="HealthIssueNavigate_Click"/></Grid>
                     <StackPanel Grid.Row="1" Margin="0,12,0,0">
                         <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding NetworkHealthView.OverallDetail}"/>
                         <ItemsControl x:Name="HealthCentreObservations" Margin="0,10,0,0">

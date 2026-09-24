@@ -19,6 +19,8 @@ namespace RouterPilot.ViewModels
     public partial class DashboardViewModel : ObservableObject
     {
         private readonly IClientDisplayNameService _displayNames;
+        private readonly ClientInventoryState? _clientInventory;
+        private readonly IActiveRouterContext? _activeRouter;
         private const int TrafficHistoryCapacity = 60;
         private const int HealthHistoryCapacity = 60;
         private const int TrafficSampleIntervalSeconds = 2;
@@ -111,6 +113,12 @@ namespace RouterPilot.ViewModels
 
         public string NetworkHealthViewColour =>
             RouterPilotStatusPresentation.Colour(NetworkHealthView.OverallSeverity);
+
+        public IReadOnlyList<NetworkHealthCoreCondition> OverviewCoreConditions =>
+            NetworkHealthViewProjection.CreateCoreConditions(NetworkHealthView);
+
+        [ObservableProperty]
+        private OverviewCurrentDeviceSnapshot currentDeviceSnapshot = OverviewCurrentDeviceSnapshot.Waiting;
 
         public string NetworkHealthColour => RouterPilotStatusPresentation.Colour(NetworkHealth.OverallState switch
         {
@@ -712,10 +720,19 @@ namespace RouterPilot.ViewModels
 
         public DashboardViewModel(
             IClientDisplayNameService? displayNames = null,
-            TemperatureDisplayService? temperatureDisplay = null)
+            TemperatureDisplayService? temperatureDisplay = null,
+            ClientInventoryState? clientInventory = null,
+            IActiveRouterContext? activeRouter = null)
         {
             _displayNames = displayNames ?? new PassthroughClientDisplayNameService();
             _displayNames.Changed += (_, _) => RebuildLanClients();
+            _clientInventory = clientInventory;
+            _activeRouter = activeRouter;
+            if (_clientInventory is not null)
+            {
+                _clientInventory.Changed += (_, _) => RefreshCurrentDeviceSnapshot();
+                RefreshCurrentDeviceSnapshot();
+            }
             _temperatureDisplay = temperatureDisplay ?? new TemperatureDisplayService();
             _temperatureDisplay.UnitChanged += (_, _) =>
             {
@@ -1493,6 +1510,20 @@ namespace RouterPilot.ViewModels
             }
         }
 
+        private void RefreshCurrentDeviceSnapshot()
+        {
+            if (_clientInventory is null || _activeRouter is null)
+            {
+                CurrentDeviceSnapshot = OverviewCurrentDeviceSnapshot.Waiting;
+                return;
+            }
+
+            CurrentDeviceSnapshot = OverviewCurrentDeviceProjection.Create(
+                _clientInventory.DeviceSnapshot,
+                _activeRouter.CurrentProfileId,
+                _activeRouter.Version);
+        }
+
         private static bool IsUnavailableDhcpName(string? value) =>
             string.IsNullOrWhiteSpace(value) || value == "—" || value == "-" ||
             value.Equals("Unknown device", StringComparison.OrdinalIgnoreCase);
@@ -2236,8 +2267,11 @@ namespace RouterPilot.ViewModels
 
         partial void OnNetworkHealthChanged(NetworkHealthSnapshot value) => OnPropertyChanged(nameof(NetworkHealthColour));
 
-        partial void OnNetworkHealthViewChanged(NetworkHealthViewSnapshot value) =>
+        partial void OnNetworkHealthViewChanged(NetworkHealthViewSnapshot value)
+        {
             OnPropertyChanged(nameof(NetworkHealthViewColour));
+            OnPropertyChanged(nameof(OverviewCoreConditions));
+        }
 
         partial void OnVpnSummaryChanged(VpnSummaryState value)
         {

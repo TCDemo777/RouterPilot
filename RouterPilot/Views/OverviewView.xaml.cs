@@ -53,13 +53,6 @@ namespace RouterPilot.Views
         private void DashboardPreferences_Changed(object? sender, EventArgs e) =>
             Dispatcher.InvokeAsync(ApplyDashboardPreferences);
 
-        private void OverviewView_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            // Six cards remain balanced as two rows of three at the available
-            // Overview width, including narrower Settings-window layouts.
-            SystemHealthCards.Columns = 3;
-        }
-
         private void ApplyDashboardPreferences()
         {
             Dictionary<string, Border> controls = new(StringComparer.OrdinalIgnoreCase)

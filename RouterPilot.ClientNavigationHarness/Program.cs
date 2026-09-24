@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using RouterPilot.Models;
+using RouterPilot.Presentation;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
 
@@ -533,6 +534,109 @@ Require(inventoryCharacterization.DeviceSnapshot.Observations.Keys.Select(identi
     inventoryCharacterization.DeviceSnapshot.Observations.TryGetValue(duplicateIdentity, out DeviceObservation? typedDuplicate) &&
     ReferenceEquals(typedDuplicate.Client, duplicateLast) && typedDuplicate.IsOnline is null,
     "typed and legacy inventory views derive from the same accepted duplicate winner with unknown presence");
+
+OverviewCurrentDeviceSnapshot waitingOverviewDevices = OverviewCurrentDeviceProjection.Create(
+    DeviceInventorySnapshot.Empty, "router-a", 1);
+Require(waitingOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Waiting &&
+    waitingOverviewDevices.Summary == "Waiting for current device information…" &&
+    waitingOverviewDevices.ObservedCount == 0 && waitingOverviewDevices.Preview.Count == 0,
+    "an unaccepted or un-stamped device inventory produces the conservative Overview waiting state");
+
+var emptyOverviewInventory = new ClientInventoryState();
+emptyOverviewInventory.Update([], "router-a", 1);
+OverviewCurrentDeviceSnapshot emptyOverviewDevices = OverviewCurrentDeviceProjection.Create(
+    emptyOverviewInventory.DeviceSnapshot, "router-a", 1);
+Require(emptyOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Empty &&
+    emptyOverviewDevices.Summary == "No devices currently observed" &&
+    emptyOverviewDevices.ObservedCount == 0 && emptyOverviewDevices.Preview.Count == 0,
+    "a matching accepted empty inventory remains distinct from the Overview waiting state");
+
+var overviewInventory = new ClientInventoryState();
+ClientInfo onlineAlpha = Client("AA:BB:CC:DD:EE:01", "Alpha", "192.168.8.1");
+onlineAlpha.ConnectionType = "Ethernet";
+ClientInfo onlineAlphaTie = Client("AA:BB:CC:DD:EE:02", "alpha", "192.168.8.2");
+ClientInfo unknownCharlie = Client("AA:BB:CC:DD:EE:03", "Charlie", "192.168.8.3");
+unknownCharlie.ConnectionType = "5 GHz";
+unknownCharlie.WifiNetwork = "Home";
+ClientInfo offlineBravo = Client("AA:BB:CC:DD:EE:04", "Bravo", "192.168.8.4");
+offlineBravo.ConnectionType = "Ethernet";
+ClientInfo unknownName = Client("AA:BB:CC:DD:EE:05", "-", "192.168.8.5");
+ClientInfo unknownDelta = Client("AA:BB:CC:DD:EE:06", "Delta", "192.168.8.6");
+overviewInventory.Update([onlineAlpha, onlineAlphaTie, unknownCharlie, offlineBravo, unknownName, unknownDelta], "router-a", 1);
+overviewInventory.UpdateAuthoritativePresence(new Dictionary<string, bool>
+{
+    [onlineAlpha.MacAddress] = true,
+    [onlineAlphaTie.MacAddress] = true,
+    [offlineBravo.MacAddress] = false
+});
+OverviewCurrentDeviceSnapshot populatedOverviewDevices = OverviewCurrentDeviceProjection.Create(
+    overviewInventory.DeviceSnapshot, "router-a", 1);
+Require(populatedOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Populated &&
+    populatedOverviewDevices.Summary == "5 devices currently observed" &&
+    populatedOverviewDevices.ObservedCount == 5 && populatedOverviewDevices.Preview.Count == 4,
+    "Overview count includes every qualifying current observation while preview remains bounded to four");
+Require(populatedOverviewDevices.Preview.Select(item => item.Name).SequenceEqual(["Alpha", "alpha", "Charlie", "Delta"]) &&
+    populatedOverviewDevices.Preview.Take(2).All(item => item.IsExplicitlyOnline) &&
+    populatedOverviewDevices.Preview.Skip(2).All(item => !item.IsExplicitlyOnline),
+    "explicitly online observations sort before unknown presence, then use ordinal-ignore-case name and strict identity tie-breaks");
+Require(populatedOverviewDevices.Preview[0].Connection == "Ethernet" &&
+    populatedOverviewDevices.Preview[1].Connection is null &&
+    populatedOverviewDevices.Preview[2].Connection == "Wi-Fi • 5 GHz • Home" &&
+    populatedOverviewDevices.Preview.All(item => item.Name != "Unknown device"),
+    "Overview preserves accepted useful connection context, omits unknown context, and applies its neutral name fallback only when needed");
+Require(!populatedOverviewDevices.Preview.Any(item => item.Name == "Bravo") &&
+    !populatedOverviewDevices.Preview.Any(item => item.Name == "Unknown device"),
+    "explicitly offline observations are excluded and lower-ranked unknown-name observations cannot displace the bounded preview");
+var fallbackOverviewInventory = new ClientInventoryState();
+fallbackOverviewInventory.Update([unknownName], "router-a", 1);
+OverviewCurrentDeviceSnapshot fallbackOverviewDevices = OverviewCurrentDeviceProjection.Create(
+    fallbackOverviewInventory.DeviceSnapshot, "router-a", 1);
+Require(fallbackOverviewDevices.Preview.Single().Name == "Unknown device" &&
+    fallbackOverviewDevices.Preview.Single().Connection is null &&
+    !fallbackOverviewDevices.Preview.Single().IsExplicitlyOnline,
+    "an accepted observation without a useful friendly name or connection uses the neutral fallback without fabricating online state");
+Require(OverviewCurrentDeviceProjection.Create(overviewInventory.DeviceSnapshot, "router-b", 1).State == OverviewCurrentDeviceSnapshotState.Waiting &&
+    OverviewCurrentDeviceProjection.Create(overviewInventory.DeviceSnapshot, "router-a", 2).State == OverviewCurrentDeviceSnapshotState.Waiting,
+    "wrong router profile or context version never becomes an accepted Overview device snapshot");
+
+overviewInventory.Update([onlineAlpha], "router-a", 1);
+overviewInventory.Update([onlineAlpha]);
+Require(overviewInventory.DeviceSnapshot.RouterProfileId == "router-a" && overviewInventory.DeviceSnapshot.ContextVersion == 1 &&
+    OverviewCurrentDeviceProjection.Create(overviewInventory.DeviceSnapshot, "router-a", 1).State == OverviewCurrentDeviceSnapshotState.Populated,
+    "convenience inventory updates retain existing accepted router-context ownership instead of silently erasing it");
+var stampedSeedInventory = new ClientInventoryState();
+stampedSeedInventory.AddMissing([unknownCharlie], "router-a", 1);
+stampedSeedInventory.AddMissing([unknownDelta], "router-a", 1);
+Require(stampedSeedInventory.DeviceSnapshot.RouterProfileId == "router-a" && stampedSeedInventory.DeviceSnapshot.ContextVersion == 1 &&
+    OverviewCurrentDeviceProjection.Create(stampedSeedInventory.DeviceSnapshot, "router-a", 1).ObservedCount == 2,
+    "context-validated missing-client seeding publishes and retains an accepted router-context stamp");
+stampedSeedInventory.Clear();
+Require(stampedSeedInventory.DeviceSnapshot.RouterProfileId is null && stampedSeedInventory.DeviceSnapshot.ContextVersion == 0 &&
+    OverviewCurrentDeviceProjection.Create(stampedSeedInventory.DeviceSnapshot, "router-a", 1).State == OverviewCurrentDeviceSnapshotState.Waiting,
+    "clearing an accepted inventory removes its stamp and immediately returns Overview presentation to waiting");
+string overviewProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "OverviewCurrentDeviceProjection.cs"));
+Require(!overviewProjectionSource.Contains("RouterManager", StringComparison.Ordinal) &&
+    !overviewProjectionSource.Contains("Async", StringComparison.Ordinal) &&
+    !overviewProjectionSource.Contains("Http", StringComparison.Ordinal) &&
+    !overviewProjectionSource.Contains("Ssh", StringComparison.Ordinal) &&
+    !overviewProjectionSource.Contains("Refresh", StringComparison.Ordinal) &&
+    !overviewProjectionSource.Contains("Mutation", StringComparison.Ordinal),
+    "Overview current-device projection is pure and introduces no router, AdGuard, SSH, refresh, or mutation path");
+string overviewXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "OverviewView.xaml"));
+int deviceSectionStart = overviewXaml.IndexOf("<!-- Accepted current-device inventory -->", StringComparison.Ordinal);
+int deviceSectionEnd = overviewXaml.IndexOf("<!-- Router performance -->", StringComparison.Ordinal);
+string overviewDeviceSection = deviceSectionStart >= 0 && deviceSectionEnd > deviceSectionStart
+    ? overviewXaml[deviceSectionStart..deviceSectionEnd]
+    : string.Empty;
+Require(overviewXaml.Contains("Network at a glance", StringComparison.Ordinal) &&
+    overviewXaml.Contains("ItemsSource=\"{Binding OverviewCoreConditions}\"", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("Devices on your network", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("CurrentDeviceSnapshot.Summary", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("CurrentDeviceSnapshot.Preview", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("<WrapPanel", StringComparison.Ordinal) &&
+    !overviewDeviceSection.Contains("<Button", StringComparison.Ordinal) &&
+    !overviewDeviceSection.Contains("Mac", StringComparison.Ordinal),
+    "Overview binds accepted summary and device snapshot state in a wrapping, non-interactive card without raw MAC presentation");
 inventoryCharacterization.UpdateAuthoritativePresence(new Dictionary<string, bool>
 {
     ["aa-bb-cc-dd-ee-10"] = false,
@@ -593,6 +697,8 @@ releaseStale.SetResult([Client("AA:BB:CC:DD:EE:30", "Router A client", "192.168.
 bool stalePublished = await staleRefresh;
 Require(!stalePublished && staleInventory.Snapshot.Count == 0 && staleInventory.DeviceSnapshot.IsEmpty,
     "prior-router inventory refresh cannot publish typed or legacy state after the active router context changes");
+Require(OverviewCurrentDeviceProjection.Create(staleInventory.DeviceSnapshot, "router-b", 2).State == OverviewCurrentDeviceSnapshotState.Waiting,
+    "a delayed router-A completion cannot produce an accepted Overview device snapshot after router B reset");
 
 var contextBInventory = new ClientInventoryState();
 var contextB = new HarnessActiveRouterContext("router-b", version: 2);
@@ -604,6 +710,9 @@ Require(await contextBCoordinator.RefreshAuthoritativeInventoryAsync() &&
     contextBInventory.DeviceSnapshot.Observations.Keys.Select(identity => identity.CanonicalMac).OrderBy(key => key)
         .SequenceEqual(contextBInventory.Snapshot.Keys.OrderBy(key => key)),
     "current-context refresh publishes one context-stamped typed snapshot equivalent to the legacy map");
+Require(OverviewCurrentDeviceProjection.Create(contextBInventory.DeviceSnapshot, "router-b", 2) is
+    { State: OverviewCurrentDeviceSnapshotState.Populated, ObservedCount: 1 },
+    "a subsequent accepted router-B inventory publishes normally to the Overview projection");
 
 // Slice 01 / Phase 5A: exercise the migrated Known Devices ViewModel itself,
 // with an in-memory profile map so the fixture never writes user profiles.

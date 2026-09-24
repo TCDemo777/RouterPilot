@@ -824,7 +824,7 @@ namespace RouterPilot.Views
 
                 Debug.Assert(wifiRadios.Count > 0);
                 _viewModel.UpdateWifiRadios(wifiRadios);
-                SeedClientInventoryFromWifi(wifiRadios);
+                SeedClientInventoryFromWifi(wifiRadios, _activeRouter.CurrentProfileId, routerSession);
                 _dataFreshnessService.MarkSuccess(WifiFreshnessSource);
                 _viewModel.WifiRefreshError = string.Empty;
                 Debug.WriteLine(
@@ -938,7 +938,10 @@ namespace RouterPilot.Views
             _trafficAccumulator.Reset();
         }
 
-        private static void SeedClientInventoryFromWifi(IEnumerable<WifiRadioInfo> radios)
+        private static void SeedClientInventoryFromWifi(
+            IEnumerable<WifiRadioInfo> radios,
+            string routerProfileId,
+            long contextVersion)
         {
             var observedClients = radios.SelectMany(radio => radio.Clients.Select(client => new
             {
@@ -964,7 +967,7 @@ namespace RouterPilot.Views
 
             ((App)Application.Current).Services
                 .GetRequiredService<ClientInventoryState>()
-                .AddMissing(observedClients);
+                .AddMissing(observedClients, routerProfileId, contextVersion);
         }
 
         private void UpdateNetworkTraffic(
