@@ -502,6 +502,23 @@
                                         <TextBlock Margin="0,3,0,0"
                                                    Foreground="{DynamicResource Brush.TextSecondary}"
                                                    Text="{Binding IpAddress}"/>
+                                        <TextBlock Margin="0,3,0,0"
+                                                   Foreground="{DynamicResource Brush.TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding NameSource, StringFormat=Name from: {0}}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding NameSource}" Value="Unknown">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding NameSource}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
 
                                     <Button Grid.Column="2"

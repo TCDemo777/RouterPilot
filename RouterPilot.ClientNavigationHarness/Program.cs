@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Net;
@@ -99,6 +100,17 @@ Require(ClientNamePresentation.ResolveSource(ClientNameSource.Router, "Living Ro
     ClientNamePresentation.ResolveSource(ClientNameSource.AdGuard, "Living Room TV", "") == "RouterPilot" &&
     ClientNamePresentation.ResolveSource(ClientNameSource.Automatic, "Living Room TV", "Lounge Television") == "RouterPilot",
     "name-source presentation follows the same configured-name precedence");
+string clientsViewSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "ClientsView.xaml"));
+int nameSourceStart = clientsViewSource.IndexOf("Text=\"{Binding NameSource, StringFormat=Name from: {0}}\"", StringComparison.Ordinal);
+int nameSourceEnd = clientsViewSource.IndexOf("</TextBlock>", nameSourceStart, StringComparison.Ordinal);
+string nameSourcePresentation = nameSourceStart >= 0 && nameSourceEnd > nameSourceStart
+    ? clientsViewSource[nameSourceStart..nameSourceEnd]
+    : string.Empty;
+Require(nameSourcePresentation.Contains("DataTrigger Binding=\"{Binding NameSource}\" Value=\"Unknown\"", StringComparison.Ordinal) &&
+        nameSourcePresentation.Contains("DataTrigger Binding=\"{Binding NameSource}\" Value=\"\"", StringComparison.Ordinal) &&
+        !nameSourcePresentation.Contains("<Button", StringComparison.Ordinal) &&
+        !nameSourcePresentation.Contains("Click=", StringComparison.Ordinal),
+    "Clients cards present the accepted name source textually, omit no-useful-provenance fallback, and add no interaction");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
 MethodInfo? flightDeckClick = typeof(RouterPilot.Views.AboutView).GetMethod(
     "IsFlightDeckActivationClick",
