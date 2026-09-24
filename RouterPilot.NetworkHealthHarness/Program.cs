@@ -462,6 +462,7 @@ Require(new[] { dataStatisticsNotLoaded, dataStatisticsDisabled, dataStatisticsD
     "every typed Data Statistics state remains excluded from aggregate Network Health output");
 
 string networkHealthViewModelSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "ViewModels", "NetworkHealthViewModel.cs"));
+string networkHealthViewSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "NetworkHealthView.xaml"));
 Require(!networkHealthViewModelSource.Contains("EnsureLoadedAsync", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("RefreshAsync", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("DataStatisticsService", StringComparison.Ordinal) &&
@@ -469,6 +470,18 @@ Require(!networkHealthViewModelSource.Contains("EnsureLoadedAsync", StringCompar
         networkHealthViewModelSource.Contains("CreateCoreConditions(Snapshot)", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("_dataStatistics.Status", StringComparison.Ordinal),
     "Network Health observes the accepted typed fact without initiating Analytics loading, refresh, or service reads");
+int coreConditionsStart = networkHealthViewSource.IndexOf("ItemsSource=\"{Binding CoreConditions}\"", StringComparison.Ordinal);
+int coreConditionsEnd = networkHealthViewSource.IndexOf("</ItemsControl>", coreConditionsStart, StringComparison.Ordinal);
+string coreConditionsTemplate = coreConditionsStart >= 0 && coreConditionsEnd > coreConditionsStart
+    ? networkHealthViewSource[coreConditionsStart..coreConditionsEnd]
+    : string.Empty;
+Require(coreConditionsTemplate.Contains("<WrapPanel", StringComparison.Ordinal) &&
+        coreConditionsTemplate.Contains("Text=\"{Binding Title}\"", StringComparison.Ordinal) &&
+        coreConditionsTemplate.Contains("Text=\"{Binding Status}\"", StringComparison.Ordinal) &&
+        coreConditionsTemplate.Contains("Property=\"HasItems\" Value=\"False\"", StringComparison.Ordinal) &&
+        !coreConditionsTemplate.Contains("<Button", StringComparison.Ordinal) &&
+        !coreConditionsTemplate.Contains("Click=", StringComparison.Ordinal),
+    "Network Health renders accepted core conditions as a wrapping, textual, non-interactive summary that collapses when empty");
 string dashboardHealthProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "DashboardHealthProjection.cs"));
 string networkHealthServiceSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "NetworkHealthService.cs"));
 Require(!dashboardHealthProjectionSource.Contains("DataStatistics", StringComparison.Ordinal) &&
