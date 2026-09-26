@@ -104,6 +104,7 @@ namespace RouterPilot.ViewModels
             _serviceCatalogue = serviceCatalogue;
             _adGuardMaintenanceStateService = adGuardMaintenanceStateService;
             _adGuardAvailabilityService = adGuardAvailabilityService;
+            _adGuardAvailabilityService.PropertyChanged += AdGuardAvailabilityService_PropertyChanged;
             _notificationService = notificationService;
             _displayNames = displayNames;
             _clientInventory = clientInventory;
@@ -216,7 +217,31 @@ namespace RouterPilot.ViewModels
                 : "Limited — AdGuard query logging is disabled, so client DNS activity may not be visible.";
         public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
         public string StatusColour => RouterPilotStatusPresentation.Colour(_protectionStatus);
-        public string StatusDetail { get => _statusDetail; private set => SetProperty(ref _statusDetail, value); }
+        public string StatusDetail
+        {
+            get => _statusDetail;
+            private set
+            {
+                if (SetProperty(ref _statusDetail, value))
+                    OnPropertyChanged(nameof(ProtectionHeroDetail));
+            }
+        }
+        public string ProtectionHeroStatus => _adGuardAvailabilityService.State switch
+        {
+            AdGuardAvailabilityState.NotConfigured => "Not configured",
+            AdGuardAvailabilityState.AuthenticationFailed => "Authentication failed",
+            AdGuardAvailabilityState.Unavailable when _protectionStatus == RouterPilotStatus.Pending => "Checking",
+            AdGuardAvailabilityState.Unavailable => "Unavailable",
+            _ => StatusText
+        };
+        public string ProtectionHeroDetail => _adGuardAvailabilityService.State switch
+        {
+            AdGuardAvailabilityState.NotConfigured => "RouterPilot does not have usable AdGuard Home configuration for this router.",
+            AdGuardAvailabilityState.AuthenticationFailed => "RouterPilot reached AdGuard Home but could not authenticate.",
+            AdGuardAvailabilityState.Unavailable when _protectionStatus == RouterPilotStatus.Pending => "Checking the current AdGuard Home protection state.",
+            AdGuardAvailabilityState.Unavailable => "AdGuard Home is configured but currently unavailable.",
+            _ => StatusDetail
+        };
         public string Remaining { get => _remaining; private set => SetProperty(ref _remaining, value); }
         public string Message { get => _message; private set => SetProperty(ref _message, value); }
         public void SetMessage(string message) => Message = message;
@@ -403,7 +428,17 @@ namespace RouterPilot.ViewModels
             _activationCancellation?.Cancel();
             _scheduleService.BlockedServicesChanged -= ScheduleService_BlockedServicesChanged;
             _displayNames.Changed -= DisplayNames_Changed;
+            _adGuardAvailabilityService.PropertyChanged -= AdGuardAvailabilityService_PropertyChanged;
             _disposalCancellation.Cancel();
+        }
+
+        private void AdGuardAvailabilityService_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(AdGuardAvailabilityService.State) or null)
+            {
+                OnPropertyChanged(nameof(ProtectionHeroStatus));
+                OnPropertyChanged(nameof(ProtectionHeroDetail));
+            }
         }
 
         private async Task RefreshAllAsync(bool refreshTransport, CancellationToken cancellationToken = default)
@@ -1144,6 +1179,8 @@ namespace RouterPilot.ViewModels
             _protectionStatus = status;
             StatusText = RouterPilotStatusPresentation.Text(status);
             OnPropertyChanged(nameof(StatusColour));
+            OnPropertyChanged(nameof(ProtectionHeroStatus));
+            OnPropertyChanged(nameof(ProtectionHeroDetail));
         }
 
         private void DetermineProfile()

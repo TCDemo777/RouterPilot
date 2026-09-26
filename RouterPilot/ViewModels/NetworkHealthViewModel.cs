@@ -29,6 +29,25 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
     public string OverallStatus => Snapshot.OverallStatus;
     public string OverallDetail => Snapshot.OverallDetail;
     public string OverallColour => RouterPilotStatusPresentation.Colour(Snapshot.OverallSeverity);
+    public IReadOnlyList<NetworkHealthViewCheck> NeedsAttention => Snapshot.Checks
+        .Where(IsAttention)
+        .ToArray();
+    public IReadOnlyList<NetworkHealthViewCheck> CoreServices => Snapshot.Checks
+        .Where(check => check.Title is "Router" or "Internet / WAN" or "DNS / AdGuard")
+        .ToArray();
+    public IReadOnlyList<NetworkHealthViewCheck> NetworkFeatures => Snapshot.Checks
+        .Where(check => check.Title is not ("Router" or "Internet / WAN" or "DNS / AdGuard"))
+        .ToArray();
+    public bool IsInitializing => Snapshot.OverallStatus == "Initializing";
+    public bool HasAttention => NeedsAttention.Count > 0;
+    public string AttentionSummary => IsInitializing
+        ? "Waiting for current health information."
+        : HasAttention
+            ? $"{NeedsAttention.Count} condition(s) need attention."
+            : "No problems detected.";
+    public string FreshnessSummary => string.IsNullOrWhiteSpace(_dashboard.LastRefresh) || _dashboard.LastRefresh == "-"
+        ? "Current refresh status is not yet available."
+        : _dashboard.LastRefresh;
 
     public NetworkHealthViewModel(DashboardViewModel dashboard, IDataFreshnessService freshness, IVpnSummaryService vpn,
         FirmwareUpdateService firmwareUpdates, DataStatisticsViewModel dataStatistics, IUiDispatcher uiDispatcher)
@@ -52,13 +71,39 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
         // The Dashboard also exposes this projection for the Overview. Those
         // presentation-only notifications must not feed back into its source.
         if (e.PropertyName is nameof(DashboardViewModel.NetworkHealthView) or
-            nameof(DashboardViewModel.NetworkHealthViewColour))
+            nameof(DashboardViewModel.NetworkHealthViewColour) or
+            nameof(DashboardViewModel.OverviewCoreConditions))
         {
             return;
         }
 
         RebuildOnUiThread();
     }
+
+    private static bool IsAttention(NetworkHealthViewCheck check)
+    {
+        if (!check.AffectsOverall || check.Status is "Loading" or "Checking")
+            return false;
+
+        return check.Severity is RouterPilotStatus.Error or RouterPilotStatus.Pending or
+            RouterPilotStatus.Disabled or RouterPilotStatus.NotAvailable;
+    }
+
+    partial void OnSnapshotChanged(NetworkHealthViewSnapshot value)
+    {
+        OnPropertyChanged(nameof(Checks));
+        OnPropertyChanged(nameof(OverallStatus));
+        OnPropertyChanged(nameof(OverallDetail));
+        OnPropertyChanged(nameof(OverallColour));
+        OnPropertyChanged(nameof(NeedsAttention));
+        OnPropertyChanged(nameof(CoreServices));
+        OnPropertyChanged(nameof(NetworkFeatures));
+        OnPropertyChanged(nameof(FreshnessSummary));
+        OnPropertyChanged(nameof(IsInitializing));
+        OnPropertyChanged(nameof(HasAttention));
+        OnPropertyChanged(nameof(AttentionSummary));
+    }
+
     private void FreshnessChanged() => RebuildOnUiThread();
     private void VpnChanged(VpnSummaryState _) => RebuildOnUiThread();
     private void FirmwareChanged(object? sender, PropertyChangedEventArgs e) => RebuildOnUiThread();
@@ -98,7 +143,6 @@ public sealed partial class NetworkHealthViewModel : ObservableObject, IDisposab
             _dashboard.Temperature, _dashboard.MemoryUsage, _dashboard.StorageUsage, _dashboard.Uptime, _dashboard.LoadAverage,
             firmware.CurrentVersion, firmwareStatus, _dataStatistics.HasLoaded, _dataStatistics.CurrentCapabilityFact));
         CoreConditions = NetworkHealthViewProjection.CreateCoreConditions(Snapshot);
-        OnPropertyChanged(nameof(Checks)); OnPropertyChanged(nameof(OverallStatus)); OnPropertyChanged(nameof(OverallDetail)); OnPropertyChanged(nameof(OverallColour));
     }
 
     private static string VpnDetail(VpnSummaryState vpn) => string.Join(" · ", new[] { vpn.Protocol, vpn.TunnelName, vpn.ProfileName, vpn.Location }.Where(value => !string.IsNullOrWhiteSpace(value)));

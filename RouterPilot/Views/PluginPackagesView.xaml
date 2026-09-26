@@ -36,7 +36,7 @@
 
                 <TextBlock Margin="0,4,0,0"
                            Style="{DynamicResource Text.Secondary}"
-                           Text="Browse and manage packages reported by the router."/>
+                           Text="Review installed software and available package changes. Nothing is installed or updated automatically."/>
             </StackPanel>
 
             <Button Grid.Column="1"
@@ -48,12 +48,10 @@
         </Grid>
 
         <!-- SUMMARY -->
-        <UniformGrid Grid.Row="1"
-                     Columns="4"
-                     Margin="0,0,0,14">
+        <WrapPanel Grid.Row="1" Margin="0,0,-10,4">
 
             <Border Style="{DynamicResource Card}"
-                    Margin="0,0,8,0"
+                    Width="180" Margin="0,0,10,10"
                     Padding="12">
                 <StackPanel>
                     <TextBlock Style="{DynamicResource Text.CardCaption}"
@@ -61,12 +59,12 @@
                     <TextBlock Margin="0,4,0,0"
                                FontSize="22"
                                FontWeight="SemiBold"
-                               Text="{Binding InstalledCount}"/>
+                               Text="{Binding InstalledCountDisplay}"/>
                 </StackPanel>
             </Border>
 
             <Border Style="{DynamicResource Card}"
-                    Margin="4,0,4,0"
+                    Width="180" Margin="0,0,10,10"
                     Padding="12">
                 <StackPanel>
                     <TextBlock Style="{DynamicResource Text.CardCaption}"
@@ -74,12 +72,12 @@
                     <TextBlock Margin="0,4,0,0"
                                FontSize="22"
                                FontWeight="SemiBold"
-                               Text="{Binding AvailableCount}"/>
+                               Text="{Binding AvailableCountDisplay}"/>
                 </StackPanel>
             </Border>
 
             <Border Style="{DynamicResource Card}"
-                    Margin="4,0,4,0"
+                    Width="180" Margin="0,0,10,10"
                     Padding="12">
                 <StackPanel>
                     <TextBlock Style="{DynamicResource Text.CardCaption}"
@@ -92,7 +90,7 @@
             </Border>
 
             <Border Style="{DynamicResource Card}"
-                    Margin="8,0,0,0"
+                    Width="210" Margin="0,0,10,10"
                     Padding="12">
                 <StackPanel>
                     <TextBlock Style="{DynamicResource Text.CardCaption}"
@@ -109,7 +107,7 @@
                 </StackPanel>
             </Border>
 
-        </UniformGrid>
+        </WrapPanel>
 
         <!-- SEARCH / FILTER / INDEX ACTION / STATUS -->
         <Border Grid.Row="2"
@@ -118,6 +116,10 @@
                 Margin="0,0,0,14">
 
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -127,7 +129,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Search -->
-                <Grid>
+                <Grid Grid.Row="0">
 
                     <TextBox x:Name="SearchBox"
                              Height="36"
@@ -201,6 +203,14 @@
                            Text="{Binding StatusMessage}"
                            TextTrimming="CharacterEllipsis"/>
 
+            <Border Grid.Row="1" Margin="0,12,0,0" Padding="12" CornerRadius="8"
+                    Background="{DynamicResource Brush.SurfaceMuted}"
+                    BorderBrush="{DynamicResource Brush.Danger}" BorderThickness="1"
+                    Visibility="{Binding HasOperationFailure, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Foreground="{DynamicResource Brush.Danger}" TextWrapping="Wrap"
+                           Text="{Binding OperationAttention}"/>
+            </Border>
+
             </Grid>
 
         </Border>
@@ -209,11 +219,9 @@
         <Grid Grid.Row="3">
 
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.65*"
-                                  MinWidth="500"/>
+                <ColumnDefinition Width="1.65*"/>
                 <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"
-                                  MinWidth="360"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: PACKAGE INVENTORY -->
@@ -245,7 +253,8 @@
 
                     </Grid>
 
-                    <DataGrid Grid.Row="1"
+                    <Grid Grid.Row="1">
+                    <DataGrid
                               ItemsSource="{Binding PackagesView}"
                               SelectedItem="{Binding SelectedPackage,
                                                      Mode=TwoWay}"
@@ -259,30 +268,37 @@
                               VirtualizingPanel.VirtualizationMode="Recycling"
                               ScrollViewer.CanContentScroll="True"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
 
                         <DataGrid.Columns>
 
                             <DataGridTextColumn Header="Package"
                                                 Width="*"
-                                                MinWidth="180"
+                                                MinWidth="100"
                                                 Binding="{Binding Name}"/>
 
                             <DataGridTextColumn Header="Installed"
-                                                Width="120"
+                                                Width="90"
                                                 Binding="{Binding DisplayInstalledVersion}"/>
 
                             <DataGridTextColumn Header="Available"
-                                                Width="120"
+                                                Width="90"
                                                 Binding="{Binding DisplayAvailableVersion}"/>
 
                             <DataGridTextColumn Header="Status"
-                                                Width="130"
+                                                Width="100"
                                                 Binding="{Binding DisplayStatus}"/>
 
                         </DataGrid.Columns>
-
                     </DataGrid>
+
+                    <Border Background="{DynamicResource Brush.Surface}" Opacity="0.97"
+                            Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="440"
+                                   Style="{DynamicResource Text.EmptyStateMessage}" Text="{Binding EmptyMessage}"/>
+                    </Border>
+                    </Grid>
 
                 </Grid>
 

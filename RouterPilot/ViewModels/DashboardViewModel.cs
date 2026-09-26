@@ -896,6 +896,15 @@ namespace RouterPilot.ViewModels
                     ? RouterPilotStatus.Connected
                     : RouterPilotStatus.Error);
 
+        public string CurrentRouterProfileName
+        {
+            get
+            {
+                try { return _activeRouter?.CurrentProfile.DisplayName ?? string.Empty; }
+                catch (InvalidOperationException) { return string.Empty; }
+            }
+        }
+
         public string RouterStatusColour =>
             RouterPilotStatusPresentation.Colour(
                 IsInitialising
@@ -1105,6 +1114,16 @@ namespace RouterPilot.ViewModels
         [ObservableProperty] private string portForwardStatus = string.Empty;
         public bool PortForwardingSupported => RouterCapabilities.PortForwarding.Read;
         public bool PortForwardingWriteSupported => RouterCapabilities.PortForwarding.Write && !PortForwardIsLoading;
+        public string PortForwardingLoadState => PortForwardIsLoading
+            ? "Loading router configuration"
+            : PortForwardingSupported
+                ? "Router configuration loaded"
+                : "Port forwarding unavailable";
+        public string PortForwardingSummaryDetail => !PortForwardingSupported
+            ? "RouterPilot could not read port-forwarding configuration for this router session."
+            : PortForwardRules.Count == 0
+                ? "No configured inbound mappings were reported by the router."
+                : "Configured mappings are not proof of external reachability.";
 
         // Firewall & Inbound Access is intentionally limited to the authoritative
         // aggregate port-forward snapshot currently available in RouterPilot.
@@ -1127,7 +1146,11 @@ namespace RouterPilot.ViewModels
         public string DmzDisplay => "Unknown";
         public string WanRemoteAdministrationDisplay => "Unknown";
 
-        partial void OnPortForwardIsLoadingChanged(bool value) => OnPropertyChanged(nameof(PortForwardingWriteSupported));
+        partial void OnPortForwardIsLoadingChanged(bool value)
+        {
+            OnPropertyChanged(nameof(PortForwardingWriteSupported));
+            OnPropertyChanged(nameof(PortForwardingLoadState));
+        }
 
         public void SetPortForwardingCapabilities(bool read, bool write)
         {
@@ -1135,6 +1158,8 @@ namespace RouterPilot.ViewModels
             RouterCapabilities.PortForwarding.Write = write;
             OnPropertyChanged(nameof(PortForwardingSupported));
             OnPropertyChanged(nameof(PortForwardingWriteSupported));
+            OnPropertyChanged(nameof(PortForwardingLoadState));
+            OnPropertyChanged(nameof(PortForwardingSummaryDetail));
             NotifyExposureSummary();
         }
         public ObservableCollection<string> DhcpWarnings { get; } = new();
@@ -1223,6 +1248,8 @@ namespace RouterPilot.ViewModels
             Wifi5Clients = $"{networkList.Where(r => r.Band.StartsWith("5", StringComparison.OrdinalIgnoreCase)).Sum(r => r.ClientCount)} clients";
             Wifi5Status = radio5?.StatusDisplay ?? RouterPilotStatusPresentation.NotAvailable;
         }
+
+        public void ClearWifiRadiosForRouterSwitch() => UpdateWifiRadios([]);
 
         private void UpdateWifiIntelligence(IEnumerable<WifiRadioInfo> networks)
         {
@@ -1476,6 +1503,7 @@ namespace RouterPilot.ViewModels
             OnPropertyChanged(nameof(EnabledStaticPortForwardCountDisplay));
             OnPropertyChanged(nameof(DisabledStaticPortForwardCountDisplay));
             OnPropertyChanged(nameof(WanLanForwardingDisplay));
+            OnPropertyChanged(nameof(PortForwardingSummaryDetail));
             OnPropertyChanged(nameof(UpnpDisplay));
             OnPropertyChanged(nameof(UpnpMappingCountDisplay));
             OnPropertyChanged(nameof(DmzDisplay));
@@ -2258,6 +2286,7 @@ namespace RouterPilot.ViewModels
         partial void OnRouterConnectedChanged(
             bool value)
         {
+            OnPropertyChanged(nameof(CurrentRouterProfileName));
             RefreshStatusIndicators();
             UpdateDhcpReservationWriteCapability();
             OnPropertyChanged(nameof(CanManageDhcpReservations));

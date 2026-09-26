@@ -17,7 +17,8 @@
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="20"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -32,7 +33,7 @@
                            Text="Notification Centre"/>
                 <TextBlock Margin="0,5,0,0"
                            Style="{DynamicResource Text.Secondary}"
-                           Text="Important RouterPilot router and network events."/>
+                           Text="Meaningful router, device and maintenance events. Network Health and Activity remain the detailed sources."/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -51,7 +52,31 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
+        <Border Grid.Row="1" Style="{DynamicResource Card.Compact}" Margin="0,16,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="RECENT ACTIVITY"/>
+                    <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="{Binding RecentActivitySummary}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" Text="Notifications are shown only for accepted RouterPilot events; this is not a separate health score." TextWrapping="Wrap"/>
+                </StackPanel>
+                <Border Grid.Column="2" Padding="12,8" VerticalAlignment="Center"
+                        Background="{DynamicResource Brush.SurfaceMuted}"
+                        BorderBrush="{DynamicResource Brush.Border}"
+                        BorderThickness="1" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="ATTENTION"/>
+                        <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding AttentionSummary}" TextWrapping="Wrap" MaxWidth="190"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource SectionContainerStyle}" Margin="0">
         <Grid>
             <ListBox ItemsSource="{Binding NotificationsView}"
                      BorderThickness="0"
@@ -196,9 +221,9 @@
                                Text="&#xE7ED;"/>
                     <TextBlock Margin="0,14,0,0"
                                Style="{StaticResource Text.EmptyStateTitle}"
-                               Text="No notifications"/>
+                               Text="Nothing to show"/>
                     <TextBlock Style="{StaticResource Text.EmptyStateMessage}"
-                               Text="RouterPilot events will appear here."/>
+                               Text="{Binding FilterEmptyMessage}"/>
                 </StackPanel>
             </Border>
         </Grid>

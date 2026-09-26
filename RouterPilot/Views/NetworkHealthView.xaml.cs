@@ -18,4 +18,10 @@ public partial class NetworkHealthView : UserControl
         if (sender is not FrameworkElement { Tag: string target } || Window.GetWindow(this) is not DashboardWindow dashboard) return;
         dashboard.NavigateToHealthTarget(target);
     }
+
+    private async void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is DashboardWindow dashboard)
+            await dashboard.RefreshNowAsync();
+    }
 }

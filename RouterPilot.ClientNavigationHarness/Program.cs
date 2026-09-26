@@ -112,6 +112,25 @@ Require(nameSourcePresentation.Contains("DataTrigger Binding=\"{Binding NameSour
         !nameSourcePresentation.Contains("<Button", StringComparison.Ordinal) &&
         !nameSourcePresentation.Contains("Click=", StringComparison.Ordinal),
     "Clients cards present the accepted name source textually, omit no-useful-provenance fallback, and add no interaction");
+int clientsSummaryStart = clientsViewSource.IndexOf("Devices on your network", StringComparison.Ordinal);
+int clientsSummaryEnd = clientsViewSource.IndexOf("FindSortWide", clientsSummaryStart, StringComparison.Ordinal);
+string clientsSummary = clientsSummaryStart >= 0 && clientsSummaryEnd > clientsSummaryStart
+    ? clientsViewSource[clientsSummaryStart..clientsSummaryEnd]
+    : string.Empty;
+Require(clientsViewSource.Contains("Text=\"Devices\"", StringComparison.Ordinal) &&
+    clientsSummary.Contains("CurrentDeviceSummary", StringComparison.Ordinal) &&
+    clientsSummary.Contains("CurrentDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("WifiDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("EthernetDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("FavouriteDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("MonitoredDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("ReviewDeviceCount", StringComparison.Ordinal) &&
+    clientsSummary.Contains("<WrapPanel", StringComparison.Ordinal) &&
+    !clientsSummary.Contains("Mac", StringComparison.Ordinal) &&
+    !clientsSummary.Contains("<Button", StringComparison.Ordinal) &&
+    clientsViewSource.Contains("ClientEmptyTitle", StringComparison.Ordinal) &&
+    clientsViewSource.Contains("ClientEmptyMessage", StringComparison.Ordinal),
+    "Clients exposes a wrapping, non-interactive current-device summary without raw identity and preserves distinct waiting, empty, and filtered-empty presentation");
 Require(new AppSettings().ClientNameSource == ClientNameSource.Automatic, "missing persisted name-source setting defaults to Automatic");
 MethodInfo? flightDeckClick = typeof(RouterPilot.Views.AboutView).GetMethod(
     "IsFlightDeckActivationClick",
@@ -157,6 +176,128 @@ Require(WifiDiscoveryParser.ParseHostapdNetworks("L|phy0|wlan0|Home WiFi|2g|6|On
     WifiDiscoveryParser.FormatSignal("-55") == "-55 dBm" &&
     WifiDiscoveryParser.InferBandFromChannel("11") == "2.4 GHz",
     "Wi-Fi parser preserves hostapd and signal/band transformations");
+
+ClientInfo MakeWifiClient(string mac, string name, string connectionType = "5 GHz", string network = "Home") => new()
+{
+    MacAddress = mac,
+    Name = name,
+    ConnectionType = connectionType,
+    WifiNetwork = network
+};
+
+ClientInventoryState wifiInventory = new();
+wifiInventory.Update(
+[
+    MakeWifiClient("00:00:00:00:00:01", "Zulu"),
+    MakeWifiClient("00:00:00:00:00:02", "Beta"),
+    MakeWifiClient("00:00:00:00:00:03", "Beta"),
+    MakeWifiClient("00:00:00:00:00:04", "Alpha"),
+    MakeWifiClient("00:00:00:00:00:05", "Delta"),
+    MakeWifiClient("00:00:00:00:00:06", "Offline"),
+    MakeWifiClient("00:00:00:00:00:07", "Office", "Ethernet", "-")
+], "router-wifi", 12);
+wifiInventory.UpdateAuthoritativePresence(new Dictionary<string, bool>
+{
+    ["00:00:00:00:00:01"] = true,
+    ["00:00:00:00:00:02"] = true,
+    ["00:00:00:00:00:03"] = true,
+    ["00:00:00:00:00:04"] = true,
+    ["00:00:00:00:00:05"] = true,
+    ["00:00:00:00:00:06"] = false,
+    ["00:00:00:00:00:07"] = true
+});
+
+WifiExperienceSnapshot wifiPresentation = WifiExperienceProjection.Create(
+[
+    new WifiRadioInfo { Band = "5 GHz", Status = "active" },
+    new WifiRadioInfo { Band = "2.4 GHz", Status = "disabled" },
+    new WifiRadioInfo { Band = "5 GHz", Status = "unrecognized" }
+],
+    string.Empty,
+    wifiInventory.DeviceSnapshot,
+    "router-wifi",
+    12);
+Require(wifiPresentation.ReportedNetworkCount == 3 && wifiPresentation.ReportedNetworkCountDisplay == "3 reported networks" &&
+    wifiPresentation.RadioSummary.Contains("1 active", StringComparison.Ordinal) &&
+    wifiPresentation.RadioSummary.Contains("1 disabled", StringComparison.Ordinal) &&
+    wifiPresentation.RadioSummary.Contains("1 status not reported", StringComparison.Ordinal) &&
+    wifiPresentation.ReportedBands == "2.4 GHz · 5 GHz",
+    "Wi-Fi summary reflects only reported radio bands and preserves active, disabled and unknown distinctions");
+Require(wifiPresentation.WifiDeviceCount == 5 && wifiPresentation.WifiDevices.Count == WifiExperienceProjection.DevicePreviewLimit,
+    $"Wi-Fi device projection counts all current Wi-Fi observations and caps preview at four (count={wifiPresentation.WifiDeviceCount}, preview={wifiPresentation.WifiDevices.Count})");
+Require(wifiPresentation.WifiDevices.Select(item => item.Name).SequenceEqual(["Alpha", "Beta", "Beta", "Delta"]) &&
+    wifiPresentation.WifiDevices.All(item => item.IsExplicitlyOnline),
+    $"Wi-Fi device preview deterministically orders explicit online observations first (names={string.Join(",", wifiPresentation.WifiDevices.Select(item => item.Name))})");
+Require(wifiPresentation.WifiDevices[1].Connection == MakeWifiClient("00:00:00:00:02:02", "Expected", "5 GHz", "Home").ConnectionSummary,
+    $"Wi-Fi device preview preserves accepted Wi-Fi connection context (connection={wifiPresentation.WifiDevices[1].Connection})");
+Require(!wifiPresentation.WifiDevices.Any(item => item.Name is "Offline" or "Office") &&
+    !string.Join(" ", wifiPresentation.WifiDevices.Select(item => item.Name + item.Connection)).Contains("00:00:00", StringComparison.Ordinal),
+    "Wi-Fi device presentation uses accepted friendly names and does not expose MAC identity");
+
+ClientInventoryState unknownPresenceWifiInventory = new();
+unknownPresenceWifiInventory.Update(
+    [MakeWifiClient("00:00:00:00:01:01", "Presence unknown")],
+    "router-wifi",
+    12);
+WifiExperienceSnapshot unknownPresenceWifi = WifiExperienceProjection.Create(
+    [], string.Empty, unknownPresenceWifiInventory.DeviceSnapshot, "router-wifi", 12);
+Require(unknownPresenceWifi.WifiDeviceCount == 1 &&
+    unknownPresenceWifi.WifiDevices.Single().PresenceDisplay == "Observed · online status not confirmed" &&
+    !unknownPresenceWifi.WifiDevices.Single().IsExplicitlyOnline,
+    "unknown Wi-Fi presence remains observed without being described as online");
+
+Require(WifiExperienceProjection.Create([], string.Empty, wifiInventory.DeviceSnapshot, "router-other", 12)
+        .WifiDeviceSummary == "Waiting for current Wi-Fi device information…" &&
+    WifiExperienceProjection.Create([], string.Empty, wifiInventory.DeviceSnapshot, "router-wifi", 13)
+        .WifiDeviceCount == 0,
+    "Wi-Fi device projection rejects inventory from another router profile or context version");
+wifiInventory.Clear();
+Require(WifiExperienceProjection.Create([], string.Empty, wifiInventory.DeviceSnapshot, "router-wifi", 12)
+        .WifiDeviceSummary == "Waiting for current Wi-Fi device information…",
+    "Wi-Fi device projection clears when the accepted inventory is reset during router switching");
+
+WifiExperienceSnapshot waitingWifi = WifiExperienceProjection.Create([], string.Empty, null, "router-wifi", 12);
+WifiExperienceSnapshot unavailableWifi = WifiExperienceProjection.Create([], "Wi-Fi read unavailable", null, "router-wifi", 12);
+Require(waitingWifi.ReportedNetworkCountDisplay == "Waiting" &&
+    waitingWifi.RadioSummary == "Waiting for accepted router Wi-Fi information." &&
+    unavailableWifi.ReportedNetworkCountDisplay == "Unavailable" &&
+    unavailableWifi.RadioDetail == "Wi-Fi read unavailable",
+    "Wi-Fi summary distinguishes not-yet-available information from an existing read failure");
+
+string networkViewXaml = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "NetworkView.xaml"));
+int wifiDeviceStart = networkViewXaml.IndexOf("x:Name=\"WifiDevicesHost\"", StringComparison.Ordinal);
+int wifiDeviceEnd = wifiDeviceStart < 0 ? -1 : networkViewXaml.IndexOf("<Border Margin=\"0,0,0,16\" Style=\"{DynamicResource Card}\" Visibility=\"Collapsed\"", wifiDeviceStart, StringComparison.Ordinal);
+string wifiDeviceSection = wifiDeviceStart >= 0 && wifiDeviceEnd > wifiDeviceStart
+    ? networkViewXaml[wifiDeviceStart..wifiDeviceEnd]
+    : string.Empty;
+int wifiDeviceTemplateStart = wifiDeviceSection.IndexOf("<DataTemplate>", StringComparison.Ordinal);
+int wifiDeviceTemplateEnd = wifiDeviceTemplateStart < 0 ? -1 : wifiDeviceSection.IndexOf("</DataTemplate>", wifiDeviceTemplateStart, StringComparison.Ordinal);
+string wifiDeviceTemplate = wifiDeviceTemplateStart >= 0 && wifiDeviceTemplateEnd > wifiDeviceTemplateStart
+    ? wifiDeviceSection[wifiDeviceTemplateStart..wifiDeviceTemplateEnd]
+    : string.Empty;
+int wifiHeroStart = networkViewXaml.IndexOf("x:Name=\"WifiExperienceHost\"", StringComparison.Ordinal);
+int wifiHeroEnd = wifiHeroStart < 0 ? -1 : networkViewXaml.IndexOf("</Border>", wifiHeroStart, StringComparison.Ordinal);
+string wifiHeroSection = wifiHeroStart >= 0 && wifiHeroEnd > wifiHeroStart
+    ? networkViewXaml[wifiHeroStart..wifiHeroEnd]
+    : string.Empty;
+Require(wifiDeviceSection.Contains("ItemsSource=\"{Binding WifiDevices, Mode=OneWay}\"", StringComparison.Ordinal) &&
+    wifiDeviceSection.Contains("{Binding Name, Mode=OneWay}", StringComparison.Ordinal) &&
+    wifiDeviceSection.Contains("{Binding Connection, Mode=OneWay}", StringComparison.Ordinal) &&
+    wifiDeviceSection.Contains("{Binding PresenceDisplay, Mode=OneWay}", StringComparison.Ordinal) &&
+    wifiDeviceSection.Contains("View all devices", StringComparison.Ordinal) &&
+    !wifiDeviceSection.Contains("MacAddress", StringComparison.Ordinal) &&
+    !wifiDeviceTemplate.Contains("<Button", StringComparison.Ordinal) &&
+    wifiHeroSection.Contains("ReportedBands, Mode=OneWay", StringComparison.Ordinal) &&
+    wifiHeroSection.Contains("<WrapPanel>", StringComparison.Ordinal) &&
+    networkViewXaml.Contains("Restarting Wi-Fi may temporarily disconnect wireless devices.", StringComparison.Ordinal),
+    "Wi-Fi current-device presentation is textual, non-interactive, MAC-free and uses wrapping layout");
+string networkViewCodeBehind = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "NetworkView.xaml.cs"));
+Require(networkViewCodeBehind.Contains("dashboard.ShowClients()", StringComparison.Ordinal),
+    "View all devices reuses the existing Clients destination");
+string dashboardWindowSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "DashboardWindow.xaml.cs"));
+Require(dashboardWindowSource.Contains("_viewModel.ClearWifiRadiosForRouterSwitch()", StringComparison.Ordinal) &&
+    dashboardWindowSource.Contains("_viewModel.WifiRefreshError = string.Empty", StringComparison.Ordinal),
+    "router switching clears accepted Wi-Fi radio state before refreshing the newly selected router");
 
 Require(AdGuardRecoveryPolicy.ShouldRetryTransport(new HttpRequestException(), false, false),
     "AdGuard transport recovery retries once");
@@ -539,8 +680,15 @@ OverviewCurrentDeviceSnapshot waitingOverviewDevices = OverviewCurrentDeviceProj
     DeviceInventorySnapshot.Empty, "router-a", 1);
 Require(waitingOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Waiting &&
     waitingOverviewDevices.Summary == "Waiting for current device information…" &&
-    waitingOverviewDevices.ObservedCount == 0 && waitingOverviewDevices.Preview.Count == 0,
+    waitingOverviewDevices.ObservedCount == 0 && waitingOverviewDevices.ObservedCountDisplay == "—",
     "an unaccepted or un-stamped device inventory produces the conservative Overview waiting state");
+
+var initialSessionOverviewInventory = new ClientInventoryState();
+initialSessionOverviewInventory.Update([Client("AA:BB:CC:DD:EE:99", "Initial session device", "192.168.8.99")]);
+Require(OverviewCurrentDeviceProjection.Create(initialSessionOverviewInventory.DeviceSnapshot, "router-a", 0) is
+        { State: OverviewCurrentDeviceSnapshotState.Populated, ObservedCount: 1 } &&
+    OverviewCurrentDeviceProjection.Create(initialSessionOverviewInventory.DeviceSnapshot, "router-a", 1).State == OverviewCurrentDeviceSnapshotState.Waiting,
+    "initial-session observed devices can populate Overview before the first context increment, but never after a router switch");
 
 var emptyOverviewInventory = new ClientInventoryState();
 emptyOverviewInventory.Update([], "router-a", 1);
@@ -548,7 +696,7 @@ OverviewCurrentDeviceSnapshot emptyOverviewDevices = OverviewCurrentDeviceProjec
     emptyOverviewInventory.DeviceSnapshot, "router-a", 1);
 Require(emptyOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Empty &&
     emptyOverviewDevices.Summary == "No devices currently observed" &&
-    emptyOverviewDevices.ObservedCount == 0 && emptyOverviewDevices.Preview.Count == 0,
+    emptyOverviewDevices.ObservedCount == 0 && emptyOverviewDevices.ObservedCountDisplay == "0",
     "a matching accepted empty inventory remains distinct from the Overview waiting state");
 
 var overviewInventory = new ClientInventoryState();
@@ -573,28 +721,9 @@ OverviewCurrentDeviceSnapshot populatedOverviewDevices = OverviewCurrentDevicePr
     overviewInventory.DeviceSnapshot, "router-a", 1);
 Require(populatedOverviewDevices.State == OverviewCurrentDeviceSnapshotState.Populated &&
     populatedOverviewDevices.Summary == "5 devices currently observed" &&
-    populatedOverviewDevices.ObservedCount == 5 && populatedOverviewDevices.Preview.Count == 4,
-    "Overview count includes every qualifying current observation while preview remains bounded to four");
-Require(populatedOverviewDevices.Preview.Select(item => item.Name).SequenceEqual(["Alpha", "alpha", "Charlie", "Delta"]) &&
-    populatedOverviewDevices.Preview.Take(2).All(item => item.IsExplicitlyOnline) &&
-    populatedOverviewDevices.Preview.Skip(2).All(item => !item.IsExplicitlyOnline),
-    "explicitly online observations sort before unknown presence, then use ordinal-ignore-case name and strict identity tie-breaks");
-Require(populatedOverviewDevices.Preview[0].Connection == "Ethernet" &&
-    populatedOverviewDevices.Preview[1].Connection is null &&
-    populatedOverviewDevices.Preview[2].Connection == "Wi-Fi • 5 GHz • Home" &&
-    populatedOverviewDevices.Preview.All(item => item.Name != "Unknown device"),
-    "Overview preserves accepted useful connection context, omits unknown context, and applies its neutral name fallback only when needed");
-Require(!populatedOverviewDevices.Preview.Any(item => item.Name == "Bravo") &&
-    !populatedOverviewDevices.Preview.Any(item => item.Name == "Unknown device"),
-    "explicitly offline observations are excluded and lower-ranked unknown-name observations cannot displace the bounded preview");
-var fallbackOverviewInventory = new ClientInventoryState();
-fallbackOverviewInventory.Update([unknownName], "router-a", 1);
-OverviewCurrentDeviceSnapshot fallbackOverviewDevices = OverviewCurrentDeviceProjection.Create(
-    fallbackOverviewInventory.DeviceSnapshot, "router-a", 1);
-Require(fallbackOverviewDevices.Preview.Single().Name == "Unknown device" &&
-    fallbackOverviewDevices.Preview.Single().Connection is null &&
-    !fallbackOverviewDevices.Preview.Single().IsExplicitlyOnline,
-    "an accepted observation without a useful friendly name or connection uses the neutral fallback without fabricating online state");
+    populatedOverviewDevices.ObservedCount == 5 && populatedOverviewDevices.WifiCount == 1 &&
+    populatedOverviewDevices.EthernetCount == 1 && populatedOverviewDevices.ObservedDetail == "devices currently observed",
+    "Overview retains the authoritative observed total and supported connection aggregates without presenting an arbitrary device preview");
 Require(OverviewCurrentDeviceProjection.Create(overviewInventory.DeviceSnapshot, "router-b", 1).State == OverviewCurrentDeviceSnapshotState.Waiting &&
     OverviewCurrentDeviceProjection.Create(overviewInventory.DeviceSnapshot, "router-a", 2).State == OverviewCurrentDeviceSnapshotState.Waiting,
     "wrong router profile or context version never becomes an accepted Overview device snapshot");
@@ -631,12 +760,13 @@ string overviewDeviceSection = deviceSectionStart >= 0 && deviceSectionEnd > dev
 Require(overviewXaml.Contains("Network at a glance", StringComparison.Ordinal) &&
     overviewXaml.Contains("ItemsSource=\"{Binding OverviewCoreConditions}\"", StringComparison.Ordinal) &&
     overviewDeviceSection.Contains("Devices on your network", StringComparison.Ordinal) &&
-    overviewDeviceSection.Contains("CurrentDeviceSnapshot.Summary", StringComparison.Ordinal) &&
-    overviewDeviceSection.Contains("CurrentDeviceSnapshot.Preview", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("CurrentDeviceSnapshot.ObservedCountDisplay", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("CurrentDeviceSnapshot.WifiCount", StringComparison.Ordinal) &&
+    overviewDeviceSection.Contains("Content=\"View devices\"", StringComparison.Ordinal) &&
     overviewDeviceSection.Contains("<WrapPanel", StringComparison.Ordinal) &&
-    !overviewDeviceSection.Contains("<Button", StringComparison.Ordinal) &&
+    !overviewDeviceSection.Contains("CurrentDeviceSnapshot.Preview", StringComparison.Ordinal) &&
     !overviewDeviceSection.Contains("Mac", StringComparison.Ordinal),
-    "Overview binds accepted summary and device snapshot state in a wrapping, non-interactive card without raw MAC presentation");
+    "Overview binds accepted totals and supported aggregates with a route to Devices, without raw MAC or arbitrary device previews");
 inventoryCharacterization.UpdateAuthoritativePresence(new Dictionary<string, bool>
 {
     ["aa-bb-cc-dd-ee-10"] = false,

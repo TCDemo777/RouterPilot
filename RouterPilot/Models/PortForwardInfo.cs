@@ -29,6 +29,11 @@ public sealed class PortForwardRuleInfo : INotifyPropertyChanged
     public bool HasTargetClientName => !string.IsNullOrWhiteSpace(TargetClientName);
     public bool HasTargetStatus => !string.IsNullOrWhiteSpace(TargetStatusTitle);
     public bool HasTargetStatusDetail => !string.IsNullOrWhiteSpace(TargetStatusDetail);
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "Unnamed port forward" : Name;
+    public string ProtocolDisplay => string.IsNullOrWhiteSpace(Protocol) ? "Protocol unavailable" : Protocol.ToUpperInvariant();
+    public string ConfiguredStateDisplay => Enabled ? "Configured and enabled" : "Configured but disabled";
+    public string TargetDisplay => HasTargetClientName ? TargetClientName : "Destination device not identified";
+    public string RoutingSummary => $"Incoming {ProtocolDisplay} {ExternalPort} → {TargetDisplay} → {DestinationIp}:{InternalPort}";
 
     public void SetTargetIntelligence(string clientName, string title, string detail, string severity)
     {

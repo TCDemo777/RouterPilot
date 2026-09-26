@@ -131,6 +131,21 @@ namespace RouterPilot.ViewModels
         public int TotalClientCount => totalClientCount;
         public int VisibleClientCount => visibleClientCount;
         public string ClientCountText => $"Showing {VisibleClientCount:N0} of {TotalClientCount:N0} {(TotalClientCount == 1 ? "client" : "clients")}";
+        public int CurrentDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count : 0;
+        public int WifiDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count(client => client.IsWifiConnection) : 0;
+        public int EthernetDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count(client => client.IsEthernetConnection) : 0;
+        public int FavouriteDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count(client => client.IsFavorite) : 0;
+        public int MonitoredDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count(client => client.MonitorAvailability) : 0;
+        public int ReviewDeviceCount => _hasCurrentAuthoritativeClientSnapshot ? _allClients.Count(client => client.NeedsReview) : 0;
+        public string CurrentDeviceSummary => !_hasCurrentAuthoritativeClientSnapshot
+            ? "Waiting for current device information…"
+            : $"{CurrentDeviceCount:N0} {(CurrentDeviceCount == 1 ? "device" : "devices")} in the current router inventory";
+        public string ClientEmptyTitle => !_hasCurrentAuthoritativeClientSnapshot
+            ? "Waiting for current devices"
+            : _allClients.Count == 0 ? "No devices in the current inventory" : "No devices match your filters";
+        public string ClientEmptyMessage => !_hasCurrentAuthoritativeClientSnapshot
+            ? "Current devices will appear after the next successful refresh."
+            : _allClients.Count == 0 ? "RouterPilot has accepted an empty current-device inventory." : "Try clearing search or adjusting the selected filters.";
 
         [ObservableProperty]
         private ClientInfo? selectedClient;
@@ -1148,6 +1163,21 @@ namespace RouterPilot.ViewModels
                     $"sorted by {SelectedSortOption.ToLowerInvariant()} " +
                     $"({SortDirectionText.ToLowerInvariant()}).";
             }
+
+            RefreshCurrentDeviceSummary();
+        }
+
+        private void RefreshCurrentDeviceSummary()
+        {
+            OnPropertyChanged(nameof(CurrentDeviceCount));
+            OnPropertyChanged(nameof(WifiDeviceCount));
+            OnPropertyChanged(nameof(EthernetDeviceCount));
+            OnPropertyChanged(nameof(FavouriteDeviceCount));
+            OnPropertyChanged(nameof(MonitoredDeviceCount));
+            OnPropertyChanged(nameof(ReviewDeviceCount));
+            OnPropertyChanged(nameof(CurrentDeviceSummary));
+            OnPropertyChanged(nameof(ClientEmptyTitle));
+            OnPropertyChanged(nameof(ClientEmptyMessage));
         }
 
         private IEnumerable<ClientInfo> ApplyGroupedSort(

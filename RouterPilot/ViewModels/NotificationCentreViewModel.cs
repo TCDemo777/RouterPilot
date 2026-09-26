@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows.Data;
 using RouterPilot.Models;
@@ -23,6 +24,7 @@ public partial class NotificationCentreViewModel : ObservableObject
         };
         NotificationsView = _notificationViewSource.View;
         NotificationsView.Filter = MatchesFilter;
+        ((INotifyCollectionChanged)Notifications).CollectionChanged += Notifications_CollectionChanged;
         _notificationService.PropertyChanged += NotificationService_PropertyChanged;
     }
 
@@ -31,14 +33,35 @@ public partial class NotificationCentreViewModel : ObservableObject
     public ICollectionView NotificationsView { get; }
 
     public string[] Filters { get; } =
-        { "All", "Unread", "Information", "Warning", "Error" };
+        { "All", "Attention", "Unread", "Information", "Warning", "Error" };
 
     public int UnreadCount => _notificationService.UnreadCount;
+
+    public bool HasNotifications => Notifications.Count > 0;
+
+    public int AttentionCount => Notifications.Count(notification =>
+        !notification.IsRead && notification.Severity is NotificationSeverity.Warning or NotificationSeverity.Error);
+
+    public string AttentionSummary => AttentionCount switch
+    {
+        0 when HasNotifications => "No unread items need attention",
+        0 => "No activity has been recorded yet",
+        1 => "1 unread item needs attention",
+        _ => $"{AttentionCount} unread items need attention"
+    };
+
+    public string RecentActivitySummary => Notifications.Count == 0
+        ? "RouterPilot will show meaningful router, device and maintenance events here."
+        : $"Latest event: {Notifications.OrderByDescending(notification => notification.Timestamp).First().TimestampDisplay}";
+
+    public string FilterEmptyMessage => HasNotifications
+        ? "No notifications match this filter. Try All to see the complete history."
+        : "RouterPilot has not recorded any meaningful notifications yet.";
 
     [ObservableProperty]
     private string selectedFilter = "All";
 
-    partial void OnSelectedFilterChanged(string value) => NotificationsView.Refresh();
+    partial void OnSelectedFilterChanged(string value) => RefreshPresentation();
 
     [RelayCommand]
     private Task MarkAllReadAsync() => _notificationService.MarkAllReadAsync();
@@ -62,6 +85,7 @@ public partial class NotificationCentreViewModel : ObservableObject
         return SelectedFilter switch
         {
             "Unread" => !notification.IsRead,
+            "Attention" => notification.Severity is NotificationSeverity.Warning or NotificationSeverity.Error,
             "Information" => notification.Severity == NotificationSeverity.Information,
             "Warning" => notification.Severity == NotificationSeverity.Warning,
             "Error" => notification.Severity == NotificationSeverity.Error,
@@ -75,8 +99,21 @@ public partial class NotificationCentreViewModel : ObservableObject
     {
         if (e.PropertyName == nameof(NotificationService.UnreadCount))
         {
-            OnPropertyChanged(nameof(UnreadCount));
-            NotificationsView.Refresh();
+            RefreshPresentation();
         }
+    }
+
+    private void Notifications_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+        RefreshPresentation();
+
+    private void RefreshPresentation()
+    {
+        OnPropertyChanged(nameof(UnreadCount));
+        OnPropertyChanged(nameof(HasNotifications));
+        OnPropertyChanged(nameof(AttentionCount));
+        OnPropertyChanged(nameof(AttentionSummary));
+        OnPropertyChanged(nameof(RecentActivitySummary));
+        OnPropertyChanged(nameof(FilterEmptyMessage));
+        NotificationsView.Refresh();
     }
 }

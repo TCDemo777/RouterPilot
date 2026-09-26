@@ -54,6 +54,7 @@ public partial class MaintenanceView : UserControl
         Set(OverviewCurrentSection, tab == MaintenanceTab.Overview || tab == MaintenanceTab.Health);
         Set(QuickActionsSection, tab == MaintenanceTab.Overview);
         Set(RouterLifecycleSummarySection, tab == MaintenanceTab.Overview);
+        Set(ServiceActionsSection, tab == MaintenanceTab.Overview);
         Set(DiagnosticsSection, tab == MaintenanceTab.Support);
         Set(SnapshotsSection, tab == MaintenanceTab.Snapshots);
         Set(AdGuardHomeSection, tab == MaintenanceTab.AdGuardHome);

@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using System.Windows.Input;
 using RouterPilot.Models;
+using RouterPilot.Presentation;
 using RouterPilot.Services;
 using RouterPilot.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,12 +22,16 @@ namespace RouterPilot.Views
     public partial class NetworkView : UserControl
     {
         private readonly IRouterManagerProvider _routerManagerProvider;
+        private readonly ClientInventoryState _clientInventory;
+        private readonly IActiveRouterContext _activeRouterContext;
         private readonly IDhcpReservationService _dhcpReservationService;
         private readonly DhcpReservationValidator _dhcpReservationValidator;
         private readonly IPortForwardService _portForwardService;
         private readonly IPublicIpService _publicIpService;
         private NetworkHealthView? _networkHealthView;
         private DashboardViewModel? _portForwardRulesOwner;
+        private DashboardViewModel? _wifiPresentationOwner;
+        private bool _wifiInventorySubscribed;
         private bool _maintenanceInProgress;
         private bool _showPortForwardAttentionOnly;
         private CancellationTokenSource? _diagnosticsCancellation;
@@ -46,6 +51,10 @@ namespace RouterPilot.Views
             InitializeComponent();
             _routerManagerProvider = ((App)Application.Current).Services
                 .GetRequiredService<IRouterManagerProvider>();
+            _clientInventory = ((App)Application.Current).Services
+                .GetRequiredService<ClientInventoryState>();
+            _activeRouterContext = ((App)Application.Current).Services
+                .GetRequiredService<IActiveRouterContext>();
             _dhcpReservationService = ((App)Application.Current).Services
                 .GetRequiredService<IDhcpReservationService>();
             _dhcpReservationValidator = ((App)Application.Current).Services
@@ -100,6 +109,7 @@ namespace RouterPilot.Views
         private async void NetworkView_Loaded(object sender, RoutedEventArgs e)
         {
             AttachPortForwardRuleViewUpdates();
+            AttachWifiPresentationUpdates();
             RefreshPortForwardRuleFilter();
             UpdateMapSummary();
             await RefreshAdvancedTelemetryAsync();
@@ -123,6 +133,7 @@ namespace RouterPilot.Views
             _diagnosticsCancellation?.Cancel();
             _qualityCancellation?.Cancel();
             DetachPortForwardRuleViewUpdates();
+            DetachWifiPresentationUpdates();
         }
 
         private async void RunInternetQuality_Click(object sender, RoutedEventArgs e)
@@ -255,9 +266,86 @@ namespace RouterPilot.Views
         private void NetworkView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             DetachPortForwardRuleViewUpdates();
+            DetachWifiPresentationUpdates();
             AttachPortForwardRuleViewUpdates();
+            if (IsLoaded) AttachWifiPresentationUpdates();
             RefreshPortForwardRuleFilter();
             UpdateMapSummary();
+        }
+
+        private void AttachWifiPresentationUpdates()
+        {
+            if (DataContext is not DashboardViewModel dashboard) return;
+
+            if (!ReferenceEquals(_wifiPresentationOwner, dashboard))
+            {
+                DetachWifiPresentationUpdates();
+                _wifiPresentationOwner = dashboard;
+                dashboard.PropertyChanged += WifiPresentationOwner_PropertyChanged;
+            }
+
+            if (!_wifiInventorySubscribed)
+            {
+                _clientInventory.Changed += ClientInventory_Changed;
+                _wifiInventorySubscribed = true;
+            }
+
+            RefreshWifiPresentation();
+        }
+
+        private void DetachWifiPresentationUpdates()
+        {
+            if (_wifiPresentationOwner is not null)
+            {
+                _wifiPresentationOwner.PropertyChanged -= WifiPresentationOwner_PropertyChanged;
+            }
+
+            _wifiPresentationOwner = null;
+            if (_wifiInventorySubscribed)
+            {
+                _clientInventory.Changed -= ClientInventory_Changed;
+                _wifiInventorySubscribed = false;
+            }
+        }
+
+        private void WifiPresentationOwner_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(DashboardViewModel.WifiRefreshError) or nameof(DashboardViewModel.HasWifiNetworks))
+                QueueWifiPresentationRefresh();
+        }
+
+        private void ClientInventory_Changed(object? sender, EventArgs e) =>
+            QueueWifiPresentationRefresh();
+
+        private void QueueWifiPresentationRefresh()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                RefreshWifiPresentation();
+                return;
+            }
+
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(RefreshWifiPresentation));
+        }
+
+        private void RefreshWifiPresentation()
+        {
+            if (WifiExperienceHost is null || _wifiPresentationOwner is not DashboardViewModel dashboard) return;
+
+            WifiExperienceSnapshot snapshot = WifiExperienceProjection.Create(
+                dashboard.WifiNetworks,
+                dashboard.WifiRefreshError,
+                _clientInventory.DeviceSnapshot,
+                _activeRouterContext.CurrentProfileId,
+                _activeRouterContext.Version);
+            WifiExperienceHost.DataContext = snapshot;
+            WifiDevicesHost.DataContext = snapshot;
+        }
+
+        private void ViewWifiDevices_Click(object sender, RoutedEventArgs e)
+        {
+            if (Window.GetWindow(this) is DashboardWindow dashboard)
+                dashboard.ShowClients();
         }
 
         private void AttachPortForwardRuleViewUpdates()
@@ -573,7 +661,7 @@ namespace RouterPilot.Views
         private async void DeletePortForward_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not DashboardViewModel { PortForwardingWriteSupported: true } || sender is not FrameworkElement { Tag: PortForwardRuleInfo rule }) return;
-            if (MessageBox.Show($"Delete port forward '{rule.Name}'?", "Port Forwarding", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show($"Delete port forward '{rule.Name}'?\n\nThis removes the configured inbound mapping. It does not change the destination device or its service.", "Port Forwarding", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             PortForwardOperationResult result = await _portForwardService.DeleteAsync(rule.Id, CancellationToken.None);
             if (!result.Success) { MessageBox.Show(PortForwardFailureMessage(result.FailureCategory), "Port Forwarding", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
             await RefreshPortForwardAsync();

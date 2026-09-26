@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:RouterPilot.Views"
         Title="RouterPilot"
-        Width="1100"
-        Height="760"
+        Width="1120"
+        Height="820"
         MinWidth="900"
-        MinHeight="700"
+        MinHeight="720"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.WindowBackground}">
     <Window.Resources>
@@ -36,11 +36,12 @@
         <Style x:Key="SidebarNavigationButton"
                TargetType="Button"
                BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="MinHeight" Value="28"/>
             <Setter Property="Margin" Value="10,0"/>
             <Setter Property="Padding" Value="16,0"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Foreground" Value="#D7DCE2"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
 
@@ -61,7 +62,7 @@
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="190"/>
+            <ColumnDefinition Width="210"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -88,32 +89,38 @@
         <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
             <Grid Margin="20,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="HeaderVersion"
-                           Margin="0,2,0,0"
-                           VerticalAlignment="Center"
-                           FontSize="11"
-                           Style="{DynamicResource Text.Muted}"/>
-                <TextBlock Grid.Column="1"
-                           Margin="24,0,0,0"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"
-                           FontSize="12"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource Brush.TextSecondary}"
-                           TextAlignment="Right"
-                           TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding RouterModel}"
-                           Text="{Binding RouterModel}"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="HeaderDestination" FontSize="16" FontWeight="SemiBold" Text="Overview"/>
+                    <TextBlock x:Name="HeaderVersion" Margin="0,1,0,0" FontSize="11" Style="{DynamicResource Text.Muted}"/>
+                </StackPanel>
+                <Border Grid.Column="1" Width="200" Margin="16,0,8,0" Padding="8,2" Style="{StaticResource StatusPill}" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="MANAGING"/>
+                        <TextBlock FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding CurrentRouterProfileName, TargetNullValue=Selected router}" ToolTip="{Binding CurrentRouterProfileName}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{DynamicResource Text.Muted}" TextTrimming="CharacterEllipsis" Text="{Binding RouterModel}"/>
+                            <TextBlock Grid.Column="1" Margin="5,0,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding RouterStatusText}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <Button Grid.Column="2" Padding="12,5" ToolTip="Open Network Health" Click="NetworkHealth_Click">
+                    <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,7,0" Fill="{Binding NetworkHealthViewColour}"/><TextBlock FontWeight="SemiBold" Foreground="{Binding NetworkHealthViewColour}" Text="{Binding NetworkHealthView.OverallStatus}"/></StackPanel>
+                </Button>
             </Grid>
         </Border>
 
         <Border Grid.Row="1"
                 Grid.Column="0"
-                Background="#20262E"
-                BorderBrush="#15191E"
+                Background="{DynamicResource Brush.Surface}"
+                BorderBrush="{DynamicResource Brush.Border}"
                 BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
@@ -129,19 +136,23 @@
                            Foreground="{DynamicResource Brush.TextMuted}"
                            Text="NAVIGATION"/>
 
-                <StackPanel Grid.Row="1" Margin="0,0,0,4">
-                    <TextBlock Margin="18,4,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="MONITORING"/>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,0,0,4">
+                    <TextBlock Margin="18,2,0,2" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="HOME"/>
                     <Button x:Name="OverviewButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="#35404D"
                             Foreground="{DynamicResource Brush.TextOnAccent}"
                             Content="Overview"
                             Click="Overview_Click"/>
+                    <Button x:Name="NetworkHealthButton" Style="{StaticResource SidebarNavigationButton}" Background="Transparent" Content="Network Health" ToolTip="Understand current network conditions" Click="NetworkHealth_Click"/>
+
+                    <TextBlock Margin="18,4,0,2" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="NETWORK"/>
 
                     <Button x:Name="ProtectionButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
-                            Content="Protection"
+                            Content="DNS &amp; Protection"
                             Click="Protection_Click"/>
 
                     <Button x:Name="AnalyticsButton"
@@ -159,7 +170,7 @@
                     <Button x:Name="RouterButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
-                            Content="Router"
+                            Content="Router &amp; System"
                             Click="Router_Click"/>
 
                     <Button x:Name="VpnButton"
@@ -174,7 +185,7 @@
                             Content="Packages"
                             Click="Applications_Click"/>
 
-                    <TextBlock Margin="18,8,0,3" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="OPERATIONS"/>
+                    <TextBlock Margin="18,4,0,2" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="ACTIVITY &amp; SERVICES"/>
 
                     <Button x:Name="MaintenanceButton"
                             Style="{StaticResource SidebarNavigationButton}"
@@ -185,7 +196,7 @@
                     <Button x:Name="ClientsButton"
                             Style="{StaticResource SidebarNavigationButton}"
                             Background="Transparent"
-                            Content="Clients"
+                            Content="Devices"
                             Click="Clients_Click"/>
 
                     <Button x:Name="LogsButton"
@@ -259,6 +270,7 @@
                     </Button>
 
                 </StackPanel>
+                </ScrollViewer>
 
                 <Border Grid.Row="2" BorderBrush="#3A424C" BorderThickness="0,1,0,0" Padding="0,6,0,6">
                     <Button x:Name="AboutButton"

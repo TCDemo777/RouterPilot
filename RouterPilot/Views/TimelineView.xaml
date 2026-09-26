@@ -35,32 +35,47 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Activity Log"/>
-                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Chronological RouterPilot activity and safe operation results."/>
+                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Understand what RouterPilot observed, when it happened, and where to look next."/>
+                    <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding ContextMessage}" TextWrapping="Wrap"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding CopySummaryCommand}" Content="Copy Event Summary"/><Button Margin="0,0,8,0" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Activity Log"/><Button Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Activity Log"/></StackPanel>
+                <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                    <Button Margin="0,0,8,8" Style="{DynamicResource Button.Secondary}" Command="{Binding CopySummaryCommand}" Content="Copy Event Summary"/>
+                    <Button Margin="0,0,8,8" Style="{DynamicResource Button.Secondary}" Command="{Binding ExportCommand}" Content="Export Activity Log"/>
+                    <Button Margin="0,0,0,8" Style="{DynamicResource Button.Secondary}" Command="{Binding ClearCommand}" Content="Clear Activity Log"/>
+                </WrapPanel>
             </Grid>
             <Border Grid.Row="2" Style="{StaticResource SectionContainerStyle}" Margin="0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*"/><ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
-                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="TimelineSearchBox" Style="{StaticResource Timeline.FilterTextBox}" Height="36" Padding="36,6,10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
-                <TextBlock Style="{StaticResource Search.Icon}" />
-                <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
-                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=TimelineSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=TimelineSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
-                </TextBlock>
-                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="2" Width="128" Height="36" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
-                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="4" Width="120" Height="36" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
-                <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Grid.Column="6" Width="128" Height="36" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>
-            </Grid>
+            <StackPanel>
+                <WrapPanel Margin="0,0,-10,12">
+                    <Border Width="170" Margin="0,0,10,10" Padding="12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="RECENT ACTIVITY"/><TextBlock Margin="0,4,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding ActivityCountDisplay}"/><TextBlock Margin="0,2,0,0" Style="{DynamicResource Text.Muted}" Text="Events observed"/></StackPanel>
+                    </Border>
+                    <Border Width="210" Margin="0,0,10,10" Padding="12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ATTENTION"/><TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="{Binding AttentionSummary}"/><TextBlock Margin="0,2,0,0" Style="{DynamicResource Text.Muted}" Text="Existing warning/error state only" TextWrapping="Wrap"/></StackPanel>
+                    </Border>
+                    <Border Width="250" Margin="0,0,10,10" Padding="12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="LAST ACTIVITY"/><TextBlock Margin="0,4,0,0" FontWeight="SemiBold" Text="{Binding LatestActivityDisplay}"/><TextBlock Margin="0,2,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding LatestActivityDetail}" TextTrimming="CharacterEllipsis"/></StackPanel>
+                    </Border>
+                </WrapPanel>
+                <WrapPanel>
+                    <Grid Width="320" Height="36" Margin="0,0,8,8">
+                        <TextBox x:Name="TimelineSearchBox" Style="{StaticResource Timeline.FilterTextBox}" Padding="36,6,10,6" VerticalContentAlignment="Center" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search timeline"/>
+                        <TextBlock Style="{StaticResource Search.Icon}" />
+                        <TextBlock Margin="36,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextSecondary}" Text="Search">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text, ElementName=TimelineSearchBox}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=TimelineSearchBox}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Width="160" Height="36" Margin="0,0,8,8" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"/>
+                    <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Width="120" Height="36" Margin="0,0,8,8" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}"/>
+                    <ComboBox Style="{StaticResource RouterPilot.ComboBox}" Width="128" Height="36" Margin="0,0,8,8" ItemsSource="{Binding DateRanges}" SelectedItem="{Binding SelectedDateRange}"/>
+                </WrapPanel>
+            </StackPanel>
             </Border>
             <Border Grid.Row="4" Style="{StaticResource SectionContainerStyle}" Margin="0">
             <StackPanel>
                 <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Event history"/>
-                <TextBlock Margin="0,4,0,12" Style="{DynamicResource Text.Muted}" Text="Session-only observations. Gaps may occur while Windows is asleep or RouterPilot is closed; this is not a complete router audit log." TextWrapping="Wrap"/>
+                <TextBlock Margin="0,4,0,4" Style="{DynamicResource Text.Muted}" Text="Human-readable session observations. Gaps may occur while Windows is asleep or RouterPilot is closed; this is not a complete router audit log." TextWrapping="Wrap"/>
+                <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Muted}" Text="For bounded technical router messages, open Router &amp; System and select Router Logs. DNS queries remain in the dedicated DNS Activity view." TextWrapping="Wrap"/>
                 <ItemsControl ItemsSource="{Binding EventsView}">
                     <!-- <ItemsControl.ItemTemplate>
                         <DataTemplate>

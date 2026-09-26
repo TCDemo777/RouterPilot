@@ -120,29 +120,23 @@
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource Text.SectionTitle}" Text="Devices on your network" />
-                        <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="{Binding CurrentDeviceSnapshot.Summary}" />
+                        <Button Grid.Column="1" Padding="10,4" Style="{DynamicResource Button.Secondary}" Content="View devices" Tag="clients" ToolTip="Open Devices" Click="HealthIssueNavigate_Click" />
                     </Grid>
-                    <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding CurrentDeviceSnapshot.Preview}">
-                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate><DataTemplate>
-                            <Border MinWidth="190" Margin="0,0,12,12" Padding="14,12" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
-                                <StackPanel>
-                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
-                                    <TextBlock Margin="0,5,0,0" TextTrimming="CharacterEllipsis" Text="{Binding Connection}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Connection}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding Connection}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="32" FontWeight="SemiBold" Text="{Binding CurrentDeviceSnapshot.ObservedCountDisplay}" />
+                            <TextBlock Margin="0,2,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding CurrentDeviceSnapshot.ObservedDetail}" />
+                        </StackPanel>
+                        <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Border Margin="12,0,0,0" Padding="10,6" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="{Binding CurrentDeviceSnapshot.HasWifiBreakdown, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WI-FI" /><TextBlock Margin="0,2,0,0" FontWeight="SemiBold" Text="{Binding CurrentDeviceSnapshot.WifiCount}" /></StackPanel>
                             </Border>
-                        </DataTemplate></ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                            <Border Margin="8,0,0,0" Padding="10,6" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="{Binding CurrentDeviceSnapshot.HasEthernetBreakdown, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ETHERNET" /><TextBlock Margin="0,2,0,0" FontWeight="SemiBold" Text="{Binding CurrentDeviceSnapshot.EthernetCount}" /></StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
 

@@ -64,12 +64,30 @@ public partial class PluginPackagesViewModel : ObservableObject
     [ObservableProperty]
     private string updatesCount = "—";
 
+    [ObservableProperty]
+    private bool hasOperationFailure;
+
+    public string OperationAttention => HasOperationFailure
+        ? "The last package operation could not be completed. The package list was refreshed; review the current state before trying again."
+        : string.Empty;
+
     public string EmptyMessage =>
         IsLoading
             ? "Loading packages…"
-            : Packages.Count == 0
-                ? "Package information is unavailable."
-                : "No packages match your search.";
+            : IndexStatus switch
+            {
+                "Available" when Packages.Count == 0 => "The router did not report any packages.",
+                "Stale" when Packages.Count == 0 => "Package information is stale and no package list is available.",
+                "Unavailable" => "Package information is unavailable. Use Refresh to try again.",
+                "Unknown" => "Package information has not loaded yet.",
+                _ when PackagesView.IsEmpty => "No packages match the current filter or search.",
+                _ => string.Empty
+            };
+
+    public bool ShowEmptyMessage => !IsLoading && PackagesView.IsEmpty;
+    public string InstalledCountDisplay => HasPackageCounts ? InstalledCount.ToString("N0") : "—";
+    public string AvailableCountDisplay => HasPackageCounts ? AvailableCount.ToString("N0") : "—";
+    private bool HasPackageCounts => IndexStatus is "Available" or "Stale";
 
     public bool CanInstall =>
         !IsOperating &&
@@ -148,6 +166,24 @@ public partial class PluginPackagesViewModel : ObservableObject
         PackagesView.Filter = FilterPackage;
     }
 
+    partial void OnIsLoadingChanged(bool value) => NotifyEmptyState();
+
+    partial void OnIndexStatusChanged(string value)
+    {
+        OnPropertyChanged(nameof(InstalledCountDisplay));
+        OnPropertyChanged(nameof(AvailableCountDisplay));
+        NotifyEmptyState();
+    }
+
+    partial void OnHasOperationFailureChanged(bool value) =>
+        OnPropertyChanged(nameof(OperationAttention));
+
+    private void NotifyEmptyState()
+    {
+        OnPropertyChanged(nameof(EmptyMessage));
+        OnPropertyChanged(nameof(ShowEmptyMessage));
+    }
+
     [RelayCommand]
     public async Task RefreshAsync()
     {
@@ -161,6 +197,7 @@ public partial class PluginPackagesViewModel : ObservableObject
             new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         IsLoading = true;
+        HasOperationFailure = false;
         StatusMessage = "Loading read-only plug-in inventory…";
 
         try
@@ -213,6 +250,7 @@ public partial class PluginPackagesViewModel : ObservableObject
                 $"Read {Packages.Count:N0} packages from the router.";
 
             PackagesView.Refresh();
+            NotifyEmptyState();
         }
         catch (OperationCanceledException)
             when (_loadCancellation?.IsCancellationRequested == true)
@@ -232,7 +270,7 @@ public partial class PluginPackagesViewModel : ObservableObject
         finally
         {
             IsLoading = false;
-            OnPropertyChanged(nameof(EmptyMessage));
+            NotifyEmptyState();
             NotifyActionState();
         }
     }
@@ -305,6 +343,7 @@ public partial class PluginPackagesViewModel : ObservableObject
         }
 
         IsOperating = true;
+        HasOperationFailure = false;
         StatusMessage = working;
         NotifyActionState();
 
@@ -329,6 +368,7 @@ public partial class PluginPackagesViewModel : ObservableObject
                     ex,
                     "Plug-in operation",
                     "The package operation could not be completed; the refreshed package state is authoritative.");
+            HasOperationFailure = true;
         }
         finally
         {
@@ -350,11 +390,13 @@ public partial class PluginPackagesViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         PackagesView.Refresh();
+        NotifyEmptyState();
     }
 
     partial void OnSelectedFilterChanged(string value)
     {
         PackagesView.Refresh();
+        NotifyEmptyState();
     }
 
     private void NotifyActionState()

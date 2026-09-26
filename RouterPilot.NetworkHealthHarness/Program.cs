@@ -468,20 +468,23 @@ Require(!networkHealthViewModelSource.Contains("EnsureLoadedAsync", StringCompar
         !networkHealthViewModelSource.Contains("DataStatisticsService", StringComparison.Ordinal) &&
         networkHealthViewModelSource.Contains("_dataStatistics.CurrentCapabilityFact", StringComparison.Ordinal) &&
         networkHealthViewModelSource.Contains("CreateCoreConditions(Snapshot)", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("nameof(DashboardViewModel.OverviewCoreConditions)", StringComparison.Ordinal) &&
         !networkHealthViewModelSource.Contains("_dataStatistics.Status", StringComparison.Ordinal),
-    "Network Health observes the accepted typed fact without initiating Analytics loading, refresh, or service reads");
-int coreConditionsStart = networkHealthViewSource.IndexOf("ItemsSource=\"{Binding CoreConditions}\"", StringComparison.Ordinal);
-int coreConditionsEnd = networkHealthViewSource.IndexOf("</ItemsControl>", coreConditionsStart, StringComparison.Ordinal);
-string coreConditionsTemplate = coreConditionsStart >= 0 && coreConditionsEnd > coreConditionsStart
-    ? networkHealthViewSource[coreConditionsStart..coreConditionsEnd]
-    : string.Empty;
-Require(coreConditionsTemplate.Contains("<WrapPanel", StringComparison.Ordinal) &&
-        coreConditionsTemplate.Contains("Text=\"{Binding Title}\"", StringComparison.Ordinal) &&
-        coreConditionsTemplate.Contains("Text=\"{Binding Status}\"", StringComparison.Ordinal) &&
-        coreConditionsTemplate.Contains("Property=\"HasItems\" Value=\"False\"", StringComparison.Ordinal) &&
-        !coreConditionsTemplate.Contains("<Button", StringComparison.Ordinal) &&
-        !coreConditionsTemplate.Contains("Click=", StringComparison.Ordinal),
-    "Network Health renders accepted core conditions as a wrapping, textual, non-interactive summary that collapses when empty");
+    "Network Health observes accepted sources without initiating Analytics I/O or feeding its Overview projection back into a rebuild");
+Require(networkHealthViewSource.Contains("ItemsSource=\"{Binding NeedsAttention}\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("ItemsSource=\"{Binding CoreServices}\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("ItemsSource=\"{Binding NetworkFeatures}\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("Text=\"{Binding FreshnessSummary}\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("Content=\"Refresh\" Click=\"Refresh_Click\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("<WrapPanel/>", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("Text=\"{Binding Detail}\"", StringComparison.Ordinal) &&
+        networkHealthViewSource.Contains("Click=\"Navigate_Click\"", StringComparison.Ordinal),
+    "Network Health groups accepted conditions into attention, core, and feature sections with responsive wrapping, explanations, existing navigation, and the existing refresh action");
+Require(networkHealthViewModelSource.Contains(".Where(IsAttention)", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("!check.AffectsOverall", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("check.Status is \"Loading\" or \"Checking\"", StringComparison.Ordinal) &&
+        networkHealthViewModelSource.Contains("nameof(DashboardViewModel.OverviewCoreConditions)", StringComparison.Ordinal),
+    "attention presentation uses accepted scoring semantics, excludes loading placeholders and guards the StackOverflow feedback notification");
 string dashboardHealthProjectionSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Presentation", "DashboardHealthProjection.cs"));
 string networkHealthServiceSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Services", "NetworkHealthService.cs"));
 Require(!dashboardHealthProjectionSource.Contains("DataStatistics", StringComparison.Ordinal) &&

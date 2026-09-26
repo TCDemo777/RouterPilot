@@ -186,10 +186,10 @@
 
             <StackPanel>
                 <TextBlock Style="{DynamicResource Text.PageTitle}"
-                           Text="Protection"/>
+                           Text="DNS &amp; Protection"/>
                 <TextBlock Margin="0,5,0,0"
                            Style="{DynamicResource Text.Secondary}"
-                           Text="Manage AdGuard Home protection, filtering profiles, services and DNS rules."/>
+                           Text="See whether DNS protection is active, review recent activity, and manage AdGuard Home controls."/>
             </StackPanel>
 
             <Button Grid.Column="1"
@@ -208,88 +208,89 @@
                 <DataTemplate x:Key="ProtectionTab.Core">
                     <StackPanel>
 
-                <TextBlock Margin="0,0,0,16"
-                           Style="{DynamicResource Text.Secondary}"
+                <TextBlock Margin="0,0,0,12"
                            Foreground="{DynamicResource Brush.Warning}"
-                           Text="{Binding AdGuardAvailabilityMessage}"/>
+                           TextWrapping="Wrap"
+                           Text="{Binding AdGuardAvailabilityMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAdGuardAvailable}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Border Margin="0,0,0,16" Padding="20" Style="{DynamicResource Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="CURRENT PROTECTION STATE"/>
+                            <TextBlock Margin="0,6,0,0" FontSize="28" FontWeight="SemiBold"
+                                       Foreground="{Binding StatusColour}" Text="{Binding ProtectionHeroStatus}"/>
+                            <TextBlock Margin="0,5,16,0" Style="{DynamicResource Text.Secondary}"
+                                       TextWrapping="Wrap" Text="{Binding ProtectionHeroDetail}"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}"
+                                       TextWrapping="Wrap" Text="{Binding Remaining}"/>
+                        </StackPanel>
+                        <Border Grid.Column="1" Margin="16,0,0,0" Padding="12,7" VerticalAlignment="Top"
+                                Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}"
+                                BorderThickness="1" CornerRadius="8">
+                            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}"
+                                       Text="{Binding ProfileName}"/>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <TextBlock Margin="0,0,0,8" Style="{DynamicResource Text.SectionTitle}" Text="DNS activity"/>
+                <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                           Text="AdGuard Home statistics for its current reporting window. A dash means the metric is unavailable, not zero."/>
+                <WrapPanel Margin="0,0,-12,8">
+                    <Border Width="210" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS QUERIES"/>
+                            <TextBlock Margin="0,8,0,0" FontSize="24" FontWeight="SemiBold" Text="{Binding TotalQueriesText}"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Current statistics window"/></StackPanel>
+                    </Border>
+                    <Border Width="210" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCKED"/>
+                            <TextBlock Margin="0,8,0,0" FontSize="24" FontWeight="SemiBold" Text="{Binding BlockedQueriesText}"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Requests stopped by protection"/></StackPanel>
+                    </Border>
+                    <Border Width="210" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                        <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCK RATE"/>
+                            <TextBlock Margin="0,8,0,0" FontSize="24" FontWeight="SemiBold" Text="{Binding BlockPercentageText}"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="Share of DNS queries blocked"/></StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <Border Margin="0,0,0,16" Padding="14" Style="{DynamicResource Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="What protection is blocking"/>
+                            <TextBlock Margin="0,4,12,0" Style="{DynamicResource Text.Secondary}"
+                                       Text="Most frequently blocked domain in the current statistics window."/>
+                            <TextBlock Margin="0,8,12,0" FontSize="17" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding TopBlockedDomain}"
+                                       Text="{Binding TopBlockedDomain}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Style="{DynamicResource Button.Secondary}" Content="View DNS activity"
+                                Visibility="{Binding HasTopBlockedDomain, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Click="ViewTopBlockedDomainActivity_Click"/>
+                    </Grid>
+                </Border>
 
                 <Border Margin="0,0,0,16" Style="{DynamicResource Card.Compact}">
                     <StackPanel>
-                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS OBSERVABILITY"/>
-                        <TextBlock Margin="0,6,0,0"
-                                   Style="{DynamicResource Text.Secondary}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding DnsObservabilityText}"/>
+                        <TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS VISIBILITY"/>
+                        <TextBlock Margin="0,6,0,0" Style="{DynamicResource Text.Secondary}"
+                                   TextWrapping="Wrap" Text="{Binding DnsObservabilityText}"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Summary cards -->
-                <Grid Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                       Text="PROTECTION"/>
-                            <TextBlock Margin="0,8,0,0"
-                                       FontSize="22"
-                                       FontWeight="SemiBold"
-                                       Foreground="{Binding StatusColour}"
-                                       Text="{Binding StatusText}"/>
-                            <TextBlock Margin="0,5,0,0"
-                                       Style="{DynamicResource Text.Muted}"
-                                       TextTrimming="CharacterEllipsis"
-                                       Text="{Binding Remaining}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                       Text="DNS FILTERING"/>
-                            <CheckBox Margin="0,12,0,0"
-                                      Style="{StaticResource Protection.Option}"
-                                      Content="Filtering enabled"
-                                      IsEnabled="{Binding ControlsEnabled}"
-                                      IsChecked="{Binding FilteringEnabled, Mode=TwoWay}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="4" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                       Text="SAFE BROWSING"/>
-                            <CheckBox Margin="0,12,0,0"
-                                      Style="{StaticResource Protection.Option}"
-                                      Content="Protection enabled"
-                                      IsEnabled="{Binding ControlsEnabled}"
-                                      IsChecked="{Binding SafeBrowsingEnabled, Mode=TwoWay}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="6" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}"
-                                       Text="CURRENT PROFILE"/>
-                            <TextBlock Margin="0,8,0,0"
-                                       FontSize="22"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       Text="{Binding ProfileName}"/>
-                            <TextBlock Margin="0,5,0,0"
-                                       Style="{DynamicResource Text.Muted}"
-                                       Text="Protection preset"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
 
                 <!-- Confirmed global protection actions -->
                 <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
@@ -315,72 +316,6 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-
-                <!-- Read-only statistics are presented on the Insights tab. -->
-                <Grid Margin="0,0,0,16" Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="1.35*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="DNS QUERIES"/>
-                            <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       Text="{Binding TotalQueriesText}"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}"
-                                       Text="Current AdGuard statistics window"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCKED QUERIES"/>
-                            <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       Text="{Binding BlockedQueriesText}"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}"
-                                       Text="Ads, trackers and threats blocked"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="4" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="BLOCK RATE"/>
-                            <TextBlock Margin="0,8,0,0" FontSize="22" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       Text="{Binding BlockPercentageText}"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}"
-                                       Text="Percentage of queries blocked"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="6" Style="{DynamicResource Card.Compact}">
-                        <StackPanel>
-                            <TextBlock Style="{DynamicResource Text.CardCaption}" Text="TOP BLOCKED DOMAIN"/>
-                            <TextBlock Margin="0,8,0,0" FontSize="17" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip="{Binding TopBlockedDomain}"
-                                       Text="{Binding TopBlockedDomain}"/>
-                            <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Muted}"
-                                       Text="Most frequently blocked domain"/>
-                            <Button Margin="0,10,0,0"
-                                    HorizontalAlignment="Left"
-                                    Style="{DynamicResource Button.Secondary}"
-                                    Content="View activity"
-                                    ToolTip="View matching DNS activity"
-                                    Visibility="{Binding HasTopBlockedDomain, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    Click="ViewTopBlockedDomainActivity_Click"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
 
                 <!-- Status and options -->
                 <Grid Margin="0,0,0,16">

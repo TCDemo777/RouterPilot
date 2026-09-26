@@ -22,33 +22,56 @@ public partial class TimelineViewModel : ObservableObject
     // observed samples while declining to imply continuity across app closure.
     private static readonly TimeSpan MaximumObservedInterruption = TimeSpan.FromMinutes(5);
     private readonly TimelineService _timelineService;
+    private readonly IRouterProfileService _profiles;
     private readonly CollectionViewSource _viewSource;
     private readonly ObservableCollection<TimelinePresentationItem> _presentation = new();
+    private DateTimeOffset _contextStartedAt = DateTimeOffset.MinValue;
+    private bool _profileWasChanged;
 
-    public TimelineViewModel(TimelineService timelineService)
+    public TimelineViewModel(TimelineService timelineService, IRouterProfileService profiles)
     {
         _timelineService = timelineService;
+        _profiles = profiles;
         Events = timelineService.Events;
         _viewSource = new CollectionViewSource { Source = _presentation };
         EventsView = _viewSource.View;
         EventsView.Filter = Matches;
         _timelineService.Changed += TimelineChanged;
+        _profiles.ActiveProfileChanged += Profiles_ActiveProfileChanged;
         RebuildPresentation();
     }
 
     public ReadOnlyObservableCollection<TimelineEvent> Events { get; }
     public ICollectionView EventsView { get; }
-    public string[] Categories { get; } = ["All", "Router", "Network", "Clients", "WiFi", "Wan", "AdGuard", "Protection", "VPN", "Performance", "Lifecycle", "Firewall", "Maintenance", "Diagnostics", "Backup", "Firmware", "Security", "Schedules"];
+    public string[] Categories { get; } = ["All activity", "Needs attention", "Router & system", "Wi-Fi", "DNS & protection", "VPN", "Packages & maintenance", "Diagnostics", "Security", "Schedules", "Router", "Network", "Clients", "WiFi", "Wan", "AdGuard", "Protection", "Performance", "Lifecycle", "Firewall", "Maintenance", "Backup", "Firmware"];
     public string[] Severities { get; } = ["All", "Information", "Success", "Warning", "Error"];
     public string[] DateRanges { get; } = ["Today", "Last 24 Hours", "Last 7 Days", "All"];
 
-    [ObservableProperty] private string selectedCategory = "All";
+    [ObservableProperty] private string selectedCategory = "All activity";
     [ObservableProperty] private string selectedSeverity = "All";
     [ObservableProperty] private string selectedDateRange = "All";
     [ObservableProperty] private string searchText = string.Empty;
 
     public Visibility EmptyStateVisibility => EventsView.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
-    public string EmptyStateText => Events.Count == 0 ? "No timeline events yet." : "No events match the current filters.";
+    public int ContextEventCount => Events.Count(item => item.Timestamp >= _contextStartedAt);
+    public int AttentionCount => Events.Count(item => item.Timestamp >= _contextStartedAt && item.Severity is TimelineSeverity.Warning or TimelineSeverity.Error);
+    public string ActivityCountDisplay => ContextEventCount.ToString("N0");
+    public string AttentionCountDisplay => AttentionCount.ToString("N0");
+    public string AttentionSummary => AttentionCount == 0
+        ? "No attention events recorded"
+        : AttentionCount == 1 ? "1 event needs attention" : $"{AttentionCount:N0} events need attention";
+    public string LatestActivityDisplay => Events.Where(item => item.Timestamp >= _contextStartedAt)
+        .OrderByDescending(item => item.Timestamp).FirstOrDefault()?.TimestampDisplay ?? "Not yet recorded";
+    public string LatestActivityDetail => Events.Where(item => item.Timestamp >= _contextStartedAt)
+        .OrderByDescending(item => item.Timestamp).FirstOrDefault()?.Title ?? "Activity appears as RouterPilot observes it.";
+    public string ContextMessage => _profileWasChanged
+        ? "Showing activity observed after the current router profile was selected."
+        : "Activity is session-only and records safe RouterPilot observations.";
+    public string EmptyStateText => ContextEventCount == 0
+        ? _profileWasChanged
+            ? "No activity has been observed for the current router profile yet."
+            : "No activity has been recorded in this RouterPilot session yet."
+        : "No events match the current filters.";
 
     partial void OnSelectedCategoryChanged(string value) => Refresh();
     partial void OnSelectedSeverityChanged(string value) => Refresh();
@@ -113,6 +136,25 @@ public partial class TimelineViewModel : ObservableObject
         EventsView.Refresh();
         OnPropertyChanged(nameof(EmptyStateVisibility));
         OnPropertyChanged(nameof(EmptyStateText));
+        OnPropertyChanged(nameof(ContextEventCount));
+        OnPropertyChanged(nameof(AttentionCount));
+        OnPropertyChanged(nameof(ActivityCountDisplay));
+        OnPropertyChanged(nameof(AttentionCountDisplay));
+        OnPropertyChanged(nameof(AttentionSummary));
+        OnPropertyChanged(nameof(LatestActivityDisplay));
+        OnPropertyChanged(nameof(LatestActivityDetail));
+        OnPropertyChanged(nameof(ContextMessage));
+    }
+
+    private void Profiles_ActiveProfileChanged(object? sender, EventArgs e)
+    {
+        // Timeline entries are intentionally session-local and older producers
+        // are not profile-stamped. Do not present Router A observations as the
+        // accepted current activity for Router B.
+        _contextStartedAt = DateTimeOffset.UtcNow;
+        _profileWasChanged = true;
+        RebuildPresentation();
+        Refresh();
     }
 
     private void TimelineChanged(object? sender, EventArgs e)
@@ -125,7 +167,9 @@ public partial class TimelineViewModel : ObservableObject
     {
         if (item is not TimelinePresentationItem entry)
             return false;
-        if (SelectedCategory != "All" && !entry.SourceEvents.Any(source => string.Equals(source.Category.ToString(), SelectedCategory, StringComparison.OrdinalIgnoreCase)))
+        if (entry.Timestamp < _contextStartedAt)
+            return false;
+        if (!MatchesCategory(entry))
             return false;
         if (SelectedSeverity != "All" && !string.Equals(entry.Severity.ToString(), SelectedSeverity, StringComparison.OrdinalIgnoreCase))
             return false;
@@ -136,6 +180,17 @@ public partial class TimelineViewModel : ObservableObject
         string query = SearchText.Trim();
         return query.Length == 0 || entry.SearchText.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
+
+    private bool MatchesCategory(TimelinePresentationItem entry) => SelectedCategory switch
+    {
+        "All activity" => true,
+        "Needs attention" => entry.Severity is TimelineSeverity.Warning or TimelineSeverity.Error,
+        "Router & system" => entry.SourceEvents.Any(source => source.Category is TimelineCategory.Router or TimelineCategory.Network or TimelineCategory.Wan or TimelineCategory.Performance or TimelineCategory.Lifecycle or TimelineCategory.Firmware or TimelineCategory.Firewall),
+        "Wi-Fi" => entry.SourceEvents.Any(source => source.Category == TimelineCategory.WiFi),
+        "DNS & protection" => entry.SourceEvents.Any(source => source.Category is TimelineCategory.AdGuard or TimelineCategory.Protection),
+        "Packages & maintenance" => entry.SourceEvents.Any(source => source.Category is TimelineCategory.Maintenance or TimelineCategory.Backup),
+        _ => entry.SourceEvents.Any(source => string.Equals(source.Category.ToString(), SelectedCategory, StringComparison.OrdinalIgnoreCase))
+    };
 
     private void RebuildPresentation()
     {

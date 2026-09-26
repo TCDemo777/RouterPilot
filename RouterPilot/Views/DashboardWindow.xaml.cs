@@ -707,6 +707,8 @@ namespace RouterPilot.Views
             {
                 _firmwareUpdateService.ResetForRouterSession();
                 _viewModel.ClearMapSelection();
+                _viewModel.ClearWifiRadiosForRouterSwitch();
+                _viewModel.WifiRefreshError = string.Empty;
                 _healthSourcesReady = false;
                 _initialFirmwareCheckScheduled = false;
                 await ShowConnectionErrorAsync("Connecting to the selected router...", notifyConnectivityChange: false, clearPreviousData: true);
@@ -1331,6 +1333,12 @@ namespace RouterPilot.Views
                 OverviewButton);
         }
 
+        private void NetworkHealth_Click(object sender, RoutedEventArgs e)
+        {
+            NavigateToHealthTarget("network");
+            SelectNavigationButton(NetworkHealthButton);
+        }
+
         private OverviewView CreateOverviewView() => new(
             _maintenanceViewModel,
             _viewModel,
@@ -1730,6 +1738,7 @@ namespace RouterPilot.Views
             Button[] navigationButtons =
             {
                 OverviewButton,
+                NetworkHealthButton,
                 ProtectionButton,
                 AnalyticsButton,
                 NetworkButton,
@@ -1761,6 +1770,10 @@ namespace RouterPilot.Views
                         ? Brushes.White
                         : _unselectedNavigationForeground;
             }
+
+            HeaderDestination.Text = selectedButton == NetworkHealthButton
+                ? "Network Health"
+                : selectedButton.Content as string ?? "RouterPilot";
         }
 
         private void ProtectionStateNotifier_StateChanged(

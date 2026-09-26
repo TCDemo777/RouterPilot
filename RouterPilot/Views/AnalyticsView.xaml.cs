@@ -74,6 +74,12 @@ namespace RouterPilot.Views
             RefreshReliability();
         }
 
+        private void OpenDataStatistics_Click(object sender, RoutedEventArgs e) =>
+            AnalyticsTabs.SelectedIndex = 1;
+
+        private void OpenDnsActivity_Click(object sender, RoutedEventArgs e) =>
+            AnalyticsTabs.SelectedIndex = 2;
+
         private void RefreshReliability()
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;

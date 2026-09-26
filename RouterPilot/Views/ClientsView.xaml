@@ -26,13 +26,13 @@
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Clients"/>
+                    <TextBlock Style="{DynamicResource Text.PageTitle}" Text="Devices"/>
                     <TextBlock Margin="12,5,0,0" Style="{DynamicResource Text.Secondary}"
                                FontSize="13" FontWeight="SemiBold"
                                Text="{Binding ClientModeLabel}"/>
                 </StackPanel>
             <TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Secondary}"
-                       Text="Connected devices, identity and DNS activity"/>
+                       Text="Current devices, connection context and the details that matter"/>
             </StackPanel>
             <TextBlock Grid.Column="1" Margin="16,5,0,0"
                        HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -46,13 +46,34 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="12"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="8"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="6"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Grid x:Name="FindSortWide">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Devices on your network"/>
+                            <TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding CurrentDeviceSummary}"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Text.Muted}" Text="Current accepted inventory"/>
+                    </Grid>
+                    <WrapPanel Margin="0,14,0,0">
+                        <Border MinWidth="112" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="OBSERVED"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding CurrentDeviceCount}"/></StackPanel></Border>
+                        <Border MinWidth="96" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="WI-FI"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding WifiDeviceCount}"/></StackPanel></Border>
+                        <Border MinWidth="96" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ETHERNET"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding EthernetDeviceCount}"/></StackPanel></Border>
+                        <Border MinWidth="104" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="FAVOURITES"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding FavouriteDeviceCount}"/></StackPanel></Border>
+                        <Border MinWidth="104" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="MONITORED"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding MonitoredDeviceCount}"/></StackPanel></Border>
+                        <Border MinWidth="108" Margin="0,0,10,8" Padding="12,9" Background="{DynamicResource Brush.WarningSubtle}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="9"><StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TO REVIEW"/><TextBlock Margin="0,3,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" Text="{Binding ReviewDeviceCount}"/></StackPanel></Border>
+                    </WrapPanel>
+                </StackPanel>
+
+                <Grid Grid.Row="2" x:Name="FindSortWide">
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
@@ -112,7 +133,7 @@
                 </Grid>
 
                 <!-- At narrow widths this is allowed to wrap as whole controls rather than compressing the search box. -->
-                <WrapPanel x:Name="FindSortNarrow">
+                <WrapPanel Grid.Row="2" x:Name="FindSortNarrow">
                     <WrapPanel.Style>
                         <Style TargetType="WrapPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -139,7 +160,7 @@
                 </WrapPanel>
 
                 <!-- Actions are deliberately separate from the presentation preference. -->
-                <WrapPanel Grid.Row="2" VerticalAlignment="Center">
+                <WrapPanel Grid.Row="4" VerticalAlignment="Center">
                         <Button Height="36" Margin="0,0,8,0" Padding="16,6"
                                 Style="{DynamicResource Button.Secondary}"
                                 Command="{Binding LoadClientsCommand}"
@@ -163,7 +184,7 @@
                 </WrapPanel>
 
                 <!-- Naming is a compact preference row, never mixed with filters. -->
-                <Grid Grid.Row="4">
+                <Grid Grid.Row="6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="18"/>
@@ -188,7 +209,7 @@
                 </Grid>
 
                 <!-- Filters intentionally share one dedicated, naturally wrapping row. -->
-                <WrapPanel Grid.Row="6" VerticalAlignment="Center">
+                <WrapPanel Grid.Row="8" VerticalAlignment="Center">
                         <CheckBox Margin="0,0,18,0"
                                   VerticalAlignment="Center"
                                   FontWeight="SemiBold"
@@ -660,9 +681,9 @@
                 </StackPanel.Style>
                 <TextBlock Style="{StaticResource Icon.EmptyState}" Text="&#xE716;"/>
                 <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.EmptyStateTitle}"
-                           Text="No connected clients"/>
+                           Text="{Binding ClientEmptyTitle}"/>
                 <TextBlock Style="{StaticResource Text.EmptyStateMessage}"
-                           Text="Connected devices will appear here after the next refresh."/>
+                           Text="{Binding ClientEmptyMessage}"/>
             </StackPanel>
             </Grid>
         </Border>

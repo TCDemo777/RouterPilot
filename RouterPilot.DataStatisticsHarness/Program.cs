@@ -315,6 +315,24 @@ static async Task RunReadSeamFixturesAsync()
         !viewModelSource.Contains("DataStatisticsAvailability", StringComparison.Ordinal),
         "Data Statistics ViewModel consumes the service-produced typed fact without retaining legacy availability interpretation");
 
+    string analyticsView = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AnalyticsView.xaml"));
+    string analyticsCodeBehind = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "RouterPilot", "Views", "AnalyticsView.xaml.cs"));
+    Require(analyticsView.Contains("DataContext.StatusTitle, ElementName=DataStatisticsContent", StringComparison.Ordinal) &&
+        analyticsView.Contains("DataContext.StatusDetail, ElementName=DataStatisticsContent", StringComparison.Ordinal) &&
+        analyticsView.Contains("Content=\"View applications\"", StringComparison.Ordinal) &&
+        analyticsView.Contains("Click=\"OpenDataStatistics_Click\"", StringComparison.Ordinal) &&
+        analyticsCodeBehind.Contains("AnalyticsTabs.SelectedIndex = 1", StringComparison.Ordinal) &&
+        analyticsCodeBehind.Contains("await _dataStatistics.EnsureLoadedAsync()", StringComparison.Ordinal),
+        "Analytics hero presents the existing typed Data Statistics state and routes into its existing lazy-load tab");
+    Require(analyticsView.Contains("Text=\"DNS activity\"", StringComparison.Ordinal) &&
+        analyticsView.Contains("AdGuardProtectionStatusText", StringComparison.Ordinal) &&
+        analyticsView.Contains("AdGuardQueriesDisplay", StringComparison.Ordinal) &&
+        analyticsView.Contains("AdGuardBlockedDisplay", StringComparison.Ordinal) &&
+        analyticsView.Contains("AdGuardBlockRateDisplay", StringComparison.Ordinal) &&
+        analyticsView.Contains("Click=\"OpenDnsActivity_Click\"", StringComparison.Ordinal) &&
+        analyticsCodeBehind.Contains("AnalyticsTabs.SelectedIndex = 2", StringComparison.Ordinal),
+        "Analytics overview summarizes existing DNS protection facts and reuses the existing DNS details tab");
+
     Console.WriteLine("Data Statistics read seam fixtures passed.");
 }
 

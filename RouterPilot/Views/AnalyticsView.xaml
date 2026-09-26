@@ -94,6 +94,25 @@
                 <TabItem Header="DNS / Protection" />
             </TabControl>
 
+            <Border Margin="0,0,0,18" Padding="18" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Text.CardCaption}" Text="APPLICATION TRAFFIC" />
+                        <TextBlock Margin="0,5,0,0" FontSize="19" FontWeight="SemiBold"
+                                   Text="{Binding DataContext.StatusTitle, ElementName=DataStatisticsContent}" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                                   Text="{Binding DataContext.StatusDetail, ElementName=DataStatisticsContent}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Style="{DynamicResource Button.Secondary}" Content="View applications"
+                            Click="OpenDataStatistics_Click" />
+                </Grid>
+            </Border>
+
             <StackPanel x:Name="DataStatisticsContent" Visibility="Collapsed">
             <Border Margin="0,0,0,20" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
@@ -186,7 +205,7 @@
 
                     <StackPanel Margin="0,0,0,10">
                         <TextBlock Style="{StaticResource Text.SectionTitle}"
-                                   Text="Top applications" />
+                                   Text="Application activity" />
                         <TextBlock Margin="0,4,0,0"
                                    Style="{StaticResource Text.Muted}"
                                    TextWrapping="Wrap"
@@ -409,6 +428,41 @@
             </StackPanel>
 
             <StackPanel x:Name="OverviewContent">
+            <Border Margin="0,0,0,18" Padding="16" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Text.SectionTitle}" Text="DNS activity" />
+                            <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Secondary}"
+                                       Text="{Binding AdGuardProtectionStatusText}" TextWrapping="Wrap" />
+                            <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Muted}"
+                                       Text="{Binding AdGuardAvailabilityMessage}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top"
+                                Style="{DynamicResource Button.Secondary}" Content="DNS details"
+                                Click="OpenDnsActivity_Click" />
+                    </Grid>
+                    <WrapPanel>
+                        <controls:StatisticCard Width="220" Margin="0,0,10,10"
+                                                AccentBrush="{DynamicResource Brush.Primary}"
+                                                IconBackground="{DynamicResource Brush.PrimarySubtle}"
+                                                IconGlyph="&#xE774;" Subtitle="Requests processed"
+                                                Title="DNS QUERIES" Value="{Binding AdGuardQueriesDisplay}" />
+                        <controls:StatisticCard Width="220" Margin="0,0,10,10"
+                                                AccentBrush="{DynamicResource Brush.Danger}"
+                                                IconBackground="{DynamicResource Brush.DangerSubtle}"
+                                                IconGlyph="&#xE72E;" Subtitle="Stopped by protection"
+                                                Title="BLOCKED QUERIES" Value="{Binding AdGuardBlockedDisplay}" />
+                        <controls:StatisticCard Width="220" Margin="0,0,0,10"
+                                                AccentBrush="{DynamicResource Brush.Success}"
+                                                IconBackground="{DynamicResource Brush.SuccessSubtle}"
+                                                IconGlyph="&#xE9D9;" Subtitle="Share of requests blocked"
+                                                Title="BLOCKING RATE" Value="{Binding AdGuardBlockRateDisplay}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Live network activity -->
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -428,7 +482,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock
                     Style="{StaticResource Text.SectionTitle}"
-                    Text="Live Network Activity" />
+                    Text="Network activity" />
                 <Border
                     Grid.Column="1"
                     Background="{DynamicResource Brush.SurfaceMuted}"

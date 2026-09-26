@@ -93,7 +93,7 @@ internal static partial class PortForwardEditorDialog
             UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
         });
         var internalPort = Input(new TextBox { Text = existing?.InternalPort ?? string.Empty, MinWidth = 180 });
-        var enabled = new CheckBox { Content = "Enabled", IsChecked = existing?.Enabled ?? true };
+        var enabled = new CheckBox { Content = "Enabled (configured mapping active)", IsChecked = existing?.Enabled ?? true };
         var error = new TextBlock { Foreground = owner?.TryFindResource("Brush.Warning") as Brush ?? Brushes.OrangeRed, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
         var intelligence = new Border { Visibility = Visibility.Collapsed, Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 6), CornerRadius = new CornerRadius(4) };
         intelligence.SetResourceReference(Border.BackgroundProperty, "Brush.SurfaceMuted");
@@ -228,9 +228,9 @@ internal static partial class PortForwardEditorDialog
         for (int row = 0; row < 11; row++) form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        AddRow(form, 0, "Name", name); AddRow(form, 1, "Service / Preset", presetHost); AddRow(form, 2, "Protocol", protocol); AddRow(form, 3, "External Port", externalPort); AddRow(form, 4, "Internal Device", deviceHost); AddRow(form, 5, "Internal IP", internalIp); AddRow(form, 6, "Internal Port", internalPort); AddRow(form, 7, string.Empty, enabled);
+        AddRow(form, 0, "Rule name", name); AddRow(form, 1, "Service / preset", presetHost); AddRow(form, 2, "Protocol", protocol); AddRow(form, 3, "External port", externalPort); AddRow(form, 4, "Destination device", deviceHost); AddRow(form, 5, "Destination IP", internalIp); AddRow(form, 6, "Internal port", internalPort); AddRow(form, 7, string.Empty, enabled);
         Grid.SetRow(intelligence, 8); Grid.SetColumn(intelligence, 1); form.Children.Add(intelligence);
-        var note = new TextBlock { Text = "Only forward ports for services you intend to expose to the Internet. Ports must be single values from 1 to 65535.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+        var note = new TextBlock { Text = "External port is where outside clients connect. Internal port is used by the destination service. Saving changes only this configured mapping; it does not prove external reachability.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
         note.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextSecondary"); Grid.SetRow(note, 9); Grid.SetColumn(note, 1); form.Children.Add(note);
         Grid.SetRow(error, 10); Grid.SetColumn(error, 1); form.Children.Add(error);
         RefreshIntelligence();

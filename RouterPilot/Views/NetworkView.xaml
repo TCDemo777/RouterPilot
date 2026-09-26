@@ -334,23 +334,47 @@
 
                     <Border Margin="0,0,0,16" Style="{DynamicResource Card}">
                         <StackPanel>
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <WrapPanel Margin="0,0,0,4" VerticalAlignment="Center">
                                 <StackPanel>
                                     <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Wi-Fi"/>
                                     <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}"
-                                               Text="Configured wireless networks and currently associated clients."/>
+                                               Text="See what your router is broadcasting and which current devices are using Wi-Fi."/>
                                 </StackPanel>
-                                <Button Grid.Column="1" VerticalAlignment="Top" Padding="12,6"
+                                <Button Margin="0,0,0,8" Padding="12,6"
                                         Style="{DynamicResource Button.Secondary}" Click="RestartWifi_Click" Content="Restart Wi-Fi"/>
-                            </Grid>
+                            </WrapPanel>
+                            <TextBlock Margin="0,0,0,12" Style="{DynamicResource Text.Muted}"
+                                       Text="Restarting Wi-Fi may temporarily disconnect wireless devices."/>
 
-                            <Grid Margin="0,0,0,14">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Style="{DynamicResource Text.Muted}" Text="Wi-Fi networks"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiNetworks.Count}"/></StackPanel>
-                                <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.Muted}" Text="Connected Wi-Fi clients"/><TextBlock Margin="0,3,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WifiUniqueClientTotal}"/></StackPanel>
-                                <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.Muted}" Text="Bands"/><TextBlock Margin="0,5,0,0" FontWeight="SemiBold" Text="2.4 GHz • 5 GHz • 6 GHz"/></StackPanel>
-                            </Grid>
+                            <TextBlock Margin="0,0,0,8" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Text="CURRENT ROUTER STATE - READ ONLY"/>
+                            <Border x:Name="WifiExperienceHost" Margin="0,0,0,16" Padding="14"
+                                    Background="{DynamicResource Brush.SurfaceMuted}"
+                                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10">
+                                <WrapPanel>
+                                    <StackPanel MinWidth="145" Margin="0,0,22,8">
+                                        <TextBlock Style="{DynamicResource Text.Muted}" Text="Wireless networks"/>
+                                        <TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold"
+                                                   Text="{Binding ReportedNetworkCountDisplay, Mode=OneWay}"/>
+                                    </StackPanel>
+                                    <StackPanel MinWidth="190" Margin="0,0,22,8">
+                                        <TextBlock Style="{DynamicResource Text.Muted}" Text="Radio state"/>
+                                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Text="{Binding RadioSummary, Mode=OneWay}"/>
+                                    </StackPanel>
+                                    <StackPanel MinWidth="130" Margin="0,0,0,8">
+                                        <TextBlock Style="{DynamicResource Text.Muted}" Text="Reported bands"/>
+                                        <TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Text="{Binding ReportedBands, Mode=OneWay}"/>
+                                    </StackPanel>
+                                    <TextBlock MaxWidth="600" Margin="0,2,0,0"
+                                               Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                               Text="{Binding RadioDetail, Mode=OneWay}"/>
+                                </WrapPanel>
+                            </Border>
+
+                            <TextBlock Margin="0,0,0,10" FontSize="16" FontWeight="SemiBold"
+                                       Text="Wireless networks"/>
 
                             <ItemsControl ItemsSource="{Binding WifiNetworks}">
                                 <ItemsControl.ItemTemplate>
@@ -412,9 +436,47 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="No Wi-Fi networks configured.">
+                            <TextBlock Text="No accepted wireless-network information is available.">
                                 <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Text.EmptyStateMessage}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasWifiNetworks}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="WifiDevicesHost" Margin="0,0,0,16" Padding="16" Style="{DynamicResource Card}">
+                        <StackPanel>
+                            <WrapPanel Margin="0,0,0,12" VerticalAlignment="Center">
+                                <StackPanel Margin="0,0,12,8">
+                                    <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Devices on Wi-Fi"/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}"
+                                               Text="Current devices with an accepted Wi-Fi connection; presence is not inferred from missing data."/>
+                                </StackPanel>
+                                <Button Margin="0,0,0,8" Padding="12,6" Style="{DynamicResource Button.Secondary}"
+                                        Click="ViewWifiDevices_Click" Content="View all devices"/>
+                            </WrapPanel>
+                            <TextBlock Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                       Text="{Binding WifiDeviceSummary, Mode=OneWay}"/>
+                            <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding WifiDevices, Mode=OneWay}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12"
+                                                Background="{DynamicResource Brush.SurfaceMuted}"
+                                                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding Name, Mode=OneWay}"/>
+                                                    <TextBlock Margin="0,3,8,0" Style="{DynamicResource Text.Muted}"
+                                                               TextWrapping="Wrap" Text="{Binding Connection, Mode=OneWay}"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                           Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                                           Text="{Binding PresenceDisplay, Mode=OneWay}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 
@@ -1056,12 +1118,29 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Style="{DynamicResource Text.SectionTitle}" Text="Port Forwarding"/>
-                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Forward inbound WAN traffic to a LAN device."/>
+                                    <TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" Text="Review configured inbound mappings and the LAN destination they target."/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="Refresh" Margin="8,0,0,0" Click="RefreshPortForward_Click"/>
                                 <Button Grid.Column="2" Content="Add Port Forward" Margin="8,0,0,0" Click="AddPortForward_Click" IsEnabled="{Binding PortForwardingWriteSupported, Mode=OneWay}"/>
                             </Grid>
                             <TextBlock Text="{Binding PortForwardStatus, Mode=OneWay}" Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <WrapPanel Margin="0,14,-12,4">
+                                <Border Width="190" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CONFIGURED RULES"/><TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding StaticPortForwardCountDisplay}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="Router-reported mappings"/></StackPanel>
+                                </Border>
+                                <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="ENABLED"/><TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding EnabledStaticPortForwardCountDisplay}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="Configured rules"/></StackPanel>
+                                </Border>
+                                <Border Width="170" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DISABLED"/><TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="SemiBold" Text="{Binding DisabledStaticPortForwardCountDisplay}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="Configured rules"/></StackPanel>
+                                </Border>
+                                <Border Width="260" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CONFIGURATION STATE"/><TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="{Binding PortForwardingLoadState}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding PortForwardingSummaryDetail}" TextWrapping="Wrap"/></StackPanel>
+                                </Border>
+                            </WrapPanel>
+                            <Border Margin="0,0,0,12" Padding="12" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
+                                <TextBlock Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="External port is where outside clients connect. Internal port is used by the service on the destination device. A configured rule does not prove that the device, service, WAN, or upstream network accepts inbound traffic."/>
+                            </Border>
                             <StackPanel Margin="0,10,0,0" Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Style="{DynamicResource Text.Secondary}" Text="Show:"/>
                                 <ComboBox x:Name="PortForwardFilterComboBox"
@@ -1086,20 +1165,23 @@
                                     <DataTemplate>
                                         <Border Margin="0,10,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="8">
                                             <StackPanel>
-                                                <Grid>
+                                                <TextBlock FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding RoutingSummary}"/>
+                                                <Grid Margin="0,10,0,0">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}"/><TextBlock Text="{Binding Enabled, StringFormat=Enabled: {0}}" Style="{DynamicResource Text.Secondary}"/></StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Protocol, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding ExternalPort, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding DestinationIp, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
-                                                    <TextBlock Grid.Column="4" Text="{Binding InternalPort, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextPrimary}"/>
+                                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="RULE"/><TextBlock Margin="0,3,0,0" Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}"/><TextBlock Margin="0,3,0,0" Text="{Binding ConfiguredStateDisplay}" Style="{DynamicResource Text.Secondary}"/></StackPanel>
+                                                    <StackPanel Grid.Column="1"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="PROTOCOL"/><TextBlock Margin="0,3,0,0" Text="{Binding ProtocolDisplay}" Foreground="{DynamicResource Brush.TextPrimary}"/></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="EXTERNAL"/><TextBlock Margin="0,3,0,0" Text="{Binding ExternalPort}" Foreground="{DynamicResource Brush.TextPrimary}"/></StackPanel>
+                                                    <StackPanel Grid.Column="3"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="DESTINATION"/><TextBlock Margin="0,3,0,0" Text="{Binding DestinationIp}" Foreground="{DynamicResource Brush.TextPrimary}"/></StackPanel>
+                                                    <StackPanel Grid.Column="4"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="INTERNAL"/><TextBlock Margin="0,3,0,0" Text="{Binding InternalPort}" Foreground="{DynamicResource Brush.TextPrimary}"/></StackPanel>
                                                     <StackPanel Grid.Column="5" Orientation="Horizontal">
                                                         <Button Content="Edit" Tag="{Binding}" Click="EditPortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                                         <Button Content="Enable / Disable" Tag="{Binding}" Margin="6,0,0,0" Click="TogglePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                                         <Button Content="Delete" Tag="{Binding}" Margin="6,0,0,0" Click="DeletePortForward_Click" IsEnabled="{Binding DataContext.PortForwardingWriteSupported, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                                     </StackPanel>
                                                 </Grid>
-                                                <TextBlock Margin="0,8,0,0" Text="{Binding TargetClientName}" Foreground="{DynamicResource Brush.TextSecondary}" Visibility="{Binding HasTargetClientName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <Border Margin="0,10,0,0" Padding="10" Background="{DynamicResource Brush.Surface}" CornerRadius="6">
+                                                    <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TARGET DEVICE"/><TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding TargetDisplay}"/><TextBlock Margin="0,3,0,0" Style="{DynamicResource Text.Muted}" Text="Friendly device identity is shown only when RouterPilot has an accepted match." TextWrapping="Wrap"/></StackPanel>
+                                                </Border>
                                                 <StackPanel Margin="0,5,0,0" Visibility="{Binding HasTargetStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <TextBlock Text="{Binding TargetStatusTitle}" FontSize="12" FontWeight="SemiBold">
                                                         <TextBlock.Style>
@@ -1120,7 +1202,14 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                            <Border Margin="0,12,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8"><TextBlock Text="No port forwarding rules are configured."><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Network.Value}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding PortForwardRules.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Border>
+                            <Border Margin="0,12,0,0" Padding="16" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
+                                <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding PortForwardingSupported}" Value="True"/><Condition Binding="{Binding PortForwardIsLoading}" Value="False"/><Condition Binding="{Binding PortForwardRules.Count}" Value="0"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+                                <StackPanel><TextBlock Style="{DynamicResource Text.EmptyStateTitle}" Text="No port forwards configured"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="Port forwarding creates a configured inbound mapping from the router WAN to a device on your network. Add one only for a service you intend to make available."/></StackPanel>
+                            </Border>
+                            <Border Margin="0,12,0,0" Padding="16" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Warning}" BorderThickness="1" CornerRadius="8">
+                                <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding PortForwardingSupported}" Value="False"/><Condition Binding="{Binding PortForwardIsLoading}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+                                <StackPanel><TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" Text="Port forwarding information unavailable"/><TextBlock Margin="0,5,0,0" Style="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Text="RouterPilot could not read this router's configured forwarding rules. Refresh to try again; no rule changes were made."/></StackPanel>
+                            </Border>
                             <Border x:Name="NoPortForwardAttentionRulesState" Margin="0,12,0,0" Padding="14" Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
                                 <TextBlock Style="{DynamicResource Network.Value}" FontWeight="Normal" Text="No port forwarding rules need attention."/>
                             </Border>

@@ -80,8 +80,10 @@
                                Text="{Binding ActiveOperation, TargetNullValue=Ready}" />
                 </Border>
             </Grid>
+            <TextBlock Margin="0,0,0,12" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                       Text="Restarting Wi-Fi, AdGuard Home, WAN or the router can briefly interrupt the affected service. Existing confirmation appears before these actions run." />
 
-            <ItemsControl ItemsSource="{Binding Actions}">
+            <ItemsControl ItemsSource="{Binding RoutineActions}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
@@ -295,6 +297,56 @@
                     </StackPanel>
                 </Grid>
             </Border>
+
+            -->
+            <Border x:Name="ServiceActionsSection" Style="{StaticResource SectionContainerStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Service actions" />
+                    <TextBlock Margin="0,5,0,12" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                               Text="These controls can interrupt a router service or the network. Use them only when you intend that interruption." />
+                    <ItemsControl ItemsSource="{Binding ServiceActions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border MinHeight="184" Height="184" Margin="0,0,12,12" Padding="16"
+                                        Background="{DynamicResource Brush.Surface}"
+                                        BorderBrush="{DynamicResource Brush.Border}"
+                                        BorderThickness="1" CornerRadius="12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="15" FontWeight="SemiBold" LineHeight="18" MaxHeight="36"
+                                                       TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding Title}" />
+                                            <TextBlock Grid.Column="1" Margin="8,7,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
+                                                       Text="{Binding Availability}" ToolTip="{Binding AvailabilityReason}" />
+                                        </Grid>
+                                        <StackPanel Grid.Row="1" Margin="0,6,0,8">
+                                            <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Text="{Binding Description}" />
+                                            <TextBlock Margin="0,9,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="{Binding LastRun, StringFormat=Last run: {0}}" />
+                                            <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{Binding LastResultColour}"
+                                                       Text="{Binding LastResult, StringFormat=Last result: {0}}" />
+                                        </StackPanel>
+                                        <Button Grid.Row="2" MinWidth="116" Height="36" HorizontalAlignment="Left"
+                                                Style="{DynamicResource Button.Secondary}" Content="Run action"
+                                                IsEnabled="{Binding IsAvailable}" ToolTip="{Binding AvailabilityReason}"
+                                                Click="RunAction_Click" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+            <!--
                 </StackPanel>
             </Border>
 
@@ -375,6 +427,7 @@
             <Border x:Name="BackupSection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Backup &amp; Restore" />
+            <TextBlock Margin="0,5,0,14" Style="{StaticResource Text.Secondary}" Text="Protect RouterPilot's local configuration and history. Router configuration backup is not available from this screen." TextWrapping="Wrap" />
             <Border Padding="0" BorderThickness="0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -385,8 +438,12 @@
                         <TextBlock Style="{StaticResource Text.SectionTitle}" Text="RouterPilot data" />
                          <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
                                     Text="Back up settings, notification history, client profiles and service schedules in one portable .rpb package." />
+                         <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                                    Text="This captures RouterPilot data, not the router's configuration." />
                          <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
                                     Text="Backup files are not encrypted. Passwords remain protected by Windows; store backups securely." />
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                                   Text="Restore imports selected RouterPilot data and may replace app settings. RouterPilot validates the archive, previews its contents, and creates a pre-restore backup before final confirmation." />
                         <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.Secondary}"
                                    Text="{Binding LastBackupDate, StringFormat=Last backup: {0}}" />
                         <TextBlock Margin="0,4,0,0" Style="{StaticResource Text.Secondary}"
@@ -398,9 +455,11 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Top">
                         <Button Width="156" Height="36" Margin="0,0,0,10" IsEnabled="{Binding CanManageBackups}"
-                                Style="{DynamicResource Button.Primary}" Content="Create Backup" Click="CreateBackup_Click" />
-                        <Button Width="156" Height="36" Margin="0,0,0,10" IsEnabled="{Binding CanManageBackups}"
-                                Style="{DynamicResource Button.Secondary}" Content="Restore Backup" Click="RestoreBackup_Click" />
+                                Style="{DynamicResource Button.Primary}" Content="Create Backup" ToolTip="Save RouterPilot settings, history and profiles to a portable backup." Click="CreateBackup_Click" />
+                        <Button Width="156" Height="36" Margin="0,0,0,6" IsEnabled="{Binding CanManageBackups}"
+                                Style="{DynamicResource Button.Secondary}" Content="Restore Backup" ToolTip="Restoring may replace current RouterPilot settings. Validation and confirmation are required." Click="RestoreBackup_Click" />
+                        <TextBlock Width="156" Margin="0,0,0,10" Style="{DynamicResource Text.Muted}" TextWrapping="Wrap"
+                                   Text="Restore can replace current RouterPilot settings." />
                         <Button Width="156" Height="36" Style="{DynamicResource Button.Secondary}"
                                 Content="Open Backup Folder" Click="OpenBackupFolder_Click" />
                     </StackPanel>
@@ -411,7 +470,8 @@
 
             <Border x:Name="HistorySection" Style="{StaticResource SectionContainerStyle}">
                 <StackPanel>
-            <TextBlock x:Name="MaintenanceHistoryHeading" Style="{StaticResource SectionHeaderStyle}" Text="Maintenance history" />
+            <TextBlock x:Name="MaintenanceHistoryHeading" Style="{StaticResource SectionHeaderStyle}" Text="Maintenance events" />
+            <TextBlock Margin="0,5,0,12" Style="{StaticResource Text.Secondary}" Text="Completed, failed, and cancelled maintenance operations. This history is observational; it does not run actions." TextWrapping="Wrap" />
             <Border Padding="0" BorderBrush="{DynamicResource Brush.Border}"
                     BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                 <Grid>

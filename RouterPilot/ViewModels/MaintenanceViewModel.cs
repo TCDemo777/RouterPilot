@@ -92,6 +92,14 @@ public sealed partial class MaintenanceViewModel : ObservableObject
     public ReadOnlyObservableCollection<MaintenanceHistoryEntry> History { get; }
 
     public ObservableCollection<MaintenanceActionItem> Actions { get; }
+
+    // Keep safe, informational tools ahead of controls that can interrupt a service.
+    // The underlying action collection and execution semantics remain unchanged.
+    public IEnumerable<MaintenanceActionItem> RoutineActions => Actions.Where(action =>
+        action.Action is MaintenanceAction.RefreshAll or MaintenanceAction.RunDiagnostics or MaintenanceAction.BackupDiagnostics);
+
+    public IEnumerable<MaintenanceActionItem> ServiceActions => Actions.Where(action =>
+        action.Action is MaintenanceAction.RestartWifi or MaintenanceAction.RestartAdGuard or MaintenanceAction.ReconnectWan or MaintenanceAction.RebootRouter);
     public ObservableCollection<DiagnosticCheck> DiagnosticChecks { get; } = new();
     public string DiagnosticsStatus { get; private set; } = "No diagnostic run in this session.";
     public bool IsDiagnosticsRunning { get; private set; }

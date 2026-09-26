@@ -22,80 +22,82 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock FontSize="26" FontWeight="Bold" Text="Router"/>
+        <TextBlock FontSize="26" FontWeight="Bold" Text="Router &amp; System"/>
         <TextBlock Grid.Row="1" Margin="0,4,0,18" Style="{DynamicResource Text.Muted}"
-                   Text="Read-only router telemetry and diagnostics"/>
+                   Text="Your router identity, current system performance and software details"/>
         <TabControl x:Name="RouterTabs" Grid.Row="2" Margin="0,0,0,14"
                     Style="{StaticResource RouterPilotTabControlStyle}"
                     ItemContainerStyle="{StaticResource RouterPilotTabItemStyle}">
             <TabItem Header="Overview">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <UniformGrid Columns="2" Margin="0,18,0,0">
-                        <GroupBox Header="IDENTITY" Margin="0,0,12,12">
-                            <StackPanel Margin="14">
-                                <TextBlock Text="Model" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock FontSize="16" Text="{Binding RouterModel}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Hostname" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding Hostname}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Firmware" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding RouterFirmwareVersion}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Kernel" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding RouterKernelVersion}" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterKernelVersion}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Architecture" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding RouterArchitecture}" TextTrimming="CharacterEllipsis" ToolTip="{Binding RouterArchitecture}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Uptime" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding Uptime}"/>
-                            </StackPanel>
-                        </GroupBox>
-                        <GroupBox Header="SYSTEM" Margin="12,0,0,12">
-                            <StackPanel Margin="14">
-                                <TextBlock Text="CPU" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock FontSize="16" Text="{Binding CpuUsageDisplay}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Memory" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock FontSize="16" Text="{Binding MemoryUsage}"/>
-                                <Grid Margin="0,6,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryTotal, StringFormat=Total: {0}}"/>
-                                    <TextBlock Grid.Column="1" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryUsed, StringFormat=Used: {0}}"/>
-                                    <TextBlock Grid.Row="1" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryAvailable, StringFormat=Available: {0}}"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryBuffered, StringFormat=Buffered: {0}}"/>
-                                    <TextBlock Grid.Row="2" Margin="0,3,0,0" Style="{DynamicResource Text.Secondary}" Text="{Binding MemoryCache, StringFormat=Cached: {0}}"/>
-                                </Grid>
-                                <TextBlock Margin="0,10,0,0" Text="Temperature" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding Temperature}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Storage" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding StorageUsage}"/>
-                            </StackPanel>
-                        </GroupBox>
-                        <GroupBox Header="NETWORK" Margin="0,0,12,12">
-                            <StackPanel Margin="14">
-                                <TextBlock Text="Internet / WAN" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock FontSize="16" Text="{Binding InternetStatusText}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Router public IP" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding PublicIpDisplay}"/>
-                                <TextBlock Margin="0,10,0,0" Text="DNS server" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding DnsServer}"/>
-                            </StackPanel>
-                        </GroupBox>
-                        <GroupBox Header="SERVICES" Margin="12,0,0,12">
-                            <StackPanel Margin="14">
-                                <TextBlock Text="AdGuard" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock FontSize="16" Text="{Binding AdGuardServiceDisplay}"/>
-                                <TextBlock Margin="0,10,0,0" Text="VPN" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding VpnStatusText}"/>
-                                <TextBlock Margin="0,10,0,0" Text="Wi-Fi summary" Style="{DynamicResource Text.Muted}"/>
-                                <TextBlock Text="{Binding WifiSignalEmptyMessage}"/>
-                            </StackPanel>
-                        </GroupBox>
-                    </UniformGrid>
+                    <StackPanel Margin="0,18,0,0">
+                        <Border Margin="0,0,0,18" Padding="20" Style="{DynamicResource Card}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{DynamicResource Text.CardCaption}" Text="CURRENTLY MANAGING"/>
+                                    <TextBlock Margin="0,6,12,0" FontSize="26" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" Text="{Binding RouterModel}"/>
+                                    <TextBlock Margin="0,2,12,0" Text="{Binding CurrentRouterProfileName}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CurrentRouterProfileName}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Margin="0,4,12,0" Style="{DynamicResource Text.Secondary}"
+                                               TextWrapping="Wrap" Text="{Binding Hostname}"/>
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <StackPanel Margin="0,0,24,4"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="FIRMWARE"/><TextBlock Margin="0,3,0,0" Text="{Binding RouterFirmwareVersion}"/></StackPanel>
+                                        <StackPanel Margin="0,0,24,4"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="UPTIME"/><TextBlock Margin="0,3,0,0" Text="{Binding Uptime}"/></StackPanel>
+                                    </WrapPanel>
+                                </StackPanel>
+                                <Border Grid.Column="1" Margin="12,0,0,0" Padding="12,8" VerticalAlignment="Top"
+                                        Background="{DynamicResource Brush.SurfaceMuted}" BorderBrush="{DynamicResource Brush.Border}"
+                                        BorderThickness="1" CornerRadius="8">
+                                    <TextBlock FontWeight="SemiBold" Foreground="{Binding RouterStatusColour}"
+                                               Text="{Binding RouterStatusText}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Margin="0,0,0,10" Style="{DynamicResource Text.SectionTitle}" Text="System performance"/>
+                        <WrapPanel Margin="0,0,-12,8">
+                            <Border Width="205" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="CPU"/><TextBlock Margin="0,7,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding CpuUsageDisplay}"/></StackPanel>
+                            </Border>
+                            <Border Width="205" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="MEMORY"/><TextBlock Margin="0,7,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding MemoryUsage}"/><TextBlock Margin="0,4,0,0" Style="{DynamicResource Text.Muted}" Text="{Binding MemoryTotal, StringFormat=Total: {0}}"/></StackPanel>
+                            </Border>
+                            <Border Width="205" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="TEMPERATURE"/><TextBlock Margin="0,7,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Temperature}"/></StackPanel>
+                            </Border>
+                            <Border Width="205" Margin="0,0,12,12" Style="{DynamicResource Card.Compact}">
+                                <StackPanel><TextBlock Style="{DynamicResource Text.CardCaption}" Text="STORAGE"/><TextBlock Margin="0,7,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding StorageUsage}"/></StackPanel>
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock Margin="0,0,0,10" Style="{DynamicResource Text.SectionTitle}" Text="Router software"/>
+                        <Border Margin="0,0,0,18" Padding="16" Style="{DynamicResource Card}">
+                            <WrapPanel>
+                                <StackPanel MinWidth="190" Margin="0,0,24,8"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="FIRMWARE"/><TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding RouterFirmwareVersion}"/></StackPanel>
+                                <StackPanel MinWidth="190" Margin="0,0,24,8"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="KERNEL"/><TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding RouterKernelVersion}"/></StackPanel>
+                                <StackPanel MinWidth="150" Margin="0,0,0,8"><TextBlock Style="{DynamicResource Text.CardCaption}" Text="PLATFORM"/><TextBlock Margin="0,4,0,0" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding RouterArchitecture}"/></StackPanel>
+                            </WrapPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,0,0,10" Style="{DynamicResource Text.SectionTitle}" Text="Connectivity &amp; services"/>
+                        <UniformGrid Columns="2">
+                            <GroupBox Header="INTERNET / WAN" Margin="0,0,12,12"><StackPanel Margin="14"><TextBlock FontSize="16" Text="{Binding InternetStatusText}"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="Router public IP"/><TextBlock Text="{Binding PublicIpDisplay}"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="DNS server"/><TextBlock Text="{Binding DnsServer}"/></StackPanel></GroupBox>
+                            <GroupBox Header="SERVICES" Margin="12,0,0,12"><StackPanel Margin="14"><TextBlock Style="{DynamicResource Text.Muted}" Text="AdGuard Home"/><TextBlock FontSize="16" Text="{Binding AdGuardServiceDisplay}"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="VPN"/><TextBlock Text="{Binding VpnStatusText}"/><TextBlock Margin="0,8,0,0" Style="{DynamicResource Text.Muted}" Text="Wi-Fi summary"/><TextBlock Text="{Binding WifiSignalEmptyMessage}"/></StackPanel></GroupBox>
+                        </UniformGrid>
+                        <TextBlock Margin="0,2,0,12" Style="{DynamicResource Text.Muted}"
+                                   Text="More detailed performance history and diagnostics are available in the tabs above." TextWrapping="Wrap"/>
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Ports">
