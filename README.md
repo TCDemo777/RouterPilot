@@ -6,6 +6,10 @@
 
 Companion for GL.iNet Routers & AdGuard Home
 
+RouterPilot's product direction and engineering contracts are available in the
+[RouterPilot 3.0 Vision](docs/architecture/ROUTERPILOT_3.0_VISION.md) and
+[RouterPilot 3.0 Architecture](docs/architecture/ROUTERPILOT_3.0_ARCHITECTURE.md).
+
 ## Features
 
 - Router overview with connection, WAN, public-IP, Wi-Fi, resource, firmware and Network Health status
@@ -49,7 +53,7 @@ The AdGuard Home and GL.iNet Tailscale updater integrations use independent comm
 
 ## Security
 
-RouterPilot includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) and [SECURITY-AUDIT-v1.8.1.md](SECURITY-AUDIT-v1.8.1.md) for the security model and documented compatibility considerations.
+RouterPilot includes SSH host-key verification, HTTPS certificate trust-on-first-use, Windows DPAPI-protected stored credentials, diagnostic redaction, hardened update URL handling and validated backup/restore archives. See [SECURITY.md](SECURITY.md) for the security model and documented compatibility considerations.
 
 The public repository is [TCDemo777/RouterPilot](https://github.com/TCDemo777/RouterPilot). RouterPilot now uses `%LocalAppData%\RouterPilot`; on first startup it safely copies supported legacy files from `%LocalAppData%\AdGuardTray` without changing or deleting the legacy folder.
 

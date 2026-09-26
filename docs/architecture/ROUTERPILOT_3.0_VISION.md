@@ -181,4 +181,4 @@ RouterPilot 3.0 succeeds when:
 
 This document defines why RouterPilot 3.0 exists and the product principles that should guide it. It does not prescribe implementation structure, a backlog, release schedule, or a rewrite.
 
-`ROUTERPILOT_3.0_ARCHITECTURE.md` will define the technical architecture needed to deliver this vision. Implementation work should not begin until that architecture document has been reviewed.
+The companion [RouterPilot 3.0 Architecture](ROUTERPILOT_3.0_ARCHITECTURE.md) records the technical contracts that continue to guide RouterPilot's evolution.
